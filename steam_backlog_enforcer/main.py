@@ -25,11 +25,18 @@ from python_pkg.steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     send_notification,
 )
-from python_pkg.steam_backlog_enforcer.hltb import fetch_hltb_times_cached
+from python_pkg.steam_backlog_enforcer.hltb import (
+    fetch_hltb_times_cached,
+    get_hltb_submit_url,
+)
 from python_pkg.steam_backlog_enforcer.library_hider import (
     hide_other_games,
     restart_steam,
     unhide_all_games,
+)
+from python_pkg.steam_backlog_enforcer.protondb import (
+    ProtonDBRating,
+    fetch_protondb_ratings,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 from python_pkg.steam_backlog_enforcer.store_blocker import (
@@ -411,7 +418,21 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
     incomplete = [(g.app_id, g.name) for g in games if not g.is_complete]
     if incomplete:
         _echo(f"Fetching HLTB completion times for {len(incomplete)} games...")
-        hltb_cache = fetch_hltb_times_cached(incomplete)
+
+        def hltb_progress(done: int, total: int, found: int, name: str) -> None:
+            pct = done * 100 // total
+            bar_w = 30
+            filled = bar_w * done // total
+            bar = "█" * filled + "░" * (bar_w - filled)
+            _echo(
+                f"\r  HLTB [{bar}] {done}/{total} ({pct}%) "
+                f"| {found} found | {name[:30]:<30s}",
+                end="",
+                flush=True,
+            )
+
+        hltb_cache = fetch_hltb_times_cached(incomplete, progress_cb=hltb_progress)
+        _echo("")  # newline after progress bar
         for g in games:
             hours = hltb_cache.get(g.app_id, -1)
             g.completionist_hours = hours
@@ -432,8 +453,52 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
     return games
 
 
+# How many candidates to check per ProtonDB batch.
+_PROTONDB_BATCH_SIZE = 20
+
+
+def _pick_playable_candidate(
+    candidates: list[GameInfo],
+) -> GameInfo | None:
+    """Return the first candidate with an acceptable ProtonDB rating.
+
+    Checks candidates in batches (sorted by HLTB hours, shortest first).
+    Games rated silver-or-worse, or gold-trending-down, are skipped.
+    """
+    offset = 0
+    while offset < len(candidates):
+        batch = candidates[offset : offset + _PROTONDB_BATCH_SIZE]
+        app_ids = [g.app_id for g in batch]
+        ratings = fetch_protondb_ratings(app_ids)
+
+        for game in batch:
+            rating = ratings.get(game.app_id, ProtonDBRating(app_id=game.app_id))
+            if rating.is_playable:
+                if offset > 0 or game is not batch[0]:
+                    _echo(
+                        f"  Skipped {offset + batch.index(game)} game(s) "
+                        f"with poor Linux compatibility"
+                    )
+                return game
+            logger.info(
+                "Skipping %s (AppID=%d): ProtonDB %s (trending %s)",
+                game.name,
+                game.app_id,
+                rating.tier,
+                rating.trending_tier,
+            )
+
+        offset += _PROTONDB_BATCH_SIZE
+
+    return None
+
+
 def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
-    """Select the next game: shortest completionist time first."""
+    """Select the next game: shortest completionist time first.
+
+    Games with silver-or-worse ProtonDB ratings (or gold trending
+    downward) are automatically skipped as unplayable on Linux.
+    """
     skip = set(config.skip_app_ids) | set(state.finished_app_ids)
     candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
 
@@ -451,7 +516,16 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
         return (1, g.name.lower().encode().hex().__hash__())
 
     candidates.sort(key=sort_key)
-    chosen = candidates[0]
+
+    # Filter out Linux-incompatible games via ProtonDB.
+    chosen = _pick_playable_candidate(candidates)
+
+    if chosen is None:
+        _echo("\nNo playable games left (all have poor ProtonDB ratings)!")
+        state.current_app_id = None
+        state.current_game_name = ""
+        state.save()
+        return
 
     state.current_app_id = chosen.app_id
     state.current_game_name = chosen.name
@@ -466,7 +540,12 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
         f" ({chosen.completion_pct:.1f}%)"
     )
 
-    # Auto-install the newly assigned game.
+    # Uninstall all other games first, then auto-install the assigned one.
+    if config.uninstall_other_games:
+        count = uninstall_other_games(chosen.app_id)
+        if count:
+            _echo(f"\n  Uninstalled {count} non-assigned games")
+
     if not is_game_installed(chosen.app_id):
         _echo(f"\n  Auto-installing {chosen.name}...")
         install_game(chosen.app_id, chosen.name, config.steam_id)
@@ -986,6 +1065,109 @@ def cmd_unhide(config: Config, _state: State) -> None:
         _echo("Done!")
 
 
+def _open_hltb_submit_page(
+    game_name: str,
+    app_id: int,
+    snapshot_data: list[dict[str, Any]] | None,
+) -> None:
+    """Show playtime and open the HLTB submit page in the browser."""
+    playtime_minutes = 0
+    if snapshot_data:
+        for entry in snapshot_data:
+            if entry.get("app_id") == app_id:
+                playtime_minutes = entry.get("playtime_minutes", 0)
+                break
+
+    playtime_h = playtime_minutes / 60
+    _echo(f"\n  Steam playtime: {playtime_h:.1f} hours")
+
+    _echo("  Looking up game on HowLongToBeat...")
+    submit_url = get_hltb_submit_url(game_name)
+    if submit_url:
+        _echo(f"  HLTB submit page: {submit_url}")
+        _echo("  Opening in browser (log in & submit your time)...")
+        import webbrowser
+
+        webbrowser.open(submit_url)
+    else:
+        _echo("  Could not find game on HLTB (submit manually).")
+
+
+def cmd_done(config: Config, state: State) -> None:
+    """Check completion, open HLTB submit, pick next game, uninstall & hide.
+
+    All-in-one command for after finishing a game:
+    1. Verify 100% achievements on Steam.
+    2. Show playtime and open HLTB submit page in browser.
+    3. Pick the next game (shortest HLTB 100% time).
+    4. Uninstall all non-assigned games.
+    5. Hide all non-assigned games in the Steam library.
+    6. Install the newly assigned game.
+    """
+    if state.current_app_id is None:
+        _echo("No game currently assigned. Run 'scan' first.")
+        return
+
+    client = SteamAPIClient(config.steam_api_key, config.steam_id)
+    game_name = state.current_game_name
+    app_id = state.current_app_id
+
+    _echo(f"Checking {game_name} (AppID={app_id})...")
+    game = client.refresh_single_game(app_id, game_name)
+    if game is None:
+        _echo("  Could not fetch achievement data from Steam.")
+        return
+
+    _echo(
+        f"  Progress: {game.unlocked_achievements}/{game.total_achievements}"
+        f" ({game.completion_pct:.1f}%)"
+    )
+
+    if not game.is_complete:
+        remaining = game.total_achievements - game.unlocked_achievements
+        _echo(f"\n  NOT COMPLETE: {remaining} achievements remaining. Keep going!")
+        return
+
+    # ── Step 1: Mark complete ──
+    _echo(f"\n  COMPLETED: {game_name}!")
+    state.finished_app_ids.append(app_id)
+
+    # ── Step 2: HLTB submit ──
+    snapshot_data = load_snapshot()
+    _open_hltb_submit_page(game_name, app_id, snapshot_data)
+
+    # ── Step 3: Pick next game ──
+    _echo("\nPicking next game...")
+    if not snapshot_data:
+        _echo("  No snapshot found. Run 'scan' first.")
+        state.current_app_id = None
+        state.current_game_name = ""
+        state.save()
+        return
+
+    games = [GameInfo.from_snapshot(d) for d in snapshot_data]
+    pick_next_game(games, state, config)
+
+    if state.current_app_id is None:
+        _echo("  No more games to assign!")
+        return
+
+    # ── Step 4: Hide non-assigned games in library ──
+    owned_ids = _get_all_owned_app_ids(config)
+    if owned_ids:
+        hidden = hide_other_games(owned_ids, state.current_app_id)
+        if hidden > 0:
+            _echo(f"\n  Library: hid {hidden} games")
+            restart_steam()
+            _echo("  Steam restarted to apply library changes.")
+
+    send_notification(
+        "Game Complete!",
+        f"Finished {game_name}! Now playing: {state.current_game_name}",
+    )
+    _echo(f"\nAll done! Go play {state.current_game_name}!")
+
+
 COMMANDS = {
     "scan": ("Scan library & assign a game", do_scan),
     "check": ("Check assigned game completion", do_check),
@@ -1001,6 +1183,7 @@ COMMANDS = {
     "installed": ("List installed games", cmd_installed),
     "uninstall": ("Uninstall all non-assigned games", cmd_uninstall),
     "setup": ("Run first-time setup", cmd_setup),
+    "done": ("Finish game, open HLTB, pick next", cmd_done),
 }
 
 
