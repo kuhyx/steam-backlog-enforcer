@@ -39,9 +39,28 @@ IPTABLES_CHAIN = "STEAM_ENFORCER"
 _SUDO = shutil.which("sudo") or "/usr/bin/sudo"
 _IPTABLES = shutil.which("iptables") or "/usr/sbin/iptables"
 _BASH = shutil.which("bash") or "/usr/bin/bash"
+_CHATTR = shutil.which("chattr") or "/usr/bin/chattr"
+_SYSTEMCTL = shutil.which("systemctl") or "/usr/bin/systemctl"
+_UMOUNT = shutil.which("umount") or "/usr/bin/umount"
+_MOUNT = shutil.which("mount") or "/usr/bin/mount"
+_FINDMNT = shutil.which("findmnt") or "/usr/bin/findmnt"
+_CP = shutil.which("cp") or "/usr/bin/cp"
+_CHMOD = shutil.which("chmod") or "/usr/bin/chmod"
+_TEE = shutil.which("tee") or "/usr/bin/tee"
 
 # IP address used in /etc/hosts for blocking domains.
 _HOSTS_REDIRECT_IP = ".".join(["0"] * 4)
+
+
+def _sudo_write_hosts(content: str) -> None:
+    """Write *content* to /etc/hosts via ``sudo tee``."""
+    subprocess.run(
+        [_SUDO, _TEE, str(HOSTS_FILE)],
+        input=content.encode(),
+        stdout=subprocess.DEVNULL,
+        timeout=10,
+        check=True,
+    )
 
 
 def is_store_blocked() -> bool:
@@ -66,10 +85,21 @@ def is_store_blocked() -> bool:
 
 
 def block_store() -> bool:
-    """Block Steam Store: run hosts install script + iptables fallback.
+    """Block Steam Store: uncomment hosts entries, or run install script.
 
     Returns True if at least one blocking method succeeded.
     """
+    if is_store_blocked():
+        logger.info("Steam Store already blocked in /etc/hosts.")
+        return True
+
+    # Try quick re-block (uncomment lines) first.
+    if _reblock_hosts() and is_store_blocked():
+        _block_store_iptables()
+        flush_dns_cache()
+        return True
+
+    # Fall back to the full hosts install script.
     hosts_ok = _block_via_hosts_install()
     ipt_ok = _block_store_iptables()
 
@@ -201,25 +231,17 @@ def _block_store_iptables() -> bool:
 
 
 def unblock_store() -> bool:
-    """Remove iptables-based Steam Store blocks.
-
-    NOTE: /etc/hosts entries are NOT removed — the hosts install script's
-    protection mechanism intentionally makes removal difficult. Only
-    iptables rules are cleared.
-    """
+    """Remove Steam Store blocks from both iptables and /etc/hosts."""
     ipt_ok = _unblock_store_iptables()
+    hosts_ok = _unblock_hosts()
     flush_dns_cache()
 
     if not ipt_ok:
         logger.warning("Failed to remove iptables rules.")
+    if not hosts_ok:
+        logger.warning("Failed to remove /etc/hosts entries.")
 
-    logger.warning(
-        "Steam Store entries in /etc/hosts are protected and cannot be "
-        "removed programmatically. This is by design — you must manually "
-        "remove the immutable flag, bind mount, and edit the hosts install "
-        "script to unblock."
-    )
-    return ipt_ok
+    return ipt_ok or hosts_ok
 
 
 def _unblock_store_iptables() -> bool:
@@ -266,3 +288,144 @@ def flush_dns_cache() -> None:
                 timeout=5,
                 check=False,
             )
+
+
+# ──────────────────────────────────────────────────────────────
+# /etc/hosts protection helpers
+# ──────────────────────────────────────────────────────────────
+
+_GUARD_SERVICES = ("hosts-bind-mount.service", "hosts-guard.path")
+_LOCKED_HOSTS_COPY = Path("/usr/local/share/locked-hosts")
+
+
+def _disable_hosts_protection() -> None:
+    """Stop guard services, unmount bind mount, remove chattr flags."""
+    for svc in _GUARD_SERVICES:
+        subprocess.run(
+            [_SUDO, _SYSTEMCTL, "stop", svc],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+
+    # Unmount bind mount if active.
+    result = subprocess.run(
+        [_FINDMNT, str(HOSTS_FILE)],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    if result.returncode == 0:
+        subprocess.run(
+            [_SUDO, _UMOUNT, str(HOSTS_FILE)],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+
+    # Remove immutable + append-only attributes.
+    subprocess.run(
+        [_SUDO, _CHATTR, "-i", "-a", str(HOSTS_FILE)],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+
+def _enable_hosts_protection() -> None:
+    """Re-apply chattr flags and restart guard services."""
+    subprocess.run(
+        [_SUDO, _CHMOD, "644", str(HOSTS_FILE)],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    subprocess.run(
+        [_SUDO, _CHATTR, "+ia", str(HOSTS_FILE)],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    # Update the canonical copy so the guard doesn't revert changes.
+    if _LOCKED_HOSTS_COPY.exists():
+        subprocess.run(
+            [_SUDO, _CP, str(HOSTS_FILE), str(_LOCKED_HOSTS_COPY)],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+
+    for svc in _GUARD_SERVICES:
+        subprocess.run(
+            [_SUDO, _SYSTEMCTL, "start", svc],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+
+
+def _unblock_hosts() -> bool:
+    """Comment out Steam Store entries in /etc/hosts."""
+    if not is_store_blocked():
+        logger.info("Steam Store not blocked in /etc/hosts, nothing to do.")
+        return True
+
+    try:
+        _disable_hosts_protection()
+        content = HOSTS_FILE.read_text(encoding="utf-8")
+        new_lines = []
+        changed = False
+        for line in content.splitlines(keepends=True):
+            stripped = line.strip()
+            if (
+                not stripped.startswith("#")
+                and stripped.startswith(_HOSTS_REDIRECT_IP)
+                and any(d in stripped for d in BLOCKED_DOMAINS)
+            ):
+                new_lines.append(f"# {line}" if line.endswith("\n") else f"# {line}\n")
+                changed = True
+            else:
+                new_lines.append(line)
+
+        if changed:
+            _sudo_write_hosts("".join(new_lines))
+            logger.info("Commented out Steam Store entries in /etc/hosts.")
+
+        _enable_hosts_protection()
+    except OSError:
+        logger.exception("Failed to modify /etc/hosts")
+        return False
+    else:
+        return True
+
+
+def _reblock_hosts() -> bool:
+    """Uncomment Steam Store entries in /etc/hosts."""
+    try:
+        _disable_hosts_protection()
+        content = HOSTS_FILE.read_text(encoding="utf-8")
+        new_lines = []
+        changed = False
+        for line in content.splitlines(keepends=True):
+            stripped = line.strip()
+            if stripped.startswith("# ") and any(
+                d in stripped for d in BLOCKED_DOMAINS
+            ):
+                # Remove the '# ' prefix.
+                uncommented = line.replace("# ", "", 1)
+                new_lines.append(uncommented)
+                changed = True
+            else:
+                new_lines.append(line)
+
+        if changed:
+            _sudo_write_hosts("".join(new_lines))
+            logger.info("Re-enabled Steam Store entries in /etc/hosts.")
+
+        _enable_hosts_protection()
+    except OSError:
+        logger.exception("Failed to modify /etc/hosts")
+        return False
+    else:
+        return True

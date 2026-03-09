@@ -27,7 +27,6 @@ from python_pkg.steam_backlog_enforcer.enforcer import (
 )
 from python_pkg.steam_backlog_enforcer.hltb import (
     fetch_hltb_times_cached,
-    get_hltb_submit_url,
 )
 from python_pkg.steam_backlog_enforcer.library_hider import (
     hide_other_games,
@@ -755,8 +754,6 @@ def _enforce_hide_games(config: Config, state: State) -> None:
         hidden = hide_other_games(owned_ids, state.current_app_id)
         if hidden > 0:
             _echo(f"  Library: hid {hidden} games (only assigned game visible)")
-            restart_steam()
-            _echo("  Steam restarted to apply library changes.")
         else:
             _echo("  Library: games already hidden")
     else:
@@ -923,6 +920,32 @@ def cmd_unblock(_config: Config, _state: State) -> None:
         _echo("Failed to unblock. Run with sudo.")
 
 
+def cmd_buy_dlc(config: Config, state: State) -> None:
+    """Temporarily unblock the store so the user can buy DLC."""
+    if state.current_app_id is None:
+        _echo("No game currently assigned.")
+        return
+
+    _echo(f"Current game: {state.current_game_name} (AppID={state.current_app_id})")
+    _echo("Unblocking Steam store for DLC purchase...")
+
+    if not unblock_store():
+        _echo("Failed to unblock store. Run with sudo.")
+        return
+
+    _echo("\nStore UNBLOCKED — buy your DLC now.")
+    _echo("Press Enter when you're done to re-block the store...")
+    input()
+
+    if config.block_store:
+        if block_store():
+            _echo("Store re-blocked. Restarting Steam to clear DNS cache...")
+            restart_steam()
+            _echo("Done.")
+        else:
+            _echo("Warning: failed to re-block store.")
+
+
 def cmd_reset(config: Config, state: State) -> None:
     """Reset all state (unblock, unhide, clear assignment)."""
     unblock_store()
@@ -934,7 +957,6 @@ def cmd_reset(config: Config, state: State) -> None:
             count = unhide_all_games(owned)
             if count:
                 _echo(f"Unhidden {count} games.")
-                restart_steam()
     except Exception as exc:  # noqa: BLE001
         _echo(f"Warning: could not unhide games: {exc}")
 
@@ -1043,8 +1065,6 @@ def cmd_hide(config: Config, state: State) -> None:
     _echo(f"Hidden {hidden} games.")
 
     if hidden > 0:
-        _echo("Restarting Steam to apply changes...")
-        restart_steam()
         _echo("Done! Only the assigned game should be visible in your library.")
 
 
@@ -1060,49 +1080,18 @@ def cmd_unhide(config: Config, _state: State) -> None:
     _echo(f"Unhidden {count} games.")
 
     if count > 0:
-        _echo("Restarting Steam to apply changes...")
-        restart_steam()
         _echo("Done!")
 
 
-def _open_hltb_submit_page(
-    game_name: str,
-    app_id: int,
-    snapshot_data: list[dict[str, Any]] | None,
-) -> None:
-    """Show playtime and open the HLTB submit page in the browser."""
-    playtime_minutes = 0
-    if snapshot_data:
-        for entry in snapshot_data:
-            if entry.get("app_id") == app_id:
-                playtime_minutes = entry.get("playtime_minutes", 0)
-                break
-
-    playtime_h = playtime_minutes / 60
-    _echo(f"\n  Steam playtime: {playtime_h:.1f} hours")
-
-    _echo("  Looking up game on HowLongToBeat...")
-    submit_url = get_hltb_submit_url(game_name)
-    if submit_url:
-        _echo(f"  HLTB submit page: {submit_url}")
-        _echo("  Opening in browser (log in & submit your time)...")
-        import webbrowser
-
-        webbrowser.open(submit_url)
-    else:
-        _echo("  Could not find game on HLTB (submit manually).")
-
-
 def cmd_done(config: Config, state: State) -> None:
-    """Check completion, open HLTB submit, pick next game, uninstall & hide.
+    """Check completion, pick next game, uninstall & hide.
 
     All-in-one command for after finishing a game:
     1. Verify 100% achievements on Steam.
-    2. Show playtime and open HLTB submit page in browser.
-    3. Pick the next game (shortest HLTB 100% time).
-    4. Uninstall all non-assigned games.
-    5. Hide all non-assigned games in the Steam library.
-    6. Install the newly assigned game.
+    2. Pick the next game (shortest HLTB 100% time).
+    3. Uninstall all non-assigned games.
+    4. Hide all non-assigned games in the Steam library.
+    5. Install the newly assigned game.
     """
     if state.current_app_id is None:
         _echo("No game currently assigned. Run 'scan' first.")
@@ -1132,11 +1121,8 @@ def cmd_done(config: Config, state: State) -> None:
     _echo(f"\n  COMPLETED: {game_name}!")
     state.finished_app_ids.append(app_id)
 
-    # ── Step 2: HLTB submit ──
+    # ── Step 2: Pick next game ──
     snapshot_data = load_snapshot()
-    _open_hltb_submit_page(game_name, app_id, snapshot_data)
-
-    # ── Step 3: Pick next game ──
     _echo("\nPicking next game...")
     if not snapshot_data:
         _echo("  No snapshot found. Run 'scan' first.")
@@ -1152,14 +1138,12 @@ def cmd_done(config: Config, state: State) -> None:
         _echo("  No more games to assign!")
         return
 
-    # ── Step 4: Hide non-assigned games in library ──
+    # ── Step 3: Hide non-assigned games in library ──
     owned_ids = _get_all_owned_app_ids(config)
     if owned_ids:
         hidden = hide_other_games(owned_ids, state.current_app_id)
         if hidden > 0:
             _echo(f"\n  Library: hid {hidden} games")
-            restart_steam()
-            _echo("  Steam restarted to apply library changes.")
 
     send_notification(
         "Game Complete!",
@@ -1179,6 +1163,7 @@ COMMANDS = {
     "hide": ("Hide all non-assigned games in library", cmd_hide),
     "unhide": ("Unhide all games in library", cmd_unhide),
     "unblock": ("Remove store blocking", cmd_unblock),
+    "buy-dlc": ("Temporarily unblock store to buy DLC", cmd_buy_dlc),
     "reset": ("Reset all state", cmd_reset),
     "installed": ("List installed games", cmd_installed),
     "uninstall": ("Uninstall all non-assigned games", cmd_uninstall),
