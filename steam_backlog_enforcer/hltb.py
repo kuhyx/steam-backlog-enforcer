@@ -18,6 +18,7 @@ from http import HTTPStatus
 import json
 import logging
 import time
+from typing import Any
 
 import aiohttp
 from howlongtobeatpy.HTMLRequests import HTMLRequests
@@ -175,6 +176,31 @@ def _build_search_payload(game_name: str) -> str:
     )
 
 
+def _pick_best_hltb_entry(
+    search_name: str,
+    candidates: list[tuple[dict[str, Any], float]],
+) -> tuple[dict[str, Any], float] | None:
+    """Pick the best HLTB entry, preferring full editions over demos/chapters.
+
+    When a short name like "FAITH" matches both "FAITH" (demo) and
+    "FAITH: The Unholy Trinity" (full game), prefer the full game
+    since Steam often lists the full game under the shorter name.
+    """
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    lower = search_name.lower()
+    for entry, sim in candidates:
+        entry_name = (entry.get("game_name") or "").lower()
+        if entry_name.startswith((lower + ":", lower + " -")):
+            return entry, sim
+
+    # Fall back to highest similarity.
+    return max(candidates, key=lambda x: x[1])
+
+
 # ──────────────────────────────────────────────────────────────
 # Async fetching with shared session & progress
 # ──────────────────────────────────────────────────────────────
@@ -211,6 +237,8 @@ async def _search_one(
             ) as resp:
                 if resp.status == HTTPStatus.OK:
                     data = await resp.json()
+                    candidates: list[tuple[dict[str, Any], float]] = []
+                    lower_name = name.lower()
                     for entry in data.get("data", []):
                         entry_name = entry.get("game_name", "")
                         entry_alias = entry.get("game_alias", "") or ""
@@ -218,18 +246,24 @@ async def _search_one(
                             _similarity(name, entry_name),
                             _similarity(name, entry_alias),
                         )
-                        if sim >= MIN_SIMILARITY:
+                        is_full_edition = entry_name.lower().startswith(
+                            lower_name + ":"
+                        ) or entry_name.lower().startswith(lower_name + " -")
+                        if sim >= MIN_SIMILARITY or is_full_edition:
                             comp_100 = entry.get("comp_100", 0)
                             if comp_100 and comp_100 > 0:
-                                hours = round(comp_100 / 3600, 2)
-                                result = HLTBResult(
-                                    app_id=app_id,
-                                    game_name=name,
-                                    completionist_hours=hours,
-                                    similarity=sim,
-                                    hltb_game_id=entry.get("game_id", 0),
-                                )
-                                break
+                                candidates.append((entry, sim))
+                    best = _pick_best_hltb_entry(name, candidates)
+                    if best is not None:
+                        entry, sim = best
+                        hours = round(entry["comp_100"] / 3600, 2)
+                        result = HLTBResult(
+                            app_id=app_id,
+                            game_name=name,
+                            completionist_hours=hours,
+                            similarity=sim,
+                            hltb_game_id=entry.get("game_id", 0),
+                        )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             logger.debug("HLTB search failed for '%s': %s", name, exc)
 

@@ -117,6 +117,11 @@ class SteamAPIClient:
         self.api_key = api_key
         self.steam_id = steam_id
         self.session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_maxsize=MAX_WORKERS,
+            pool_connections=MAX_WORKERS,
+        )
+        self.session.mount("https://", adapter)
         self.session.headers["Accept"] = "application/json"
         self._rate_lock = threading.Lock()
         self._request_times: list[float] = []
