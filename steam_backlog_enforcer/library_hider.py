@@ -44,7 +44,9 @@ def _get_shared_js_ws_url() -> str | None:
     """Query the CDP HTTP endpoint and return the SharedJSContext WS URL."""
     url = f"http://127.0.0.1:{_CDP_PORT}/json"
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:  # noqa: S310
+        if not url.startswith(("http://", "https://")):
+            return None
+        with urllib.request.urlopen(url, timeout=5) as resp:
             targets = json.loads(resp.read())
     except (OSError, ValueError):
         return None

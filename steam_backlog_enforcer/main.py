@@ -135,7 +135,7 @@ def _ensure_steam_running() -> None:
     # Check if any steam process is running (main client, not just helpers).
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "steam.sh"],  # noqa: S607
+            ["/usr/bin/pgrep", "-f", "steam.sh"],
             capture_output=True,
             text=True,
             check=False,
@@ -937,7 +937,7 @@ def cmd_reset(config: Config, state: State) -> None:
             count = unhide_all_games(owned)
             if count:
                 _echo(f"Unhidden {count} games.")
-    except Exception as exc:  # noqa: BLE001
+    except (OSError, RuntimeError, ValueError) as exc:
         _echo(f"Warning: could not unhide games: {exc}")
 
     state.current_app_id = None
@@ -1024,7 +1024,7 @@ def _get_all_owned_app_ids(config: Config) -> list[int]:
         client = SteamAPIClient(config.steam_api_key, config.steam_id)
         owned = client.get_owned_games()
         return [g["appid"] for g in owned]
-    except Exception:  # noqa: BLE001
+    except (OSError, RuntimeError, ValueError):
         logger.warning("Could not fetch owned game list for hiding.")
         return []
 

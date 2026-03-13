@@ -25,6 +25,8 @@ PROTONDB_CACHE_FILE = CONFIG_DIR / "protondb_cache.json"
 _PROTONDB_API = "https://www.protondb.com/api/v1/reports/summaries/{app_id}.json"
 MAX_CONCURRENT = 30  # parallel requests - be polite to the CDN
 
+HTTP_NOT_FOUND = 404
+
 # Tier ordering from best to worst.
 TIER_ORDER: dict[str, int] = {
     "native": 0,
@@ -101,7 +103,7 @@ async def _fetch_one(
     async with sem:
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as r:
-                if r.status == 404:  # noqa: PLR2004
+                if r.status == HTTP_NOT_FOUND:
                     return ProtonDBRating(app_id=app_id)
                 r.raise_for_status()
                 data = await r.json(content_type=None)
@@ -113,7 +115,7 @@ async def _fetch_one(
                     confidence=data.get("confidence", ""),
                     total_reports=data.get("total", 0),
                 )
-        except Exception:  # noqa: BLE001
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
             logger.warning("ProtonDB fetch failed for AppID=%d", app_id)
             return ProtonDBRating(app_id=app_id)
 

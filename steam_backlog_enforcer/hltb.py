@@ -103,7 +103,7 @@ def _get_hltb_search_url() -> str:
         if search_info and search_info.search_url:
             url: str = HTMLRequests.BASE_URL + search_info.search_url
             return url
-    except Exception:  # noqa: BLE001
+    except (OSError, RuntimeError, ValueError, TypeError):
         logger.debug("Failed to discover HLTB search URL, using default")
     return "https://howlongtobeat.com/api/finder"
 
