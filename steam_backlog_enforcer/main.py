@@ -91,6 +91,8 @@ PROTECTED_APP_IDS = {
     1493710,  # Proton Experimental
     1161040,  # Proton BattlEye Runtime
     1007020,  # Proton EasyAntiCheat Runtime
+    # Games allowed to be installed anytime
+    3949040,  # RV There Yet?
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
@@ -1088,10 +1090,15 @@ def _try_reassign_shorter_game(
     candidates.sort(key=lambda g: g.completionist_hours)
     if not candidates or candidates[0].app_id == app_id:
         return False
-    shortest = candidates[0]
+    # Filter out Linux-incompatible games before deciding to reassign.
+    playable = _pick_playable_candidate(
+        [c for c in candidates if c.app_id != app_id],
+    )
+    if playable is None or playable.completionist_hours >= hours:
+        return False
     _echo(
-        f"\n  Reassigning: {shortest.name} is shorter"
-        f" (~{shortest.completionist_hours:.1f}h vs ~{hours:.1f}h)"
+        f"\n  Reassigning: {playable.name} is shorter"
+        f" (~{playable.completionist_hours:.1f}h vs ~{hours:.1f}h)"
     )
     pick_next_game(all_games, state, config)
     return True

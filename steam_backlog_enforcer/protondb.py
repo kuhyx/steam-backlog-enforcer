@@ -62,8 +62,8 @@ class ProtonDBRating:
         - Its tier is gold but trending to silver or worse.
         - No data exists (unknown compatibility).
         """
-        if not self.tier:
-            return True  # No data → don't block; user can skip manually.
+        if not self.tier or self.tier == "pending":
+            return True  # No data / pending → don't block; user can skip manually.
         tier_rank = TIER_ORDER.get(self.tier, 99)
         min_rank = TIER_ORDER[MIN_PLAYABLE_TIER]
 
@@ -83,7 +83,10 @@ class ProtonDBRating:
 def _load_cache() -> dict[str, Any]:
     """Load the on-disk ProtonDB cache."""
     if PROTONDB_CACHE_FILE.exists():
-        return json.loads(PROTONDB_CACHE_FILE.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+        data: dict[str, Any] = json.loads(
+            PROTONDB_CACHE_FILE.read_text(encoding="utf-8"),
+        )
+        return data
     return {}
 
 
