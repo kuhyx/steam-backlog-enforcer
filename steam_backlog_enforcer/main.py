@@ -236,7 +236,12 @@ def cmd_install(config: Config, state: State) -> None:
         return
 
     _echo(f"Installing {state.current_game_name} (AppID={state.current_app_id})...")
-    if install_game(state.current_app_id, state.current_game_name, config.steam_id):
+    if install_game(
+        state.current_app_id,
+        state.current_game_name,
+        config.steam_id,
+        use_steam_protocol=True,
+    ):
         _echo("Done!")
     else:
         _echo("Failed to create install manifest.")
@@ -382,6 +387,7 @@ def _enforce_on_done(config: Config, state: State) -> None:
             state.current_app_id,
             state.current_game_name,
             config.steam_id,
+            use_steam_protocol=True,
         )
 
 

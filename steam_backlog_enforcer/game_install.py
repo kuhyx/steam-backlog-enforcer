@@ -61,6 +61,26 @@ PROTECTED_APP_IDS = {
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
 
 
+def _trigger_steam_install(app_id: int, label: str) -> bool:
+    """Ask Steam to install a game via the ``steam://install`` URI.
+
+    Returns True if the URI handler was invoked successfully.
+    """
+    xdg_open = shutil.which("xdg-open") or "/usr/bin/xdg-open"
+    try:
+        subprocess.run(
+            [xdg_open, f"steam://install/{app_id}"],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return False
+    else:
+        logger.info("Triggered Steam install for %s via protocol handler", label)
+        return True
+
+
 # ──────────────────────────────────────────────────────────────
 # Game install management
 # ──────────────────────────────────────────────────────────────
@@ -142,28 +162,46 @@ def _ensure_steam_running() -> None:
         logger.exception("Steam executable not found")
 
 
-def install_game(app_id: int, game_name: str, steam_id: str) -> bool:
-    """Install a game by writing an appmanifest that triggers Steam's download.
+def install_game(
+    app_id: int,
+    game_name: str,
+    steam_id: str,
+    *,
+    use_steam_protocol: bool = False,
+) -> bool:
+    """Install a game by triggering a Steam download.
 
-    Creates a minimal appmanifest with StateFlags=1026 (UpdateRequired |
-    UpdateStarted) in the steamapps directory.  The running Steam client
-    detects the new manifest and automatically queues the download — no
-    dialog or user interaction required.
+    When *use_steam_protocol* is True the ``steam://install`` URI handler
+    is used, which lets Steam determine the correct install directory from
+    its own metadata.  This avoids mismatches between the display name and
+    the canonical ``installdir`` that can cause "Missing game executable"
+    errors.  Falls back to writing a fabricated appmanifest if the URI
+    handler is unavailable.
 
-    If Steam is not running it will be started in silent mode first.
+    When *use_steam_protocol* is False (the default) a minimal
+    appmanifest with StateFlags=1026 is written directly.  This is
+    suitable for non-interactive / daemon contexts where opening a Steam
+    dialog is undesirable.
 
     Args:
         app_id: Steam application ID.
         game_name: Human-readable game name.
         steam_id: Steam64 ID of the account that owns the game.
+        use_steam_protocol: Prefer the ``steam://install`` URI handler.
 
-    Returns True if the manifest was written successfully.
+    Returns True if the install was triggered successfully.
     """
     label = game_name or f"AppID={app_id}"
 
     if is_game_installed(app_id):
         logger.info("Game already installed: %s", label)
         return True
+
+    if use_steam_protocol:
+        _ensure_steam_running()
+        if _trigger_steam_install(app_id, label):
+            return True
+        logger.debug("steam:// protocol failed; falling back to manifest")
 
     # Build a minimal appmanifest.  StateFlags 1026 = UpdateRequired (2) +
     # UpdateStarted (1024), which tells Steam "this app needs downloading".

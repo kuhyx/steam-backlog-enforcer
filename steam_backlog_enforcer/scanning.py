@@ -199,7 +199,12 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
 
     if not is_game_installed(chosen.app_id):
         _echo(f"\n  Auto-installing {chosen.name}...")
-        install_game(chosen.app_id, chosen.name, config.steam_id)
+        install_game(
+            chosen.app_id,
+            chosen.name,
+            config.steam_id,
+            use_steam_protocol=True,
+        )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -404,7 +409,12 @@ def _enforce_auto_install(config: Config, state: State) -> None:
         return
     if not is_game_installed(app_id):
         _echo(f"  Auto-installing {state.current_game_name}...")
-        if install_game(app_id, state.current_game_name, config.steam_id):
+        if install_game(
+            app_id,
+            state.current_game_name,
+            config.steam_id,
+            use_steam_protocol=True,
+        ):
             send_notification(
                 "Game Installing",
                 f"{state.current_game_name} is being downloaded.",
@@ -495,6 +505,14 @@ def do_enforce(config: Config, state: State) -> None:
     _echo("  Press Ctrl+C to stop.\n")
     try:
         while True:
+            # Reload state from disk so CLI changes (e.g. new game
+            # assignment via ``done`` / ``scan``) take effect immediately
+            # without needing to restart the daemon.
+            fresh = State.load()
+            state.current_app_id = fresh.current_app_id
+            state.current_game_name = fresh.current_game_name
+            state.finished_app_ids = fresh.finished_app_ids
+
             _enforce_loop_iteration(config, state)
             time.sleep(ENFORCE_INTERVAL)
     except KeyboardInterrupt:
