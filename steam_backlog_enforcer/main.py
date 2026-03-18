@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 import sys
 
+from python_pkg.steam_backlog_enforcer._enforce_loop import (
+    do_enforce,
+    get_all_owned_app_ids,
+)
 from python_pkg.steam_backlog_enforcer.config import (
     Config,
     State,
@@ -35,9 +39,7 @@ from python_pkg.steam_backlog_enforcer.library_hider import (
 from python_pkg.steam_backlog_enforcer.scanning import (
     _pick_playable_candidate,
     do_check,
-    do_enforce,
     do_scan,
-    get_all_owned_app_ids,
     pick_next_game,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
