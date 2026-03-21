@@ -117,7 +117,7 @@ async def _get_auth_token(
     ts = int(time.time() * 1000)
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0)" " Gecko/20100101 Firefox/136.0"
+            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
         ),
         "referer": "https://howlongtobeat.com/",
     }
@@ -313,7 +313,7 @@ async def _fetch_batch(
         "content-type": "application/json",
         "accept": "*/*",
         "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0)" " Gecko/20100101 Firefox/136.0"
+            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
         ),
         "referer": "https://howlongtobeat.com/",
         "x-auth-token": token,

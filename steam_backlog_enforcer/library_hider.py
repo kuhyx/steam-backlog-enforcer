@@ -44,8 +44,6 @@ def _get_shared_js_ws_url() -> str | None:
     """Query the CDP HTTP endpoint and return the SharedJSContext WS URL."""
     url = f"http://127.0.0.1:{_CDP_PORT}/json"
     try:
-        if not url.startswith(("http://", "https://")):
-            return None
         with urllib.request.urlopen(url, timeout=5) as resp:
             targets = json.loads(resp.read())
     except (OSError, ValueError):
@@ -247,7 +245,7 @@ def hide_other_games(
             collectionStore.SetAppsAsHidden(newIds, true);
         }}
         // Unhide the allowed game if it was hidden.
-        const allowedId = {allowed_app_id if allowed_app_id is not None else 'null'};
+        const allowedId = {allowed_app_id if allowed_app_id is not None else "null"};
         if (allowedId !== null && collectionStore.BIsHidden(allowedId)) {{
             collectionStore.SetAppsAsHidden([allowedId], false);
         }}
