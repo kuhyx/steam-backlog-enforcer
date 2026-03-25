@@ -37,11 +37,9 @@ class TestGetSharedJsWsUrl:
             {"title": "Other", "webSocketDebuggerUrl": "ws://other"},
         ]
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(targets).encode()
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.json.return_value = targets
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.urllib.request.urlopen",
+            "python_pkg.steam_backlog_enforcer.library_hider.requests.get",
             return_value=mock_resp,
         ):
             result = _get_shared_js_ws_url()
@@ -50,18 +48,16 @@ class TestGetSharedJsWsUrl:
     def test_no_shared_context(self) -> None:
         targets = [{"title": "Other", "webSocketDebuggerUrl": "ws://other"}]
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(targets).encode()
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.json.return_value = targets
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.urllib.request.urlopen",
+            "python_pkg.steam_backlog_enforcer.library_hider.requests.get",
             return_value=mock_resp,
         ):
             assert _get_shared_js_ws_url() is None
 
     def test_connection_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.urllib.request.urlopen",
+            "python_pkg.steam_backlog_enforcer.library_hider.requests.get",
             side_effect=OSError,
         ):
             assert _get_shared_js_ws_url() is None

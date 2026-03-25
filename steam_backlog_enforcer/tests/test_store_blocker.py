@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from python_pkg.steam_backlog_enforcer.store_blocker import (
@@ -382,7 +382,7 @@ class TestBlockStoreIptables:
         ]
         call_count = 0
 
-        def side_effect(*args: Any, **kwargs: Any) -> MagicMock:
+        def side_effect(*_args: object, **_kwargs: object) -> MagicMock:
             nonlocal call_count
             idx = min(call_count, len(results) - 1)
             call_count += 1

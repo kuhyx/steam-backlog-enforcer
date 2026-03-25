@@ -253,7 +253,7 @@ class TestSteamAPIClient:
 
     def test_fetch_one_game(self) -> None:
         client = SteamAPIClient("key", "id")
-        ach = AchievementInfo("A1", "Ach1", True, 100)
+        ach = AchievementInfo("A1", "Ach1", achieved=True, unlock_time=100)
         with patch.object(client, "get_achievement_details", return_value=[ach]):
             result = client._fetch_one_game(
                 {"appid": 440, "name": "TF2", "playtime_forever": 60},
@@ -275,7 +275,7 @@ class TestSteamAPIClient:
 
     def test_build_game_list(self) -> None:
         client = SteamAPIClient("key", "id")
-        ach = AchievementInfo("A1", "Ach1", True, 100)
+        ach = AchievementInfo("A1", "Ach1", achieved=True, unlock_time=100)
         with (
             patch.object(
                 client,
@@ -322,7 +322,7 @@ class TestSteamAPIClient:
 
     def test_refresh_single_game(self) -> None:
         client = SteamAPIClient("key", "id")
-        ach = AchievementInfo("A1", "Ach1", True, 100)
+        ach = AchievementInfo("A1", "Ach1", achieved=True, unlock_time=100)
         with patch.object(client, "get_achievement_details", return_value=[ach]):
             result = client.refresh_single_game(440, "TF2", 60)
             assert result is not None

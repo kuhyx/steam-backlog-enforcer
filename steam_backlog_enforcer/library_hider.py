@@ -24,8 +24,8 @@ import pwd
 import shutil
 import subprocess
 import time
-import urllib.request
 
+import requests
 import websockets
 
 logger = logging.getLogger(__name__)
@@ -42,10 +42,9 @@ _STEAM_STARTUP_WAIT = 45
 
 def _get_shared_js_ws_url() -> str | None:
     """Query the CDP HTTP endpoint and return the SharedJSContext WS URL."""
-    url = f"http://127.0.0.1:{_CDP_PORT}/json"
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            targets = json.loads(resp.read())
+        resp = requests.get(f"http://127.0.0.1:{_CDP_PORT}/json", timeout=5)
+        targets = resp.json()
     except (OSError, ValueError):
         return None
 

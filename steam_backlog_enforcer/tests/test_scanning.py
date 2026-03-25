@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from python_pkg.steam_backlog_enforcer.config import Config, State
@@ -14,6 +14,9 @@ from python_pkg.steam_backlog_enforcer.scanning import (
     pick_next_game,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _game(
@@ -41,8 +44,8 @@ class TestDoScan:
         mock_client = MagicMock()
 
         def build_game_list(
-            skip_app_ids: Any = None,
-            progress_callback: Any = None,
+            skip_app_ids: object = None,
+            progress_callback: Callable[..., object] | None = None,
         ) -> list[GameInfo]:
             # Trigger progress callback to cover those lines.
             if progress_callback:
@@ -58,7 +61,7 @@ class TestDoScan:
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.fetch_hltb_times_cached",
-                side_effect=lambda games, progress_cb=None: (
+                side_effect=lambda _games, progress_cb=None: (
                     progress_cb(1, 1, 1, "TF2") if progress_cb else None,
                     {440: 20.0},
                 )[1],
@@ -84,8 +87,8 @@ class TestDoScan:
         mock_client = MagicMock()
 
         def build_game_list(
-            skip_app_ids: Any = None,
-            progress_callback: Any = None,
+            skip_app_ids: object = None,
+            progress_callback: Callable[..., object] | None = None,
         ) -> list[GameInfo]:
             if progress_callback:
                 # current=1, total=2 → not %50 and not ==total → covers False branch

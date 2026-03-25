@@ -33,7 +33,7 @@ class TestFetchHltbTimesCached:
         ):
             # fetch_hltb_times modifies cache in-place
             def add_to_cache(
-                games: object,
+                _games: object,
                 cache: dict[int, float] | None = None,
                 progress_cb: object = None,
             ) -> list[object]:
@@ -85,7 +85,7 @@ class TestFetchHltbTimesCached:
         ):
 
             def add_found(
-                games: object,
+                _games: object,
                 cache: dict[int, float] | None = None,
                 progress_cb: object = None,
             ) -> list[object]:

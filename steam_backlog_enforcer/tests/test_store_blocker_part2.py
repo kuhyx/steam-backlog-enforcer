@@ -38,7 +38,7 @@ class TestDisableHostsProtection:
 
         def run_side_effect(
             cmd: list[str],
-            **kwargs: object,
+            **_kwargs: object,
         ) -> MagicMock:
             if any("findmnt" in str(c) for c in cmd):
                 return findmnt_found
@@ -52,7 +52,7 @@ class TestDisableHostsProtection:
 
         def run_side_effect(
             cmd: list[str],
-            **kwargs: object,
+            **_kwargs: object,
         ) -> MagicMock:
             if any("findmnt" in str(c) for c in cmd):
                 return findmnt_missing

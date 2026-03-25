@@ -55,9 +55,9 @@ class TestFinalizeCompletion:
         ):
 
             def set_next(
-                games: object,
+                _games: object,
                 s: State,
-                c: object,
+                _c: object,
             ) -> None:
                 s.current_app_id = 2
                 s.current_game_name = "NewGame"
@@ -89,9 +89,9 @@ class TestFinalizeCompletion:
         ):
 
             def set_none(
-                games: object,
+                _games: object,
                 s: State,
-                c: object,
+                _c: object,
             ) -> None:
                 s.current_app_id = None
 
@@ -112,9 +112,9 @@ class TestFinalizeCompletion:
         ):
 
             def set_2(
-                games: object,
+                _games: object,
                 s: State,
-                c: object,
+                _c: object,
             ) -> None:
                 s.current_app_id = 2
                 s.current_game_name = "Next"
@@ -137,9 +137,9 @@ class TestFinalizeCompletion:
         ):
 
             def set_2(
-                games: object,
+                _games: object,
                 s: State,
-                c: object,
+                _c: object,
             ) -> None:
                 s.current_app_id = 2
                 s.current_game_name = "Next"

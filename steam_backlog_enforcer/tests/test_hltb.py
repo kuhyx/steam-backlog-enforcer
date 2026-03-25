@@ -25,6 +25,7 @@ from python_pkg.steam_backlog_enforcer.hltb import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 
@@ -243,7 +244,7 @@ def _make_ctx(
     session: MagicMock,
     *,
     cache: dict[int, float] | None = None,
-    progress_cb: Any = None,
+    progress_cb: Callable[..., object] | None = None,
 ) -> _SearchCtx:
     return _SearchCtx(
         session=session,

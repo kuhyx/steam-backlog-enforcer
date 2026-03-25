@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from unittest.mock import MagicMock, patch
 
 from python_pkg.steam_backlog_enforcer.library_hider import (
@@ -32,7 +33,10 @@ class TestRunAsUser:
         with (
             patch(f"{PKG}.os.geteuid", return_value=0),
             patch(f"{PKG}.pwd.getpwnam", return_value=mock_pw),
-            patch.dict(os.environ, {"DISPLAY": ":1", "XAUTHORITY": "/tmp/.X"}),
+            patch.dict(
+                os.environ,
+                {"DISPLAY": ":1", "XAUTHORITY": tempfile.gettempdir() + "/.X"},
+            ),
             patch(f"{PKG}.subprocess.Popen") as mock_popen,
         ):
             _run_as_user(["steam", "-shutdown"], "alice")

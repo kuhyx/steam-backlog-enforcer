@@ -63,7 +63,7 @@ class TestRemoveGameDirs:
         (tmp_path / "shadercache" / "440").mkdir(parents=True)
         call_count = 0
 
-        def fake_rmtree(path: object, **_kw: object) -> None:
+        def fake_rmtree(_path: object, **_kw: object) -> None:
             nonlocal call_count
             call_count += 1
             msg = "perm"
