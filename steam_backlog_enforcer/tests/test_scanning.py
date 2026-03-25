@@ -228,6 +228,10 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                return_value=0,
+            ),
         ):
             pick_next_game([g1, g2], state, config)
             assert state.current_app_id == 2
@@ -254,6 +258,10 @@ class TestPickNextGame:
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                return_value=0,
             ),
         ):
             pick_next_game([g1, g2], state, config)
@@ -331,6 +339,10 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                return_value=0,
+            ),
         ):
             pick_next_game([g1, g2], state, config)
             assert state.current_app_id == 2
@@ -349,6 +361,10 @@ class TestPickNextGame:
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                return_value=0,
             ),
         ):
             pick_next_game([g1], state, config)
