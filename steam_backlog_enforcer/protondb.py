@@ -17,7 +17,7 @@ from typing import Any
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer.config import CONFIG_DIR
+from python_pkg.steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +92,10 @@ def _load_cache() -> dict[str, Any]:
 
 def _save_cache(cache: dict[str, Any]) -> None:
     """Persist the ProtonDB cache."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    PROTONDB_CACHE_FILE.write_text(json.dumps(cache, indent=2) + "\n", encoding="utf-8")
+    _atomic_write(
+        PROTONDB_CACHE_FILE,
+        json.dumps(cache, indent=2) + "\n",
+    )
 
 
 async def _fetch_one(

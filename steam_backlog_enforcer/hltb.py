@@ -23,7 +23,7 @@ from typing import Any
 import aiohttp
 from howlongtobeatpy.HTMLRequests import HTMLRequests
 
-from python_pkg.steam_backlog_enforcer.config import CONFIG_DIR
+from python_pkg.steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +71,10 @@ def load_hltb_cache() -> dict[int, float]:
 
 def save_hltb_cache(cache: dict[int, float]) -> None:
     """Save the HLTB cache to disk."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     try:
-        HLTB_CACHE_FILE.write_text(
+        _atomic_write(
+            HLTB_CACHE_FILE,
             json.dumps({str(k): v for k, v in cache.items()}, indent=2) + "\n",
-            encoding="utf-8",
         )
     except OSError:
         logger.exception("Failed to save HLTB cache")

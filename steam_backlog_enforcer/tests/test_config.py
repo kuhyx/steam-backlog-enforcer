@@ -11,6 +11,7 @@ import pytest
 from python_pkg.steam_backlog_enforcer.config import (
     Config,
     State,
+    _atomic_write,
     interactive_setup,
     load_snapshot,
     save_snapshot,
@@ -18,6 +19,49 @@ from python_pkg.steam_backlog_enforcer.config import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+class TestAtomicWrite:
+    """Tests for _atomic_write."""
+
+    def test_writes_file(self, tmp_path: Path) -> None:
+        target = tmp_path / "out.json"
+        _atomic_write(target, '{"key": "value"}\n')
+        assert target.read_text(encoding="utf-8") == '{"key": "value"}\n'
+
+    def test_creates_parent_dirs(self, tmp_path: Path) -> None:
+        target = tmp_path / "sub" / "deep" / "out.json"
+        _atomic_write(target, "data")
+        assert target.read_text(encoding="utf-8") == "data"
+
+    def test_cleanup_on_write_error(self, tmp_path: Path) -> None:
+        target = tmp_path / "out.json"
+        with (
+            patch(
+                "python_pkg.steam_backlog_enforcer.config.os.write",
+                side_effect=OSError("disk full"),
+            ),
+            pytest.raises(OSError, match="disk full"),
+        ):
+            _atomic_write(target, "data")
+        assert not target.exists()
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == []
+
+    def test_cleanup_on_replace_error(self, tmp_path: Path) -> None:
+        target = tmp_path / "out.json"
+        with (
+            patch.object(
+                type(target),
+                "replace",
+                side_effect=OSError("no perm"),
+            ),
+            pytest.raises(OSError, match="no perm"),
+        ):
+            _atomic_write(target, "data")
+        assert not target.exists()
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert tmp_files == []
 
 
 class TestConfig:
@@ -119,6 +163,14 @@ class TestState:
         with patch("python_pkg.steam_backlog_enforcer.config.STATE_FILE", state_file):
             st = State.load()
             assert st.current_app_id is None
+
+    def test_load_corrupt(self, tmp_path: Path) -> None:
+        state_file = tmp_path / "state.json"
+        state_file.write_text("not valid json{{", encoding="utf-8")
+        with patch("python_pkg.steam_backlog_enforcer.config.STATE_FILE", state_file):
+            st = State.load()
+            assert st.current_app_id is None
+            assert st.current_game_name == ""
 
 
 class TestSnapshot:

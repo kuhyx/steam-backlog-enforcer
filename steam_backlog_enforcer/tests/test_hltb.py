@@ -66,14 +66,9 @@ class TestHltbCache:
             assert cache_file.exists()
 
     def test_save_cache_os_error(self, tmp_path: Path) -> None:
-        cache_file = MagicMock()
-        cache_file.write_text = MagicMock(side_effect=OSError)
-        with (
-            patch("python_pkg.steam_backlog_enforcer.hltb.HLTB_CACHE_FILE", cache_file),
-            patch(
-                "python_pkg.steam_backlog_enforcer.hltb.CONFIG_DIR",
-                MagicMock(mkdir=MagicMock()),
-            ),
+        with patch(
+            "python_pkg.steam_backlog_enforcer.hltb._atomic_write",
+            side_effect=OSError("disk full"),
         ):
             save_hltb_cache({440: 10.5})  # Should not raise
 

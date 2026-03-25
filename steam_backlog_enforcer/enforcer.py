@@ -47,6 +47,8 @@ def enforce_allowed_game(
 
     Returns list of (pid, app_id) that were killed or detected.
     """
+    if allowed_app_id is None:
+        return []
     running = get_running_steam_game_pids()
     violations: list[tuple[int, int]] = []
 

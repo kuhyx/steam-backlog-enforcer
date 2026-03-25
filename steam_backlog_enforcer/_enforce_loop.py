@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -64,6 +65,8 @@ def _guard_installed_games(allowed_app_id: int | None) -> int:
 
     Returns number of games removed this pass.
     """
+    if allowed_app_id is None:
+        return 0
     installed = get_installed_games()
     count = 0
     for app_id, name in installed:
@@ -165,6 +168,9 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
         config: Enforcer configuration.
         state: Current enforcer state.
     """
+    if state.current_app_id is None:
+        return
+
     # A) Kill unauthorized game processes.
     if config.kill_unauthorized_games:
         violations = enforce_allowed_game(
@@ -223,7 +229,12 @@ def do_enforce(config: Config, state: State) -> None:
             # Reload state from disk so CLI changes (e.g. new game
             # assignment via ``done`` / ``scan``) take effect immediately
             # without needing to restart the daemon.
-            fresh = State.load()
+            try:
+                fresh = State.load()
+            except (json.JSONDecodeError, OSError, ValueError) as exc:
+                logger.warning("Failed to reload state: %s", exc)
+                time.sleep(ENFORCE_INTERVAL)
+                continue
             state.current_app_id = fresh.current_app_id
             state.current_game_name = fresh.current_game_name
             state.finished_app_ids = fresh.finished_app_ids

@@ -130,18 +130,8 @@ class TestEnforceAllowedGame:
             assert result == [(100, 570)]
 
     def test_allowed_none(self) -> None:
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
-                return_value={100: 570},
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.kill_process"
-            ) as mock_kill,
-        ):
-            result = enforce_allowed_game(None, kill_unauthorized=True)
-            assert result == [(100, 570)]
-            mock_kill.assert_called_once_with(100, 570)
+        result = enforce_allowed_game(None, kill_unauthorized=True)
+        assert result == []
 
 
 class TestKillProcess:

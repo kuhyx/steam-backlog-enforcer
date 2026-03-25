@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 import json
+import logging
+import os
 from pathlib import Path
 import sys
+import tempfile
 from typing import Any
 
 CONFIG_DIR = Path.home() / ".config" / "steam_backlog_enforcer"
@@ -25,6 +29,25 @@ BLOCKED_DOMAINS = [
 
 HOSTS_FILE = Path("/etc/hosts")
 
+logger = logging.getLogger(__name__)
+
+
+def _atomic_write(path: Path, data: str) -> None:
+    """Write data to a file atomically via a temporary file + rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    tmp_path = Path(tmp)
+    try:
+        os.write(fd, data.encode("utf-8"))
+        os.close(fd)
+        tmp_path.replace(path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            tmp_path.unlink()
+        raise
+
 
 @dataclass
 class Config:
@@ -40,9 +63,9 @@ class Config:
 
     def save(self) -> None:
         """Persist config to disk."""
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(
-            json.dumps(self.__dict__, indent=2) + "\n", encoding="utf-8"
+        _atomic_write(
+            CONFIG_FILE,
+            json.dumps(self.__dict__, indent=2) + "\n",
         )
 
     @classmethod
@@ -66,16 +89,20 @@ class State:
 
     def save(self) -> None:
         """Persist state to disk."""
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(
-            json.dumps(self.__dict__, indent=2) + "\n", encoding="utf-8"
+        _atomic_write(
+            STATE_FILE,
+            json.dumps(self.__dict__, indent=2) + "\n",
         )
 
     @classmethod
     def load(cls) -> State:
         """Load state from disk, or return defaults."""
         if STATE_FILE.exists():
-            data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            try:
+                data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError, ValueError):
+                logger.warning("Corrupt state file, using defaults.")
+                return cls()
             return cls(
                 **{k: v for k, v in data.items() if k in cls.__dataclass_fields__}
             )
@@ -84,8 +111,10 @@ class State:
 
 def save_snapshot(data: list[dict[str, Any]]) -> None:
     """Save an achievement snapshot to disk."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    SNAPSHOT_FILE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    _atomic_write(
+        SNAPSHOT_FILE,
+        json.dumps(data, indent=2) + "\n",
+    )
 
 
 def load_snapshot() -> list[dict[str, Any]] | None:

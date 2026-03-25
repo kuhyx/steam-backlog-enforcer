@@ -102,6 +102,9 @@ class TestGuardInstalledGames:
         ):
             assert _guard_installed_games(440) == 0
 
+    def test_allowed_none_skips(self) -> None:
+        assert _guard_installed_games(None) == 0
+
 
 class TestEnforceSetup:
     """Tests for _enforce_setup."""
@@ -297,8 +300,14 @@ class TestEnforceLoopIteration:
             uninstall_other_games=False,
         )
         state = State(current_app_id=None)
-        with patch(f"{PKG}.is_game_installed") as mock_installed:
+        with (
+            patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
+            patch(f"{PKG}._guard_installed_games") as mock_guard,
+            patch(f"{PKG}.is_game_installed") as mock_installed,
+        ):
             _enforce_loop_iteration(config, state)
+            mock_enforce.assert_not_called()
+            mock_guard.assert_not_called()
             mock_installed.assert_not_called()
 
 
@@ -350,3 +359,31 @@ class TestDoEnforce:
         ):
             do_enforce(config, state)
             assert call_count == 2
+
+    def test_state_load_failure_continues(self) -> None:
+        """Corrupt state file should not crash the daemon."""
+        import json as json_mod
+
+        state = State(current_app_id=1, current_game_name="G")
+        config = Config()
+        call_count = 0
+
+        def load_side_effect() -> State:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                msg = "bad"
+                raise json_mod.JSONDecodeError(msg, "", 0)
+            if call_count == 2:
+                raise KeyboardInterrupt
+            return State(current_app_id=1)  # pragma: no cover
+
+        with (
+            patch(f"{PKG}._enforce_setup"),
+            patch(f"{PKG}._echo"),
+            patch.object(State, "load", side_effect=load_side_effect),
+            patch(f"{PKG}._enforce_loop_iteration") as mock_iter,
+            patch(f"{PKG}.time.sleep"),
+        ):
+            do_enforce(config, state)
+            mock_iter.assert_not_called()
