@@ -8,15 +8,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.main import (
+from python_pkg.steam_backlog_enforcer._cmd_done import (
     _enforce_on_done,
     _finalize_completion,
     cmd_done,
-    main,
 )
+from python_pkg.steam_backlog_enforcer.config import Config, State
+from python_pkg.steam_backlog_enforcer.main import main
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
 
+CMD_DONE_PKG = "python_pkg.steam_backlog_enforcer._cmd_done"
 PKG = "python_pkg.steam_backlog_enforcer.main"
 
 
@@ -45,12 +46,12 @@ class TestFinalizeCompletion:
         state = State(current_app_id=1, current_game_name="G")
         snap = [_snap(2, "NewGame", 10, 0, 5.0)]
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_snapshot", return_value=snap),
-            patch(f"{PKG}.pick_next_game") as mock_pick,
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{PKG}.hide_other_games", return_value=2),
-            patch(f"{PKG}.send_notification"),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
+            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=2),
+            patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
 
@@ -70,8 +71,8 @@ class TestFinalizeCompletion:
         config = Config()
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_snapshot", return_value=None),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=None),
             patch.object(State, "save"),
         ):
             _finalize_completion(config, state, "G", 1)
@@ -82,9 +83,9 @@ class TestFinalizeCompletion:
         state = State(current_app_id=1, current_game_name="G")
         snap = [_snap(1, "G", 10, 10)]
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_snapshot", return_value=snap),
-            patch(f"{PKG}.pick_next_game") as mock_pick,
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
             patch.object(State, "save"),
         ):
 
@@ -103,11 +104,11 @@ class TestFinalizeCompletion:
         state = State(current_app_id=1, current_game_name="G")
         snap = [_snap(2, "Next", 10, 0)]
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_snapshot", return_value=snap),
-            patch(f"{PKG}.pick_next_game") as mock_pick,
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{PKG}.send_notification"),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
 
@@ -127,12 +128,12 @@ class TestFinalizeCompletion:
         state = State(current_app_id=1, current_game_name="G")
         snap = [_snap(2, "Next", 10, 0)]
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_snapshot", return_value=snap),
-            patch(f"{PKG}.pick_next_game") as mock_pick,
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{PKG}.hide_other_games", return_value=0),
-            patch(f"{PKG}.send_notification"),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=0),
+            patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
 
@@ -168,14 +169,14 @@ class TestFinalizeCompletion:
             s.current_app_id = None
 
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_snapshot", return_value=snap),
-            patch(f"{PKG}.load_hltb_cache", return_value={2: 20.05}),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={2: 20.05}),
             patch(
-                f"{PKG}.fetch_hltb_times_cached",
+                f"{CMD_DONE_PKG}.fetch_hltb_times_cached",
                 return_value={3: 18.81},
             ) as mock_fetch_hltb,
-            patch(f"{PKG}.pick_next_game", side_effect=capture_pick),
+            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=capture_pick),
             patch.object(State, "save"),
         ):
             _finalize_completion(config, state, "G", 1)
@@ -198,13 +199,13 @@ class TestEnforceOnDone:
         )
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}._echo"),
             patch(
-                f"{PKG}.enforce_allowed_game",
+                f"{CMD_DONE_PKG}.enforce_allowed_game",
                 return_value=[(1234, 999)],
             ),
-            patch(f"{PKG}.uninstall_other_games", return_value=2),
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=2),
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_on_done(config, state)
 
@@ -215,10 +216,10 @@ class TestEnforceOnDone:
         )
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.enforce_allowed_game", return_value=[]),
-            patch(f"{PKG}.uninstall_other_games", return_value=0),
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.enforce_allowed_game", return_value=[]),
+            patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=0),
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_on_done(config, state)
 
@@ -230,9 +231,9 @@ class TestEnforceOnDone:
         )
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.is_game_installed", return_value=False),
-            patch(f"{PKG}.install_game") as mock_install,
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
+            patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
         ):
             _enforce_on_done(config, state)
         mock_install.assert_called_once_with(1, "G", "s1", use_steam_protocol=True)
@@ -242,7 +243,7 @@ class TestCmdDone:
     """Tests for cmd_done."""
 
     def test_no_game_assigned(self) -> None:
-        with patch(f"{PKG}._echo") as mock_echo:
+        with patch(f"{CMD_DONE_PKG}._echo") as mock_echo:
             cmd_done(Config(), State())
         assert any("No game" in str(c) for c in mock_echo.call_args_list)
 
@@ -251,8 +252,8 @@ class TestCmdDone:
         mock_client.refresh_single_game.return_value = None
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
-            patch(f"{PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
+            patch(f"{CMD_DONE_PKG}._echo"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
 
@@ -268,11 +269,11 @@ class TestCmdDone:
         mock_client.refresh_single_game.return_value = game
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_hltb_cache", return_value={1: 20.0}),
-            patch(f"{PKG}._try_reassign_shorter_game", return_value=False),
-            patch(f"{PKG}._enforce_on_done"),
+            patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: 20.0}),
+            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
+            patch(f"{CMD_DONE_PKG}._enforce_on_done"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
 
@@ -288,11 +289,11 @@ class TestCmdDone:
         mock_client.refresh_single_game.return_value = game
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_hltb_cache", return_value={1: 10.0}),
-            patch(f"{PKG}._try_reassign_shorter_game", return_value=False),
-            patch(f"{PKG}._finalize_completion") as mock_final,
+            patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: 10.0}),
+            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
+            patch(f"{CMD_DONE_PKG}._finalize_completion") as mock_final,
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
         mock_final.assert_called_once()
@@ -309,15 +310,15 @@ class TestCmdDone:
         mock_client.refresh_single_game.return_value = game
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_hltb_cache", return_value={}),
+            patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={}),
             patch(
-                f"{PKG}.fetch_hltb_times_cached",
+                f"{CMD_DONE_PKG}.fetch_hltb_times_cached",
                 return_value={1: 15.0},
             ),
-            patch(f"{PKG}._try_reassign_shorter_game", return_value=False),
-            patch(f"{PKG}._enforce_on_done"),
+            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
+            patch(f"{CMD_DONE_PKG}._enforce_on_done"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
 
@@ -334,11 +335,11 @@ class TestCmdDone:
         mock_client.refresh_single_game.return_value = game
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_hltb_cache", return_value={1: -1.0}),
-            patch(f"{PKG}._try_reassign_shorter_game", return_value=False),
-            patch(f"{PKG}._enforce_on_done"),
+            patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: -1.0}),
+            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
+            patch(f"{CMD_DONE_PKG}._enforce_on_done"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
 
@@ -354,10 +355,10 @@ class TestCmdDone:
         mock_client.refresh_single_game.return_value = game
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.load_hltb_cache", return_value={1: 50.0}),
-            patch(f"{PKG}._try_reassign_shorter_game", return_value=True),
+            patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: 50.0}),
+            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=True),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
 
