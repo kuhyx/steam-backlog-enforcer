@@ -147,6 +147,43 @@ class TestFinalizeCompletion:
             mock_pick.side_effect = set_2
             _finalize_completion(config, state, "G", 1)
 
+    def test_refreshes_snapshot_hours_before_pick(self) -> None:
+        """Ensure stale snapshot hours are replaced before picking next game."""
+        config = Config()
+        state = State(current_app_id=1, current_game_name="G")
+        snap = [
+            _snap(2, "A Space for the Unbound", 10, 0, 0.56),
+            _snap(3, "Lacuna", 10, 0, 1.2),
+        ]
+        seen: dict[int, float] = {}
+
+        def capture_pick(
+            games: list[GameInfo],
+            s: State,
+            _c: object,
+        ) -> None:
+            for game in games:
+                seen[game.app_id] = game.completionist_hours
+            # Force early return path after pick_next_game.
+            s.current_app_id = None
+
+        with (
+            patch(f"{PKG}._echo"),
+            patch(f"{PKG}.load_snapshot", return_value=snap),
+            patch(f"{PKG}.load_hltb_cache", return_value={2: 20.05}),
+            patch(
+                f"{PKG}.fetch_hltb_times_cached",
+                return_value={3: 18.81},
+            ) as mock_fetch_hltb,
+            patch(f"{PKG}.pick_next_game", side_effect=capture_pick),
+            patch.object(State, "save"),
+        ):
+            _finalize_completion(config, state, "G", 1)
+
+        assert seen[2] == 20.05
+        assert seen[3] == 18.81
+        mock_fetch_hltb.assert_called_once_with([(3, "Lacuna")])
+
 
 class TestEnforceOnDone:
     """Tests for _enforce_on_done."""

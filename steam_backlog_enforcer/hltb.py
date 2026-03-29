@@ -35,6 +35,18 @@ MAX_CONCURRENT = 60  # parallel requests to HLTB
 _SAVE_INTERVAL = 50  # flush cache to disk every N results
 MIN_SIMILARITY = 0.5
 
+# Suffixes that indicate a subset release (prologue, demo, etc.).
+# Used to avoid preferring "Game - Prologue" over "Game" when both exist.
+_SUBSET_SUFFIXES = frozenset(
+    {
+        "prologue",
+        "demo",
+        "trial",
+        "lite",
+        "prelude",
+    }
+)
+
 # Type for progress callbacks: (done, total, found, game_name)
 ProgressCb = Callable[[int, int, int, str], None]
 
@@ -217,7 +229,32 @@ def _pick_best_hltb_entry(
     for entry, sim in usable:
         entry_name = (entry.get("game_name") or "").lower()
         if entry_name.startswith((lower + ":", lower + " -")):
-            return entry, sim
+            suffix = entry_name[len(lower) :].lstrip(" :-")
+            if not any(suffix.startswith(kw) for kw in _SUBSET_SUFFIXES):
+                # Only prefer this extended entry when it has strictly more
+                # comp_100 than any exact-name match.  This prevents
+                # "Killing Floor: Toy Master" (1.2 h) from beating
+                # "Killing Floor" (296 h) while still letting
+                # "FAITH: The Unholy Trinity" (7 h) beat "FAITH" (0.5 h demo).
+                extended_hours = entry.get("comp_100", 0)
+                best_exact = next(
+                    (
+                        (e, s)
+                        for e, s in sorted(
+                            usable,
+                            key=lambda x: x[0].get("comp_100", 0),
+                            reverse=True,
+                        )
+                        if (e.get("game_name") or "").lower() == lower
+                    ),
+                    None,
+                )
+                if (
+                    best_exact is not None
+                    and best_exact[0].get("comp_100", 0) >= extended_hours
+                ):
+                    return best_exact
+                return entry, sim
 
     # Fall back to highest similarity.
     return max(usable, key=lambda x: x[1])
@@ -285,6 +322,14 @@ async def _search_one(
                     if best is not None:
                         entry, sim = best
                         hours = round(entry["comp_100"] / 3600, 2)
+                        logger.debug(
+                            "HLTB match for '%s': '%s' (id=%s, comp_100=%s, sim=%.3f)",
+                            name,
+                            entry.get("game_name"),
+                            entry.get("game_id"),
+                            entry.get("comp_100"),
+                            sim,
+                        )
                         result = HLTBResult(
                             app_id=app_id,
                             game_name=name,

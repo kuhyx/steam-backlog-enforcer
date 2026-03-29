@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 _LIST_DISPLAY_LIMIT = 50
 _MIN_CLI_ARGS = 2
+_REASSIGN_REFRESH_LIMIT = 50
 
 
 # ──────────────────────────────────────────────────────────────
@@ -283,6 +284,47 @@ def cmd_unhide(config: Config, _state: State) -> None:
         _echo("Done!")
 
 
+def _apply_cached_hours_to_games(
+    games: list[GameInfo],
+    hltb_cache: dict[int, float],
+) -> None:
+    """Overlay cached HLTB hours onto games (including cached misses)."""
+    for game in games:
+        if game.app_id in hltb_cache:
+            game.completionist_hours = hltb_cache[game.app_id]
+
+
+def _refresh_uncached_shortlist_hours(
+    games: list[GameInfo],
+    hltb_cache: dict[int, float],
+    skip: set[int],
+    *,
+    upper_bound_hours: float | None = None,
+) -> None:
+    """Refresh likely-short uncached games to avoid stale snapshot decisions."""
+    shorter_uncached = [
+        (g.app_id, g.name)
+        for g in sorted(
+            (
+                game
+                for game in games
+                if not game.is_complete
+                and game.app_id not in skip
+                and game.completionist_hours > 0
+                and game.app_id not in hltb_cache
+                and (
+                    upper_bound_hours is None
+                    or game.completionist_hours < upper_bound_hours
+                )
+            ),
+            key=lambda game: game.completionist_hours,
+        )[:_REASSIGN_REFRESH_LIMIT]
+    ]
+    if shorter_uncached:
+        refreshed = fetch_hltb_times_cached(shorter_uncached)
+        hltb_cache.update(refreshed)
+
+
 def _try_reassign_shorter_game(
     hltb_cache: dict[int, float],
     app_id: int,
@@ -295,11 +337,14 @@ def _try_reassign_shorter_game(
     if not snapshot_data:
         return False
     all_games = [GameInfo.from_snapshot(d) for d in snapshot_data]
-    for g in all_games:
-        cached_hours = hltb_cache.get(g.app_id, -1.0)
-        if cached_hours > 0:
-            g.completionist_hours = cached_hours
     skip = set(config.skip_app_ids) | set(state.finished_app_ids)
+    _refresh_uncached_shortlist_hours(
+        all_games,
+        hltb_cache,
+        skip,
+        upper_bound_hours=hours,
+    )
+    _apply_cached_hours_to_games(all_games, hltb_cache)
     candidates = [
         g
         for g in all_games
@@ -342,6 +387,10 @@ def _finalize_completion(
         return
 
     games = [GameInfo.from_snapshot(d) for d in snapshot_data]
+    hltb_cache = load_hltb_cache()
+    skip = set(config.skip_app_ids) | set(state.finished_app_ids)
+    _refresh_uncached_shortlist_hours(games, hltb_cache, skip)
+    _apply_cached_hours_to_games(games, hltb_cache)
     pick_next_game(games, state, config)
 
     if state.current_app_id is None:

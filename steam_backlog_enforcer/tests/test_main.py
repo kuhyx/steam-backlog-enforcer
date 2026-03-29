@@ -481,3 +481,43 @@ class TestTryReassignShorterGame:
                 Config(),
             )
             assert not result
+
+    def test_refreshes_stale_shorter_snapshot_entry(self) -> None:
+        """Uncached shorter snapshot candidates are refreshed before reassigning."""
+        snap = [
+            _snap(1, "Current", 10, 5, 20.1),
+            _snap(2, "Lacuna", 10, 0, 0.9),
+        ]
+        state = State(current_app_id=1, current_game_name="Current")
+        refreshed_short = GameInfo(
+            app_id=2,
+            name="Lacuna",
+            total_achievements=10,
+            unlocked_achievements=0,
+            playtime_minutes=60,
+            completionist_hours=18.8,
+        )
+        with (
+            patch(f"{PKG}.load_snapshot", return_value=snap),
+            patch(
+                f"{PKG}.fetch_hltb_times_cached",
+                return_value={2: 18.8},
+            ) as mock_fetch_hltb,
+            patch(
+                f"{PKG}._pick_playable_candidate",
+                return_value=refreshed_short,
+            ) as mock_pick_playable,
+            patch(f"{PKG}.pick_next_game"),
+            patch(f"{PKG}._echo"),
+        ):
+            result = _try_reassign_shorter_game(
+                {1: 20.1},
+                1,
+                20.1,
+                state,
+                Config(),
+            )
+
+        assert result
+        mock_fetch_hltb.assert_called_once_with([(2, "Lacuna")])
+        mock_pick_playable.assert_called_once()
