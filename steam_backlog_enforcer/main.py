@@ -398,7 +398,7 @@ def cmd_done(config: Config, state: State) -> None:
 
     All-in-one command for after finishing a game:
     1. Verify 100% achievements on Steam.
-    2. Pick the next game (shortest HLTB 100% time).
+    2. Pick the next game (shortest HLTB leisure+dlc time).
     3. Uninstall all non-assigned games.
     4. Hide all non-assigned games in the Steam library.
     5. Install the newly assigned game.
@@ -428,7 +428,7 @@ def cmd_done(config: Config, state: State) -> None:
         hltb_cache = fetch_hltb_times_cached([(app_id, game_name)])
         hours = hltb_cache.get(app_id, -1.0)
     if hours > 0:
-        _echo(f"  HLTB 100% estimate: {hours:.1f} hours")
+        _echo(f"  HLTB leisure+dlc estimate: {hours:.1f} hours")
 
     if _try_reassign_shorter_game(hltb_cache, app_id, hours, state, config):
         return

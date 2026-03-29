@@ -1,11 +1,13 @@
 """HowLongToBeat integration for estimating game completion times.
 
-Fetches completionist hour estimates from howlongtobeat.com with:
+Fetches leisure completionist hour estimates from howlongtobeat.com with:
 - direct API calls (bypassing the slow howlongtobeatpy per-request setup)
 - single shared aiohttp session for all requests
 - concurrent requests with configurable concurrency
 - live progress reporting via callback
 - incremental disk-cache saves so crashes don't lose work
+- leisure time (upper-bound play time) from individual game pages
+- DLC time aggregation (base game + all DLC leisure times combined)
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from difflib import SequenceMatcher
 from http import HTTPStatus
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -45,6 +48,15 @@ class HLTBResult:
     completionist_hours: float
     similarity: float
     hltb_game_id: int = 0
+
+
+@dataclass
+class _AuthInfo:
+    """HLTB API authentication details."""
+
+    token: str
+    hp_key: str = ""
+    hp_val: str = ""
 
 
 HLTB_BASE_URL = "https://howlongtobeat.com"
@@ -107,11 +119,11 @@ def _get_hltb_search_url() -> str:
     return "https://howlongtobeat.com/api/finder"
 
 
-async def _get_auth_token(
+async def _get_auth_info(
     search_url: str,
     session: aiohttp.ClientSession,
-) -> str | None:
-    """Fetch the HLTB auth token (one GET request)."""
+) -> _AuthInfo | None:
+    """Fetch the HLTB auth token and honeypot key/val (one GET request)."""
     init_url = search_url + "/init"
     ts = int(time.time() * 1000)
     headers = {
@@ -129,7 +141,13 @@ async def _get_auth_token(
             if resp.status == HTTPStatus.OK:
                 data = await resp.json()
                 token: str | None = data.get("token")
-                return token
+                if token is None:
+                    return None
+                return _AuthInfo(
+                    token=token,
+                    hp_key=data.get("hpKey", ""),
+                    hp_val=data.get("hpVal", ""),
+                )
     except (aiohttp.ClientError, asyncio.TimeoutError):
         logger.warning("Failed to get HLTB auth token")
     return None
@@ -140,39 +158,40 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def _build_search_payload(game_name: str) -> str:
+def _build_search_payload(game_name: str, auth: _AuthInfo | None = None) -> str:
     """Build the JSON POST body for an HLTB search."""
-    return json.dumps(
-        {
-            "searchType": "games",
-            "searchTerms": game_name.split(),
-            "searchPage": 1,
-            "size": 20,
-            "searchOptions": {
-                "games": {
-                    "userId": 0,
-                    "platform": "",
-                    "sortCategory": "popular",
-                    "rangeCategory": "main",
-                    "rangeTime": {"min": 0, "max": 0},
-                    "gameplay": {
-                        "perspective": "",
-                        "flow": "",
-                        "genre": "",
-                        "difficulty": "",
-                    },
-                    "rangeYear": {"max": "", "min": ""},
-                    "modifier": "",
+    payload: dict[str, Any] = {
+        "searchType": "games",
+        "searchTerms": game_name.split(),
+        "searchPage": 1,
+        "size": 20,
+        "searchOptions": {
+            "games": {
+                "userId": 0,
+                "platform": "",
+                "sortCategory": "popular",
+                "rangeCategory": "main",
+                "rangeTime": {"min": 0, "max": 0},
+                "gameplay": {
+                    "perspective": "",
+                    "flow": "",
+                    "genre": "",
+                    "difficulty": "",
                 },
-                "users": {"sortCategory": "postcount"},
-                "lists": {"sortCategory": "follows"},
-                "filter": "",
-                "sort": 0,
-                "randomizer": 0,
+                "rangeYear": {"max": "", "min": ""},
+                "modifier": "",
             },
-            "useCache": True,
-        }
-    )
+            "users": {"sortCategory": "postcount"},
+            "lists": {"sortCategory": "follows"},
+            "filter": "",
+            "sort": 0,
+            "randomizer": 0,
+        },
+        "useCache": True,
+    }
+    if auth and auth.hp_key:
+        payload[auth.hp_key] = auth.hp_val
+    return json.dumps(payload)
 
 
 def _pick_best_hltb_entry(
@@ -187,17 +206,21 @@ def _pick_best_hltb_entry(
     """
     if not candidates:
         return None
-    if len(candidates) == 1:
-        return candidates[0]
+
+    # Prefer base games over DLC entries when both are present.
+    non_dlc = [c for c in candidates if str(c[0].get("game_type", "")).lower() != "dlc"]
+    usable = non_dlc or candidates
+    if len(usable) == 1:
+        return usable[0]
 
     lower = search_name.lower()
-    for entry, sim in candidates:
+    for entry, sim in usable:
         entry_name = (entry.get("game_name") or "").lower()
         if entry_name.startswith((lower + ":", lower + " -")):
             return entry, sim
 
     # Fall back to highest similarity.
-    return max(candidates, key=lambda x: x[1])
+    return max(usable, key=lambda x: x[1])
 
 
 # ──────────────────────────────────────────────────────────────
@@ -213,6 +236,7 @@ class _SearchCtx:
     search_url: str
     headers: dict[str, str]
     cache: dict[int, float]
+    auth: _AuthInfo | None = None
     counter: dict[str, int] = field(default_factory=dict)
     total: int = 0
     progress_cb: ProgressCb | None = None
@@ -227,7 +251,7 @@ async def _search_one(
     """Search HLTB for one game via direct POST, update cache."""
     async with sem:
         result: HLTBResult | None = None
-        payload = _build_search_payload(name)
+        payload = _build_search_payload(name, ctx.auth)
         try:
             async with ctx.session.post(
                 ctx.search_url,
@@ -241,13 +265,18 @@ async def _search_one(
                     for entry in data.get("data", []):
                         entry_name = entry.get("game_name", "")
                         entry_alias = entry.get("game_alias", "") or ""
+                        is_dlc = str(entry.get("game_type", "")).lower() == "dlc"
                         sim = max(
                             _similarity(name, entry_name),
                             _similarity(name, entry_alias),
                         )
-                        is_full_edition = entry_name.lower().startswith(
-                            lower_name + ":"
-                        ) or entry_name.lower().startswith(lower_name + " -")
+                        is_full_edition = (
+                            (not is_dlc)
+                            and entry_name.lower().startswith(lower_name + ":")
+                        ) or (
+                            (not is_dlc)
+                            and entry_name.lower().startswith(lower_name + " -")
+                        )
                         if sim >= MIN_SIMILARITY or is_full_edition:
                             comp_100 = entry.get("comp_100", 0)
                             if comp_100 and comp_100 > 0:
@@ -287,6 +316,246 @@ async def _search_one(
         return result
 
 
+# ──────────────────────────────────────────────────────────────
+# Leisure time + DLC fetching from game detail pages
+# ──────────────────────────────────────────────────────────────
+
+_NEXT_DATA_RE = re.compile(
+    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+)
+
+
+def _parse_game_page(html: str) -> dict[str, Any] | None:
+    """Extract game data dict from a HLTB game page's __NEXT_DATA__."""
+    match = _NEXT_DATA_RE.search(html)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(1))
+        result: dict[str, Any] = data["props"]["pageProps"]["game"]["data"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+    else:
+        return result
+
+
+def _as_positive_int(value: object) -> int:
+    """Convert HLTB numeric JSON values to a positive int, or 0 when invalid."""
+    if isinstance(value, int):
+        return max(0, value)
+    if isinstance(value, float):
+        int_value = int(value)
+        return max(0, int_value)
+    if isinstance(value, str):
+        try:
+            int_value = int(value)
+            return max(0, int_value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _extract_base_leisure_hours(game_data: dict[str, Any]) -> float:
+    """Extract base-game leisure hours from game detail data."""
+    games = game_data.get("game", [])
+    if not isinstance(games, list) or not games:
+        return -1
+    if not isinstance(games[0], dict):
+        return -1
+
+    base = games[0]
+    leisure_s = _as_positive_int(base.get("comp_100_h", 0))
+    if leisure_s <= 0:
+        leisure_s = _as_positive_int(base.get("comp_100", 0))
+    if leisure_s <= 0:
+        return -1
+
+    return round(leisure_s / 3600, 2)
+
+
+def _extract_dlc_relationships(game_data: dict[str, Any]) -> list[tuple[int, float]]:
+    """Extract DLC relationship IDs and fallback hours from detail data."""
+    relationships = game_data.get("relationships", [])
+    if not isinstance(relationships, list):
+        return []
+
+    dlcs: list[tuple[int, float]] = []
+    for rel in relationships:
+        if not isinstance(rel, dict):
+            continue
+        if str(rel.get("game_type", "")).lower() != "dlc":
+            continue
+        dlc_id = _as_positive_int(rel.get("game_id", 0))
+        fallback_comp_100 = _as_positive_int(rel.get("comp_100", 0))
+        if fallback_comp_100 > 0:
+            fallback_hours = round(fallback_comp_100 / 3600, 2)
+        else:
+            fallback_hours = 0.0
+        dlcs.append((dlc_id, fallback_hours))
+
+    return dlcs
+
+
+def _extract_leisure_hours(game_data: dict[str, Any]) -> float:
+    """Compute total leisure hours: base game + all DLCs.
+
+    Uses ``comp_100_h`` (leisure completionist) from the game detail page.
+    Falls back to ``comp_100`` (average completionist) if leisure unavailable.
+    Also sums leisure time from any DLC listed in ``relationships``.
+    """
+    base_hours = _extract_base_leisure_hours(game_data)
+    if base_hours <= 0:
+        return -1
+
+    total_hours = base_hours
+
+    # Add DLC leisure times from relationships.
+    for _dlc_id, fallback_hours in _extract_dlc_relationships(game_data):
+        total_hours += fallback_hours
+
+    return round(total_hours, 2)
+
+
+async def _fetch_detail_one(
+    sem: asyncio.Semaphore,
+    session: aiohttp.ClientSession,
+    hltb_game_id: int,
+) -> dict[str, Any] | None:
+    """Fetch a single HLTB game detail page and parse its data."""
+    async with sem:
+        url = f"{HLTB_BASE_URL}/game/{hltb_game_id}"
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
+            ),
+            "accept": "text/html",
+            "referer": "https://howlongtobeat.com/",
+        }
+        try:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == HTTPStatus.OK:
+                    html = await resp.text()
+                    return _parse_game_page(html)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            logger.debug(
+                "HLTB detail fetch failed for game_id=%d: %s",
+                hltb_game_id,
+                exc,
+            )
+    return None
+
+
+async def _fetch_leisure_times(
+    search_results: list[HLTBResult],
+    cache: dict[int, float],
+    progress_cb: ProgressCb | None,
+) -> None:
+    """Fetch leisure times from game detail pages for all search results.
+
+    Updates ``cache`` in-place with leisure hours (including DLC time).
+    """
+    valid = [r for r in search_results if r.hltb_game_id > 0]
+    if not valid:
+        return
+
+    timeout = aiohttp.ClientTimeout(total=30, sock_read=20)
+    sem = asyncio.Semaphore(MAX_CONCURRENT)
+    connector = aiohttp.TCPConnector(
+        limit=MAX_CONCURRENT,
+        keepalive_timeout=30,
+    )
+
+    total = len(valid)
+    done = 0
+    found = 0
+
+    async with aiohttp.ClientSession(
+        timeout=timeout,
+        connector=connector,
+    ) as session:
+        coros = [_fetch_detail_one(sem, session, r.hltb_game_id) for r in valid]
+        details = await asyncio.gather(*coros)
+
+        dlc_relationships_by_app, dlc_ids = _collect_dlc_relationships(valid, details)
+        dlc_hours_by_id = await _fetch_dlc_leisure_hours(sem, session, dlc_ids)
+
+        for r, game_data in zip(valid, details, strict=False):
+            done += 1
+            if game_data is not None:
+                leisure = _extract_leisure_hours(game_data)
+                if leisure > 0:
+                    leisure = _apply_dlc_leisure_overrides(
+                        leisure,
+                        dlc_relationships_by_app.get(r.app_id, []),
+                        dlc_hours_by_id,
+                    )
+                    r.completionist_hours = leisure
+                    cache[r.app_id] = leisure
+                    found += 1
+
+            if progress_cb is not None:
+                progress_cb(done, total, found, r.game_name)
+
+            if done % _SAVE_INTERVAL == 0:
+                save_hltb_cache(cache)
+
+
+def _collect_dlc_relationships(
+    valid: list[HLTBResult],
+    details: list[dict[str, Any] | None],
+) -> tuple[dict[int, list[tuple[int, float]]], list[int]]:
+    """Collect DLC relationship IDs for all base-game detail responses."""
+    by_app: dict[int, list[tuple[int, float]]] = {}
+    unique_dlc_ids: set[int] = set()
+
+    for result, game_data in zip(valid, details, strict=False):
+        if game_data is None:
+            continue
+        dlc_rels = _extract_dlc_relationships(game_data)
+        by_app[result.app_id] = dlc_rels
+        for dlc_id, _fallback_hours in dlc_rels:
+            if dlc_id > 0:
+                unique_dlc_ids.add(dlc_id)
+
+    return by_app, sorted(unique_dlc_ids)
+
+
+async def _fetch_dlc_leisure_hours(
+    sem: asyncio.Semaphore,
+    session: aiohttp.ClientSession,
+    dlc_ids: list[int],
+) -> dict[int, float]:
+    """Fetch leisure hours for each DLC game id."""
+    if not dlc_ids:
+        return {}
+
+    coros = [_fetch_detail_one(sem, session, dlc_id) for dlc_id in dlc_ids]
+    dlc_details = await asyncio.gather(*coros)
+
+    dlc_hours_by_id: dict[int, float] = {}
+    for dlc_id, dlc_data in zip(dlc_ids, dlc_details, strict=False):
+        if dlc_data is None:
+            continue
+        dlc_leisure = _extract_base_leisure_hours(dlc_data)
+        if dlc_leisure > 0:
+            dlc_hours_by_id[dlc_id] = dlc_leisure
+    return dlc_hours_by_id
+
+
+def _apply_dlc_leisure_overrides(
+    base_hours: float,
+    dlc_rels: list[tuple[int, float]],
+    dlc_hours_by_id: dict[int, float],
+) -> float:
+    """Replace fallback DLC hours with detailed leisure hours when available."""
+    adjusted = base_hours
+    for dlc_id, fallback_hours in dlc_rels:
+        dlc_leisure = dlc_hours_by_id.get(dlc_id, -1.0)
+        if dlc_leisure > 0:
+            adjusted += dlc_leisure - fallback_hours
+    return round(adjusted, 2)
+
+
 async def _fetch_batch(
     games: list[tuple[int, str]],
     cache: dict[int, float],
@@ -299,24 +568,27 @@ async def _fetch_batch(
 
     timeout = aiohttp.ClientTimeout(total=20, sock_read=15)
 
-    # 2. Get auth token (separate session — avoids reuse issues).
+    # 2. Get auth info (separate session — avoids reuse issues).
     async with aiohttp.ClientSession(timeout=timeout) as init_session:
-        token = await _get_auth_token(search_url, init_session)
-    if token is None:
-        logger.warning("Could not get HLTB auth token, aborting fetch.")
+        auth = await _get_auth_info(search_url, init_session)
+    if auth is None:
+        logger.warning("Could not get HLTB auth info, aborting fetch.")
         return []
     logger.info("HLTB auth token acquired.")
 
     # 3. Build shared headers for all search requests.
-    headers = {
+    headers: dict[str, str] = {
         "content-type": "application/json",
         "accept": "*/*",
         "User-Agent": (
             "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
         ),
         "referer": "https://howlongtobeat.com/",
-        "x-auth-token": token,
+        "x-auth-token": auth.token,
     }
+    if auth.hp_key:
+        headers["x-hp-key"] = auth.hp_key
+        headers["x-hp-val"] = auth.hp_val
 
     # 4. Fire all searches through a single persistent session.
     sem = asyncio.Semaphore(MAX_CONCURRENT)
@@ -336,6 +608,7 @@ async def _fetch_batch(
             search_url=search_url,
             headers=headers,
             cache=cache,
+            auth=auth,
             counter=counter,
             total=total,
             progress_cb=progress_cb,
@@ -351,7 +624,16 @@ async def _fetch_batch(
         ]
         results = await asyncio.gather(*tasks)
 
-    return [r for r in results if r is not None]
+    search_results = [r for r in results if r is not None]
+
+    # 5. Fetch leisure times + DLC from game detail pages.
+    logger.info(
+        "Fetching leisure times for %d games from detail pages...",
+        len(search_results),
+    )
+    await _fetch_leisure_times(search_results, cache, progress_cb=None)
+
+    return search_results
 
 
 def fetch_hltb_times(

@@ -178,7 +178,7 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
 
     hours_str = ""
     if chosen.completionist_hours > 0:
-        hours_str = f" (~{chosen.completionist_hours:.1f}h to 100%)"
+        hours_str = f" (~{chosen.completionist_hours:.1f}h leisure+dlc)"
     _echo(f"\n>>> ASSIGNED: {chosen.name} (AppID={chosen.app_id}){hours_str}")
     _echo(
         f"    Progress: {chosen.unlocked_achievements}/{chosen.total_achievements}"
