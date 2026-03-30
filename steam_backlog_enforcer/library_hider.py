@@ -212,51 +212,81 @@ def ensure_steam_debug_port() -> None:
 # ──────────────────────────────────────────────────────────────
 
 
+_HIDE_BATCH_SIZE = 50
+_MAX_HIDE_PASSES = 30
+_SETTLE_DELAY_MS = 200
+
+
 def hide_other_games(
     owned_app_ids: list[int],
     allowed_app_id: int | None,
 ) -> int:
-    """Hide every owned game except *allowed_app_id* in the Steam library.
+    """Hide every game except *allowed_app_id* in the Steam library.
 
     Uses the Chrome DevTools Protocol to call
     ``collectionStore.SetAppsAsHidden()`` in Steam's JS context.
-    Changes take effect immediately — no restart required.
 
-    Returns the number of games newly hidden.
+    The entire retry loop runs inside a single JS evaluation to avoid
+    WebSocket round-trip overhead.  ``SetAppsAsHidden`` is unreliable
+    in a single pass for large libraries, so the JS loop retries until
+    ``visibleApps`` converges to only the allowed game.
+
+    On the first pass, caller-provided *owned_app_ids* are included to
+    cover games that might not yet appear in ``visibleApps`` due to
+    stale MobX state.
+
+    Returns the total number of games hidden across all passes.
     """
     ensure_steam_debug_port()
 
-    hide_ids = sorted(aid for aid in owned_app_ids if aid != allowed_app_id)
-    if not hide_ids:
-        return 0
-
-    ids_json = json.dumps(hide_ids)
+    allowed_js = str(allowed_app_id) if allowed_app_id is not None else "null"
+    extra_ids = sorted(aid for aid in owned_app_ids if aid != allowed_app_id)
+    extra_json = json.dumps(extra_ids)
     js = f"""
-    (() => {{
-        const toHide = {ids_json};
-        const already = new Set();
-        const hidden = collectionStore.GetCollection('hidden');
-        if (hidden && hidden.allApps) {{
-            for (const app of hidden.allApps) already.add(app.appid);
+    (async () => {{
+        const allowed = {allowed_js};
+        const coll = collectionStore.allGamesCollection;
+        const extraIds = {extra_json};
+        let totalHidden = 0;
+        const maxPasses = {_MAX_HIDE_PASSES};
+        const batchSize = {_HIDE_BATCH_SIZE};
+
+        for (let pass = 0; pass < maxPasses; pass++) {{
+            let visible = coll && coll.visibleApps
+                ? coll.visibleApps.map(a => a.appid).filter(id => id !== allowed)
+                : [];
+
+            if (pass === 0) {{
+                const visSet = new Set(visible);
+                for (const id of extraIds) {{
+                    if (!visSet.has(id)) visible.push(id);
+                }}
+            }}
+
+            if (visible.length === 0) break;
+
+            for (let i = 0; i < visible.length; i += batchSize) {{
+                const batch = visible.slice(i, i + batchSize);
+                await collectionStore.SetAppsAsHidden(batch, true);
+                totalHidden += batch.length;
+            }}
+
+            await new Promise(r => setTimeout(r, {_SETTLE_DELAY_MS}));
         }}
-        const newIds = toHide.filter(id => !already.has(id));
-        if (newIds.length > 0) {{
-            collectionStore.SetAppsAsHidden(newIds, true);
+
+        if (allowed !== null) {{
+            await collectionStore.SetAppsAsHidden([allowed], false);
         }}
-        // Unhide the allowed game if it was hidden.
-        const allowedId = {allowed_app_id if allowed_app_id is not None else "null"};
-        if (allowedId !== null && collectionStore.BIsHidden(allowedId)) {{
-            collectionStore.SetAppsAsHidden([allowedId], false);
-        }}
-        return JSON.stringify({{ newlyHidden: newIds.length }});
+
+        return JSON.stringify({{ totalHidden }});
     }})()
     """
 
     result = _evaluate_js(js)
     value = _cdp_result_value(result)
     parsed = json.loads(value)
-    count: int = parsed["newlyHidden"]
-    logger.info("Hidden %d new games via CDP.", count)
+    count: int = parsed["totalHidden"]
+    logger.info("Hid %d games via CDP.", count)
     return count
 
 
@@ -269,12 +299,12 @@ def unhide_all_games(owned_app_ids: list[int]) -> int:
 
     json.dumps(sorted(owned_app_ids))
     js = """
-    (() => {
+    (async () => {
         const hidden = collectionStore.GetCollection('hidden');
         if (!hidden || !hidden.allApps) return JSON.stringify({ count: 0 });
         const hiddenIds = hidden.allApps.map(a => a.appid);
         if (hiddenIds.length === 0) return JSON.stringify({ count: 0 });
-        collectionStore.SetAppsAsHidden(hiddenIds, false);
+        await collectionStore.SetAppsAsHidden(hiddenIds, false);
         return JSON.stringify({ count: hiddenIds.length });
     })()
     """

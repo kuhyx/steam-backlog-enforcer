@@ -437,19 +437,33 @@ class TestHideOtherGames:
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.library_hider._evaluate_js",
-                return_value={"result": {"result": {"value": '{"newlyHidden": 5}'}}},
+                return_value={
+                    "result": {"result": {"value": '{"totalHidden": 5}'}},
+                },
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.library_hider._cdp_result_value",
-                return_value='{"newlyHidden": 5}',
+                return_value='{"totalHidden": 5}',
             ),
         ):
             count = hide_other_games([1, 2, 3], 1)
             assert count == 5
 
     def test_empty_list(self) -> None:
-        with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.ensure_steam_debug_port",
+        with (
+            patch(
+                "python_pkg.steam_backlog_enforcer.library_hider.ensure_steam_debug_port",
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.library_hider._evaluate_js",
+                return_value={
+                    "result": {"result": {"value": '{"totalHidden": 0}'}},
+                },
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.library_hider._cdp_result_value",
+                return_value='{"totalHidden": 0}',
+            ),
         ):
             count = hide_other_games([1], 1)
             assert count == 0
@@ -461,11 +475,13 @@ class TestHideOtherGames:
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.library_hider._evaluate_js",
-                return_value={"result": {"result": {"value": '{"newlyHidden": 2}'}}},
+                return_value={
+                    "result": {"result": {"value": '{"totalHidden": 2}'}},
+                },
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.library_hider._cdp_result_value",
-                return_value='{"newlyHidden": 2}',
+                return_value='{"totalHidden": 2}',
             ),
         ):
             count = hide_other_games([1, 2], None)
