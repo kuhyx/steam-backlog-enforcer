@@ -108,6 +108,14 @@ def _try_reassign_shorter_game(
         f" (~{playable.completionist_hours:.1f}h vs ~{hours:.1f}h)"
     )
     pick_next_game(all_games, state, config)
+
+    if state.current_app_id is not None:
+        owned_ids = get_all_owned_app_ids(config)
+        if owned_ids:
+            hidden = hide_other_games(owned_ids, state.current_app_id)
+            if hidden > 0:
+                _echo(f"\n  Library: hid {hidden} games")
+
     return True
 
 

@@ -56,7 +56,7 @@ class TestTryReassignShorterGame:
             _snap(1, "Long", 10, 5, 100.0),
             _snap(2, "Short", 10, 5, 5.0),
         ]
-        state = State(current_app_id=1, current_game_name="Long")
+        state = State(current_app_id=2, current_game_name="Short")
         short_game = GameInfo(
             app_id=2,
             name="Short",
@@ -73,6 +73,11 @@ class TestTryReassignShorterGame:
                 return_value=short_game,
             ),
             patch(f"{CMD_DONE_PKG}.pick_next_game"),
+            patch(
+                f"{CMD_DONE_PKG}.get_all_owned_app_ids",
+                return_value=[1, 2, 3],
+            ),
+            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=5) as mock_hide,
         ):
             result = _try_reassign_shorter_game(
                 {1: 100.0, 2: 5.0},
@@ -82,6 +87,80 @@ class TestTryReassignShorterGame:
                 Config(),
             )
             assert result
+            mock_hide.assert_called_once_with([1, 2, 3], 2)
+
+    def test_reassigns_no_hide_when_no_owned_ids(self) -> None:
+        snap = [
+            _snap(1, "Long", 10, 5, 100.0),
+            _snap(2, "Short", 10, 5, 5.0),
+        ]
+        state = State(current_app_id=2, current_game_name="Short")
+        short_game = GameInfo(
+            app_id=2,
+            name="Short",
+            total_achievements=10,
+            unlocked_achievements=5,
+            playtime_minutes=60,
+            completionist_hours=5.0,
+        )
+        with (
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}._echo") as mock_echo,
+            patch(
+                f"{CMD_DONE_PKG}._pick_playable_candidate",
+                return_value=short_game,
+            ),
+            patch(f"{CMD_DONE_PKG}.pick_next_game"),
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=0),
+        ):
+            result = _try_reassign_shorter_game(
+                {1: 100.0, 2: 5.0},
+                1,
+                100.0,
+                state,
+                Config(),
+            )
+            assert result
+            # hidden == 0, so "hid N games" should NOT be echoed
+            for call in mock_echo.call_args_list:
+                assert "hid" not in str(call)
+
+    def test_reassigns_skip_hide_when_no_app_assigned(self) -> None:
+        snap = [
+            _snap(1, "Long", 10, 5, 100.0),
+            _snap(2, "Short", 10, 5, 5.0),
+        ]
+        state = State(current_app_id=None, current_game_name="")
+        short_game = GameInfo(
+            app_id=2,
+            name="Short",
+            total_achievements=10,
+            unlocked_achievements=5,
+            playtime_minutes=60,
+            completionist_hours=5.0,
+        )
+        with (
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(
+                f"{CMD_DONE_PKG}._pick_playable_candidate",
+                return_value=short_game,
+            ),
+            patch(f"{CMD_DONE_PKG}.pick_next_game"),
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids") as mock_owned,
+            patch(f"{CMD_DONE_PKG}.hide_other_games") as mock_hide,
+        ):
+            result = _try_reassign_shorter_game(
+                {1: 100.0, 2: 5.0},
+                1,
+                100.0,
+                state,
+                Config(),
+            )
+            assert result
+            mock_owned.assert_not_called()
+            mock_hide.assert_not_called()
 
     def test_playable_none(self) -> None:
         snap = [
@@ -157,6 +236,8 @@ class TestTryReassignShorterGame:
             ) as mock_pick_playable,
             patch(f"{CMD_DONE_PKG}.pick_next_game"),
             patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(f"{CMD_DONE_PKG}.hide_other_games"),
         ):
             result = _try_reassign_shorter_game(
                 {1: 20.1},

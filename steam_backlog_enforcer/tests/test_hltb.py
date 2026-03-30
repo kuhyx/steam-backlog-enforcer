@@ -321,3 +321,27 @@ class TestPickBestHltbEntry:
         result = _pick_best_hltb_entry("Killing Floor", [(spinoff, 0.7), (base, 1.0)])
         assert result is not None
         assert result[0]["game_name"] == "Killing Floor"
+
+    def test_alias_exact_match_beats_spinoff(self) -> None:
+        """Base game found via game_alias beats a spinoff with matching prefix.
+
+        When HLTB renames a game (e.g. 'Needy Streamer Overload' ->
+        'NEEDY GIRL OVERDOSE'), the old name lives in game_alias.  A spinoff
+        like 'Needy Streamer Overload: Typing of The Net' must NOT be
+        preferred just because its game_name starts with the search term.
+        """
+        base: dict[str, Any] = {
+            "game_name": "NEEDY GIRL OVERDOSE",
+            "game_alias": "Needy Streamer Overload",
+            "comp_100": 43200,  # 12 h
+        }
+        spinoff: dict[str, Any] = {
+            "game_name": "Needy Streamer Overload: Typing of The Net",
+            "comp_100": 3600,  # 1 h
+        }
+        result = _pick_best_hltb_entry(
+            "NEEDY STREAMER OVERLOAD",
+            [(spinoff, 0.7), (base, 0.9)],
+        )
+        assert result is not None
+        assert result[0]["game_name"] == "NEEDY GIRL OVERDOSE"

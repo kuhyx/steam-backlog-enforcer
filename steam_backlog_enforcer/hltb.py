@@ -185,6 +185,7 @@ def _pick_best_hltb_entry(
                             reverse=True,
                         )
                         if (e.get("game_name") or "").lower() == lower
+                        or (e.get("game_alias") or "").lower() == lower
                     ),
                     None,
                 )
