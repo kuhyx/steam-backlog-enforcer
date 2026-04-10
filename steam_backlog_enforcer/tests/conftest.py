@@ -7,12 +7,14 @@ to temporary directories.  This stops tests from accidentally:
     user's current assignment)
   - Reading real appmanifest files from ~/.local/share/Steam/steamapps
   - Modifying /etc/hosts via the store blocker
+  - Corrupting the HLTB cache on disk
+  - Launching real Steam or calling real subprocess commands
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -57,6 +59,12 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
             fake_steamapps,
         ),
+        # HLTB cache file (computed at import time from CONFIG_DIR, so
+        # patching CONFIG_DIR alone does not redirect it)
+        patch(
+            "python_pkg.steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE",
+            fake_config / "hltb_cache.json",
+        ),
         # /etc/hosts (store blocker)
         patch(
             "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
@@ -65,6 +73,46 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
         patch(
             "python_pkg.steam_backlog_enforcer.config.HOSTS_FILE",
             fake_hosts,
+        ),
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _block_real_subprocesses() -> Iterator[None]:
+    """Block subprocess calls that could launch real Steam or modify system.
+
+    Individual tests that need to test subprocess behaviour should
+    patch the specific module's ``subprocess.run`` / ``subprocess.Popen``
+    themselves — their local patch will override this one.
+    """
+    noop_run = MagicMock(return_value=MagicMock(returncode=1))
+    noop_popen = MagicMock()
+
+    with (
+        patch(
+            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer.game_install.subprocess.Popen",
+            noop_popen,
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer.enforcer.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer.library_hider.subprocess.Popen",
+            noop_popen,
         ),
     ):
         yield

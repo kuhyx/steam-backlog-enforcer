@@ -15,6 +15,29 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Real Steam directory — used as a safety check to block destructive
+# operations that leak through during testing.
+_REAL_STEAMAPPS = Path("~/.local/share/Steam/steamapps").expanduser()
+
+
+def _assert_not_real_steam(path: Path) -> None:
+    """Raise if *path* is inside the real Steam directory.
+
+    Defence-in-depth guard: even if test fixtures fail to
+    redirect ``STEAMAPPS_PATH``, destructive operations
+    (uninstall, rmtree, unlink) will refuse to touch real files.
+    """
+    try:
+        path.resolve().relative_to(_REAL_STEAMAPPS.resolve())
+    except ValueError:
+        return  # path is NOT under real Steam — safe to proceed
+    if STEAMAPPS_PATH.resolve() == _REAL_STEAMAPPS.resolve():
+        msg = (
+            f"SAFETY: refusing destructive operation on real Steam path "
+            f"{path!s} — STEAMAPPS_PATH was not redirected by test fixtures"
+        )
+        raise RuntimeError(msg)
+
 
 def _echo(msg: str = "", *, end: str = "\n", flush: bool = False) -> None:
     """Write user-facing CLI output to stdout.
@@ -56,6 +79,7 @@ PROTECTED_APP_IDS = {
     1007020,  # Proton EasyAntiCheat Runtime
     # Games allowed to be installed anytime
     3949040,  # RV There Yet?
+    2252570,
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
@@ -312,6 +336,7 @@ def _remove_manifest(manifest: Path, game_name: str, app_id: int) -> bool:
         game_name: Human-readable game name for logging.
         app_id: Steam application ID.
     """
+    _assert_not_real_steam(manifest)
     try:
         if manifest.exists():
             manifest.unlink()
@@ -333,6 +358,7 @@ def _remove_game_dirs(install_dir: Path | None, app_id: int) -> bool:
     """
     success = True
     if install_dir and install_dir.is_dir():
+        _assert_not_real_steam(install_dir)
         try:
             shutil.rmtree(install_dir)
             logger.info("Removed game files: %s", install_dir)
@@ -343,6 +369,7 @@ def _remove_game_dirs(install_dir: Path | None, app_id: int) -> bool:
     for subdir in ("shadercache", "compatdata"):
         cache_path = STEAMAPPS_PATH / subdir / str(app_id)
         if cache_path.is_dir():
+            _assert_not_real_steam(cache_path)
             with contextlib.suppress(OSError):
                 shutil.rmtree(cache_path)
                 logger.debug("Removed %s/%d", subdir, app_id)

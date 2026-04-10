@@ -154,6 +154,10 @@ def _pick_best_hltb_entry(
     When a short name like "FAITH" matches both "FAITH" (demo) and
     "FAITH: The Unholy Trinity" (full game), prefer the full game
     since Steam often lists the full game under the shorter name.
+
+    When an exact match like "Timberman" (26 h) competes against an
+    unrelated subtitle entry like "Timberman: The Big Adventure" (2 h),
+    the exact match wins because it has more hours.
     """
     if not candidates:
         return None
@@ -165,36 +169,72 @@ def _pick_best_hltb_entry(
         return usable[0]
 
     lower = search_name.lower()
+    best_exact = _find_exact_match(usable, lower)
+    best_extended = _find_best_extended(usable, lower)
+    return _resolve_exact_vs_extended(best_exact, best_extended, usable)
+
+
+def _find_exact_match(
+    usable: list[tuple[dict[str, Any], float]],
+    lower: str,
+) -> tuple[dict[str, Any], float] | None:
+    """Find best exact name/alias match (highest comp_100)."""
+    return next(
+        (
+            (e, s)
+            for e, s in sorted(
+                usable,
+                key=lambda x: x[0].get("comp_100", 0),
+                reverse=True,
+            )
+            if (e.get("game_name") or "").lower() == lower
+            or (e.get("game_alias") or "").lower() == lower
+        ),
+        None,
+    )
+
+
+def _find_best_extended(
+    usable: list[tuple[dict[str, Any], float]],
+    lower: str,
+) -> tuple[dict[str, Any], float] | None:
+    """Find best extended entry ("Name: Subtitle" / "Name - Subtitle").
+
+    Skips subset entries (prologue, demo, etc.).
+    """
+    best: tuple[dict[str, Any], float] | None = None
     for entry, sim in usable:
         entry_name = (entry.get("game_name") or "").lower()
         if entry_name.startswith((lower + ":", lower + " -")):
             suffix = entry_name[len(lower) :].lstrip(" :-")
-            if not any(suffix.startswith(kw) for kw in _SUBSET_SUFFIXES):
-                # Only prefer this extended entry when it has strictly more
-                # comp_100 than any exact-name match.  This prevents
-                # "Killing Floor: Toy Master" (1.2 h) from beating
-                # "Killing Floor" (296 h) while still letting
-                # "FAITH: The Unholy Trinity" (7 h) beat "FAITH" (0.5 h demo).
-                extended_hours = entry.get("comp_100", 0)
-                best_exact = next(
-                    (
-                        (e, s)
-                        for e, s in sorted(
-                            usable,
-                            key=lambda x: x[0].get("comp_100", 0),
-                            reverse=True,
-                        )
-                        if (e.get("game_name") or "").lower() == lower
-                        or (e.get("game_alias") or "").lower() == lower
-                    ),
-                    None,
-                )
-                if (
-                    best_exact is not None
-                    and best_exact[0].get("comp_100", 0) >= extended_hours
-                ):
-                    return best_exact
-                return entry, sim
+            if not any(suffix.startswith(kw) for kw in _SUBSET_SUFFIXES) and (
+                best is None or entry.get("comp_100", 0) > best[0].get("comp_100", 0)
+            ):
+                best = (entry, sim)
+    return best
+
+
+def _resolve_exact_vs_extended(
+    best_exact: tuple[dict[str, Any], float] | None,
+    best_extended: tuple[dict[str, Any], float] | None,
+    usable: list[tuple[dict[str, Any], float]],
+) -> tuple[dict[str, Any], float]:
+    """Decide between exact match, extended entry, or highest similarity."""
+    if best_exact is not None and best_extended is not None:
+        exact_hours = best_exact[0].get("comp_100", 0)
+        extended_hours = best_extended[0].get("comp_100", 0)
+        # Prefer the extended entry only when it has strictly more hours
+        # than the exact match.  This lets "FAITH: The Unholy Trinity"
+        # (7 h) beat "FAITH" (0.5 h demo) while preventing
+        # "Timberman: The Big Adventure" (2 h) from beating
+        # "Timberman" (26 h).
+        if extended_hours > exact_hours:
+            return best_extended
+        return best_exact
+    if best_exact is not None:
+        return best_exact
+    if best_extended is not None:
+        return best_extended
 
     # Fall back to highest similarity.
     return max(usable, key=lambda x: x[1])

@@ -6,7 +6,10 @@ import os
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from python_pkg.steam_backlog_enforcer.game_install import (
+    _assert_not_real_steam,
     _echo,
     _ensure_steam_running,
     _get_real_user,
@@ -22,7 +25,43 @@ from python_pkg.steam_backlog_enforcer.game_install import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
+
+PKG = "python_pkg.steam_backlog_enforcer.game_install"
+
+
+class TestAssertNotRealSteam:
+    """Tests for the _assert_not_real_steam safety guard."""
+
+    def test_allows_tmp_path(self, tmp_path: Path) -> None:
+        """Non-Steam paths pass through without raising."""
+        _assert_not_real_steam(tmp_path / "appmanifest_440.acf")
+
+    def test_raises_when_real_steam_not_redirected(self, tmp_path: Path) -> None:
+        """Raises when path is under real Steam and STEAMAPPS_PATH is real."""
+        real = tmp_path / "real_steam"
+        real.mkdir()
+        fake_manifest = real / "appmanifest_440.acf"
+        fake_manifest.touch()
+        with (
+            patch(f"{PKG}._REAL_STEAMAPPS", real),
+            patch(f"{PKG}.STEAMAPPS_PATH", real),
+            pytest.raises(RuntimeError, match="SAFETY"),
+        ):
+            _assert_not_real_steam(fake_manifest)
+
+    def test_allows_when_steamapps_redirected(self, tmp_path: Path) -> None:
+        """No raise when STEAMAPPS_PATH differs from _REAL_STEAMAPPS."""
+        real = tmp_path / "real_steam"
+        real.mkdir()
+        fake_manifest = real / "appmanifest_440.acf"
+        fake_manifest.touch()
+        redirected = tmp_path / "fake_steam"
+        redirected.mkdir()
+        with (
+            patch(f"{PKG}._REAL_STEAMAPPS", real),
+            patch(f"{PKG}.STEAMAPPS_PATH", redirected),
+        ):
+            _assert_not_real_steam(fake_manifest)
 
 
 class TestEcho:

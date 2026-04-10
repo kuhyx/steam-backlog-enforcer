@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 
 from python_pkg.steam_backlog_enforcer.library_hider import (
     _run_as_user,
+    hide_other_games,
     restart_steam,
+    unhide_all_games,
 )
 
 PKG = "python_pkg.steam_backlog_enforcer.library_hider"
@@ -116,3 +118,77 @@ class TestRestartSteam:
             patch(f"{PKG}._wait_for_cdp_ready", return_value=False),
         ):
             restart_steam()
+
+
+class TestHideOtherGames:
+    """Tests for hide_other_games."""
+
+    def test_hides(self) -> None:
+        with (
+            patch(f"{PKG}.ensure_steam_debug_port"),
+            patch(
+                f"{PKG}._evaluate_js",
+                return_value={
+                    "result": {"result": {"value": '{"totalHidden": 5}'}},
+                },
+            ),
+            patch(
+                f"{PKG}._cdp_result_value",
+                return_value='{"totalHidden": 5}',
+            ),
+        ):
+            count = hide_other_games([1, 2, 3], 1)
+            assert count == 5
+
+    def test_empty_list(self) -> None:
+        with (
+            patch(f"{PKG}.ensure_steam_debug_port"),
+            patch(
+                f"{PKG}._evaluate_js",
+                return_value={
+                    "result": {"result": {"value": '{"totalHidden": 0}'}},
+                },
+            ),
+            patch(
+                f"{PKG}._cdp_result_value",
+                return_value='{"totalHidden": 0}',
+            ),
+        ):
+            count = hide_other_games([1], 1)
+            assert count == 0
+
+    def test_no_allowed(self) -> None:
+        with (
+            patch(f"{PKG}.ensure_steam_debug_port"),
+            patch(
+                f"{PKG}._evaluate_js",
+                return_value={
+                    "result": {"result": {"value": '{"totalHidden": 2}'}},
+                },
+            ),
+            patch(
+                f"{PKG}._cdp_result_value",
+                return_value='{"totalHidden": 2}',
+            ),
+        ):
+            count = hide_other_games([1, 2], None)
+            assert count == 2
+
+
+class TestUnhideAllGames:
+    """Tests for unhide_all_games."""
+
+    def test_unhides(self) -> None:
+        with (
+            patch(f"{PKG}.ensure_steam_debug_port"),
+            patch(
+                f"{PKG}._evaluate_js",
+                return_value={"result": {"result": {"value": '{"count": 10}'}}},
+            ),
+            patch(
+                f"{PKG}._cdp_result_value",
+                return_value='{"count": 10}',
+            ),
+        ):
+            count = unhide_all_games([1, 2, 3])
+            assert count == 10
