@@ -80,6 +80,7 @@ PROTECTED_APP_IDS = {
     # Games allowed to be installed anytime
     3949040,  # RV There Yet?
     2252570,
+    220200,
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
