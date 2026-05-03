@@ -21,9 +21,12 @@ PKG = "python_pkg.steam_backlog_enforcer._enforce_loop"
 class TestGetAllOwnedAppIds:
     """Tests for get_all_owned_app_ids."""
 
-    def test_from_snapshot(self) -> None:
+    def test_snapshot_used_when_api_fails(self) -> None:
         snap = [{"app_id": 1}, {"app_id": 2}]
-        with patch(f"{PKG}.load_snapshot", return_value=snap):
+        with (
+            patch(f"{PKG}.load_snapshot", return_value=snap),
+            patch(f"{PKG}.SteamAPIClient", side_effect=OSError("boom")),
+        ):
             assert get_all_owned_app_ids(Config()) == [1, 2]
 
     def test_no_snapshot_falls_back_to_api(self) -> None:
@@ -59,6 +62,21 @@ class TestGetAllOwnedAppIds:
             patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
         ):
             assert get_all_owned_app_ids(Config(steam_api_key="k", steam_id="i")) == [5]
+
+    def test_merges_snapshot_with_api_results(self) -> None:
+        mock_client = MagicMock()
+        mock_client.get_owned_games.return_value = [{"appid": 10}, {"appid": 20}]
+        with (
+            patch(
+                f"{PKG}.load_snapshot", return_value=[{"app_id": 20}, {"app_id": 30}]
+            ),
+            patch(f"{PKG}.SteamAPIClient", return_value=mock_client),
+        ):
+            assert get_all_owned_app_ids(Config(steam_api_key="k", steam_id="i")) == [
+                10,
+                20,
+                30,
+            ]
 
 
 class TestGuardInstalledGames:

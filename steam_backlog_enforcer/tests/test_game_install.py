@@ -63,6 +63,20 @@ class TestAssertNotRealSteam:
         ):
             _assert_not_real_steam(fake_manifest)
 
+    def test_noop_outside_pytest(self, tmp_path: Path) -> None:
+        """In production (no PYTEST_CURRENT_TEST) the guard is a no-op."""
+        real = tmp_path / "real_steam"
+        real.mkdir()
+        fake_manifest = real / "appmanifest_440.acf"
+        fake_manifest.touch()
+        env = {k: v for k, v in os.environ.items() if k != "PYTEST_CURRENT_TEST"}
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch(f"{PKG}._REAL_STEAMAPPS", real),
+            patch(f"{PKG}.STEAMAPPS_PATH", real),
+        ):
+            _assert_not_real_steam(fake_manifest)
+
 
 class TestEcho:
     """Tests for _echo."""

@@ -203,7 +203,7 @@ class TestFetchLeisureTimes:
             new_callable=AsyncMock,
             return_value=game_data,
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, None))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None))
         assert cache[440] == round(21243 / 3600, 2)
         assert results[0].completionist_hours == round(21243 / 3600, 2)
 
@@ -218,12 +218,12 @@ class TestFetchLeisureTimes:
             ),
         ]
         cache: dict[int, float] = {}
-        asyncio.run(_fetch_leisure_times(results, cache, None))
+        asyncio.run(_fetch_leisure_times(results, cache, {}, None))
         assert not cache
 
     def test_empty_results(self) -> None:
         cache: dict[int, float] = {}
-        asyncio.run(_fetch_leisure_times([], cache, None))
+        asyncio.run(_fetch_leisure_times([], cache, {}, None))
         assert not cache
 
     def test_detail_returns_none(self) -> None:
@@ -242,7 +242,7 @@ class TestFetchLeisureTimes:
             new_callable=AsyncMock,
             return_value=None,
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, None))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None))
         assert not cache
         assert results[0].completionist_hours == 50.0
 
@@ -263,7 +263,7 @@ class TestFetchLeisureTimes:
             new_callable=AsyncMock,
             return_value=game_data,
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, None))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None))
         assert not cache
         assert results[0].completionist_hours == 50.0
 
@@ -288,7 +288,7 @@ class TestFetchLeisureTimes:
             new_callable=AsyncMock,
             return_value=game_data,
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, cb))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, cb))
         cb.assert_called_once()
 
     def test_save_interval(self) -> None:
@@ -318,7 +318,7 @@ class TestFetchLeisureTimes:
                 "python_pkg.steam_backlog_enforcer._hltb_detail.save_hltb_cache"
             ) as mock_save,
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, None))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None))
             mock_save.assert_called_once()
 
     def test_dlc_detail_overrides_relationship_fallback(self) -> None:
@@ -345,7 +345,7 @@ class TestFetchLeisureTimes:
             new_callable=AsyncMock,
             side_effect=[base_data, dlc_data],
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, None))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None))
 
         expected = round((21243 + 12298) / 3600, 2)
         assert cache[1289310] == expected
@@ -371,7 +371,7 @@ class TestFetchLeisureTimes:
             new_callable=AsyncMock,
             side_effect=[base_data, None],
         ):
-            asyncio.run(_fetch_leisure_times(results, cache, None))
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None))
 
         expected = round((21243 + 4075) / 3600, 2)
         assert cache[1289310] == expected

@@ -41,6 +41,8 @@ class GameInfo:
     playtime_minutes: int
     achievements: list[AchievementInfo] = field(default_factory=list)
     completionist_hours: float = -1
+    comp_100_count: int = 0
+    count_comp: int = 0
 
     @property
     def completion_pct(self) -> float:
@@ -66,6 +68,8 @@ class GameInfo:
             "unlocked_achievements": self.unlocked_achievements,
             "playtime_minutes": self.playtime_minutes,
             "completionist_hours": self.completionist_hours,
+            "comp_100_count": self.comp_100_count,
+            "count_comp": self.count_comp,
             "achievements": [
                 {
                     "api_name": a.api_name,
@@ -96,6 +100,8 @@ class GameInfo:
             unlocked_achievements=data["unlocked_achievements"],
             playtime_minutes=data.get("playtime_minutes", 0),
             completionist_hours=data.get("completionist_hours", -1),
+            comp_100_count=data.get("comp_100_count", 0),
+            count_comp=data.get("count_comp", 0),
             achievements=achievements,
         )
 

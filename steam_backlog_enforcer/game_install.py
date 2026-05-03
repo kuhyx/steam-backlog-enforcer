@@ -21,12 +21,15 @@ _REAL_STEAMAPPS = Path("~/.local/share/Steam/steamapps").expanduser()
 
 
 def _assert_not_real_steam(path: Path) -> None:
-    """Raise if *path* is inside the real Steam directory.
+    """Raise if *path* is inside the real Steam directory during tests.
 
-    Defence-in-depth guard: even if test fixtures fail to
-    redirect ``STEAMAPPS_PATH``, destructive operations
-    (uninstall, rmtree, unlink) will refuse to touch real files.
+    Defence-in-depth guard: when running under pytest, even if test
+    fixtures fail to redirect ``STEAMAPPS_PATH``, destructive
+    operations (uninstall, rmtree, unlink) will refuse to touch
+    real files. In production runs this is a no-op.
     """
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return  # production run — real Steam paths are expected
     try:
         path.resolve().relative_to(_REAL_STEAMAPPS.resolve())
     except ValueError:

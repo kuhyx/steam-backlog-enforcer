@@ -149,12 +149,20 @@ async def _fetch_detail_one(
 async def _fetch_leisure_times(
     search_results: list[HLTBResult],
     cache: dict[int, float],
+    polls: dict[int, int],
     progress_cb: ProgressCb | None,
+    count_comp: dict[int, int] | None = None,
 ) -> None:
     """Fetch leisure times from game detail pages for all search results.
 
     Updates ``cache`` in-place with leisure hours (including DLC time).
+    The ``polls`` and ``count_comp`` mappings are forwarded to
+    :func:`save_hltb_cache` so the on-disk cache keeps confidence metrics
+    captured during the search step.
     """
+    if count_comp is None:
+        count_comp = {}
+
     valid = [r for r in search_results if r.hltb_game_id > 0]
     if not valid:
         return
@@ -198,7 +206,7 @@ async def _fetch_leisure_times(
                 progress_cb(done, total, found, r.game_name)
 
             if not done % _SAVE_INTERVAL:
-                save_hltb_cache(cache)
+                save_hltb_cache(cache, polls, count_comp)
 
 
 def _collect_dlc_relationships(

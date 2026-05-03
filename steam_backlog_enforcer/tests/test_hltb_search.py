@@ -19,6 +19,7 @@ from python_pkg.steam_backlog_enforcer.hltb import (
     HLTBResult,
     _AuthInfo,
     _fetch_batch,
+    _pick_best_hltb_entry,
     _search_one,
     _SearchCtx,
 )
@@ -108,6 +109,37 @@ class TestSearchOne:
         ctx = _make_ctx(_make_session(resp))
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
         assert result is None
+
+    def test_fallback_name_without_year_suffix(self) -> None:
+        session = MagicMock()
+        session.post.side_effect = [
+            _FakeResponse(200, {"data": []}),
+            _FakeResponse(
+                200,
+                {
+                    "data": [
+                        {
+                            "game_name": "Final Fantasy VII",
+                            "game_alias": "",
+                            "game_type": "game",
+                            "comp_100": 141120,
+                            "game_id": 435,
+                            "comp_100_count": 746,
+                            "count_comp": 10450,
+                        }
+                    ]
+                },
+            ),
+        ]
+        ctx = _make_ctx(session)
+        result = asyncio.run(
+            _search_one(asyncio.Semaphore(1), ctx, 39140, "Final Fantasy VII (2013)")
+        )
+        assert result is not None
+        assert result.app_id == 39140
+        assert result.comp_100_count == 746
+        assert result.count_comp == 10450
+        assert session.post.call_count == 2
 
     def test_with_progress_cb(self) -> None:
         resp = _FakeResponse(200, {"data": []})
@@ -235,8 +267,68 @@ class TestFetchBatchHltb:
                 return_value=None,
             ),
         ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, None))
+            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
             assert results == []
+
+
+class TestPickBestEntry:
+    """Tests for exact-vs-extended entry choice logic."""
+
+    def test_prefers_exact_over_low_confidence_modded_extended(self) -> None:
+        exact = (
+            {
+                "game_name": "Celeste",
+                "game_alias": "",
+                "game_type": "game",
+                "comp_100": 141105,
+                "comp_100_count": 899,
+                "count_comp": 14055,
+            },
+            1.0,
+        )
+        mod_extended = (
+            {
+                "game_name": "Celeste - Strawberry Jam",
+                "game_alias": "",
+                "game_type": "mod",
+                "comp_100": 952080,
+                "comp_100_count": 1,
+                "count_comp": 6,
+            },
+            0.9,
+        )
+
+        best = _pick_best_hltb_entry("Celeste", [exact, mod_extended])
+        assert best is not None
+        assert best[0]["game_name"] == "Celeste"
+
+    def test_prefers_extended_when_confident_and_longer(self) -> None:
+        exact_demo = (
+            {
+                "game_name": "FAITH",
+                "game_alias": "",
+                "game_type": "game",
+                "comp_100": 1800,
+                "comp_100_count": 1,
+                "count_comp": 1,
+            },
+            1.0,
+        )
+        full_extended = (
+            {
+                "game_name": "FAITH: The Unholy Trinity",
+                "game_alias": "",
+                "game_type": "game",
+                "comp_100": 25200,
+                "comp_100_count": 50,
+                "count_comp": 500,
+            },
+            0.9,
+        )
+
+        best = _pick_best_hltb_entry("FAITH", [exact_demo, full_extended])
+        assert best is not None
+        assert best[0]["game_name"] == "FAITH: The Unholy Trinity"
 
     def test_with_auth(self) -> None:
         auth = _AuthInfo("token123", "ign_x", "ff")
@@ -266,7 +358,7 @@ class TestFetchBatchHltb:
                 new_callable=AsyncMock,
             ),
         ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, None))
+            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
             assert len(results) == 1
 
     def test_with_auth_no_hp(self) -> None:
@@ -291,7 +383,7 @@ class TestFetchBatchHltb:
                 new_callable=AsyncMock,
             ),
         ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, None))
+            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
             assert results == []
 
     def test_filters_none_results(self) -> None:
@@ -316,7 +408,7 @@ class TestFetchBatchHltb:
                 new_callable=AsyncMock,
             ),
         ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, None))
+            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
             assert results == []
 
 

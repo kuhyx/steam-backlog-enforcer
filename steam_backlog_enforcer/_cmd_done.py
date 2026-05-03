@@ -15,17 +15,98 @@ from python_pkg.steam_backlog_enforcer.game_install import (
     uninstall_other_games,
 )
 from python_pkg.steam_backlog_enforcer.hltb import (
+    fetch_hltb_confidence_cached,
     fetch_hltb_times_cached,
     load_hltb_cache,
+    load_hltb_count_comp_cache,
+    load_hltb_polls_cache,
+    save_hltb_cache,
 )
 from python_pkg.steam_backlog_enforcer.library_hider import hide_other_games
 from python_pkg.steam_backlog_enforcer.scanning import (
-    _pick_playable_candidate,
+    _confidence_fail_reasons,
+    _pick_next_shortest_candidate,
+    _refresh_candidate_confidence,
     pick_next_game,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 _REASSIGN_REFRESH_LIMIT = 50
+
+
+def _backfill_polls_for_finished(
+    state: State,
+    extra_app_id: int | None = None,
+) -> dict[int, int]:
+    """Lazily fetch poll counts for already-finished games missing them.
+
+    If ``extra_app_id`` is provided and its poll count is missing, it is
+    refreshed alongside finished games (used to populate polls for the
+    currently-assigned game on first run after the schema upgrade).
+    """
+    polls_cache = load_hltb_polls_cache()
+    snapshot_data = load_snapshot() or []
+    name_by_id = {d["app_id"]: d["name"] for d in snapshot_data}
+    candidate_ids = list(state.finished_app_ids)
+    if extra_app_id is not None and polls_cache.get(extra_app_id, 0) == 0:
+        candidate_ids.append(extra_app_id)
+    missing = [
+        (aid, name_by_id[aid])
+        for aid in candidate_ids
+        if aid in name_by_id and polls_cache.get(aid, 0) == 0
+    ]
+    if not missing:
+        return polls_cache
+
+    _echo(f"  Backfilling HLTB poll counts for {len(missing)} game(s)...")
+    cache = load_hltb_cache()
+    preserved_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
+    for aid, _name in missing:
+        cache.pop(aid, None)
+    save_hltb_cache(cache, polls_cache)
+
+    fetch_hltb_confidence_cached(missing)
+
+    refreshed_hours = load_hltb_cache()
+    refreshed_polls = load_hltb_polls_cache()
+    for aid, prior_hours in preserved_hours.items():
+        if prior_hours > 0 and refreshed_hours.get(aid, -1) <= 0:
+            refreshed_hours[aid] = prior_hours
+    save_hltb_cache(refreshed_hours, refreshed_polls)
+    return refreshed_polls
+
+
+def _report_assigned_confidence(
+    app_id: int,
+    state: State,
+) -> None:
+    """Print HLTB poll-count confidence for the currently-assigned game."""
+    polls_cache = _backfill_polls_for_finished(state, extra_app_id=app_id)
+    chosen_polls = polls_cache.get(app_id, 0)
+
+    finished_polls = [
+        (polls_cache[aid], aid)
+        for aid in state.finished_app_ids
+        if polls_cache.get(aid, 0) > 0 and aid != app_id
+    ]
+    snapshot_data = load_snapshot() or []
+    name_by_id = {d["app_id"]: d["name"] for d in snapshot_data}
+
+    warning = ""
+    if finished_polls:
+        min_polls = min(p for p, _ in finished_polls)
+        if 0 < chosen_polls < min_polls:
+            warning = "  ⚠ NEW LOW — estimate may be unreliable"
+        elif chosen_polls == 0:
+            warning = "  ⚠ no polls recorded — estimate may be unreliable"
+    elif chosen_polls == 0:
+        warning = "  ⚠ no polls recorded — estimate may be unreliable"
+
+    _echo(f"  HLTB confidence: {chosen_polls} polled completionist times{warning}")
+    if finished_polls:
+        min_polls, min_aid = min(finished_polls)
+        min_name = name_by_id.get(min_aid, f"AppID={min_aid}")
+        _echo(f"  Historical min among finished: {min_polls} ({min_name})")
 
 
 def _apply_cached_hours_to_games(
@@ -36,6 +117,17 @@ def _apply_cached_hours_to_games(
     for game in games:
         if game.app_id in hltb_cache:
             game.completionist_hours = hltb_cache[game.app_id]
+
+
+def _apply_cached_confidence_to_games(games: list[GameInfo]) -> None:
+    """Overlay cached confidence counters onto snapshot-backed game objects."""
+    polls_cache = load_hltb_polls_cache()
+    count_comp_cache = load_hltb_count_comp_cache()
+    for game in games:
+        if game.app_id in polls_cache:
+            game.comp_100_count = polls_cache[game.app_id]
+        if game.app_id in count_comp_cache:
+            game.count_comp = count_comp_cache[game.app_id]
 
 
 def _refresh_uncached_shortlist_hours(
@@ -69,6 +161,46 @@ def _refresh_uncached_shortlist_hours(
         hltb_cache.update(refreshed)
 
 
+def _should_reassign_candidate(
+    playable: GameInfo,
+    current_hours: float,
+    *,
+    force_reassign: bool,
+) -> bool:
+    """Return whether a playable candidate should trigger reassignment."""
+    if force_reassign:
+        return True
+    if current_hours > 0:
+        return playable.completionist_hours < current_hours
+    return True
+
+
+def _echo_reassign_decision(
+    playable: GameInfo,
+    current_hours: float,
+    current_fail_reasons: list[str],
+    *,
+    force_reassign: bool,
+) -> None:
+    """Emit a human-readable reassignment reason."""
+    if force_reassign:
+        _echo(
+            f"\n  Reassigning: current game confidence too low "
+            f"({'; '.join(current_fail_reasons)})"
+        )
+        return
+    if current_hours > 0:
+        _echo(
+            f"\n  Reassigning: {playable.name} is shorter"
+            f" (~{playable.completionist_hours:.1f}h vs ~{current_hours:.1f}h)"
+        )
+        return
+    _echo(
+        f"\n  Reassigning: current game has no usable HLTB time; "
+        f"picked {playable.name} (~{playable.completionist_hours:.1f}h)"
+    )
+
+
 def _try_reassign_shorter_game(
     hltb_cache: dict[int, float],
     app_id: int,
@@ -89,23 +221,44 @@ def _try_reassign_shorter_game(
         upper_bound_hours=hours,
     )
     _apply_cached_hours_to_games(all_games, hltb_cache)
+    _apply_cached_confidence_to_games(all_games)
+    current_game = next((g for g in all_games if g.app_id == app_id), None)
+    if current_game is not None and _confidence_fail_reasons(current_game):
+        _refresh_candidate_confidence(current_game)
+    current_fail_reasons = (
+        _confidence_fail_reasons(current_game) if current_game is not None else []
+    )
+    force_reassign = bool(current_fail_reasons)
     candidates = [
         g
         for g in all_games
         if not g.is_complete and g.app_id not in skip and g.completionist_hours > 0
     ]
+    if not force_reassign and hours > 0:
+        candidates = [g for g in candidates if g.completionist_hours < hours]
+
     candidates.sort(key=lambda g: g.completionist_hours)
-    if not candidates or candidates[0].app_id == app_id:
+    candidates = [c for c in candidates if c.app_id != app_id]
+    if not candidates:
         return False
-    # Filter out Linux-incompatible games before deciding to reassign.
-    playable = _pick_playable_candidate(
-        [c for c in candidates if c.app_id != app_id],
+
+    playable, _confidence_skipped, _linux_skipped = _pick_next_shortest_candidate(
+        candidates,
     )
-    if playable is None or playable.completionist_hours >= hours:
+    if playable is None:
         return False
-    _echo(
-        f"\n  Reassigning: {playable.name} is shorter"
-        f" (~{playable.completionist_hours:.1f}h vs ~{hours:.1f}h)"
+
+    if not _should_reassign_candidate(
+        playable,
+        hours,
+        force_reassign=force_reassign,
+    ):
+        return False
+    _echo_reassign_decision(
+        playable,
+        hours,
+        current_fail_reasons,
+        force_reassign=force_reassign,
     )
     pick_next_game(all_games, state, config)
 
@@ -193,6 +346,15 @@ def _enforce_on_done(config: Config, state: State) -> None:
             use_steam_protocol=True,
         )
 
+    # Reconcile library: hide non-assigned games and unhide the assigned one.
+    # Without this, an interrupted earlier completion can leave the new
+    # assigned game hidden and stale games visible.
+    owned_ids = get_all_owned_app_ids(config)
+    if owned_ids:
+        hidden = hide_other_games(owned_ids, state.current_app_id)
+        if hidden > 0:
+            _echo(f"  Library: hid {hidden} games")
+
 
 def cmd_done(config: Config, state: State) -> None:
     """Check completion, pick next game, uninstall & hide.
@@ -230,6 +392,7 @@ def cmd_done(config: Config, state: State) -> None:
         hours = hltb_cache.get(app_id, -1.0)
     if hours > 0:
         _echo(f"  HLTB leisure+dlc estimate: {hours:.1f} hours")
+    _report_assigned_confidence(app_id, state)
 
     if _try_reassign_shorter_game(hltb_cache, app_id, hours, state, config):
         return

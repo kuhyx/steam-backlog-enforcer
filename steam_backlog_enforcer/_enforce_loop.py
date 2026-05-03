@@ -37,19 +37,34 @@ logger = logging.getLogger(__name__)
 
 
 def get_all_owned_app_ids(config: Config) -> list[int]:
-    """Get all owned game app IDs from the snapshot or Steam API."""
-    snapshot = load_snapshot()
-    if snapshot:
-        return [d["app_id"] for d in snapshot]
+    """Get all owned game app IDs from Steam API plus snapshot fallback.
 
-    # Fall back to a quick API call.
+    Snapshot data contains only games with achievements, so API data is the
+    primary source for library hiding. Snapshot IDs are merged in to keep
+    behavior resilient when the API result is partial.
+    """
+    snapshot = load_snapshot() or []
+    snapshot_ids = [int(d["app_id"]) for d in snapshot if "app_id" in d]
+
     try:
         client = SteamAPIClient(config.steam_api_key, config.steam_id)
         owned = client.get_owned_games()
-        return [g["appid"] for g in owned]
+        api_ids = [int(g["appid"]) for g in owned if "appid" in g]
+
+        merged_ids: list[int] = []
+        seen: set[int] = set()
+        for app_id in [*api_ids, *snapshot_ids]:
+            if app_id in seen:
+                continue
+            seen.add(app_id)
+            merged_ids.append(app_id)
     except (OSError, RuntimeError, ValueError):
+        if snapshot_ids:
+            return snapshot_ids
         logger.warning("Could not fetch owned game list for hiding.")
         return []
+    else:
+        return merged_ids
 
 
 # ──────────────────────────────────────────────────────────────
