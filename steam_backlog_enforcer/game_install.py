@@ -84,6 +84,7 @@ PROTECTED_APP_IDS = {
     3949040,  # RV There Yet?
     2252570,
     220200,
+    3527290,  # Peak
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
