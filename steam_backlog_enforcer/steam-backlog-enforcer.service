@@ -10,7 +10,7 @@ ExecStart=/usr/bin/python3 -m python_pkg.steam_backlog_enforcer.main enforce
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-Environment=PYTHONPATH=/home/kuhy/.local/lib/python3.14/site-packages
+Environment=PYTHONPATH=/home/kuhy/testsAndMisc:/home/kuhy/.local/lib/python3.14/site-packages
 Environment=HOME=/home/kuhy
 # Hardening: enforcer must not be easily killed.
 OOMScoreAdjust=-900

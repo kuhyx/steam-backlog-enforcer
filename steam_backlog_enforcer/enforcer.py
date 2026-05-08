@@ -9,6 +9,8 @@ import shutil
 import signal
 import subprocess
 
+from python_pkg.steam_backlog_enforcer.game_install import PROTECTED_APP_IDS
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,6 +59,8 @@ def enforce_allowed_game(
             continue
         # Skip Steam client itself (app_id 0 or very low IDs).
         if app_id == 0:
+            continue
+        if app_id in PROTECTED_APP_IDS:
             continue
 
         violations.append((pid, app_id))

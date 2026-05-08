@@ -133,6 +133,25 @@ class TestEnforceAllowedGame:
         result = enforce_allowed_game(None, kill_unauthorized=True)
         assert result == []
 
+    def test_skips_protected_app_id(self) -> None:
+        """Protected IDs must never be killed even if not the assigned game."""
+        with (
+            patch(
+                "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
+                return_value={100: 1331550, 200: 440},
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.enforcer.PROTECTED_APP_IDS",
+                {1331550},
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.enforcer.kill_process"
+            ) as mock_kill,
+        ):
+            result = enforce_allowed_game(440, kill_unauthorized=True)
+            assert result == []
+            mock_kill.assert_not_called()
+
 
 class TestKillProcess:
     """Tests for kill_process."""
