@@ -100,6 +100,10 @@ class TestProtonDBRating:
         r = ProtonDBRating(app_id=1, tier="gold", trending_tier="bronze")
         assert "below silver" in r.unplayable_reason
 
+    def test_unplayable_reason_empty_when_playable(self) -> None:
+        r = ProtonDBRating(app_id=1, tier="gold")
+        assert r.unplayable_reason == ""
+
 
 class TestProtonDBCache:
     """Tests for cache I/O."""

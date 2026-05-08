@@ -90,7 +90,7 @@ class ProtonDBRating:
             return ""
 
         tier_rank = TIER_ORDER.get(self.tier, 99)
-        min_rank = TIER_ORDER[MIN_PLAYABLE_TIER]
+        TIER_ORDER[MIN_PLAYABLE_TIER]
         silver_rank = TIER_ORDER["silver"]
 
         if not self.trending_tier:
@@ -99,9 +99,7 @@ class ProtonDBRating:
         trend_rank = TIER_ORDER.get(self.trending_tier, 99)
         if tier_rank > silver_rank or trend_rank > silver_rank:
             return f"below silver ({self.tier}/{self.trending_tier})"
-        if tier_rank > min_rank and trend_rank > min_rank:
-            return f"no gold tier ({self.tier}/{self.trending_tier})"
-        return "fails ProtonDB rule"
+        return f"no gold tier ({self.tier}/{self.trending_tier})"
 
 
 def _load_cache() -> dict[str, Any]:
