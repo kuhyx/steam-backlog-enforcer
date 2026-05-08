@@ -185,6 +185,64 @@ class TestFinalizeCompletion:
         assert seen[3] == 18.81
         mock_fetch_hltb.assert_called_once_with([(3, "Lacuna")])
 
+    def test_retriggers_install_after_library_hide_if_still_missing(self) -> None:
+        """Re-trigger install after hide step in case Steam restart drops it."""
+        config = Config(steam_id="sid")
+        state = State(current_app_id=1, current_game_name="DoneGame")
+        snap = [_snap(2, "Next", 10, 0, 5.0)]
+
+        def set_next(
+            _games: object,
+            s: State,
+            _c: object,
+        ) -> None:
+            s.current_app_id = 2
+            s.current_game_name = "Next"
+
+        with (
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=1),
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
+            patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
+            patch(f"{CMD_DONE_PKG}.send_notification"),
+            patch.object(State, "save"),
+        ):
+            _finalize_completion(config, state, "DoneGame", 1)
+
+        mock_install.assert_called_once_with(2, "Next", "sid", use_steam_protocol=True)
+
+    def test_skips_install_retry_when_assigned_game_already_installed(self) -> None:
+        """Do not re-trigger install when assigned game is already present."""
+        config = Config(steam_id="sid")
+        state = State(current_app_id=1, current_game_name="DoneGame")
+        snap = [_snap(2, "Next", 10, 0, 5.0)]
+
+        def set_next(
+            _games: object,
+            s: State,
+            _c: object,
+        ) -> None:
+            s.current_app_id = 2
+            s.current_game_name = "Next"
+
+        with (
+            patch(f"{CMD_DONE_PKG}._echo"),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=1),
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
+            patch(f"{CMD_DONE_PKG}.send_notification"),
+            patch.object(State, "save"),
+        ):
+            _finalize_completion(config, state, "DoneGame", 1)
+
+        mock_install.assert_not_called()
+
 
 class TestEnforceOnDone:
     """Tests for _enforce_on_done."""

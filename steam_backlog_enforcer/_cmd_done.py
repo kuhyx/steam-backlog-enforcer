@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from python_pkg.steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from python_pkg.steam_backlog_enforcer.config import Config, State, load_snapshot
 from python_pkg.steam_backlog_enforcer.enforcer import (
@@ -32,6 +34,7 @@ from python_pkg.steam_backlog_enforcer.scanning import (
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 _REASSIGN_REFRESH_LIMIT = 50
+logger = logging.getLogger(__name__)
 
 
 def _backfill_polls_for_finished(
@@ -307,6 +310,23 @@ def _finalize_completion(
         hidden = hide_other_games(owned_ids, state.current_app_id)
         if hidden > 0:
             _echo(f"\n  Library: hid {hidden} games")
+
+    if not is_game_installed(state.current_app_id):
+        logger.info(
+            "Assigned game still missing after library reconciliation; "
+            "re-triggering install"
+        )
+        _echo(
+            "\n  Assigned game still missing after library reconciliation; "
+            "re-triggering install..."
+        )
+        _echo(f"\n  Auto-installing {state.current_game_name}...")
+        install_game(
+            state.current_app_id,
+            state.current_game_name,
+            config.steam_id,
+            use_steam_protocol=True,
+        )
 
     send_notification(
         "Game Complete!",
