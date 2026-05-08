@@ -59,25 +59,49 @@ class ProtonDBRating:
 
         A game is considered unplayable when:
         - Its tier is silver, bronze, or borked.
-        - Its tier is gold but trending to silver or worse.
-        - No data exists (unknown compatibility).
+        - Both reported ratings are available, but one is below silver.
+        - Both reported ratings are available, but neither reaches gold.
+
+        If both ``tier`` and ``trending_tier`` exist, the acceptance rule is:
+        at least one rating must be gold-or-better and the other must be
+        silver-or-better.
         """
         if not self.tier or self.tier == "pending":
             return True  # No data / pending → don't block; user can skip manually.
         tier_rank = TIER_ORDER.get(self.tier, 99)
         min_rank = TIER_ORDER[MIN_PLAYABLE_TIER]
+        silver_rank = TIER_ORDER["silver"]
 
-        if tier_rank > min_rank:
-            # Silver, bronze, borked → skip.
+        if not self.trending_tier:
+            return tier_rank <= min_rank
+
+        trend_rank = TIER_ORDER.get(self.trending_tier, 99)
+        if tier_rank > silver_rank or trend_rank > silver_rank:
+            # Bronze, borked, unknown tier in either field → skip.
             return False
 
-        if tier_rank == min_rank and self.trending_tier:
-            # Gold but trending silver/bronze/borked → skip.
-            trend_rank = TIER_ORDER.get(self.trending_tier, 99)
-            if trend_rank > min_rank:
-                return False
+        # At least one rating must still be gold-or-better.
+        return not (tier_rank > min_rank and trend_rank > min_rank)
 
-        return True
+    @property
+    def unplayable_reason(self) -> str:
+        """Return a human-readable reason when ``is_playable`` is false."""
+        if self.is_playable:
+            return ""
+
+        tier_rank = TIER_ORDER.get(self.tier, 99)
+        min_rank = TIER_ORDER[MIN_PLAYABLE_TIER]
+        silver_rank = TIER_ORDER["silver"]
+
+        if not self.trending_tier:
+            return f"tier<{MIN_PLAYABLE_TIER} ({self.tier})"
+
+        trend_rank = TIER_ORDER.get(self.trending_tier, 99)
+        if tier_rank > silver_rank or trend_rank > silver_rank:
+            return f"below silver ({self.tier}/{self.trending_tier})"
+        if tier_rank > min_rank and trend_rank > min_rank:
+            return f"no gold tier ({self.tier}/{self.trending_tier})"
+        return "fails ProtonDB rule"
 
 
 def _load_cache() -> dict[str, Any]:

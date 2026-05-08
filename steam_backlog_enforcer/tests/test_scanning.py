@@ -215,6 +215,27 @@ class TestPickPlayableCandidate:
             result = _pick_playable_candidate([game])
             assert result is not None
 
+    def test_logs_explicit_protondb_skip_reason(self) -> None:
+        """Unplayable candidate logs concrete reason, not just raw tiers."""
+        bad = _game(app_id=1, name="Bad")
+        good = _game(app_id=2, name="Good")
+        with (
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.fetch_protondb_ratings",
+                return_value={
+                    1: ProtonDBRating(app_id=1, tier="silver", trending_tier="silver"),
+                    2: ProtonDBRating(app_id=2, tier="platinum"),
+                },
+            ),
+            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("python_pkg.steam_backlog_enforcer.scanning.logger.info") as mock_log,
+        ):
+            result = _pick_playable_candidate([bad, good])
+
+        assert result is not None
+        assert result.app_id == 2
+        assert any("no gold tier" in str(call) for call in mock_log.call_args_list)
+
 
 class TestPickNextGame:
     """Tests for pick_next_game."""

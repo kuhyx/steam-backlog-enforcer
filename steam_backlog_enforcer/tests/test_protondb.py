@@ -62,10 +62,14 @@ class TestProtonDBRating:
 
     def test_gold_trending_silver(self) -> None:
         r = ProtonDBRating(app_id=1, tier="gold", trending_tier="silver")
-        assert r.is_playable is False
+        assert r.is_playable is True
 
     def test_gold_trending_gold(self) -> None:
         r = ProtonDBRating(app_id=1, tier="gold", trending_tier="gold")
+        assert r.is_playable is True
+
+    def test_silver_trending_gold(self) -> None:
+        r = ProtonDBRating(app_id=1, tier="silver", trending_tier="gold")
         assert r.is_playable is True
 
     def test_gold_no_trending(self) -> None:
@@ -80,9 +84,21 @@ class TestProtonDBRating:
         r = ProtonDBRating(app_id=1, tier="gold", trending_tier="unknown")
         assert r.is_playable is False
 
+    def test_gold_trending_bronze(self) -> None:
+        r = ProtonDBRating(app_id=1, tier="gold", trending_tier="bronze")
+        assert r.is_playable is False
+
     def test_unknown_tier(self) -> None:
         r = ProtonDBRating(app_id=1, tier="unknown_tier")
         assert r.is_playable is False
+
+    def test_unplayable_reason_for_silver_silver(self) -> None:
+        r = ProtonDBRating(app_id=1, tier="silver", trending_tier="silver")
+        assert "no gold tier" in r.unplayable_reason
+
+    def test_unplayable_reason_for_gold_bronze(self) -> None:
+        r = ProtonDBRating(app_id=1, tier="gold", trending_tier="bronze")
+        assert "below silver" in r.unplayable_reason
 
 
 class TestProtonDBCache:

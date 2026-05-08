@@ -151,11 +151,12 @@ def _pick_playable_candidate(
                     )
                 return game
             logger.info(
-                "Skipping %s (AppID=%d): ProtonDB %s (trending %s)",
+                "Skipping %s (AppID=%d): ProtonDB %s (trending %s) — %s",
                 game.name,
                 game.app_id,
                 rating.tier,
                 rating.trending_tier,
+                rating.unplayable_reason,
             )
 
         offset += _PROTONDB_BATCH_SIZE
