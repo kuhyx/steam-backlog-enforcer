@@ -190,6 +190,7 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
         return (1, g.name.lower().encode().hex().__hash__())
 
     candidates.sort(key=sort_key)
+    _apply_cached_confidence_to_candidates(candidates)
 
     chosen, confidence_skipped, linux_skipped = _pick_next_shortest_candidate(
         candidates
@@ -237,6 +238,17 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
             config.steam_id,
             use_steam_protocol=True,
         )
+
+
+def _apply_cached_confidence_to_candidates(candidates: list[GameInfo]) -> None:
+    """Overlay cached confidence counters onto candidate game objects."""
+    polls_cache = load_hltb_polls_cache()
+    count_comp_cache = load_hltb_count_comp_cache()
+    for game in candidates:
+        if game.app_id in polls_cache:
+            game.comp_100_count = polls_cache[game.app_id]
+        if game.app_id in count_comp_cache:
+            game.count_comp = count_comp_cache[game.app_id]
 
 
 def _confidence_fail_reasons(game: GameInfo) -> list[str]:

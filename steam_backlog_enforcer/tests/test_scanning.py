@@ -526,6 +526,51 @@ class TestPickNextGame:
         assert state.current_app_id == 2
         mock_refresh_batch.assert_not_called()
 
+    def test_cached_confidence_overlay_avoids_refetch_for_zero_snapshot_fields(
+        self,
+    ) -> None:
+        """Use cached confidence before deciding whether refresh is needed."""
+        low = _game(app_id=1, name="Low", hours=1.0)
+        low.comp_100_count = 0
+        low.count_comp = 0
+        fallback = _game(app_id=2, name="Fallback", hours=2.0)
+        fallback.comp_100_count = 3
+        fallback.count_comp = 20
+
+        config = Config(steam_api_key="k", steam_id="i")
+        state = State()
+
+        with (
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_polls_cache",
+                return_value={1: 1, 2: 3},
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_count_comp_cache",
+                return_value={1: 8, 2: 20},
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence_batch"
+            ) as mock_refresh_batch,
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                side_effect=lambda c: c[0] if c else None,
+            ),
+            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                return_value=True,
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                return_value=0,
+            ),
+        ):
+            pick_next_game([low, fallback], state, config)
+
+        assert state.current_app_id == 2
+        mock_refresh_batch.assert_not_called()
+
     def test_stops_after_first_confident_assignment(self) -> None:
         """Only candidates up to the winning one are checked/skipped."""
         low = _game(app_id=1, name="Low", hours=1.0)
