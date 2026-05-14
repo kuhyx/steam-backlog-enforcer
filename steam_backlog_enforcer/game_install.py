@@ -90,6 +90,10 @@ PROTECTED_APP_IDS = {
     1158310,
     440,
     1142710,
+    1410710,
+    10500,
+    813780,
+    489830,
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
