@@ -116,3 +116,21 @@ def _block_real_subprocesses() -> Iterator[None]:
         ),
     ):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _no_real_sleep() -> Iterator[None]:
+    """No-op every ``time.sleep`` used by the package.
+
+    Several modules call ``time.sleep`` for Steam-launch / install-retry /
+    rate-limit pacing.  Individual tests that need to observe sleep
+    behaviour can override these patches inside their own ``with`` block.
+    """
+    noop = MagicMock()
+    with (
+        patch("python_pkg.steam_backlog_enforcer.game_install.time.sleep", noop),
+        patch("python_pkg.steam_backlog_enforcer.library_hider.time.sleep", noop),
+        patch("python_pkg.steam_backlog_enforcer.steam_api.time.sleep", noop),
+        patch("python_pkg.steam_backlog_enforcer._enforce_loop.time.sleep", noop),
+    ):
+        yield
