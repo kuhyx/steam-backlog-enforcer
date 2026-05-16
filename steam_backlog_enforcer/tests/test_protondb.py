@@ -92,6 +92,10 @@ class TestProtonDBRating:
         r = ProtonDBRating(app_id=1, tier="unknown_tier")
         assert r.is_playable is False
 
+    def test_unplayable_reason_no_trending_tier(self) -> None:
+        r = ProtonDBRating(app_id=1, tier="borked")
+        assert "tier<" in r.unplayable_reason
+
     def test_unplayable_reason_for_silver_silver(self) -> None:
         r = ProtonDBRating(app_id=1, tier="silver", trending_tier="silver")
         assert "no gold tier" in r.unplayable_reason
