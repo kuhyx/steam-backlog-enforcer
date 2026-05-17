@@ -55,7 +55,6 @@ class Config:
 
     steam_api_key: str = ""
     steam_id: str = ""
-    skip_app_ids: list[int] = field(default_factory=list)
     block_store: bool = True
     kill_unauthorized_games: bool = True
     uninstall_other_games: bool = True

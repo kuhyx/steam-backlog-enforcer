@@ -50,7 +50,6 @@ class TestDoScan:
         mock_client = MagicMock()
 
         def build_game_list(
-            skip_app_ids: object = None,
             progress_callback: Callable[..., object] | None = None,
         ) -> list[GameInfo]:
             # Trigger progress callback to cover those lines.
@@ -93,7 +92,6 @@ class TestDoScan:
         mock_client = MagicMock()
 
         def build_game_list(
-            skip_app_ids: object = None,
             progress_callback: Callable[..., object] | None = None,
         ) -> list[GameInfo]:
             if progress_callback:

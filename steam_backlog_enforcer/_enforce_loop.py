@@ -7,8 +7,13 @@ import logging
 import time
 from typing import Any
 
+from python_pkg.steam_backlog_enforcer._whitelist import (
+    lock_enforcement_files,
+    promote_pending_exceptions,
+)
 from python_pkg.steam_backlog_enforcer.config import (
     CONFIG_DIR,
+    CONFIG_FILE,
     Config,
     State,
     _atomic_write,
@@ -19,11 +24,11 @@ from python_pkg.steam_backlog_enforcer.enforcer import (
     send_notification,
 )
 from python_pkg.steam_backlog_enforcer.game_install import (
-    PROTECTED_APP_IDS,
     _echo,
     get_installed_games,
     install_game,
     is_game_installed,
+    is_protected_app,
     uninstall_game,
     uninstall_other_games,
 )
@@ -143,7 +148,7 @@ def _guard_installed_games(allowed_app_id: int | None) -> int:
     for app_id, name in installed:
         if app_id == allowed_app_id:
             continue
-        if app_id in PROTECTED_APP_IDS:
+        if is_protected_app(app_id):
             continue
 
         logger.warning(
@@ -274,6 +279,14 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
             state.current_game_name,
             config.steam_id,
         )
+
+    # D) Promote any cooldown-elapsed pending exceptions to approved.
+    newly_approved = promote_pending_exceptions()
+    for aid in newly_approved:
+        logger.info("Exception approved: AppID=%d", aid)
+
+    # E) Re-apply immutable flag so config cannot be edited without root.
+    lock_enforcement_files(CONFIG_FILE)
 
 
 def do_enforce(config: Config, state: State) -> None:

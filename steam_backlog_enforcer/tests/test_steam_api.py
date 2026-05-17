@@ -257,20 +257,14 @@ class TestSteamAPIClient:
         with patch.object(client, "get_achievement_details", return_value=[ach]):
             result = client._fetch_one_game(
                 {"appid": 440, "name": "TF2", "playtime_forever": 60},
-                set(),
             )
             assert result is not None
             assert result.app_id == 440
 
-    def test_fetch_one_game_skipped(self) -> None:
-        client = SteamAPIClient("key", "id")
-        result = client._fetch_one_game({"appid": 440}, {440})
-        assert result is None
-
     def test_fetch_one_game_no_achievements(self) -> None:
         client = SteamAPIClient("key", "id")
         with patch.object(client, "get_achievement_details", return_value=[]):
-            result = client._fetch_one_game({"appid": 440}, set())
+            result = client._fetch_one_game({"appid": 440})
             assert result is None
 
     def test_build_game_list(self) -> None:
@@ -293,14 +287,18 @@ class TestSteamAPIClient:
             assert len(games) == 1
             assert len(progress_calls) > 0
 
-    def test_build_game_list_with_skip(self) -> None:
+    def test_build_game_list_no_achievements_excluded(self) -> None:
+        """Games without achievements are excluded from results."""
         client = SteamAPIClient("key", "id")
-        with patch.object(
-            client,
-            "get_owned_games",
-            return_value=[{"appid": 440, "name": "TF2"}],
+        with (
+            patch.object(
+                client,
+                "get_owned_games",
+                return_value=[{"appid": 440, "name": "TF2"}],
+            ),
+            patch.object(client, "get_achievement_details", return_value=[]),
         ):
-            games = client.build_game_list(skip_app_ids=[440])
+            games = client.build_game_list()
             assert games == []
 
     def test_build_game_list_exception_in_future(self) -> None:

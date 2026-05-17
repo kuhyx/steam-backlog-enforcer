@@ -71,7 +71,6 @@ class TestConfig:
         cfg = Config()
         assert cfg.steam_api_key == ""
         assert cfg.steam_id == ""
-        assert cfg.skip_app_ids == []
         assert cfg.block_store is True
         assert cfg.kill_unauthorized_games is True
         assert cfg.uninstall_other_games is True

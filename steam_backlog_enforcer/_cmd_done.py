@@ -216,7 +216,7 @@ def _try_reassign_shorter_game(
     if not snapshot_data:
         return False
     all_games = [GameInfo.from_snapshot(d) for d in snapshot_data]
-    skip = set(config.skip_app_ids) | set(state.finished_app_ids)
+    skip = set(state.finished_app_ids)
     _refresh_uncached_shortlist_hours(
         all_games,
         hltb_cache,
@@ -296,7 +296,7 @@ def _finalize_completion(
 
     games = [GameInfo.from_snapshot(d) for d in snapshot_data]
     hltb_cache = load_hltb_cache()
-    skip = set(config.skip_app_ids) | set(state.finished_app_ids)
+    skip = set(state.finished_app_ids)
     _refresh_uncached_shortlist_hours(games, hltb_cache, skip)
     _apply_cached_hours_to_games(games, hltb_cache)
     pick_next_game(games, state, config)

@@ -207,13 +207,9 @@ class SteamAPIClient:
             for a in raw
         ]
 
-    def _fetch_one_game(
-        self, game_dict: dict[str, Any], skip: set[int]
-    ) -> GameInfo | None:
+    def _fetch_one_game(self, game_dict: dict[str, Any]) -> GameInfo | None:
         """Fetch achievement data for one game. Thread-safe."""
         app_id = game_dict["appid"]
-        if app_id in skip:
-            return None
 
         achievements = self.get_achievement_details(app_id)
         if not achievements:
@@ -234,11 +230,9 @@ class SteamAPIClient:
 
     def build_game_list(
         self,
-        skip_app_ids: list[int] | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> list[GameInfo]:
         """Build full game list with achievement data (parallel)."""
-        skip = set(skip_app_ids or [])
         owned = self.get_owned_games()
         games: list[GameInfo] = []
         done_count = 0
@@ -246,7 +240,7 @@ class SteamAPIClient:
         lock = threading.Lock()
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(self._fetch_one_game, g, skip): g for g in owned}
+            futures = {pool.submit(self._fetch_one_game, g): g for g in owned}
             for future in as_completed(futures):
                 try:
                     result = future.result()

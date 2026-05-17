@@ -65,7 +65,6 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
 
     _echo("Scanning Steam library...")
     games = client.build_game_list(
-        skip_app_ids=config.skip_app_ids,
         progress_callback=progress,
     )
     elapsed = time.time() - start
@@ -169,7 +168,7 @@ def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
     Games with silver-or-worse ProtonDB ratings (or gold trending
     downward) are automatically skipped as unplayable on Linux.
     """
-    skip = set(config.skip_app_ids) | set(state.finished_app_ids)
+    skip = set(state.finished_app_ids)
     candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
 
     if not candidates:

@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
+from typing import TYPE_CHECKING
 
 from python_pkg.steam_backlog_enforcer._cmd_done import cmd_done
 from python_pkg.steam_backlog_enforcer._enforce_loop import (
     do_enforce,
     get_all_owned_app_ids,
+)
+from python_pkg.steam_backlog_enforcer._whitelist import (
+    WHITELIST_COOLDOWN_SECONDS,
+    add_pending_exception,
+    list_pending_exceptions,
+    validate_reason,
 )
 from python_pkg.steam_backlog_enforcer.config import (
     Config,
@@ -17,11 +25,11 @@ from python_pkg.steam_backlog_enforcer.config import (
     load_snapshot,
 )
 from python_pkg.steam_backlog_enforcer.game_install import (
-    PROTECTED_APP_IDS,
     _echo,
     get_installed_games,
     install_game,
     is_game_installed,
+    is_protected_app,
     uninstall_other_games,
 )
 from python_pkg.steam_backlog_enforcer.library_hider import (
@@ -39,6 +47,9 @@ from python_pkg.steam_backlog_enforcer.store_blocker import (
     is_store_blocked,
     unblock_store,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,7 +83,7 @@ def cmd_status(_config: Config, state: State) -> None:
 
     # Show installed games.
     installed = get_installed_games()
-    real_games = [(aid, n) for aid, n in installed if aid not in PROTECTED_APP_IDS]
+    real_games = [(aid, n) for aid, n in installed if not is_protected_app(aid)]
     _echo(f"Installed games: {len(real_games)}")
 
     if state.current_app_id:
@@ -174,7 +185,7 @@ def cmd_installed(_config: Config, state: State) -> None:
     installed = get_installed_games()
     _echo(f"\nInstalled games ({len(installed)}):\n")
     for app_id, name in installed:
-        protected = " [PROTECTED]" if app_id in PROTECTED_APP_IDS else ""
+        protected = " [PROTECTED]" if is_protected_app(app_id) else ""
         assigned = " <<< ASSIGNED" if app_id == state.current_app_id else ""
         _echo(f"  {app_id:>8d}  {name}{protected}{assigned}")
 
@@ -189,7 +200,7 @@ def cmd_uninstall(_config: Config, state: State) -> None:
     to_remove = [
         (aid, n)
         for aid, n in installed
-        if aid != state.current_app_id and aid not in PROTECTED_APP_IDS
+        if aid != state.current_app_id and not is_protected_app(aid)
     ]
 
     if not to_remove:
@@ -216,6 +227,76 @@ def cmd_uninstall(_config: Config, state: State) -> None:
 def cmd_setup(_config: Config, _state: State) -> None:
     """Run interactive setup."""
     interactive_setup()
+
+
+_MIN_ADD_EXCEPTION_ARGS = 3
+_ADD_EXCEPTION_USAGE = (
+    'Usage: add-exception <app_id> --reason "<justification>"\n'
+    "  app_id   : numeric Steam application ID\n"
+    "  --reason : genuine justification (>= 5 words)\n\n"
+    "Example:\n"
+    "  add-exception 440 --reason "
+    '"TF2 is needed for a community event this weekend"\n\n'
+    f"Exceptions become active after a {WHITELIST_COOLDOWN_SECONDS // 3600}h "
+    "cooldown."
+)
+
+
+def cmd_add_exception(args: list[str]) -> None:
+    """Request a time-locked whitelist exception.
+
+    Usage: add-exception <app_id> --reason "<text>"
+
+    The exception becomes active after a 24-hour cooldown.  The reason must be
+    a genuine justification of at least 5 words with sufficient entropy.
+
+    Args:
+        args: CLI argument list after the command name.
+    """
+    if len(args) < _MIN_ADD_EXCEPTION_ARGS or "--reason" not in args:
+        _echo(_ADD_EXCEPTION_USAGE)
+        sys.exit(1)
+
+    try:
+        app_id = int(args[0])
+    except ValueError:
+        _echo(f"Error: app_id must be a number, got '{args[0]}'.")
+        sys.exit(1)
+
+    reason_idx = args.index("--reason")
+    reason_parts = args[reason_idx + 1 :]
+    if not reason_parts:
+        _echo("Error: --reason requires a value.")
+        sys.exit(1)
+    reason = " ".join(reason_parts)
+
+    # Show validation feedback before attempting to add.
+    err = validate_reason(reason)
+    if err is not None:
+        _echo(f"Invalid reason: {err}")
+        sys.exit(1)
+
+    try:
+        msg = add_pending_exception(app_id, reason)
+    except ValueError as exc:
+        _echo(f"Error: {exc}")
+        sys.exit(1)
+
+    _echo(msg)
+
+    # Show current pending list.
+    pending = list_pending_exceptions()
+    if pending:
+        _echo(f"\nPending exceptions ({len(pending)}):")
+        now = time.time()
+        for entry in pending:
+            aid = int(entry["app_id"])
+            elapsed = now - float(entry["requested_at"])
+            remaining = max(0.0, WHITELIST_COOLDOWN_SECONDS - elapsed)
+            hrs = int(remaining // 3600)
+            mins = int((remaining % 3600) // 60)
+            status = "ready" if remaining == 0.0 else f"approves in {hrs}h {mins}m"
+            _echo(f"  AppID={aid}  [{status}]")
 
 
 def cmd_install(config: Config, state: State) -> None:
@@ -274,7 +355,7 @@ def cmd_unhide(config: Config, _state: State) -> None:
         _echo("Done!")
 
 
-COMMANDS = {
+COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "scan": ("Scan library & assign a game", do_scan),
     "check": ("Check assigned game completion", do_check),
     "status": ("Show current status", cmd_status),
@@ -292,18 +373,33 @@ COMMANDS = {
     "done": ("Finish game, open HLTB, pick next", cmd_done),
 }
 
+# Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
+_EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
+    "add-exception": "Request 24h-locked whitelist exception (use --reason)",
+}
+
+_ALL_COMMANDS: dict[str, str] = {
+    name: desc for name, (desc, _) in COMMANDS.items()
+} | _EXTRA_COMMAND_DESCRIPTIONS
+
 
 def main() -> None:
     """CLI entry point."""
-    if len(sys.argv) < _MIN_CLI_ARGS or sys.argv[1] not in COMMANDS:
+    if len(sys.argv) < _MIN_CLI_ARGS or sys.argv[1] not in _ALL_COMMANDS:
         _echo("Steam Backlog Enforcer\n")
         _echo("Usage: python -m python_pkg.steam_backlog_enforcer.main <command>\n")
         _echo("Commands:")
-        for name, (desc, _) in COMMANDS.items():
-            _echo(f"  {name:<12s}  {desc}")
+        for name, desc in _ALL_COMMANDS.items():
+            _echo(f"  {name:<14s}  {desc}")
         sys.exit(1)
 
     command = sys.argv[1]
+
+    # add-exception has its own argument structure; handle before config load.
+    if command == "add-exception":
+        cmd_add_exception(sys.argv[2:])
+        return
+
     config = Config.load()
 
     if command != "setup" and not config.steam_api_key:

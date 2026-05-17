@@ -141,8 +141,8 @@ class TestEnforceAllowedGame:
                 return_value={100: 1331550, 200: 440},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.PROTECTED_APP_IDS",
-                {1331550},
+                "python_pkg.steam_backlog_enforcer.enforcer.is_protected_app",
+                side_effect=lambda aid: aid == 1331550,
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.enforcer.kill_process"

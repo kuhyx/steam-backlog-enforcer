@@ -13,6 +13,8 @@ import subprocess
 import sys
 import time
 
+from python_pkg.steam_backlog_enforcer._whitelist import get_approved_exception_ids
+
 logger = logging.getLogger(__name__)
 
 # Real Steam directory — used as a safety check to block destructive
@@ -80,20 +82,6 @@ PROTECTED_APP_IDS = {
     1493710,  # Proton Experimental
     1161040,  # Proton BattlEye Runtime
     1007020,  # Proton EasyAntiCheat Runtime
-    # Games allowed to be installed anytime
-    3949040,  # RV There Yet?
-    2252570,
-    220200,
-    3527290,  # Peak
-    1331550,
-    8930,
-    1158310,
-    440,
-    1142710,
-    1410710,
-    10500,
-    813780,
-    489830,
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
@@ -417,7 +405,7 @@ def uninstall_other_games(allowed_app_id: int | None) -> int:
         if app_id == allowed_app_id:
             logger.info("KEEPING assigned game: %s (AppID=%d)", name, app_id)
             continue
-        if app_id in PROTECTED_APP_IDS:
+        if is_protected_app(app_id):
             logger.debug("Skipping protected: %s (AppID=%d)", name, app_id)
             continue
 
@@ -426,3 +414,18 @@ def uninstall_other_games(allowed_app_id: int | None) -> int:
             count += 1
 
     return count
+
+
+def is_protected_app(app_id: int) -> bool:
+    """Return True if *app_id* must never be uninstalled.
+
+    Combines the hardcoded Steam infrastructure set with any app IDs that
+    have been approved via the time-locked exception mechanism.
+
+    Args:
+        app_id: Steam application ID to check.
+
+    Returns:
+        True if the app should be left alone by the enforcer.
+    """
+    return app_id in PROTECTED_APP_IDS or app_id in get_approved_exception_ids()

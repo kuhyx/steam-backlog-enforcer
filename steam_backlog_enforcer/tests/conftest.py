@@ -74,6 +74,25 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             "python_pkg.steam_backlog_enforcer.config.HOSTS_FILE",
             fake_hosts,
         ),
+        # Whitelist exception files (_whitelist module-level constants)
+        patch(
+            "python_pkg.steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
+            fake_config / "pending_exceptions.json",
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            fake_config / "approved_exceptions.json",
+        ),
+        patch(
+            "python_pkg.steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            fake_config / "exception_audit.log",
+        ),
+        # _enforce_loop imports CONFIG_FILE directly; patch the local binding so
+        # lock_enforcement_files() uses the tmp path instead of the real one.
+        patch(
+            "python_pkg.steam_backlog_enforcer._enforce_loop.CONFIG_FILE",
+            fake_config / "config.json",
+        ),
     ):
         yield
 

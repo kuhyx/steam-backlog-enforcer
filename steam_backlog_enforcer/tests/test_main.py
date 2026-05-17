@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import sys
+import time
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
+from python_pkg.steam_backlog_enforcer._whitelist import WHITELIST_COOLDOWN_SECONDS
 from python_pkg.steam_backlog_enforcer.config import Config, State
 from python_pkg.steam_backlog_enforcer.main import (
+    cmd_add_exception,
     cmd_buy_dlc,
     cmd_hide,
     cmd_install,
@@ -18,6 +24,7 @@ from python_pkg.steam_backlog_enforcer.main import (
     cmd_unblock,
     cmd_unhide,
     cmd_uninstall,
+    main,
 )
 
 PKG = "python_pkg.steam_backlog_enforcer.main"
@@ -225,7 +232,7 @@ class TestCmdInstalled:
                 f"{PKG}.get_installed_games",
                 return_value=[(440, "TF2"), (228980, "RT")],
             ),
-            patch(f"{PKG}.PROTECTED_APP_IDS", {228980}),
+            patch(f"{PKG}.is_protected_app", side_effect=lambda aid: aid == 228980),
             patch(f"{PKG}._echo"),
         ):
             cmd_installed(Config(), State(current_app_id=440))
@@ -377,3 +384,113 @@ class TestCmdUnhide:
             patch(f"{PKG}._echo"),
         ):
             cmd_unhide(Config(), State())
+
+
+# ──────────────────────────────────────────────────────────────
+# cmd_add_exception
+# ──────────────────────────────────────────────────────────────
+
+_VALID_REASON = "I need this game installed for a work presentation this week."
+
+
+class TestCmdAddException:
+    def test_no_args_prints_usage_and_exits(self) -> None:
+        with (
+            patch(f"{PKG}._echo"),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception([])
+
+    def test_missing_reason_flag_exits(self) -> None:
+        with (
+            patch(f"{PKG}._echo"),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["440", "no", "flag"])
+
+    def test_non_numeric_app_id_exits(self) -> None:
+        with (
+            patch(f"{PKG}._echo"),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["notanumber", "--reason", _VALID_REASON])
+
+    def test_reason_flag_with_no_value_exits(self) -> None:
+        with (
+            patch(f"{PKG}._echo"),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["440", "--reason"])
+
+    def test_reason_flag_last_position_with_no_value_exits(self) -> None:
+        # 3 args passes the len/flag guard but --reason is last so reason_parts=[]
+        with (
+            patch(f"{PKG}._echo"),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["440", "extra", "--reason"])
+
+    def test_invalid_reason_exits(self) -> None:
+        with (
+            patch(f"{PKG}._echo"),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["440", "--reason", "too short"])
+
+    def test_add_pending_exception_raises_value_error(self) -> None:
+        with (
+            patch(f"{PKG}._echo"),
+            patch(
+                f"{PKG}.add_pending_exception",
+                side_effect=ValueError("already approved"),
+            ),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["440", "--reason", _VALID_REASON])
+
+    def test_happy_path_no_pending(self) -> None:
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch(
+                f"{PKG}.add_pending_exception",
+                return_value="Exception requested for AppID 440.",
+            ),
+            patch(f"{PKG}.list_pending_exceptions", return_value=[]),
+        ):
+            cmd_add_exception(["440", "--reason", _VALID_REASON])
+        mock_echo.assert_called()
+
+    def test_happy_path_with_pending_list(self) -> None:
+        now = time.time()
+        pending = [
+            {"app_id": 440, "requested_at": now - WHITELIST_COOLDOWN_SECONDS - 1},
+            {"app_id": 730, "requested_at": now},
+        ]
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch(
+                f"{PKG}.add_pending_exception",
+                return_value="Exception requested for AppID 440.",
+            ),
+            patch(f"{PKG}.list_pending_exceptions", return_value=pending),
+        ):
+            cmd_add_exception(["440", "--reason", _VALID_REASON])
+        # At least the "Pending exceptions" line should be echoed
+        calls = [str(c) for c in mock_echo.call_args_list]
+        assert any("Pending" in s for s in calls)
+
+
+# ──────────────────────────────────────────────────────────────
+# main() dispatch to add-exception
+# ──────────────────────────────────────────────────────────────
+
+
+class TestMainDispatchAddException:
+    def test_dispatches_add_exception(self) -> None:
+        argv = ["prog", "add-exception", "440", "--reason", _VALID_REASON]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.cmd_add_exception") as mock_cmd,
+        ):
+            main()
+        mock_cmd.assert_called_once_with(["440", "--reason", _VALID_REASON])
