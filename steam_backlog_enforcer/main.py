@@ -12,6 +12,7 @@ from python_pkg.steam_backlog_enforcer._enforce_loop import (
     do_enforce,
     get_all_owned_app_ids,
 )
+from python_pkg.steam_backlog_enforcer._hltb_types import load_hltb_cache
 from python_pkg.steam_backlog_enforcer._whitelist import (
     WHITELIST_COOLDOWN_SECONDS,
     add_pending_exception,
@@ -40,6 +41,7 @@ from python_pkg.steam_backlog_enforcer.library_hider import (
 from python_pkg.steam_backlog_enforcer.scanning import (
     do_check,
     do_scan,
+    pick_next_game,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
 from python_pkg.steam_backlog_enforcer.store_blocker import (
@@ -355,6 +357,29 @@ def cmd_unhide(config: Config, _state: State) -> None:
         _echo("Done!")
 
 
+def cmd_pick(config: Config, state: State) -> None:
+    """Manually pick a new game from the shortest-first candidate list."""
+    snapshot_data = load_snapshot()
+    if not snapshot_data:
+        _echo("No snapshot found. Run 'scan' first.")
+        return
+
+    games = [GameInfo.from_snapshot(d) for d in snapshot_data]
+    hltb_cache = load_hltb_cache()
+    for game in games:
+        if game.app_id in hltb_cache:
+            game.completionist_hours = hltb_cache[game.app_id]
+
+    pick_next_game(games, state, config)
+
+    if state.current_app_id is not None:
+        owned_ids = get_all_owned_app_ids(config)
+        if owned_ids:
+            hidden = hide_other_games(owned_ids, state.current_app_id)
+            if hidden > 0:
+                _echo(f"\n  Library: hid {hidden} games")
+
+
 COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "scan": ("Scan library & assign a game", do_scan),
     "check": ("Check assigned game completion", do_check),
@@ -371,6 +396,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "uninstall": ("Uninstall all non-assigned games", cmd_uninstall),
     "setup": ("Run first-time setup", cmd_setup),
     "done": ("Finish game, open HLTB, pick next", cmd_done),
+    "pick": ("Manually pick your next game from candidates", cmd_pick),
 }
 
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).

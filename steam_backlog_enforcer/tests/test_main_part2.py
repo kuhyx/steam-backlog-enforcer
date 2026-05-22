@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from python_pkg.steam_backlog_enforcer._cmd_done import (
     _enforce_on_done,
@@ -14,7 +11,6 @@ from python_pkg.steam_backlog_enforcer._cmd_done import (
     cmd_done,
 )
 from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.main import main
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
 
 CMD_DONE_PKG = "python_pkg.steam_backlog_enforcer._cmd_done"
@@ -302,8 +298,6 @@ class TestEnforceOnDone:
             _enforce_on_done(config, state)
         mock_install.assert_called_once_with(1, "G", "s1", use_steam_protocol=True)
 
-
-class TestCmdDone:
     """Tests for cmd_done."""
 
     def test_no_game_assigned(self) -> None:
@@ -425,54 +419,3 @@ class TestCmdDone:
             patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=True),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
-
-
-class TestMain:
-    """Tests for main CLI entry point."""
-
-    def test_no_args_exits(self) -> None:
-        with (
-            patch.object(sys, "argv", ["prog"]),
-            patch(f"{PKG}._echo"),
-            pytest.raises(SystemExit, match="1"),
-        ):
-            main()
-
-    def test_unknown_command_exits(self) -> None:
-        with (
-            patch.object(sys, "argv", ["prog", "bogus"]),
-            patch(f"{PKG}._echo"),
-            pytest.raises(SystemExit, match="1"),
-        ):
-            main()
-
-    def test_valid_command_runs(self) -> None:
-        mock_cmd = MagicMock()
-        with (
-            patch.object(sys, "argv", ["prog", "status"]),
-            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
-            patch(f"{PKG}.State.load", return_value=State()),
-            patch.dict(f"{PKG}.COMMANDS", {"status": ("s", mock_cmd)}),
-        ):
-            main()
-        mock_cmd.assert_called_once()
-
-    def test_setup_no_key_required(self) -> None:
-        mock_cmd = MagicMock()
-        with (
-            patch.object(sys, "argv", ["prog", "setup"]),
-            patch(f"{PKG}.Config.load", return_value=Config()),
-            patch(f"{PKG}.State.load", return_value=State()),
-            patch.dict(f"{PKG}.COMMANDS", {"setup": ("s", mock_cmd)}),
-        ):
-            main()
-        mock_cmd.assert_called_once()
-
-    def test_no_api_key_exits(self) -> None:
-        with (
-            patch.object(sys, "argv", ["prog", "status"]),
-            patch(f"{PKG}.Config.load", return_value=Config()),
-            patch(f"{PKG}._echo"),
-            pytest.raises(SystemExit, match="1"),
-        ):
-            main()

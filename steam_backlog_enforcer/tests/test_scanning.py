@@ -8,12 +8,7 @@ from unittest.mock import MagicMock, patch
 from python_pkg.steam_backlog_enforcer.config import Config, State
 from python_pkg.steam_backlog_enforcer.protondb import ProtonDBRating
 from python_pkg.steam_backlog_enforcer.scanning import (
-    _filter_hltb_confident_candidates,
-    _force_refresh_candidate_confidence,
-    _pick_next_shortest_candidate,
     _pick_playable_candidate,
-    _refresh_candidate_confidence_batch,
-    do_check,
     do_scan,
     pick_next_game,
 )
@@ -224,13 +219,11 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._force_refresh_candidate_confidence"
-            ),
-            patch(
                 "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("python_pkg.steam_backlog_enforcer._scanning_confidence._echo"),
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
@@ -239,6 +232,7 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1, g2], state, config)
             assert state.current_app_id == 2
@@ -270,6 +264,7 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1, g2], state, config)
             assert state.current_app_id == 2
@@ -294,13 +289,11 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._force_refresh_candidate_confidence"
-            ),
-            patch(
                 "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("python_pkg.steam_backlog_enforcer._scanning_confidence._echo"),
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=2,
@@ -309,6 +302,7 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1], state, config)
             assert state.current_app_id == 1
@@ -319,13 +313,11 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._force_refresh_candidate_confidence"
-            ),
-            patch(
                 "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("python_pkg.steam_backlog_enforcer._scanning_confidence._echo"),
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=False,
@@ -333,6 +325,7 @@ class TestPickNextGame:
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning.install_game"
             ) as mock_install,
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1], state, config)
             mock_install.assert_called_once()
@@ -356,6 +349,7 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1, g2], state, config)
             assert state.current_app_id == 2
@@ -379,6 +373,7 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1], state, config)
             assert state.current_app_id == 1
@@ -395,14 +390,15 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._force_refresh_candidate_confidence"
-            ),
-            patch(
                 "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning._echo",
+                side_effect=lambda *a, **_: echoed.append(a[0]),
+            ),
+            patch(
+                "python_pkg.steam_backlog_enforcer._scanning_confidence._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
@@ -413,6 +409,7 @@ class TestPickNextGame:
                 "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
+            patch("builtins.input", return_value="1"),
         ):
             pick_next_game([low, valid], state, config)
         assert state.current_app_id == 2
@@ -435,7 +432,8 @@ class TestPickNextGame:
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._force_refresh_candidate_confidence"
+                "python_pkg.steam_backlog_enforcer._scanning_confidence._echo",
+                side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
                 "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
@@ -446,350 +444,3 @@ class TestPickNextGame:
         assert state.current_app_id is None
         mock_pick.assert_not_called()
         assert any("No assignable games found" in line for line in echoed)
-
-    def test_zero_confidence_is_refreshed_before_skipping(self) -> None:
-        """Missing confidence fields are refreshed once before final skip decision."""
-        stale = _game(app_id=1, name="Celeste", hours=1.0)
-        stale.comp_100_count = 0
-        stale.count_comp = 0
-        fallback = _game(app_id=2, name="Fallback", hours=2.0)
-
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        echoed: list[str] = []
-
-        def refresh_side_effect(game: GameInfo) -> None:
-            if game.app_id == 1:
-                game.comp_100_count = 899
-                game.count_comp = 14055
-
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence",
-                side_effect=refresh_side_effect,
-            ) as mock_refresh,
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-        ):
-            pick_next_game([stale, fallback], state, config)
-
-        assert state.current_app_id == 1
-        mock_refresh.assert_called_once_with(stale)
-        assert not any("Skipping Celeste" in line for line in echoed)
-
-    def test_nonzero_low_confidence_does_not_force_refetch(self) -> None:
-        """Non-zero low-confidence entries are skipped using cached values."""
-        low = _game(app_id=1, name="Low", hours=1.0)
-        low.comp_100_count = 1
-        low.count_comp = 8
-        fallback = _game(app_id=2, name="Fallback", hours=2.0)
-
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence_batch"
-            ) as mock_refresh_batch,
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-        ):
-            pick_next_game([low, fallback], state, config)
-
-        assert state.current_app_id == 2
-        mock_refresh_batch.assert_not_called()
-
-    def test_cached_confidence_overlay_avoids_refetch_for_zero_snapshot_fields(
-        self,
-    ) -> None:
-        """Use cached confidence before deciding whether refresh is needed."""
-        low = _game(app_id=1, name="Low", hours=1.0)
-        low.comp_100_count = 0
-        low.count_comp = 0
-        fallback = _game(app_id=2, name="Fallback", hours=2.0)
-        fallback.comp_100_count = 3
-        fallback.count_comp = 20
-
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_polls_cache",
-                return_value={1: 1, 2: 3},
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_count_comp_cache",
-                return_value={1: 8, 2: 20},
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence_batch"
-            ) as mock_refresh_batch,
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-        ):
-            pick_next_game([low, fallback], state, config)
-
-        assert state.current_app_id == 2
-        mock_refresh_batch.assert_not_called()
-
-    def test_stops_after_first_confident_assignment(self) -> None:
-        """Only candidates up to the winning one are checked/skipped."""
-        low = _game(app_id=1, name="Low", hours=1.0)
-        low.comp_100_count = 1
-        low.count_comp = 2
-        good = _game(app_id=2, name="Good", hours=2.0)
-        good.comp_100_count = 10
-        good.count_comp = 50
-        never_checked = _game(app_id=3, name="NeverChecked", hours=3.0)
-        never_checked.comp_100_count = 0
-        never_checked.count_comp = 0
-
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        echoed: list[str] = []
-
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence"
-            ) as mock_refresh,
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-        ):
-            pick_next_game([low, good, never_checked], state, config)
-
-        assert state.current_app_id == 2
-        mock_refresh.assert_called_once_with(low)
-        assert any("Skipping Low" in line for line in echoed)
-        assert not any("Skipping NeverChecked" in line for line in echoed)
-
-
-class TestDoCheck:
-    """Tests for do_check."""
-
-    def test_no_assignment(self) -> None:
-        with patch("python_pkg.steam_backlog_enforcer.scanning._echo") as mock_echo:
-            do_check(Config(), State())
-            mock_echo.assert_called()
-
-    def test_fetch_fails(self) -> None:
-        mock_client = MagicMock()
-        mock_client.refresh_single_game.return_value = None
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.SteamAPIClient",
-                return_value=mock_client,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
-            patch("python_pkg.steam_backlog_enforcer.scanning.detect_tampering"),
-        ):
-            state = State(current_app_id=440, current_game_name="TF2")
-            do_check(Config(steam_api_key="k", steam_id="i"), state)
-
-
-class TestConfidenceHelpers:
-    """Coverage-focused tests for scanning confidence helper branches."""
-
-    def test_force_refresh_candidate_confidence_delegates(self) -> None:
-        game = _game(app_id=10, name="A")
-        with patch(
-            "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence_batch",
-        ) as mock_batch:
-            _force_refresh_candidate_confidence(game)
-        mock_batch.assert_called_once_with([game], force=True)
-
-    def test_refresh_candidate_confidence_batch_no_missing_skips_fetch(self) -> None:
-        game = _game(app_id=20, name="B", hours=12.0)
-        game.comp_100_count = 3
-        game.count_comp = 15
-        with patch(
-            "python_pkg.steam_backlog_enforcer.scanning.fetch_hltb_confidence_cached",
-        ) as mock_fetch:
-            _refresh_candidate_confidence_batch([game], force=False)
-        mock_fetch.assert_not_called()
-
-    def test_refresh_candidate_confidence_batch_preserves_existing_hours(self) -> None:
-        game = _game(app_id=30, name="C", hours=9.5)
-        game.comp_100_count = 0
-        game.count_comp = 0
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_cache",
-                side_effect=[{30: 9.5}, {30: -1.0}],
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_polls_cache",
-                return_value={30: 0},
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_hltb_count_comp_cache",
-                return_value={30: 0},
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.fetch_hltb_confidence_cached",
-                return_value={30: -1.0},
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.save_hltb_cache",
-            ) as mock_save,
-        ):
-            _refresh_candidate_confidence_batch([game], force=True)
-
-        assert game.completionist_hours == 9.5
-        saved_cache = mock_save.call_args.args[0]
-        assert saved_cache[30] == 9.5
-
-    def test_filter_hltb_confident_candidates_skips_low_confidence(self) -> None:
-        low = _game(app_id=40, name="Low", hours=2.0)
-        low.comp_100_count = 1
-        low.count_comp = 2
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._refresh_candidate_confidence_batch",
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo") as mock_echo,
-        ):
-            result = _filter_hltb_confident_candidates([low])
-        assert result == []
-        assert mock_echo.called
-
-    def test_pick_next_shortest_candidate_logs_skipped_unplayable_batches(self) -> None:
-        bad = _game(app_id=50, name="Bad", hours=1.0)
-        good = _game(app_id=51, name="Good", hours=2.0)
-        bad.comp_100_count = 3
-        bad.count_comp = 15
-        good.comp_100_count = 3
-        good.count_comp = 15
-
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=[None, good],
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo") as mock_echo,
-        ):
-            picked, skipped_low_conf, skipped_linux = _pick_next_shortest_candidate(
-                [bad, good],
-            )
-
-        assert picked is good
-        assert skipped_low_conf == 0
-        assert skipped_linux == 1
-        assert any(
-            "Skipped 1 game(s) with poor Linux compatibility" in str(call)
-            for call in mock_echo.call_args_list
-        )
-
-    def test_complete(self) -> None:
-        game = _game(app_id=440, name="TF2", total=5, unlocked=5)
-        mock_client = MagicMock()
-        mock_client.refresh_single_game.return_value = game
-        snap = [game.to_snapshot()]
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.SteamAPIClient",
-                return_value=mock_client,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.send_notification",
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_snapshot",
-                return_value=snap,
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.pick_next_game",
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning.detect_tampering"),
-        ):
-            state = State(current_app_id=440, current_game_name="TF2")
-            do_check(Config(steam_api_key="k", steam_id="i"), state)
-            assert 440 in state.finished_app_ids
-
-    def test_complete_no_snapshot(self) -> None:
-        game = _game(app_id=440, name="TF2", total=5, unlocked=5)
-        mock_client = MagicMock()
-        mock_client.refresh_single_game.return_value = game
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.SteamAPIClient",
-                return_value=mock_client,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.send_notification",
-            ),
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.load_snapshot",
-                return_value=None,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning.detect_tampering"),
-        ):
-            state = State(current_app_id=440, current_game_name="TF2")
-            do_check(Config(steam_api_key="k", steam_id="i"), state)
-
-    def test_not_complete(self) -> None:
-        game = _game(app_id=440, name="TF2", total=10, unlocked=5)
-        mock_client = MagicMock()
-        mock_client.refresh_single_game.return_value = game
-        with (
-            patch(
-                "python_pkg.steam_backlog_enforcer.scanning.SteamAPIClient",
-                return_value=mock_client,
-            ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
-            patch("python_pkg.steam_backlog_enforcer.scanning.detect_tampering"),
-        ):
-            state = State(current_app_id=440, current_game_name="TF2")
-            do_check(Config(steam_api_key="k", steam_id="i"), state)

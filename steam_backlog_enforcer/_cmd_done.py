@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 
 from python_pkg.steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from python_pkg.steam_backlog_enforcer._scanning_confidence import (
+    _confidence_fail_reasons,
+    _refresh_candidate_confidence,
+)
 from python_pkg.steam_backlog_enforcer.config import Config, State, load_snapshot
 from python_pkg.steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
@@ -26,9 +30,7 @@ from python_pkg.steam_backlog_enforcer.hltb import (
 )
 from python_pkg.steam_backlog_enforcer.library_hider import hide_other_games
 from python_pkg.steam_backlog_enforcer.scanning import (
-    _confidence_fail_reasons,
     _pick_next_shortest_candidate,
-    _refresh_candidate_confidence,
     pick_next_game,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient

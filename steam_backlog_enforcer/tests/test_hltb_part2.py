@@ -7,10 +7,10 @@ from unittest.mock import MagicMock, patch
 
 from typing_extensions import Self
 
+from python_pkg.steam_backlog_enforcer._hltb_search import _AuthInfo
 from python_pkg.steam_backlog_enforcer.hltb import (
     HLTB_BASE_URL,
     HLTBResult,
-    _AuthInfo,
     _fetch_batch_confidence_only,
     fetch_hltb_confidence,
     fetch_hltb_confidence_cached,

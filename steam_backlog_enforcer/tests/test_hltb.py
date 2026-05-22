@@ -9,13 +9,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer.hltb import (
+from python_pkg.steam_backlog_enforcer._hltb_search import (
     _AuthInfo,
     _build_search_payload,
-    _get_auth_info,
     _get_hltb_search_url,
     _pick_best_hltb_entry,
     _similarity,
+)
+from python_pkg.steam_backlog_enforcer.hltb import (
+    _get_auth_info,
     load_hltb_cache,
     save_hltb_cache,
 )
@@ -77,14 +79,18 @@ class TestGetHltbSearchUrl:
     def test_discovers_url(self) -> None:
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/abc"
-        with patch("python_pkg.steam_backlog_enforcer.hltb.HTMLRequests") as mock_html:
+        with patch(
+            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+        ) as mock_html:
             mock_html.send_website_request_getcode.return_value = mock_info
             mock_html.BASE_URL = "https://howlongtobeat.com"
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/search/abc"
 
     def test_fallback_url(self) -> None:
-        with patch("python_pkg.steam_backlog_enforcer.hltb.HTMLRequests") as mock_html:
+        with patch(
+            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+        ) as mock_html:
             mock_html.send_website_request_getcode.return_value = None
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"
@@ -92,14 +98,18 @@ class TestGetHltbSearchUrl:
     def test_first_returns_none_second_returns_info(self) -> None:
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/xyz"
-        with patch("python_pkg.steam_backlog_enforcer.hltb.HTMLRequests") as mock_html:
+        with patch(
+            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+        ) as mock_html:
             mock_html.send_website_request_getcode.side_effect = [None, mock_info]
             mock_html.BASE_URL = "https://howlongtobeat.com"
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/search/xyz"
 
     def test_exception_fallback(self) -> None:
-        with patch("python_pkg.steam_backlog_enforcer.hltb.HTMLRequests") as mock_html:
+        with patch(
+            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+        ) as mock_html:
             mock_html.send_website_request_getcode.side_effect = RuntimeError
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"
