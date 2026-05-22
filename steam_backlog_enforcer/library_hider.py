@@ -31,7 +31,7 @@ import websockets
 logger = logging.getLogger(__name__)
 
 _CDP_PORT = 8080
-_CDP_TIMEOUT = 30
+_CDP_TIMEOUT = 120
 _STEAM_STARTUP_WAIT = 45
 
 
@@ -85,9 +85,18 @@ def _evaluate_js(expression: str) -> dict:
 
 def _cdp_result_value(result: dict) -> str:
     """Extract the return value from a CDP Runtime.evaluate response."""
-    inner = result.get("result", {}).get("result", {})
-    if "exceptionDetails" in result.get("result", {}):
-        desc = inner.get("description", "Unknown JS error")
+    outer = result.get("result", {})
+    inner = outer.get("result", {})
+    if "exceptionDetails" in outer:
+        exc_details = outer["exceptionDetails"]
+        exc = exc_details.get("exception", {})
+        desc = (
+            inner.get("description")
+            or exc.get("description")
+            or exc_details.get("text")
+            or repr(exc_details)
+        )
+        logger.debug("CDP exception details: %s", exc_details)
         msg = f"JS evaluation error: {desc}"
         raise RuntimeError(msg)
     value: str = inner.get("value", "")
@@ -251,6 +260,19 @@ def hide_other_games(
         const maxPasses = {_MAX_HIDE_PASSES};
         const batchSize = {_HIDE_BATCH_SIZE};
 
+        async function safeHide(ids) {{
+            if (ids.length === 0) return 0;
+            try {{
+                await collectionStore.SetAppsAsHidden(ids, true);
+                return ids.length;
+            }} catch(e) {{
+                if (ids.length === 1) return 0;
+                const mid = Math.floor(ids.length / 2);
+                return (await safeHide(ids.slice(0, mid))) +
+                       (await safeHide(ids.slice(mid)));
+            }}
+        }}
+
         for (let pass = 0; pass < maxPasses; pass++) {{
             let visible = coll && coll.visibleApps
                 ? coll.visibleApps.map(a => a.appid).filter(id => id !== allowed)
@@ -267,8 +289,7 @@ def hide_other_games(
 
             for (let i = 0; i < visible.length; i += batchSize) {{
                 const batch = visible.slice(i, i + batchSize);
-                await collectionStore.SetAppsAsHidden(batch, true);
-                totalHidden += batch.length;
+                totalHidden += await safeHide(batch);
             }}
 
             await new Promise(r => setTimeout(r, {_SETTLE_DELAY_MS}));

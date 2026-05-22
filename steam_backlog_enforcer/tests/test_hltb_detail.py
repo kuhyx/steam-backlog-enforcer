@@ -36,6 +36,70 @@ class TestInternalHelpers:
         data: dict[str, Any] = {"game": [123]}
         assert _extract_base_leisure_hours(data) == -1
 
+    def test_extract_base_leisure_platform_data_comp_high_is_max(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 16063}],
+            "platformData": [{"platform": "PC", "comp_high": 23760}],
+        }
+        assert _extract_base_leisure_hours(data) == round(23760 / 3600, 2)
+
+    def test_extract_base_leisure_h_field_exceeds_platform_comp_high(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 25000}],
+            "platformData": [{"platform": "PC", "comp_high": 23760}],
+        }
+        assert _extract_base_leisure_hours(data) == round(25000 / 3600, 2)
+
+    def test_extract_base_leisure_max_of_multiple_platforms(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{}],
+            "platformData": [
+                {"platform": "PC", "comp_high": 23760},
+                {"platform": "Switch", "comp_high": 18000},
+            ],
+        }
+        assert _extract_base_leisure_hours(data) == round(23760 / 3600, 2)
+
+    def test_extract_base_leisure_platform_data_not_list(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 16063}],
+            "platformData": "not_a_list",
+        }
+        assert _extract_base_leisure_hours(data) == round(16063 / 3600, 2)
+
+    def test_extract_base_leisure_platform_non_dict_entry_skipped(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 16063}],
+            "platformData": ["bad", {"platform": "PC", "comp_high": 23760}],
+        }
+        assert _extract_base_leisure_hours(data) == round(23760 / 3600, 2)
+
+    def test_extract_base_leisure_platform_comp_high_zero_skipped(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 16063}],
+            "platformData": [{"platform": "PC", "comp_high": 0}],
+        }
+        assert _extract_base_leisure_hours(data) == round(16063 / 3600, 2)
+
+    def test_extract_base_leisure_max_of_h_fields(self) -> None:
+        data: dict[str, Any] = {
+            "game": [
+                {
+                    "comp_main_h": 14951,
+                    "comp_plus_h": 17957,
+                    "comp_100_h": 16063,
+                    "comp_all_h": 17959,
+                }
+            ],
+        }
+        assert _extract_base_leisure_hours(data) == round(17959 / 3600, 2)
+
+    def test_extract_base_leisure_fallback_to_avg_comp_main(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_main": 10800, "comp_plus": 0, "comp_100": 0}],
+        }
+        assert _extract_base_leisure_hours(data) == round(10800 / 3600, 2)
+
     def test_extract_dlc_relationships_skips_non_dict(self) -> None:
         data: dict[str, Any] = {
             "relationships": [
@@ -376,3 +440,29 @@ class TestFetchLeisureTimes:
         expected = round((21243 + 4075) / 3600, 2)
         assert cache[1289310] == expected
         assert results[0].completionist_hours == expected
+
+    def test_with_explicit_count_comp(self) -> None:
+        """Pass a non-None count_comp to cover the False branch of the None check."""
+        results = [
+            HLTBResult(
+                app_id=440,
+                game_name="TF2",
+                completionist_hours=50.0,
+                similarity=1.0,
+                hltb_game_id=12345,
+            ),
+        ]
+        game_data: dict[str, Any] = {
+            "game": [{"comp_100_h": 3600}],
+            "relationships": [],
+        }
+        cache: dict[int, float] = {}
+        with patch(
+            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            new_callable=AsyncMock,
+            return_value=game_data,
+        ):
+            asyncio.run(
+                _fetch_leisure_times(results, cache, {}, None, count_comp={440: 5})
+            )
+        assert cache[440] == 1.0

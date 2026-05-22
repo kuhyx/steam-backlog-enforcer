@@ -56,8 +56,32 @@ def _as_positive_int(value: object) -> int:
     return 0
 
 
+def _platform_comp_high_candidates(game_data: dict[str, Any]) -> list[int]:
+    """Collect positive ``comp_high`` values from ``platformData`` entries."""
+    platform_data = game_data.get("platformData", [])
+    if not isinstance(platform_data, list):
+        return []
+    candidates = []
+    for entry in platform_data:
+        if isinstance(entry, dict):
+            v = _as_positive_int(entry.get("comp_high", 0))
+            if v > 0:
+                candidates.append(v)
+    return candidates
+
+
 def _extract_base_leisure_hours(game_data: dict[str, Any]) -> float:
-    """Extract base-game leisure hours from game detail data."""
+    """Extract base-game leisure hours from game detail data.
+
+    Returns the highest (slowest) time to beat across all play styles.
+    Candidates considered:
+
+    1. ``comp_high`` from each entry in ``platformData`` — the per-platform
+       slowest individual submission displayed on the HLTB page.
+    2. The ``_h`` (leisure/high) fields from ``game[0]``:
+       ``comp_main_h``, ``comp_plus_h``, ``comp_100_h``, ``comp_all_h``.
+    3. Falls back to average times: ``comp_main``, ``comp_plus``, ``comp_100``.
+    """
     games = game_data.get("game", [])
     if not isinstance(games, list) or not games:
         return -1
@@ -65,9 +89,25 @@ def _extract_base_leisure_hours(game_data: dict[str, Any]) -> float:
         return -1
 
     base = games[0]
-    leisure_s = _as_positive_int(base.get("comp_100_h", 0))
+    candidates = _platform_comp_high_candidates(game_data)
+
+    # 2. Leisure/high fields from the game record
+    for field in ("comp_main_h", "comp_plus_h", "comp_100_h", "comp_all_h"):
+        v = _as_positive_int(base.get(field, 0))
+        if v > 0:
+            candidates.append(v)
+
+    leisure_s = max(candidates) if candidates else 0
+
+    # 3. Fallback: average completion times
     if leisure_s <= 0:
-        leisure_s = _as_positive_int(base.get("comp_100", 0))
+        avg_candidates = [
+            _as_positive_int(base.get("comp_main", 0)),
+            _as_positive_int(base.get("comp_plus", 0)),
+            _as_positive_int(base.get("comp_100", 0)),
+        ]
+        leisure_s = max(avg_candidates)
+
     if leisure_s <= 0:
         return -1
 
@@ -100,9 +140,9 @@ def _extract_dlc_relationships(game_data: dict[str, Any]) -> list[tuple[int, flo
 def _extract_leisure_hours(game_data: dict[str, Any]) -> float:
     """Compute total leisure hours: base game + all DLCs.
 
-    Uses ``comp_100_h`` (leisure completionist) from the game detail page.
-    Falls back to ``comp_100`` (average completionist) if leisure unavailable.
-    Also sums leisure time from any DLC listed in ``relationships``.
+    Uses the highest (slowest) time across ``platformData comp_high`` and
+    leisure ``_h`` fields from ``game[0]``. Falls back to average completion
+    times. Also sums leisure time from any DLC listed in ``relationships``.
     """
     base_hours = _extract_base_leisure_hours(game_data)
     if base_hours <= 0:
