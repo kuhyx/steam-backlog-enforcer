@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
@@ -85,6 +86,41 @@ class State:
     current_app_id: int | None = None
     current_game_name: str = ""
     finished_app_ids: list[int] = field(default_factory=list)
+    skipped_until: dict[str, str] = field(default_factory=dict)
+    """Map of ``str(app_id)`` → ISO-8601 UTC timestamp when the skip expires.
+
+    Games in this map are excluded from auto-assignment until the timestamp
+    elapses. Populated when the user declines a freshly-picked game via the
+    interactive prompt in ``cmd_done``.
+    """
+
+    def skip_for_days(self, app_id: int, days: int) -> None:
+        """Mark ``app_id`` as skipped for ``days`` days from now (UTC)."""
+        expires = datetime.now(timezone.utc) + timedelta(days=days)
+        self.skipped_until[str(app_id)] = expires.isoformat()
+
+    def active_skipped_ids(self) -> set[int]:
+        """Return currently-skipped app IDs and prune expired entries.
+
+        Mutates ``self.skipped_until`` to drop expired or malformed entries.
+        Callers should ``save()`` if they want the prune persisted.
+        """
+        now = datetime.now(timezone.utc)
+        active: set[int] = set()
+        to_remove: list[str] = []
+        for aid_str, ts in self.skipped_until.items():
+            try:
+                expiry = datetime.fromisoformat(ts)
+            except ValueError:
+                to_remove.append(aid_str)
+                continue
+            if expiry > now:
+                active.add(int(aid_str))
+            else:
+                to_remove.append(aid_str)
+        for aid_str in to_remove:
+            del self.skipped_until[aid_str]
+        return active
 
     def save(self) -> None:
         """Persist state to disk."""

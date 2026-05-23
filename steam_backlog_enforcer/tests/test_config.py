@@ -171,6 +171,42 @@ class TestState:
             assert st.current_app_id is None
             assert st.current_game_name == ""
 
+    def test_skip_for_days_records_iso_timestamp(self) -> None:
+        state = State()
+        state.skip_for_days(42, 7)
+        assert "42" in state.skipped_until
+        # Round-trip parse and check ~7 days in the future.
+        from datetime import datetime, timezone
+
+        expiry = datetime.fromisoformat(state.skipped_until["42"])
+        delta = (expiry - datetime.now(timezone.utc)).total_seconds()
+        assert 6 * 86400 < delta <= 7 * 86400 + 1
+
+    def test_active_skipped_ids_returns_active(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        state = State()
+        future = datetime.now(timezone.utc) + timedelta(days=3)
+        state.skipped_until["100"] = future.isoformat()
+        assert state.active_skipped_ids() == {100}
+        # Active entry retained.
+        assert "100" in state.skipped_until
+
+    def test_active_skipped_ids_prunes_expired(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        state = State()
+        past = datetime.now(timezone.utc) - timedelta(days=1)
+        state.skipped_until["50"] = past.isoformat()
+        assert state.active_skipped_ids() == set()
+        assert "50" not in state.skipped_until
+
+    def test_active_skipped_ids_prunes_malformed(self) -> None:
+        state = State()
+        state.skipped_until["77"] = "not-a-date"
+        assert state.active_skipped_ids() == set()
+        assert "77" not in state.skipped_until
+
 
 class TestSnapshot:
     """Tests for snapshot save/load."""

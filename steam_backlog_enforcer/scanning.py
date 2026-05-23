@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from python_pkg.steam_backlog_enforcer._hltb_types import (
     load_hltb_count_comp_cache,
@@ -38,6 +38,9 @@ from python_pkg.steam_backlog_enforcer.protondb import (
     fetch_protondb_ratings,
 )
 from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -249,14 +252,77 @@ def _assign_chosen_game(
         )
 
 
-def pick_next_game(games: list[GameInfo], state: State, config: Config) -> None:
+def _pick_next_game_sequential(
+    games: list[GameInfo],
+    state: State,
+    config: Config,
+    on_select: Callable[[GameInfo], bool],
+) -> None:
+    """Pick the next-shortest playable game, asking the user per candidate.
+
+    ``on_select`` is called with each prospective pick. Returning ``True``
+    accepts the assignment; returning ``False`` records a 7-day skip on
+    ``state`` for that game and the next candidate is evaluated.
+    """
+    while True:
+        skip = set(state.finished_app_ids) | state.active_skipped_ids()
+        candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
+        if not candidates:
+            _echo(_NO_CONF_MSG)
+            state.current_app_id = None
+            state.current_game_name = ""
+            state.save()
+            return
+
+        candidates.sort(key=_sort_key)
+        _apply_cached_confidence_to_candidates(candidates)
+        chosen, confidence_skipped, linux_skipped = _pick_next_shortest_candidate(
+            candidates
+        )
+        if chosen is None:
+            _echo(
+                _NO_CONF_MSG
+                if confidence_skipped > 0 and linux_skipped == 0
+                else "\nNo playable games left (all have poor ProtonDB ratings)!"
+            )
+            state.current_app_id = None
+            state.current_game_name = ""
+            state.save()
+            return
+
+        if not on_select(chosen):
+            state.skip_for_days(chosen.app_id, 7)
+            state.save()
+            _echo(f"\n  Skipped {chosen.name} for 7 days; picking next...")
+            continue
+
+        _assign_chosen_game(chosen, games, state, config)
+        return
+
+
+def pick_next_game(
+    games: list[GameInfo],
+    state: State,
+    config: Config,
+    *,
+    on_select: Callable[[GameInfo], bool] | None = None,
+) -> None:
     """Present a ranked list of eligible games and let the user pick one.
 
     Games are ranked by shortest completionist time first.  Games with
     silver-or-worse ProtonDB ratings (or gold trending downward) are
     excluded as unplayable on Linux.
+
+    If ``on_select`` is provided, the legacy 10-candidate picker is
+    bypassed: the function instead presents the shortest playable
+    candidate to ``on_select`` (typically a yes/no prompt) and, if the
+    callback rejects it, records a 7-day skip and re-evaluates.
     """
-    skip = set(state.finished_app_ids)
+    if on_select is not None:
+        _pick_next_game_sequential(games, state, config, on_select)
+        return
+
+    skip = set(state.finished_app_ids) | state.active_skipped_ids()
     candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
 
     if not candidates:

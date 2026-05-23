@@ -55,6 +55,7 @@ class TestFinalizeCompletion:
                 _games: object,
                 s: State,
                 _c: object,
+                **_kwargs: object,
             ) -> None:
                 s.current_app_id = 2
                 s.current_game_name = "NewGame"
@@ -89,6 +90,7 @@ class TestFinalizeCompletion:
                 _games: object,
                 s: State,
                 _c: object,
+                **_kwargs: object,
             ) -> None:
                 s.current_app_id = None
 
@@ -112,6 +114,7 @@ class TestFinalizeCompletion:
                 _games: object,
                 s: State,
                 _c: object,
+                **_kwargs: object,
             ) -> None:
                 s.current_app_id = 2
                 s.current_game_name = "Next"
@@ -137,6 +140,7 @@ class TestFinalizeCompletion:
                 _games: object,
                 s: State,
                 _c: object,
+                **_kwargs: object,
             ) -> None:
                 s.current_app_id = 2
                 s.current_game_name = "Next"
@@ -158,6 +162,7 @@ class TestFinalizeCompletion:
             games: list[GameInfo],
             s: State,
             _c: object,
+            **_kwargs: object,
         ) -> None:
             for game in games:
                 seen[game.app_id] = game.completionist_hours
@@ -191,6 +196,7 @@ class TestFinalizeCompletion:
             _games: object,
             s: State,
             _c: object,
+            **_kwargs: object,
         ) -> None:
             s.current_app_id = 2
             s.current_game_name = "Next"
@@ -220,6 +226,7 @@ class TestFinalizeCompletion:
             _games: object,
             s: State,
             _c: object,
+            **_kwargs: object,
         ) -> None:
             s.current_app_id = 2
             s.current_game_name = "Next"
@@ -330,7 +337,6 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: 20.0}),
-            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
             patch(f"{CMD_DONE_PKG}._enforce_on_done"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
@@ -350,7 +356,6 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: 10.0}),
-            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
             patch(f"{CMD_DONE_PKG}._finalize_completion") as mock_final,
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
@@ -375,7 +380,6 @@ class TestEnforceOnDone:
                 f"{CMD_DONE_PKG}.fetch_hltb_times_cached",
                 return_value={1: 15.0},
             ),
-            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
             patch(f"{CMD_DONE_PKG}._enforce_on_done"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
@@ -396,7 +400,6 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: -1.0}),
-            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=False),
             patch(f"{CMD_DONE_PKG}._enforce_on_done"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
@@ -406,7 +409,7 @@ class TestEnforceOnDone:
             app_id=1,
             name="G",
             total_achievements=10,
-            unlocked_achievements=5,
+            unlocked_achievements=10,
             playtime_minutes=60,
         )
         mock_client = MagicMock()
@@ -416,6 +419,6 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.SteamAPIClient", return_value=mock_client),
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={1: 50.0}),
-            patch(f"{CMD_DONE_PKG}._try_reassign_shorter_game", return_value=True),
+            patch(f"{CMD_DONE_PKG}._finalize_completion"),
         ):
             cmd_done(Config(steam_api_key="k", steam_id="i"), state)
