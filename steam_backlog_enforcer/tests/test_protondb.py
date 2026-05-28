@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer.protondb import (
+from steam_backlog_enforcer.protondb import (
     HTTP_NOT_FOUND,
     ProtonDBRating,
     _fetch_batch,
@@ -116,7 +116,7 @@ class TestProtonDBCache:
         cache_file = tmp_path / "protondb_cache.json"
         cache_file.write_text(json.dumps({"440": {"tier": "gold"}}), encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
+            "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
             cache_file,
         ):
             result = _load_cache()
@@ -125,7 +125,7 @@ class TestProtonDBCache:
     def test_load_cache_missing(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "nonexistent.json"
         with patch(
-            "python_pkg.steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
+            "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
             cache_file,
         ):
             assert _load_cache() == {}
@@ -135,10 +135,10 @@ class TestProtonDBCache:
         config_dir = tmp_path
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
+                "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
                 cache_file,
             ),
-            patch("python_pkg.steam_backlog_enforcer.protondb.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.protondb.CONFIG_DIR", config_dir),
         ):
             _save_cache({"440": {"tier": "gold"}})
             assert cache_file.exists()
@@ -231,7 +231,7 @@ class TestFetchBatch:
     def test_returns_ratings(self) -> None:
         rating = ProtonDBRating(app_id=440, tier="gold")
         with patch(
-            "python_pkg.steam_backlog_enforcer.protondb._fetch_one",
+            "steam_backlog_enforcer.protondb._fetch_one",
             new_callable=AsyncMock,
             return_value=rating,
         ):
@@ -251,7 +251,7 @@ class TestFetchBatch:
             return rating if app_id == 440 else None
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.protondb._fetch_one",
+            "steam_backlog_enforcer.protondb._fetch_one",
             side_effect=mock_fetch_one,
         ):
             result = asyncio.run(_fetch_batch([440, 999]))
@@ -266,7 +266,7 @@ class TestFetchProtondbRatings:
         cache_file = tmp_path / "protondb_cache.json"
         cache_file.write_text(json.dumps({"440": {"tier": "gold"}}), encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
+            "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
             cache_file,
         ):
             result = fetch_protondb_ratings([440])
@@ -278,12 +278,12 @@ class TestFetchProtondbRatings:
         config_dir = tmp_path
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
+                "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
                 cache_file,
             ),
-            patch("python_pkg.steam_backlog_enforcer.protondb.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.protondb.CONFIG_DIR", config_dir),
             patch(
-                "python_pkg.steam_backlog_enforcer.protondb._fetch_batch",
+                "steam_backlog_enforcer.protondb._fetch_batch",
                 return_value=[ProtonDBRating(app_id=440, tier="platinum")],
             ),
         ):

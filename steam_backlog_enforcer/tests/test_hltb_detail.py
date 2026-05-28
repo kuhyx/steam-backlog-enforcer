@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 from typing_extensions import Self
 
-from python_pkg.steam_backlog_enforcer._hltb_detail import (
+from steam_backlog_enforcer._hltb_detail import (
     _apply_dlc_leisure_overrides,
     _as_positive_int,
     _collect_dlc_relationships,
@@ -22,7 +22,7 @@ from python_pkg.steam_backlog_enforcer._hltb_detail import (
     _fetch_leisure_times,
     _process_game_detail,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     _SAVE_INTERVAL,
     HLTBResult,
     _HLTBExtras,
@@ -155,7 +155,7 @@ class TestInternalHelpers:
         async def _run() -> dict[int, float]:
             async with aiohttp.ClientSession() as session:
                 with patch(
-                    "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+                    "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
                     new_callable=AsyncMock,
                     return_value=None,
                 ):
@@ -176,7 +176,7 @@ class TestInternalHelpers:
         async def _run() -> dict[int, float]:
             async with aiohttp.ClientSession() as session:
                 with patch(
-                    "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+                    "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
                     new_callable=AsyncMock,
                     return_value=bad_dlc_data,
                 ):
@@ -339,7 +339,7 @@ class TestFetchLeisureTimes:
         }
         cache: dict[int, float] = {}
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=game_data,
         ):
@@ -378,7 +378,7 @@ class TestFetchLeisureTimes:
         ]
         cache: dict[int, float] = {}
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -399,7 +399,7 @@ class TestFetchLeisureTimes:
         game_data: dict[str, Any] = {"game": [], "relationships": []}
         cache: dict[int, float] = {}
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=game_data,
         ):
@@ -424,7 +424,7 @@ class TestFetchLeisureTimes:
         cache: dict[int, float] = {}
         cb = MagicMock()
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=game_data,
         ):
@@ -450,12 +450,12 @@ class TestFetchLeisureTimes:
         cache: dict[int, float] = {}
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+                "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
                 new_callable=AsyncMock,
                 return_value=game_data,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_detail.save_hltb_cache"
+                "steam_backlog_enforcer._hltb_detail.save_hltb_cache"
             ) as mock_save,
         ):
             asyncio.run(_fetch_leisure_times(results, cache, {}, None))
@@ -481,7 +481,7 @@ class TestFetchLeisureTimes:
         }
         cache: dict[int, float] = {}
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             side_effect=[base_data, dlc_data],
         ):
@@ -507,7 +507,7 @@ class TestFetchLeisureTimes:
         }
         cache: dict[int, float] = {}
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             side_effect=[base_data, None],
         ):
@@ -535,7 +535,7 @@ class TestFetchLeisureTimes:
         cache: dict[int, float] = {}
         extras = _HLTBExtras(count_comp={440: 5})
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=game_data,
         ):
@@ -561,7 +561,7 @@ class TestFetchLeisureTimes:
         cache: dict[int, float] = {}
         extras = _HLTBExtras(count_comp={440: 5})
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=game_data,
         ):

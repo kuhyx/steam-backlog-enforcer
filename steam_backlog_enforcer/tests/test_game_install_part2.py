@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _remove_game_dirs,
     uninstall_game,
     uninstall_other_games,
@@ -14,7 +14,7 @@ from python_pkg.steam_backlog_enforcer.game_install import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-PKG = "python_pkg.steam_backlog_enforcer.game_install"
+PKG = "steam_backlog_enforcer.game_install"
 
 
 class TestRemoveGameDirs:

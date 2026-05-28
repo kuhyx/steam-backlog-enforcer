@@ -7,38 +7,38 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
 )
-from python_pkg.steam_backlog_enforcer._scanning_confidence import (
+from steam_backlog_enforcer._scanning_confidence import (
     _apply_cached_confidence_to_candidates,
     _candidate_passes_hltb_confidence,
     _report_poll_confidence,
 )
-from python_pkg.steam_backlog_enforcer.config import (
+from steam_backlog_enforcer.config import (
     Config,
     State,
     load_snapshot,
     save_snapshot,
 )
-from python_pkg.steam_backlog_enforcer.enforcer import (
+from steam_backlog_enforcer.enforcer import (
     send_notification,
 )
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,
     is_game_installed,
     uninstall_other_games,
 )
-from python_pkg.steam_backlog_enforcer.hltb import (
+from steam_backlog_enforcer.hltb import (
     fetch_hltb_times_cached,
 )
-from python_pkg.steam_backlog_enforcer.protondb import (
+from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
     fetch_protondb_ratings,
 )
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
+from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 if TYPE_CHECKING:
     from collections.abc import Callable

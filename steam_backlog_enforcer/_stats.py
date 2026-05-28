@@ -9,29 +9,29 @@ import secrets
 from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
 
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
     load_hltb_cache,
     load_hltb_game_id_cache,
     load_hltb_leisure_100h_cache,
     load_hltb_rush_cache,
 )
-from python_pkg.steam_backlog_enforcer._scanning_confidence import (
+from steam_backlog_enforcer._scanning_confidence import (
     _apply_cached_confidence_to_candidates,
     _confidence_fail_reasons,
     _refresh_candidate_confidence_batch,
 )
-from python_pkg.steam_backlog_enforcer.config import load_snapshot
-from python_pkg.steam_backlog_enforcer.game_install import _echo
-from python_pkg.steam_backlog_enforcer.hltb import fetch_hltb_detail_missing
-from python_pkg.steam_backlog_enforcer.protondb import (
+from steam_backlog_enforcer.config import load_snapshot
+from steam_backlog_enforcer.game_install import _echo
+from steam_backlog_enforcer.hltb import fetch_hltb_detail_missing
+from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
     fetch_protondb_ratings,
 )
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.steam_api import GameInfo
 
 if TYPE_CHECKING:
-    from python_pkg.steam_backlog_enforcer.config import Config, State
+    from steam_backlog_enforcer.config import Config, State
 
 logger = logging.getLogger(__name__)
 

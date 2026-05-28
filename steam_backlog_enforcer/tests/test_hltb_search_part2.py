@@ -9,16 +9,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from typing_extensions import Self
 
-from python_pkg.steam_backlog_enforcer._hltb_detail import (
+from steam_backlog_enforcer._hltb_detail import (
     _extract_leisure_hours,
     _parse_game_page,
 )
-from python_pkg.steam_backlog_enforcer._hltb_search import (
+from steam_backlog_enforcer._hltb_search import (
     _build_search_variants,
     _fetch_batch,
     _pick_best_hltb_entry,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     HLTBResult,
     _AuthInfo,
 )
@@ -110,16 +110,16 @@ class TestPickBestEntry:
         auth = _AuthInfo("token123", "ign_x", "ff")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_hltb_search_url",
+                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
                 return_value="https://example.com",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_auth_info",
+                "steam_backlog_enforcer._hltb_search._get_auth_info",
                 new_callable=AsyncMock,
                 return_value=auth,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._search_one",
+                "steam_backlog_enforcer._hltb_search._search_one",
                 new_callable=AsyncMock,
                 return_value=HLTBResult(
                     app_id=440,
@@ -130,7 +130,7 @@ class TestPickBestEntry:
                 ),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._fetch_leisure_times",
+                "steam_backlog_enforcer._hltb_search._fetch_leisure_times",
                 new_callable=AsyncMock,
             ),
         ):
@@ -141,21 +141,21 @@ class TestPickBestEntry:
         auth = _AuthInfo("tok123")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_hltb_search_url",
+                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
                 return_value="https://example.com",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_auth_info",
+                "steam_backlog_enforcer._hltb_search._get_auth_info",
                 new_callable=AsyncMock,
                 return_value=auth,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._search_one",
+                "steam_backlog_enforcer._hltb_search._search_one",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._fetch_leisure_times",
+                "steam_backlog_enforcer._hltb_search._fetch_leisure_times",
                 new_callable=AsyncMock,
             ),
         ):
@@ -166,21 +166,21 @@ class TestPickBestEntry:
         auth = _AuthInfo("tok123")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_hltb_search_url",
+                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
                 return_value="https://example.com",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_auth_info",
+                "steam_backlog_enforcer._hltb_search._get_auth_info",
                 new_callable=AsyncMock,
                 return_value=auth,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._search_one",
+                "steam_backlog_enforcer._hltb_search._search_one",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._fetch_leisure_times",
+                "steam_backlog_enforcer._hltb_search._fetch_leisure_times",
                 new_callable=AsyncMock,
             ),
         ):

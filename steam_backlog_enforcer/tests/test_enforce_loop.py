@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer._enforce_loop import (
+from steam_backlog_enforcer._enforce_loop import (
     _enforce_auto_install,
     _enforce_hide_games,
     _enforce_setup,
@@ -15,12 +15,12 @@ from python_pkg.steam_backlog_enforcer._enforce_loop import (
     _save_owned_app_ids_cache,
     get_all_owned_app_ids,
 )
-from python_pkg.steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.config import Config, State
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-PKG = "python_pkg.steam_backlog_enforcer._enforce_loop"
+PKG = "steam_backlog_enforcer._enforce_loop"
 
 
 class TestGetAllOwnedAppIds:

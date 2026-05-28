@@ -5,13 +5,13 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.scanning import (
+from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.scanning import (
     _check_game_tampering,
     detect_tampering,
 )
 
-PKG = "python_pkg.steam_backlog_enforcer.scanning"
+PKG = "steam_backlog_enforcer.scanning"
 
 
 def _entry(

@@ -5,19 +5,19 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     _HLTBExtras,
     load_hltb_cache,
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
     save_hltb_cache,
 )
-from python_pkg.steam_backlog_enforcer.game_install import _echo
-from python_pkg.steam_backlog_enforcer.hltb import fetch_hltb_confidence_cached
+from steam_backlog_enforcer.game_install import _echo
+from steam_backlog_enforcer.hltb import fetch_hltb_confidence_cached
 
 if TYPE_CHECKING:
-    from python_pkg.steam_backlog_enforcer.config import State
-    from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+    from steam_backlog_enforcer.config import State
+    from steam_backlog_enforcer.steam_api import GameInfo
 
 logger = logging.getLogger(__name__)
 

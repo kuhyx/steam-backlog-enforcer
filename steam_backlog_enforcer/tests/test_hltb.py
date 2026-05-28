@@ -9,14 +9,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer._hltb_search import (
+from steam_backlog_enforcer._hltb_search import (
     _AuthInfo,
     _build_search_payload,
     _get_hltb_search_url,
     _pick_best_hltb_entry,
     _similarity,
 )
-from python_pkg.steam_backlog_enforcer.hltb import (
+from steam_backlog_enforcer.hltb import (
     _get_auth_info,
     load_hltb_cache,
     save_hltb_cache,
@@ -33,7 +33,7 @@ class TestHltbCache:
         cache_file = tmp_path / "hltb_cache.json"
         cache_file.write_text(json.dumps({"440": 10.5}), encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
+            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
         ):
             result = load_hltb_cache()
             assert result == {440: 10.5}
@@ -41,7 +41,7 @@ class TestHltbCache:
     def test_load_cache_missing(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "nonexistent.json"
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
+            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
         ):
             assert load_hltb_cache() == {}
 
@@ -49,7 +49,7 @@ class TestHltbCache:
         cache_file = tmp_path / "hltb_cache.json"
         cache_file.write_text("not json", encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
+            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
         ):
             assert load_hltb_cache() == {}
 
@@ -57,17 +57,17 @@ class TestHltbCache:
         cache_file = tmp_path / "hltb_cache.json"
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE",
+                "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE",
                 cache_file,
             ),
-            patch("python_pkg.steam_backlog_enforcer._hltb_types.CONFIG_DIR", tmp_path),
+            patch("steam_backlog_enforcer._hltb_types.CONFIG_DIR", tmp_path),
         ):
             save_hltb_cache({440: 10.5})
             assert cache_file.exists()
 
     def test_save_cache_os_error(self, tmp_path: Path) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_types._atomic_write",
+            "steam_backlog_enforcer._hltb_types._atomic_write",
             side_effect=OSError("disk full"),
         ):
             save_hltb_cache({440: 10.5})  # Should not raise
@@ -80,7 +80,7 @@ class TestGetHltbSearchUrl:
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/abc"
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+            "steam_backlog_enforcer._hltb_search.HTMLRequests"
         ) as mock_html:
             mock_html.send_website_request_getcode.return_value = mock_info
             mock_html.BASE_URL = "https://howlongtobeat.com"
@@ -89,7 +89,7 @@ class TestGetHltbSearchUrl:
 
     def test_fallback_url(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+            "steam_backlog_enforcer._hltb_search.HTMLRequests"
         ) as mock_html:
             mock_html.send_website_request_getcode.return_value = None
             url = _get_hltb_search_url()
@@ -99,7 +99,7 @@ class TestGetHltbSearchUrl:
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/xyz"
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+            "steam_backlog_enforcer._hltb_search.HTMLRequests"
         ) as mock_html:
             mock_html.send_website_request_getcode.side_effect = [None, mock_info]
             mock_html.BASE_URL = "https://howlongtobeat.com"
@@ -108,7 +108,7 @@ class TestGetHltbSearchUrl:
 
     def test_exception_fallback(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_search.HTMLRequests"
+            "steam_backlog_enforcer._hltb_search.HTMLRequests"
         ) as mock_html:
             mock_html.send_website_request_getcode.side_effect = RuntimeError
             url = _get_hltb_search_url()

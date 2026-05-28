@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer.enforcer import (
+from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     get_running_steam_game_pids,
     kill_process,
@@ -27,7 +27,7 @@ class TestGetRunningPids:
         (pid_dir / "environ").write_bytes(environ)
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.Path",
+            "steam_backlog_enforcer.enforcer.Path",
             return_value=proc_dir,
         ):
             result = get_running_steam_game_pids()
@@ -40,7 +40,7 @@ class TestGetRunningPids:
         (proc_dir / "cpuinfo").touch()
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.Path",
+            "steam_backlog_enforcer.enforcer.Path",
             return_value=proc_dir,
         ):
             result = get_running_steam_game_pids()
@@ -53,7 +53,7 @@ class TestGetRunningPids:
         # No environ file -> OSError when reading
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.Path",
+            "steam_backlog_enforcer.enforcer.Path",
             return_value=proc_dir,
         ):
             result = get_running_steam_game_pids()
@@ -67,7 +67,7 @@ class TestGetRunningPids:
         (pid_dir / "environ").write_bytes(environ)
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.Path",
+            "steam_backlog_enforcer.enforcer.Path",
             return_value=proc_dir,
         ):
             result = get_running_steam_game_pids()
@@ -81,7 +81,7 @@ class TestGetRunningPids:
         (pid_dir / "environ").write_bytes(environ)
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.Path",
+            "steam_backlog_enforcer.enforcer.Path",
             return_value=proc_dir,
         ):
             result = get_running_steam_game_pids()
@@ -93,7 +93,7 @@ class TestEnforceAllowedGame:
 
     def test_no_violations(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
+            "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 440},
         ):
             result = enforce_allowed_game(440)
@@ -102,11 +102,11 @@ class TestEnforceAllowedGame:
     def test_kills_unauthorized(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
+                "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
                 return_value={100: 570, 200: 440},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.kill_process"
+                "steam_backlog_enforcer.enforcer.kill_process"
             ) as mock_kill,
         ):
             result = enforce_allowed_game(440, kill_unauthorized=True)
@@ -115,7 +115,7 @@ class TestEnforceAllowedGame:
 
     def test_skips_app_id_zero(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
+            "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 0},
         ):
             result = enforce_allowed_game(440)
@@ -123,7 +123,7 @@ class TestEnforceAllowedGame:
 
     def test_detects_without_killing(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
+            "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 570},
         ):
             result = enforce_allowed_game(440, kill_unauthorized=False)
@@ -137,15 +137,15 @@ class TestEnforceAllowedGame:
         """Protected IDs must never be killed even if not the assigned game."""
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
+                "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
                 return_value={100: 1331550, 200: 440},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.is_protected_app",
+                "steam_backlog_enforcer.enforcer.is_protected_app",
                 side_effect=lambda aid: aid == 1331550,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.enforcer.kill_process"
+                "steam_backlog_enforcer.enforcer.kill_process"
             ) as mock_kill,
         ):
             result = enforce_allowed_game(440, kill_unauthorized=True)
@@ -157,20 +157,20 @@ class TestKillProcess:
     """Tests for kill_process."""
 
     def test_kill_success(self) -> None:
-        with patch("python_pkg.steam_backlog_enforcer.enforcer.os.kill") as mock_kill:
+        with patch("steam_backlog_enforcer.enforcer.os.kill") as mock_kill:
             kill_process(123, 440)
             mock_kill.assert_called_once()
 
     def test_process_already_gone(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.os.kill",
+            "steam_backlog_enforcer.enforcer.os.kill",
             side_effect=ProcessLookupError,
         ):
             kill_process(123, 440)  # Should not raise
 
     def test_permission_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.os.kill",
+            "steam_backlog_enforcer.enforcer.os.kill",
             side_effect=PermissionError,
         ):
             kill_process(123, 440)  # Should not raise
@@ -181,21 +181,21 @@ class TestSendNotification:
 
     def test_sends(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.subprocess.run"
+            "steam_backlog_enforcer.enforcer.subprocess.run"
         ) as mock_run:
             send_notification("Title", "Body")
             mock_run.assert_called_once()
 
     def test_handles_missing_notify_send(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.subprocess.run",
+            "steam_backlog_enforcer.enforcer.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             send_notification("Title", "Body")  # Should not raise
 
     def test_handles_os_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.subprocess.run",
+            "steam_backlog_enforcer.enforcer.subprocess.run",
             side_effect=OSError,
         ):
             send_notification("Title", "Body")  # Should not raise

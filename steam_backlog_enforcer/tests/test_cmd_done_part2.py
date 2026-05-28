@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer._cmd_done import _prompt_keep_or_skip
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer._cmd_done import _prompt_keep_or_skip
+from steam_backlog_enforcer.steam_api import GameInfo
 
-CMD_DONE_PKG = "python_pkg.steam_backlog_enforcer._cmd_done"
+CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done"
 
 
 class TestPromptKeepOrSkip:

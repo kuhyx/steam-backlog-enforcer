@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer.config import (
+from steam_backlog_enforcer.config import (
     Config,
     State,
     _atomic_write,
@@ -38,7 +38,7 @@ class TestAtomicWrite:
         target = tmp_path / "out.json"
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.config.os.write",
+                "steam_backlog_enforcer.config.os.write",
                 side_effect=OSError("disk full"),
             ),
             pytest.raises(OSError, match="disk full"),
@@ -81,8 +81,8 @@ class TestConfig:
         config_dir = tmp_path / "cfg"
         config_file = config_dir / "config.json"
         with (
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_FILE", config_file),
+            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file),
         ):
             cfg.save()
             data = json.loads(config_file.read_text(encoding="utf-8"))
@@ -95,14 +95,14 @@ class TestConfig:
             json.dumps({"steam_api_key": "key1", "steam_id": "id1"}) + "\n",
             encoding="utf-8",
         )
-        with patch("python_pkg.steam_backlog_enforcer.config.CONFIG_FILE", config_file):
+        with patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file):
             cfg = Config.load()
             assert cfg.steam_api_key == "key1"
             assert cfg.steam_id == "id1"
 
     def test_load_missing(self, tmp_path: Path) -> None:
         config_file = tmp_path / "nonexistent.json"
-        with patch("python_pkg.steam_backlog_enforcer.config.CONFIG_FILE", config_file):
+        with patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file):
             cfg = Config.load()
             assert cfg.steam_api_key == ""
 
@@ -112,7 +112,7 @@ class TestConfig:
             json.dumps({"steam_api_key": "k", "unknown_field": 42}) + "\n",
             encoding="utf-8",
         )
-        with patch("python_pkg.steam_backlog_enforcer.config.CONFIG_FILE", config_file):
+        with patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file):
             cfg = Config.load()
             assert cfg.steam_api_key == "k"
 
@@ -131,8 +131,8 @@ class TestState:
         config_dir = tmp_path / "cfg"
         state_file = config_dir / "state.json"
         with (
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("python_pkg.steam_backlog_enforcer.config.STATE_FILE", state_file),
+            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.config.STATE_FILE", state_file),
         ):
             state.save()
             data = json.loads(state_file.read_text(encoding="utf-8"))
@@ -152,21 +152,21 @@ class TestState:
             + "\n",
             encoding="utf-8",
         )
-        with patch("python_pkg.steam_backlog_enforcer.config.STATE_FILE", state_file):
+        with patch("steam_backlog_enforcer.config.STATE_FILE", state_file):
             st = State.load()
             assert st.current_app_id == 50
             assert st.finished_app_ids == [1, 2]
 
     def test_load_missing(self, tmp_path: Path) -> None:
         state_file = tmp_path / "nonexistent.json"
-        with patch("python_pkg.steam_backlog_enforcer.config.STATE_FILE", state_file):
+        with patch("steam_backlog_enforcer.config.STATE_FILE", state_file):
             st = State.load()
             assert st.current_app_id is None
 
     def test_load_corrupt(self, tmp_path: Path) -> None:
         state_file = tmp_path / "state.json"
         state_file.write_text("not valid json{{", encoding="utf-8")
-        with patch("python_pkg.steam_backlog_enforcer.config.STATE_FILE", state_file):
+        with patch("steam_backlog_enforcer.config.STATE_FILE", state_file):
             st = State.load()
             assert st.current_app_id is None
             assert st.current_game_name == ""
@@ -215,8 +215,8 @@ class TestSnapshot:
         config_dir = tmp_path / "cfg"
         snap_file = config_dir / "snapshot.json"
         with (
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("python_pkg.steam_backlog_enforcer.config.SNAPSHOT_FILE", snap_file),
+            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.config.SNAPSHOT_FILE", snap_file),
         ):
             data: list[dict[str, Any]] = [{"app_id": 1, "name": "G1"}]
             save_snapshot(data)
@@ -225,7 +225,7 @@ class TestSnapshot:
 
     def test_load_none(self, tmp_path: Path) -> None:
         snap_file = tmp_path / "nonexistent.json"
-        with patch("python_pkg.steam_backlog_enforcer.config.SNAPSHOT_FILE", snap_file):
+        with patch("steam_backlog_enforcer.config.SNAPSHOT_FILE", snap_file):
             assert load_snapshot() is None
 
 
@@ -236,8 +236,8 @@ class TestInteractiveSetup:
         config_dir = tmp_path / "cfg"
         config_file = config_dir / "config.json"
         with (
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_FILE", config_file),
+            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file),
             patch("builtins.input", side_effect=["mykey", "myid"]),
         ):
             cfg = interactive_setup()
@@ -256,8 +256,8 @@ class TestInteractiveSetup:
         config_dir = tmp_path / "cfg"
         config_file = config_dir / "config.json"
         with (
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("python_pkg.steam_backlog_enforcer.config.CONFIG_FILE", config_file),
+            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
+            patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file),
             patch("builtins.input", side_effect=["key", ""]),
             pytest.raises(SystemExit),
         ):

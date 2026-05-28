@@ -7,11 +7,11 @@ import logging
 import time
 from typing import Any
 
-from python_pkg.steam_backlog_enforcer._whitelist import (
+from steam_backlog_enforcer._whitelist import (
     lock_enforcement_files,
     promote_pending_exceptions,
 )
-from python_pkg.steam_backlog_enforcer.config import (
+from steam_backlog_enforcer.config import (
     CONFIG_DIR,
     CONFIG_FILE,
     Config,
@@ -19,11 +19,11 @@ from python_pkg.steam_backlog_enforcer.config import (
     _atomic_write,
     load_snapshot,
 )
-from python_pkg.steam_backlog_enforcer.enforcer import (
+from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     send_notification,
 )
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _echo,
     get_installed_games,
     install_game,
@@ -32,9 +32,9 @@ from python_pkg.steam_backlog_enforcer.game_install import (
     uninstall_game,
     uninstall_other_games,
 )
-from python_pkg.steam_backlog_enforcer.library_hider import hide_other_games
-from python_pkg.steam_backlog_enforcer.steam_api import SteamAPIClient
-from python_pkg.steam_backlog_enforcer.store_blocker import block_store
+from steam_backlog_enforcer.library_hider import hide_other_games
+from steam_backlog_enforcer.steam_api import SteamAPIClient
+from steam_backlog_enforcer.store_blocker import block_store
 
 logger = logging.getLogger(__name__)
 _OWNED_IDS_CACHE_FILE = CONFIG_DIR / "owned_app_ids_cache.json"

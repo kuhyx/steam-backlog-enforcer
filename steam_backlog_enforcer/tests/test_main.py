@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer._whitelist import WHITELIST_COOLDOWN_SECONDS
-from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.main import (
+from steam_backlog_enforcer._whitelist import WHITELIST_COOLDOWN_SECONDS
+from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.main import (
     cmd_add_exception,
     cmd_buy_dlc,
     cmd_hide,
@@ -27,7 +27,7 @@ from python_pkg.steam_backlog_enforcer.main import (
     main,
 )
 
-PKG = "python_pkg.steam_backlog_enforcer.main"
+PKG = "steam_backlog_enforcer.main"
 
 
 def _snap(

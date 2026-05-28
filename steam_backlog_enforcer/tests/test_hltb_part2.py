@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 from typing_extensions import Self
 
-from python_pkg.steam_backlog_enforcer._hltb_search import _AuthInfo
-from python_pkg.steam_backlog_enforcer.hltb import (
+from steam_backlog_enforcer._hltb_search import _AuthInfo
+from steam_backlog_enforcer.hltb import (
     HLTB_BASE_URL,
     HLTBResult,
     _fetch_batch_confidence_only,
@@ -21,9 +21,9 @@ from python_pkg.steam_backlog_enforcer.hltb import (
 )
 
 if TYPE_CHECKING:
-    from python_pkg.steam_backlog_enforcer._hltb_types import _HLTBExtras
+    from steam_backlog_enforcer._hltb_types import _HLTBExtras
 
-PKG = "python_pkg.steam_backlog_enforcer.hltb"
+PKG = "steam_backlog_enforcer.hltb"
 
 
 class TestFetchHltbTimesCached:

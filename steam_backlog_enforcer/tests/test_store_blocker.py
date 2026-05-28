@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer.store_blocker import (
+from steam_backlog_enforcer.store_blocker import (
     _block_store_iptables,
     _block_via_hosts_install,
     _is_iptables_blocked,
@@ -27,7 +27,7 @@ class TestIsStoreBlocked:
         hosts_file.write_text("0.0.0.0 store.steampowered.com\n", encoding="utf-8")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
+                "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
                 hosts_file,
             ),
         ):
@@ -38,11 +38,11 @@ class TestIsStoreBlocked:
         hosts_file.write_text("# 0.0.0.0 store.steampowered.com\n", encoding="utf-8")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
+                "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
                 hosts_file,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._is_iptables_blocked",
+                "steam_backlog_enforcer.store_blocker._is_iptables_blocked",
                 return_value=False,
             ),
         ):
@@ -53,11 +53,11 @@ class TestIsStoreBlocked:
         hosts_file.write_text("127.0.0.1 localhost\n", encoding="utf-8")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
+                "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
                 hosts_file,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._is_iptables_blocked",
+                "steam_backlog_enforcer.store_blocker._is_iptables_blocked",
                 return_value=True,
             ),
         ):
@@ -67,11 +67,11 @@ class TestIsStoreBlocked:
         hosts_file = tmp_path / "nonexistent"
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
+                "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
                 hosts_file,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._is_iptables_blocked",
+                "steam_backlog_enforcer.store_blocker._is_iptables_blocked",
                 return_value=False,
             ),
         ):
@@ -82,11 +82,11 @@ class TestIsStoreBlocked:
         hosts_file.write_text("127.0.0.1 store.steampowered.com\n", encoding="utf-8")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
+                "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
                 hosts_file,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._is_iptables_blocked",
+                "steam_backlog_enforcer.store_blocker._is_iptables_blocked",
                 return_value=False,
             ),
         ):
@@ -98,7 +98,7 @@ class TestBlockStore:
 
     def test_already_blocked(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+            "steam_backlog_enforcer.store_blocker.is_store_blocked",
             return_value=True,
         ):
             assert block_store() is True
@@ -106,18 +106,18 @@ class TestBlockStore:
     def test_reblock_succeeds(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 side_effect=[False, True],
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._reblock_hosts",
+                "steam_backlog_enforcer.store_blocker._reblock_hosts",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_store_iptables",
+                "steam_backlog_enforcer.store_blocker._block_store_iptables",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.flush_dns_cache",
+                "steam_backlog_enforcer.store_blocker.flush_dns_cache",
             ),
         ):
             assert block_store() is True
@@ -125,23 +125,23 @@ class TestBlockStore:
     def test_fallback_to_install_script(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 side_effect=[False, False],
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._reblock_hosts",
+                "steam_backlog_enforcer.store_blocker._reblock_hosts",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_via_hosts_install",
+                "steam_backlog_enforcer.store_blocker._block_via_hosts_install",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_store_iptables",
+                "steam_backlog_enforcer.store_blocker._block_store_iptables",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.flush_dns_cache",
+                "steam_backlog_enforcer.store_blocker.flush_dns_cache",
             ),
         ):
             assert block_store() is True
@@ -149,19 +149,19 @@ class TestBlockStore:
     def test_all_fail(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 side_effect=[False, False],
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._reblock_hosts",
+                "steam_backlog_enforcer.store_blocker._reblock_hosts",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_via_hosts_install",
+                "steam_backlog_enforcer.store_blocker._block_via_hosts_install",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_store_iptables",
+                "steam_backlog_enforcer.store_blocker._block_store_iptables",
                 return_value=False,
             ),
         ):
@@ -170,23 +170,23 @@ class TestBlockStore:
     def test_iptables_only_succeeds(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 side_effect=[False, False],
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._reblock_hosts",
+                "steam_backlog_enforcer.store_blocker._reblock_hosts",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_via_hosts_install",
+                "steam_backlog_enforcer.store_blocker._block_via_hosts_install",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._block_store_iptables",
+                "steam_backlog_enforcer.store_blocker._block_store_iptables",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.flush_dns_cache",
+                "steam_backlog_enforcer.store_blocker.flush_dns_cache",
             ),
         ):
             assert block_store() is True
@@ -197,7 +197,7 @@ class TestBlockViaHostsInstall:
 
     def test_already_blocked(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+            "steam_backlog_enforcer.store_blocker.is_store_blocked",
             return_value=True,
         ):
             assert _block_via_hosts_install() is True
@@ -205,11 +205,11 @@ class TestBlockViaHostsInstall:
     def test_script_missing(self, tmp_path: Path) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
+                "steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
                 tmp_path / "nonexistent.sh",
             ),
         ):
@@ -221,15 +221,15 @@ class TestBlockViaHostsInstall:
         mock_result = MagicMock(returncode=0)
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
+                "steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
                 script,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -241,15 +241,15 @@ class TestBlockViaHostsInstall:
         mock_result = MagicMock(returncode=1, stderr="error", stdout="")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
+                "steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
                 script,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -261,15 +261,15 @@ class TestBlockViaHostsInstall:
         mock_result = MagicMock(returncode=1, stderr="", stdout="out")
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
+                "steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
                 script,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -280,15 +280,15 @@ class TestBlockViaHostsInstall:
         script.touch()
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.is_store_blocked",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
+                "steam_backlog_enforcer.store_blocker.HOSTS_INSTALL_SCRIPT",
                 script,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 side_effect=OSError,
             ),
         ):
@@ -301,7 +301,7 @@ class TestIsIptablesBlocked:
     def test_blocked(self) -> None:
         mock_result = MagicMock(returncode=0, stdout="DROP blah")
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             return_value=mock_result,
         ):
             assert _is_iptables_blocked() is True
@@ -309,7 +309,7 @@ class TestIsIptablesBlocked:
     def test_not_blocked_no_drop(self) -> None:
         mock_result = MagicMock(returncode=0, stdout="ACCEPT")
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             return_value=mock_result,
         ):
             assert _is_iptables_blocked() is False
@@ -317,14 +317,14 @@ class TestIsIptablesBlocked:
     def test_not_blocked_error(self) -> None:
         mock_result = MagicMock(returncode=1, stdout="")
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             return_value=mock_result,
         ):
             assert _is_iptables_blocked() is False
 
     def test_os_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             side_effect=OSError,
         ):
             assert _is_iptables_blocked() is False
@@ -337,11 +337,11 @@ class TestBlockStoreIptables:
         mock_result = MagicMock(returncode=0)
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
+                "steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
                 return_value=[
                     (None, None, None, None, ("1.2.3.4", 443)),
                 ],
@@ -351,7 +351,7 @@ class TestBlockStoreIptables:
 
     def test_os_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             side_effect=OSError,
         ):
             assert _block_store_iptables() is False
@@ -362,11 +362,11 @@ class TestBlockStoreIptables:
         mock_result = MagicMock(returncode=0)
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
+                "steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
                 side_effect=socket.gaierror,
             ),
         ):
@@ -390,11 +390,11 @@ class TestBlockStoreIptables:
 
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer.store_blocker.subprocess.run",
                 side_effect=side_effect,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
+                "steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
                 side_effect=__import__("socket").gaierror,
             ),
         ):
@@ -407,15 +407,15 @@ class TestUnblockStore:
     def test_both_succeed(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._unblock_store_iptables",
+                "steam_backlog_enforcer.store_blocker._unblock_store_iptables",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._unblock_hosts",
+                "steam_backlog_enforcer.store_blocker._unblock_hosts",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.flush_dns_cache",
+                "steam_backlog_enforcer.store_blocker.flush_dns_cache",
             ),
         ):
             assert unblock_store() is True
@@ -423,15 +423,15 @@ class TestUnblockStore:
     def test_iptables_fails(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._unblock_store_iptables",
+                "steam_backlog_enforcer.store_blocker._unblock_store_iptables",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._unblock_hosts",
+                "steam_backlog_enforcer.store_blocker._unblock_hosts",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.flush_dns_cache",
+                "steam_backlog_enforcer.store_blocker.flush_dns_cache",
             ),
         ):
             assert unblock_store() is True
@@ -439,15 +439,15 @@ class TestUnblockStore:
     def test_both_fail(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._unblock_store_iptables",
+                "steam_backlog_enforcer.store_blocker._unblock_store_iptables",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker._unblock_hosts",
+                "steam_backlog_enforcer.store_blocker._unblock_hosts",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.store_blocker.flush_dns_cache",
+                "steam_backlog_enforcer.store_blocker.flush_dns_cache",
             ),
         ):
             assert unblock_store() is False
@@ -458,13 +458,13 @@ class TestUnblockStoreIptables:
 
     def test_success(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
         ):
             assert _unblock_store_iptables() is True
 
     def test_os_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             side_effect=OSError,
         ):
             assert _unblock_store_iptables() is False

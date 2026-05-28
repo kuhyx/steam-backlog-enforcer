@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer.hltb import (
+from steam_backlog_enforcer.hltb import (
     HLTBResult,
     fetch_hltb_times,
 )
@@ -21,7 +21,7 @@ class TestFetchHltbTimes:
             app_id=440, game_name="TF2", completionist_hours=50.0, similarity=1.0
         )
         with patch(
-            "python_pkg.steam_backlog_enforcer.hltb._fetch_batch",
+            "steam_backlog_enforcer.hltb._fetch_batch",
             return_value=[mock_result],
         ):
             results = fetch_hltb_times([(440, "TF2")])
@@ -29,7 +29,7 @@ class TestFetchHltbTimes:
 
     def test_none_cache(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.hltb._fetch_batch",
+            "steam_backlog_enforcer.hltb._fetch_batch",
             return_value=[],
         ):
             results = fetch_hltb_times([(440, "TF2")])
@@ -37,7 +37,7 @@ class TestFetchHltbTimes:
 
     def test_explicit_cache(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.hltb._fetch_batch",
+            "steam_backlog_enforcer.hltb._fetch_batch",
             return_value=[],
         ):
             cache: dict[int, float] = {440: 10.0}

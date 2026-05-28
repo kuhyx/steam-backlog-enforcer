@@ -18,14 +18,14 @@ import time
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer._hltb_search import (
+from steam_backlog_enforcer._hltb_search import (
     _fetch_batch,
     _get_auth_info,
     _get_hltb_search_url,
     _search_one,
     _SearchCtx,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
     MAX_CONCURRENT,
     HLTBResult,

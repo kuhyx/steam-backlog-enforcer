@@ -21,7 +21,7 @@ import shutil
 import socket
 import subprocess
 
-from python_pkg.steam_backlog_enforcer.config import (
+from steam_backlog_enforcer.config import (
     BLOCKED_DOMAINS,
     HOSTS_FILE,
 )

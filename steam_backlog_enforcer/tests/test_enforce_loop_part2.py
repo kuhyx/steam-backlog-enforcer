@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer._enforce_loop import (
+from steam_backlog_enforcer._enforce_loop import (
     _enforce_loop_iteration,
     do_enforce,
 )
-from python_pkg.steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.config import Config, State
 
-PKG = "python_pkg.steam_backlog_enforcer._enforce_loop"
+PKG = "steam_backlog_enforcer._enforce_loop"
 
 
 class TestEnforceLoopIteration:

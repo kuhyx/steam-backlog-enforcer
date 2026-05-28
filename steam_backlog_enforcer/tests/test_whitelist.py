@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer._whitelist import (
+from steam_backlog_enforcer._whitelist import (
     WHITELIST_COOLDOWN_SECONDS,
     _append_audit_log,
     _load_approved,
@@ -170,7 +170,7 @@ class TestLockAndUnlock:
 
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+                "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
                 approved,
             ),
             patch("shutil.which", return_value="/usr/bin/chattr"),
@@ -206,7 +206,7 @@ class TestPersistence:
         bad = tmp_path / "pending.json"
         bad.write_text("not json{{", encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
             bad,
         ):
             assert _load_pending() == []
@@ -215,7 +215,7 @@ class TestPersistence:
         bad = tmp_path / "pending.json"
         bad.write_text('{"key": "value"}', encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
             bad,
         ):
             assert _load_pending() == []
@@ -234,7 +234,7 @@ class TestPersistence:
         bad = tmp_path / "approved.json"
         bad.write_text("{{broken", encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
             bad,
         ):
             assert _load_approved() == []
@@ -243,7 +243,7 @@ class TestPersistence:
         bad = tmp_path / "approved.json"
         bad.write_text('"just a string"', encoding="utf-8")
         with patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
             bad,
         ):
             assert _load_approved() == []
@@ -268,7 +268,7 @@ class TestAppendAuditLog:
     def test_audit_log_written(self, tmp_path: Path) -> None:
         log_file = tmp_path / "audit.log"
         with patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            "steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
             log_file,
         ):
             _append_audit_log(440, "some reason", "REQUESTED")
@@ -280,7 +280,7 @@ class TestAppendAuditLog:
     def test_audit_log_appends(self, tmp_path: Path) -> None:
         log_file = tmp_path / "audit.log"
         with patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            "steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
             log_file,
         ):
             _append_audit_log(440, "first", "REQUESTED")

@@ -13,7 +13,7 @@ import subprocess
 import time
 from typing import TYPE_CHECKING, cast
 
-from python_pkg.steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
+from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 if TYPE_CHECKING:
     from pathlib import Path

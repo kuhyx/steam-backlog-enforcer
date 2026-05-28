@@ -5,28 +5,28 @@ from __future__ import annotations
 import logging
 import sys
 
-from python_pkg.steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
-from python_pkg.steam_backlog_enforcer.config import Config, State, load_snapshot
-from python_pkg.steam_backlog_enforcer.enforcer import (
+from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer.config import Config, State, load_snapshot
+from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     send_notification,
 )
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,
     is_game_installed,
     uninstall_other_games,
 )
-from python_pkg.steam_backlog_enforcer.hltb import (
+from steam_backlog_enforcer.hltb import (
     fetch_hltb_confidence_cached,
     fetch_hltb_times_cached,
     load_hltb_cache,
     load_hltb_polls_cache,
     save_hltb_cache,
 )
-from python_pkg.steam_backlog_enforcer.library_hider import hide_other_games
-from python_pkg.steam_backlog_enforcer.scanning import pick_next_game
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
+from steam_backlog_enforcer.library_hider import hide_other_games
+from steam_backlog_enforcer.scanning import pick_next_game
+from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 _REASSIGN_REFRESH_LIMIT = 50
 _SKIP_DAYS = 7

@@ -8,15 +8,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer._cmd_done import (
+from steam_backlog_enforcer._cmd_done import (
     cmd_done,
 )
-from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.main import cmd_pick, main
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.main import cmd_pick, main
+from steam_backlog_enforcer.steam_api import GameInfo
 
-CMD_DONE_PKG = "python_pkg.steam_backlog_enforcer._cmd_done"
-PKG = "python_pkg.steam_backlog_enforcer.main"
+CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done"
+PKG = "steam_backlog_enforcer.main"
 
 
 def _snap(

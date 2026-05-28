@@ -15,10 +15,10 @@ from typing import Any
 import aiohttp
 from howlongtobeatpy.HTMLRequests import HTMLRequests
 
-from python_pkg.steam_backlog_enforcer._hltb_detail import (
+from steam_backlog_enforcer._hltb_detail import (
     _fetch_leisure_times,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     _SAVE_INTERVAL,
     _SUBSET_SUFFIXES,
     MAX_CONCURRENT,

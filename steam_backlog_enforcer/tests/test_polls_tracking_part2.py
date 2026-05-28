@@ -6,17 +6,17 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer import _cmd_done, _scanning_confidence, scanning
-from python_pkg.steam_backlog_enforcer.config import State
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer import _cmd_done, _scanning_confidence, scanning
+from steam_backlog_enforcer.config import State
+from steam_backlog_enforcer.steam_api import GameInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-_TYPES = "python_pkg.steam_backlog_enforcer._hltb_types"
-_CMD = "python_pkg.steam_backlog_enforcer._cmd_done"
-_SCAN = "python_pkg.steam_backlog_enforcer.scanning"
-_SCANCONF = "python_pkg.steam_backlog_enforcer._scanning_confidence"
+_TYPES = "steam_backlog_enforcer._hltb_types"
+_CMD = "steam_backlog_enforcer._cmd_done"
+_SCAN = "steam_backlog_enforcer.scanning"
+_SCANCONF = "steam_backlog_enforcer._scanning_confidence"
 
 
 def _state(finished: list[int], current: int | None = None) -> State:
@@ -231,8 +231,8 @@ class TestScanningPollsIntegration:
 
     def test_do_scan_kept_assignment_missing_game(self) -> None:
         """Covers scanning.py 110->116: current_app_id set but game absent."""
-        from python_pkg.steam_backlog_enforcer.config import Config
-        from python_pkg.steam_backlog_enforcer.scanning import do_scan
+        from steam_backlog_enforcer.config import Config
+        from steam_backlog_enforcer.scanning import do_scan
 
         other = GameInfo(
             app_id=999,

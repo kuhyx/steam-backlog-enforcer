@@ -39,58 +39,58 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
     with (
         # Config / state / snapshot paths (used by State.save, Config.save, etc.)
         patch(
-            "python_pkg.steam_backlog_enforcer.config.CONFIG_DIR",
+            "steam_backlog_enforcer.config.CONFIG_DIR",
             fake_config,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.config.CONFIG_FILE",
+            "steam_backlog_enforcer.config.CONFIG_FILE",
             fake_config / "config.json",
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.config.STATE_FILE",
+            "steam_backlog_enforcer.config.STATE_FILE",
             fake_config / "state.json",
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.config.SNAPSHOT_FILE",
+            "steam_backlog_enforcer.config.SNAPSHOT_FILE",
             fake_config / "snapshot.json",
         ),
         # Steam game manifests / install dirs
         patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
             fake_steamapps,
         ),
         # HLTB cache file (computed at import time from CONFIG_DIR, so
         # patching CONFIG_DIR alone does not redirect it)
         patch(
-            "python_pkg.steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE",
+            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE",
             fake_config / "hltb_cache.json",
         ),
         # /etc/hosts (store blocker)
         patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.HOSTS_FILE",
+            "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
             fake_hosts,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.config.HOSTS_FILE",
+            "steam_backlog_enforcer.config.HOSTS_FILE",
             fake_hosts,
         ),
         # Whitelist exception files (_whitelist module-level constants)
         patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
             fake_config / "pending_exceptions.json",
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
             fake_config / "approved_exceptions.json",
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            "steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
             fake_config / "exception_audit.log",
         ),
         # _enforce_loop imports CONFIG_FILE directly; patch the local binding so
         # lock_enforcement_files() uses the tmp path instead of the real one.
         patch(
-            "python_pkg.steam_backlog_enforcer._enforce_loop.CONFIG_FILE",
+            "steam_backlog_enforcer._enforce_loop.CONFIG_FILE",
             fake_config / "config.json",
         ),
     ):
@@ -110,27 +110,27 @@ def _block_real_subprocesses() -> Iterator[None]:
 
     with (
         patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+            "steam_backlog_enforcer.game_install.subprocess.run",
             noop_run,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.Popen",
+            "steam_backlog_enforcer.game_install.subprocess.Popen",
             noop_popen,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.enforcer.subprocess.run",
+            "steam_backlog_enforcer.enforcer.subprocess.run",
             noop_run,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer.store_blocker.subprocess.run",
             noop_run,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+            "steam_backlog_enforcer.library_hider.subprocess.run",
             noop_run,
         ),
         patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.subprocess.Popen",
+            "steam_backlog_enforcer.library_hider.subprocess.Popen",
             noop_popen,
         ),
     ):
@@ -147,9 +147,9 @@ def _no_real_sleep() -> Iterator[None]:
     """
     noop = MagicMock()
     with (
-        patch("python_pkg.steam_backlog_enforcer.game_install.time.sleep", noop),
-        patch("python_pkg.steam_backlog_enforcer.library_hider.time.sleep", noop),
-        patch("python_pkg.steam_backlog_enforcer.steam_api.time.sleep", noop),
-        patch("python_pkg.steam_backlog_enforcer._enforce_loop.time.sleep", noop),
+        patch("steam_backlog_enforcer.game_install.time.sleep", noop),
+        patch("steam_backlog_enforcer.library_hider.time.sleep", noop),
+        patch("steam_backlog_enforcer.steam_api.time.sleep", noop),
+        patch("steam_backlog_enforcer._enforce_loop.time.sleep", noop),
     ):
         yield

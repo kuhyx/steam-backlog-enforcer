@@ -9,12 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 from typing_extensions import Self
 
-from python_pkg.steam_backlog_enforcer._hltb_search import (
+from steam_backlog_enforcer._hltb_search import (
     _fetch_batch,
     _search_one,
     _SearchCtx,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     _SAVE_INTERVAL,
 )
 
@@ -260,7 +260,7 @@ class TestSearchOne:
 
         ctx.counter["done"] = _SAVE_INTERVAL - 1
         with patch(
-            "python_pkg.steam_backlog_enforcer._hltb_search.save_hltb_cache"
+            "steam_backlog_enforcer._hltb_search.save_hltb_cache"
         ) as mock_save:
             asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
             mock_save.assert_called_once()
@@ -272,11 +272,11 @@ class TestFetchBatchHltb:
     def test_no_auth(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_hltb_search_url",
+                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
                 return_value="https://example.com",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._hltb_search._get_auth_info",
+                "steam_backlog_enforcer._hltb_search._get_auth_info",
                 new_callable=AsyncMock,
                 return_value=None,
             ),

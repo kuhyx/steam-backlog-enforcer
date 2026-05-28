@@ -5,9 +5,9 @@ from __future__ import annotations
 import contextlib
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.scanning import pick_next_game
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.scanning import pick_next_game
+from steam_backlog_enforcer.steam_api import GameInfo
 
 
 def _game(
@@ -50,27 +50,27 @@ class TestPickNextGame:
 
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence",
+                "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence",
                 side_effect=refresh_side_effect,
             ) as mock_refresh,
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer.scanning._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence._echo",
+                "steam_backlog_enforcer._scanning_confidence._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="1"),
@@ -93,19 +93,19 @@ class TestPickNextGame:
 
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence_batch"
+                "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence_batch"
             ) as mock_refresh_batch,
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer.scanning._echo"),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="1"),
@@ -131,27 +131,27 @@ class TestPickNextGame:
 
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence.load_hltb_polls_cache",
+                "steam_backlog_enforcer._scanning_confidence.load_hltb_polls_cache",
                 return_value={1: 1, 2: 3},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence.load_hltb_count_comp_cache",
+                "steam_backlog_enforcer._scanning_confidence.load_hltb_count_comp_cache",
                 return_value={1: 8, 2: 20},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence_batch"
+                "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence_batch"
             ) as mock_refresh_batch,
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer.scanning._echo"),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="1"),
@@ -178,16 +178,16 @@ class TestPickNextGame:
 
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=playable_side_effect,
             ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer.scanning._echo"),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="1"),
@@ -205,16 +205,16 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
-            patch("python_pkg.steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer.scanning._echo"),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="2"),
@@ -230,19 +230,19 @@ class TestPickNextGame:
         echoed: list[str] = []
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer.scanning._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", side_effect=["abc", "1"]),
@@ -259,19 +259,19 @@ class TestPickNextGame:
         echoed: list[str] = []
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer.scanning._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", side_effect=["99", "1"]),
@@ -289,30 +289,30 @@ class TestPickNextGameSequential:
         stack = contextlib.ExitStack()
         stack.enter_context(
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             )
         )
         stack.enter_context(
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer.scanning._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             )
         )
         stack.enter_context(
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=True,
             )
         )
         stack.enter_context(
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer.scanning.uninstall_other_games",
                 return_value=0,
             )
         )
         stack.enter_context(
-            patch("python_pkg.steam_backlog_enforcer.config._atomic_write")
+            patch("steam_backlog_enforcer.config._atomic_write")
         )
         return stack
 
@@ -363,14 +363,14 @@ class TestPickNextGameSequential:
         echoed: list[str] = []
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 return_value=None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer.scanning._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
-            patch("python_pkg.steam_backlog_enforcer.config._atomic_write"),
+            patch("steam_backlog_enforcer.config._atomic_write"),
         ):
             pick_next_game([g1], state, config, on_select=lambda _g: True)
         assert state.current_app_id is None
@@ -386,17 +386,17 @@ class TestPickNextGameSequential:
         echoed: list[str] = []
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer.scanning._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer.scanning._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence",
+                "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence",
             ),
-            patch("python_pkg.steam_backlog_enforcer.config._atomic_write"),
+            patch("steam_backlog_enforcer.config._atomic_write"),
         ):
             pick_next_game([g1], state, config, on_select=lambda _g: True)
         assert state.current_app_id is None

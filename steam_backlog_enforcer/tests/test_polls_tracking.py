@@ -6,8 +6,8 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer import _cmd_done
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer import _cmd_done
+from steam_backlog_enforcer._hltb_types import (
     HLTBResult,
     _HLTBExtras,
     load_hltb_cache,
@@ -16,15 +16,15 @@ from python_pkg.steam_backlog_enforcer._hltb_types import (
     load_hltb_polls_cache,
     save_hltb_cache,
 )
-from python_pkg.steam_backlog_enforcer.config import State
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.config import State
+from steam_backlog_enforcer.steam_api import GameInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-_TYPES = "python_pkg.steam_backlog_enforcer._hltb_types"
-_CMD = "python_pkg.steam_backlog_enforcer._cmd_done"
-_SCAN = "python_pkg.steam_backlog_enforcer.scanning"
+_TYPES = "steam_backlog_enforcer._hltb_types"
+_CMD = "steam_backlog_enforcer._cmd_done"
+_SCAN = "steam_backlog_enforcer.scanning"
 
 
 class TestCacheSchema:

@@ -7,26 +7,26 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
-from python_pkg.steam_backlog_enforcer._cmd_done import cmd_done
-from python_pkg.steam_backlog_enforcer._enforce_loop import (
+from steam_backlog_enforcer._cmd_done import cmd_done
+from steam_backlog_enforcer._enforce_loop import (
     do_enforce,
     get_all_owned_app_ids,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import load_hltb_cache
-from python_pkg.steam_backlog_enforcer._stats import cmd_stats
-from python_pkg.steam_backlog_enforcer._whitelist import (
+from steam_backlog_enforcer._hltb_types import load_hltb_cache
+from steam_backlog_enforcer._stats import cmd_stats
+from steam_backlog_enforcer._whitelist import (
     WHITELIST_COOLDOWN_SECONDS,
     add_pending_exception,
     list_pending_exceptions,
     validate_reason,
 )
-from python_pkg.steam_backlog_enforcer.config import (
+from steam_backlog_enforcer.config import (
     Config,
     State,
     interactive_setup,
     load_snapshot,
 )
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _echo,
     get_installed_games,
     install_game,
@@ -34,18 +34,18 @@ from python_pkg.steam_backlog_enforcer.game_install import (
     is_protected_app,
     uninstall_other_games,
 )
-from python_pkg.steam_backlog_enforcer.library_hider import (
+from steam_backlog_enforcer.library_hider import (
     hide_other_games,
     restart_steam,
     unhide_all_games,
 )
-from python_pkg.steam_backlog_enforcer.scanning import (
+from steam_backlog_enforcer.scanning import (
     do_check,
     do_scan,
     pick_next_game,
 )
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
-from python_pkg.steam_backlog_enforcer.store_blocker import (
+from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.store_blocker import (
     block_store,
     is_store_blocked,
     unblock_store,
@@ -415,7 +415,7 @@ def main() -> None:
     """CLI entry point."""
     if len(sys.argv) < _MIN_CLI_ARGS or sys.argv[1] not in _ALL_COMMANDS:
         _echo("Steam Backlog Enforcer\n")
-        _echo("Usage: python -m python_pkg.steam_backlog_enforcer.main <command>\n")
+        _echo("Usage: python -m steam_backlog_enforcer.main <command>\n")
         _echo("Commands:")
         for name, desc in _ALL_COMMANDS.items():
             _echo(f"  {name:<14s}  {desc}")

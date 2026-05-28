@@ -17,7 +17,7 @@ from typing import Any
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
+from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 logger = logging.getLogger(__name__)
 

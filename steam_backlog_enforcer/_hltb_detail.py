@@ -11,7 +11,7 @@ from typing import Any
 
 import aiohttp
 
-from python_pkg.steam_backlog_enforcer._hltb_types import (
+from steam_backlog_enforcer._hltb_types import (
     _SAVE_INTERVAL,
     HLTB_BASE_URL,
     MAX_CONCURRENT,

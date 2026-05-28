@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from python_pkg.steam_backlog_enforcer._stats import (
+from steam_backlog_enforcer._stats import (
     _ensure_rush_data,
     _filter_qualifying_games,
     _format_completion_date,
@@ -16,11 +16,11 @@ from python_pkg.steam_backlog_enforcer._stats import (
     _sum_hours,
     cmd_stats,
 )
-from python_pkg.steam_backlog_enforcer.config import Config, State
-from python_pkg.steam_backlog_enforcer.protondb import ProtonDBRating
-from python_pkg.steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.protondb import ProtonDBRating
+from steam_backlog_enforcer.steam_api import GameInfo
 
-_PKG = "python_pkg.steam_backlog_enforcer._stats"
+_PKG = "steam_backlog_enforcer._stats"
 
 
 def _game(

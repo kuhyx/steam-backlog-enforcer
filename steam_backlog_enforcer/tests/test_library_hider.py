@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer.library_hider import (
+from steam_backlog_enforcer.library_hider import (
     _cdp_result_value,
     _evaluate_js,
     _evaluate_js_async,
@@ -37,7 +37,7 @@ class TestGetSharedJsWsUrl:
         mock_resp = MagicMock()
         mock_resp.json.return_value = targets
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.requests.get",
+            "steam_backlog_enforcer.library_hider.requests.get",
             return_value=mock_resp,
         ):
             result = _get_shared_js_ws_url()
@@ -48,14 +48,14 @@ class TestGetSharedJsWsUrl:
         mock_resp = MagicMock()
         mock_resp.json.return_value = targets
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.requests.get",
+            "steam_backlog_enforcer.library_hider.requests.get",
             return_value=mock_resp,
         ):
             assert _get_shared_js_ws_url() is None
 
     def test_connection_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.requests.get",
+            "steam_backlog_enforcer.library_hider.requests.get",
             side_effect=OSError,
         ):
             assert _get_shared_js_ws_url() is None
@@ -74,7 +74,7 @@ class TestEvaluateJsAsync:
         mock_ws.__aexit__ = AsyncMock(return_value=False)
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.websockets.connect",
+            "steam_backlog_enforcer.library_hider.websockets.connect",
             return_value=mock_ws,
         ):
             result = asyncio.run(_evaluate_js_async("ws://test", "1+1"))
@@ -87,11 +87,11 @@ class TestEvaluateJs:
     def test_success(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
+                "steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
                 return_value="ws://test",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.asyncio.run",
+                "steam_backlog_enforcer.library_hider.asyncio.run",
                 return_value={"result": {"result": {"value": "ok"}}},
             ),
         ):
@@ -101,7 +101,7 @@ class TestEvaluateJs:
     def test_no_ws_url(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
+                "steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
                 return_value=None,
             ),
             pytest.raises(RuntimeError, match="SharedJSContext not found"),
@@ -136,7 +136,7 @@ class TestIsSteamRunning:
     def test_running(self) -> None:
         mock_result = MagicMock(returncode=0)
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+            "steam_backlog_enforcer.library_hider.subprocess.run",
             return_value=mock_result,
         ):
             assert _is_steam_running() is True
@@ -144,7 +144,7 @@ class TestIsSteamRunning:
     def test_not_running(self) -> None:
         mock_result = MagicMock(returncode=1)
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+            "steam_backlog_enforcer.library_hider.subprocess.run",
             return_value=mock_result,
         ):
             assert _is_steam_running() is False
@@ -155,14 +155,14 @@ class TestSteamHasDebugPort:
 
     def test_has_port(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
+            "steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
             return_value="ws://test",
         ):
             assert _steam_has_debug_port() is True
 
     def test_no_port(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
+            "steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
             return_value=None,
         ):
             assert _steam_has_debug_port() is False
@@ -173,7 +173,7 @@ class TestWaitForCdpReady:
 
     def test_ready_immediately(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
+            "steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
             return_value="ws://test",
         ):
             assert _wait_for_cdp_ready() is True
@@ -181,14 +181,14 @@ class TestWaitForCdpReady:
     def test_timeout(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
+                "steam_backlog_enforcer.library_hider._get_shared_js_ws_url",
                 return_value=None,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.time.sleep",
+                "steam_backlog_enforcer.library_hider.time.sleep",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._STEAM_STARTUP_WAIT",
+                "steam_backlog_enforcer.library_hider._STEAM_STARTUP_WAIT",
                 2,
             ),
         ):
@@ -201,11 +201,11 @@ class TestWaitForCollectionsReady:
     def test_ready(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._evaluate_js",
+                "steam_backlog_enforcer.library_hider._evaluate_js",
                 return_value={"result": {"result": {"value": "ok"}}},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._cdp_result_value",
+                "steam_backlog_enforcer.library_hider._cdp_result_value",
                 return_value="ok",
             ),
         ):
@@ -214,18 +214,18 @@ class TestWaitForCollectionsReady:
     def test_not_ready_then_ready(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._evaluate_js",
+                "steam_backlog_enforcer.library_hider._evaluate_js",
                 return_value={"result": {"result": {"value": "not_ready"}}},
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._cdp_result_value",
+                "steam_backlog_enforcer.library_hider._cdp_result_value",
                 side_effect=["not_ready", "ok"],
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.time.sleep",
+                "steam_backlog_enforcer.library_hider.time.sleep",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._STEAM_STARTUP_WAIT",
+                "steam_backlog_enforcer.library_hider._STEAM_STARTUP_WAIT",
                 2,
             ),
         ):
@@ -234,14 +234,14 @@ class TestWaitForCollectionsReady:
     def test_timeout(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._evaluate_js",
+                "steam_backlog_enforcer.library_hider._evaluate_js",
                 side_effect=RuntimeError,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.time.sleep",
+                "steam_backlog_enforcer.library_hider.time.sleep",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._STEAM_STARTUP_WAIT",
+                "steam_backlog_enforcer.library_hider._STEAM_STARTUP_WAIT",
                 2,
             ),
         ):
@@ -255,10 +255,10 @@ class TestShutdownSteam:
         mock_result = MagicMock(returncode=1)  # Not running
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._run_as_user",
+                "steam_backlog_enforcer.library_hider._run_as_user",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+                "steam_backlog_enforcer.library_hider.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -268,21 +268,21 @@ class TestShutdownSteam:
         results = [MagicMock(returncode=0), MagicMock(returncode=1)]
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._run_as_user",
+                "steam_backlog_enforcer.library_hider._run_as_user",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+                "steam_backlog_enforcer.library_hider.subprocess.run",
                 side_effect=results,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.time.sleep",
+                "steam_backlog_enforcer.library_hider.time.sleep",
             ),
         ):
             _shutdown_steam()
 
     def test_file_not_found(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider._run_as_user",
+            "steam_backlog_enforcer.library_hider._run_as_user",
             side_effect=FileNotFoundError,
         ):
             _shutdown_steam()  # Should not raise
@@ -291,14 +291,14 @@ class TestShutdownSteam:
         mock_result = MagicMock(returncode=0)  # Still running
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._run_as_user",
+                "steam_backlog_enforcer.library_hider._run_as_user",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.subprocess.run",
+                "steam_backlog_enforcer.library_hider.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider.time.sleep",
+                "steam_backlog_enforcer.library_hider.time.sleep",
             ),
         ):
             _shutdown_steam()  # Should complete loop without raising
@@ -309,7 +309,7 @@ class TestLaunchSteamWithDebug:
 
     def test_launches(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider._run_as_user",
+            "steam_backlog_enforcer.library_hider._run_as_user",
         ) as mock_run:
             _launch_steam_with_debug()
             mock_run.assert_called_once()
@@ -320,7 +320,7 @@ class TestEnsureSteamDebugPort:
 
     def test_already_available(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.library_hider._steam_has_debug_port",
+            "steam_backlog_enforcer.library_hider._steam_has_debug_port",
             return_value=True,
         ):
             ensure_steam_debug_port()
@@ -328,22 +328,22 @@ class TestEnsureSteamDebugPort:
     def test_starts_fresh(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._steam_has_debug_port",
+                "steam_backlog_enforcer.library_hider._steam_has_debug_port",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._is_steam_running",
+                "steam_backlog_enforcer.library_hider._is_steam_running",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._launch_steam_with_debug",
+                "steam_backlog_enforcer.library_hider._launch_steam_with_debug",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_collections_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_collections_ready",
                 return_value=True,
             ),
         ):
@@ -352,25 +352,25 @@ class TestEnsureSteamDebugPort:
     def test_restarts_running_steam(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._steam_has_debug_port",
+                "steam_backlog_enforcer.library_hider._steam_has_debug_port",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._is_steam_running",
+                "steam_backlog_enforcer.library_hider._is_steam_running",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._shutdown_steam",
+                "steam_backlog_enforcer.library_hider._shutdown_steam",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._launch_steam_with_debug",
+                "steam_backlog_enforcer.library_hider._launch_steam_with_debug",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_collections_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_collections_ready",
                 return_value=True,
             ),
         ):
@@ -379,18 +379,18 @@ class TestEnsureSteamDebugPort:
     def test_cdp_timeout(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._steam_has_debug_port",
+                "steam_backlog_enforcer.library_hider._steam_has_debug_port",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._is_steam_running",
+                "steam_backlog_enforcer.library_hider._is_steam_running",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._launch_steam_with_debug",
+                "steam_backlog_enforcer.library_hider._launch_steam_with_debug",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
                 return_value=False,
             ),
             pytest.raises(RuntimeError, match="Timed out waiting for Steam CDP"),
@@ -400,22 +400,22 @@ class TestEnsureSteamDebugPort:
     def test_collections_timeout(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._steam_has_debug_port",
+                "steam_backlog_enforcer.library_hider._steam_has_debug_port",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._is_steam_running",
+                "steam_backlog_enforcer.library_hider._is_steam_running",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._launch_steam_with_debug",
+                "steam_backlog_enforcer.library_hider._launch_steam_with_debug",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_cdp_ready",
                 return_value=True,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.library_hider._wait_for_collections_ready",
+                "steam_backlog_enforcer.library_hider._wait_for_collections_ready",
                 return_value=False,
             ),
             pytest.raises(

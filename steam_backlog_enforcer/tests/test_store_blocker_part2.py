@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer.store_blocker import (
+from steam_backlog_enforcer.store_blocker import (
     _disable_hosts_protection,
     _enable_hosts_protection,
     _reblock_hosts,
@@ -17,7 +17,7 @@ from python_pkg.steam_backlog_enforcer.store_blocker import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-PKG = "python_pkg.steam_backlog_enforcer.store_blocker"
+PKG = "steam_backlog_enforcer.store_blocker"
 
 
 class TestSudoWriteHosts:

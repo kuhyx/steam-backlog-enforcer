@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _assert_not_real_steam,
     _echo,
     _ensure_steam_running,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-PKG = "python_pkg.steam_backlog_enforcer.game_install"
+PKG = "steam_backlog_enforcer.game_install"
 
 
 class TestAssertNotRealSteam:
@@ -99,7 +99,7 @@ class TestTriggerSteamInstall:
 
     def test_success(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run"
+            "steam_backlog_enforcer.game_install.subprocess.run"
         ) as mock_run:
             result = _trigger_steam_install(440, "TF2")
             assert result is True
@@ -107,7 +107,7 @@ class TestTriggerSteamInstall:
 
     def test_file_not_found(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+            "steam_backlog_enforcer.game_install.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             result = _trigger_steam_install(440, "TF2")
@@ -115,7 +115,7 @@ class TestTriggerSteamInstall:
 
     def test_os_error(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+            "steam_backlog_enforcer.game_install.subprocess.run",
             side_effect=OSError,
         ):
             result = _trigger_steam_install(440, "TF2")
@@ -125,7 +125,7 @@ class TestTriggerSteamInstall:
         import subprocess
 
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+            "steam_backlog_enforcer.game_install.subprocess.run",
             side_effect=subprocess.TimeoutExpired("cmd", 15),
         ):
             result = _trigger_steam_install(440, "TF2")
@@ -155,14 +155,14 @@ class TestGetUidGid:
         mock_pw.pw_uid = 1001
         mock_pw.pw_gid = 1001
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.pwd.getpwnam",
+            "steam_backlog_enforcer.game_install.pwd.getpwnam",
             return_value=mock_pw,
         ):
             assert _get_uid_gid_for_user("alice") == (1001, 1001)
 
     def test_unknown_user(self) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.pwd.getpwnam",
+            "steam_backlog_enforcer.game_install.pwd.getpwnam",
             side_effect=KeyError,
         ):
             assert _get_uid_gid_for_user("nobody") == (1000, 1000)
@@ -175,13 +175,13 @@ class TestIsGameInstalled:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.touch()
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             assert is_game_installed(440) is True
 
     def test_not_installed(self, tmp_path: Path) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             assert is_game_installed(440) is False
 
@@ -192,7 +192,7 @@ class TestEnsureSteamRunning:
     def test_already_running(self) -> None:
         mock_result = MagicMock(returncode=0)
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+            "steam_backlog_enforcer.game_install.subprocess.run",
             return_value=mock_result,
         ):
             _ensure_steam_running()
@@ -201,17 +201,17 @@ class TestEnsureSteamRunning:
         mock_result = MagicMock(returncode=1)
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+                "steam_backlog_enforcer.game_install.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.Popen"
+                "steam_backlog_enforcer.game_install.subprocess.Popen"
             ) as mock_popen,
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
-            patch("python_pkg.steam_backlog_enforcer.game_install.time.sleep"),
+            patch("steam_backlog_enforcer.game_install.time.sleep"),
         ):
             _ensure_steam_running()
             mock_popen.assert_called_once()
@@ -223,25 +223,25 @@ class TestEnsureSteamRunning:
         mock_pw.pw_gid = 1000
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+                "steam_backlog_enforcer.game_install.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.Popen"
+                "steam_backlog_enforcer.game_install.subprocess.Popen"
             ) as mock_popen,
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=0,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._get_real_user",
+                "steam_backlog_enforcer.game_install._get_real_user",
                 return_value="alice",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._get_uid_gid_for_user",
+                "steam_backlog_enforcer.game_install._get_uid_gid_for_user",
                 return_value=(1000, 1000),
             ),
-            patch("python_pkg.steam_backlog_enforcer.game_install.time.sleep"),
+            patch("steam_backlog_enforcer.game_install.time.sleep"),
         ):
             _ensure_steam_running()
             mock_popen.assert_called_once()
@@ -249,15 +249,15 @@ class TestEnsureSteamRunning:
     def test_pgrep_not_found(self) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+                "steam_backlog_enforcer.game_install.subprocess.run",
                 side_effect=FileNotFoundError,
             ),
-            patch("python_pkg.steam_backlog_enforcer.game_install.subprocess.Popen"),
+            patch("steam_backlog_enforcer.game_install.subprocess.Popen"),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
-            patch("python_pkg.steam_backlog_enforcer.game_install.time.sleep"),
+            patch("steam_backlog_enforcer.game_install.time.sleep"),
         ):
             _ensure_steam_running()
 
@@ -265,15 +265,15 @@ class TestEnsureSteamRunning:
         mock_result = MagicMock(returncode=1)
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.run",
+                "steam_backlog_enforcer.game_install.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.subprocess.Popen",
+                "steam_backlog_enforcer.game_install.subprocess.Popen",
                 side_effect=FileNotFoundError,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
         ):

@@ -9,7 +9,7 @@ import shutil
 import signal
 import subprocess
 
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     is_protected_app,
 )
 

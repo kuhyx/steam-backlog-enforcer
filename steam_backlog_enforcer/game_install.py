@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from python_pkg.steam_backlog_enforcer._whitelist import get_approved_exception_ids
+from steam_backlog_enforcer._whitelist import get_approved_exception_ids
 
 logger = logging.getLogger(__name__)
 

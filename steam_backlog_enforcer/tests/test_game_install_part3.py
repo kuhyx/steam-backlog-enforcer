@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import (
     _read_install_dir,
     _remove_manifest,
     get_installed_games,
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-PKG = "python_pkg.steam_backlog_enforcer.game_install"
+PKG = "steam_backlog_enforcer.game_install"
 
 
 class TestInstallGame:
@@ -26,21 +26,21 @@ class TestInstallGame:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.touch()
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             assert install_game(440, "TF2", "steam123") is True
 
     def test_use_steam_protocol_success(self, tmp_path: Path) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._trigger_steam_install",
+                "steam_backlog_enforcer.game_install._trigger_steam_install",
                 return_value=True,
             ),
         ):
@@ -49,18 +49,18 @@ class TestInstallGame:
     def test_use_steam_protocol_fallback(self, tmp_path: Path) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._trigger_steam_install",
+                "steam_backlog_enforcer.game_install._trigger_steam_install",
                 return_value=False,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
         ):
@@ -70,26 +70,26 @@ class TestInstallGame:
     def test_manifest_write_as_root(self, tmp_path: Path) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=0,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._get_real_user",
+                "steam_backlog_enforcer.game_install._get_real_user",
                 return_value="alice",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._get_uid_gid_for_user",
+                "steam_backlog_enforcer.game_install._get_uid_gid_for_user",
                 return_value=(1001, 1001),
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.chown"
+                "steam_backlog_enforcer.game_install.os.chown"
             ) as mock_chown,
         ):
             assert install_game(440, "TF2", "s1") is True
@@ -99,14 +99,14 @@ class TestInstallGame:
         # Make steamapps path not writable
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path / "nonexistent" / "deep",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
         ):
@@ -115,14 +115,14 @@ class TestInstallGame:
     def test_empty_game_name(self, tmp_path: Path) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
         ):
@@ -131,18 +131,18 @@ class TestInstallGame:
     def test_manifest_not_root_no_chown(self, tmp_path: Path) -> None:
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.chown"
+                "steam_backlog_enforcer.game_install.os.chown"
             ) as mock_chown,
         ):
             assert install_game(440, "TF2", "s1") is True
@@ -152,22 +152,22 @@ class TestInstallGame:
         """When real user IS root, don't chown."""
         with (
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+                "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
                 tmp_path,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._ensure_steam_running"
+                "steam_backlog_enforcer.game_install._ensure_steam_running"
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.geteuid",
+                "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=0,
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install._get_real_user",
+                "steam_backlog_enforcer.game_install._get_real_user",
                 return_value="root",
             ),
             patch(
-                "python_pkg.steam_backlog_enforcer.game_install.os.chown"
+                "steam_backlog_enforcer.game_install.os.chown"
             ) as mock_chown,
         ):
             assert install_game(440, "TF2", "s1") is True
@@ -181,7 +181,7 @@ class TestGetInstalledGames:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"appid"\t\t"440"\n"name"\t\t"Team Fortress 2"\n')
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             result = get_installed_games()
             assert result == [(440, "Team Fortress 2")]
@@ -190,14 +190,14 @@ class TestGetInstalledGames:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"appid"\t\t"440"\n')
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             result = get_installed_games()
             assert result == [(440, "Unknown (440)")]
 
     def test_empty_dir(self, tmp_path: Path) -> None:
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             result = get_installed_games()
             assert result == []
@@ -206,7 +206,7 @@ class TestGetInstalledGames:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"name"\t\t"NoAppId"\n')
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             result = get_installed_games()
             assert result == []
@@ -219,7 +219,7 @@ class TestReadInstallDir:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"installdir"\t\t"Team Fortress 2"\n')
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             result = _read_install_dir(manifest)
             assert result == tmp_path / "common" / "Team Fortress 2"
@@ -228,7 +228,7 @@ class TestReadInstallDir:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"appid"\t\t"440"\n')
         with patch(
-            "python_pkg.steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
+            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
         ):
             assert _read_install_dir(manifest) is None
 

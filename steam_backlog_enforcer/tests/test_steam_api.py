@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from python_pkg.steam_backlog_enforcer.steam_api import (
+from steam_backlog_enforcer.steam_api import (
     AchievementInfo,
     GameInfo,
     SteamAPIClient,
@@ -163,7 +163,7 @@ class TestSteamAPIClient:
         # Fill up the rate limit window
         client._request_times = [__import__("time").time()] * client._max_rps
         with patch(
-            "python_pkg.steam_backlog_enforcer.steam_api.time.sleep",
+            "steam_backlog_enforcer.steam_api.time.sleep",
         ) as mock_sleep:
             # Next call should trigger sleep then succeed
             client._rate_limit()

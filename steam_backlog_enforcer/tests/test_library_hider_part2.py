@@ -6,14 +6,14 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from python_pkg.steam_backlog_enforcer.library_hider import (
+from steam_backlog_enforcer.library_hider import (
     _run_as_user,
     hide_other_games,
     restart_steam,
     unhide_all_games,
 )
 
-PKG = "python_pkg.steam_backlog_enforcer.library_hider"
+PKG = "steam_backlog_enforcer.library_hider"
 
 
 class TestRunAsUser:

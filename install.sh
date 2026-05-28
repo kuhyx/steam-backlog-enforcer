@@ -3,7 +3,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 echo "=== Steam Backlog Enforcer Installer ==="
 echo
@@ -24,9 +23,9 @@ if [[ "${ans,,}" == "y" ]]; then
     SERVICE_SRC="$SCRIPT_DIR/steam-backlog-enforcer.service"
     SERVICE_DST="/etc/systemd/system/steam-backlog-enforcer.service"
 
-    # Set the correct working directory in the service file.
-    sed "s|WorkingDirectory=.*|WorkingDirectory=$REPO_ROOT|" "$SERVICE_SRC" \
-        > "$SERVICE_DST"
+    # Set the correct working directory and PYTHONPATH in the service file.
+    sed "s|WorkingDirectory=.*|WorkingDirectory=$SCRIPT_DIR|; s|PYTHONPATH=.*|PYTHONPATH=$SCRIPT_DIR|" \
+        "$SERVICE_SRC" > "$SERVICE_DST"
 
     systemctl daemon-reload
     systemctl enable steam-backlog-enforcer
@@ -38,4 +37,4 @@ fi
 
 echo
 echo "Done! Run manually with:"
-echo "  sudo python3 -m python_pkg.steam_backlog_enforcer.main enforce"
+echo "  python3 -m steam_backlog_enforcer.main enforce"
