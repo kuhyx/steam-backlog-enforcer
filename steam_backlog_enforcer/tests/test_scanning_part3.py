@@ -311,9 +311,7 @@ class TestPickNextGameSequential:
                 return_value=0,
             )
         )
-        stack.enter_context(
-            patch("steam_backlog_enforcer.config._atomic_write")
-        )
+        stack.enter_context(patch("steam_backlog_enforcer.config._atomic_write"))
         return stack
 
     def test_on_select_accepts_pick(self) -> None:

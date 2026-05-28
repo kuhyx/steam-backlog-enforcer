@@ -172,9 +172,7 @@ class TestConfidenceHelpers:
             patch(
                 "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence_batch",
             ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence._echo"
-            ) as mock_echo,
+            patch("steam_backlog_enforcer._scanning_confidence._echo") as mock_echo,
         ):
             result = _filter_hltb_confident_candidates([low])
         assert result == []

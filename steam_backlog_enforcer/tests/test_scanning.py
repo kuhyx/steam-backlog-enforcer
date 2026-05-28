@@ -322,9 +322,7 @@ class TestPickNextGame:
                 "steam_backlog_enforcer.scanning.is_game_installed",
                 return_value=False,
             ),
-            patch(
-                "steam_backlog_enforcer.scanning.install_game"
-            ) as mock_install,
+            patch("steam_backlog_enforcer.scanning.install_game") as mock_install,
             patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1], state, config)

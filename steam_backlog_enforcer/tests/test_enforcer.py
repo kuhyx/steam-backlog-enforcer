@@ -105,9 +105,7 @@ class TestEnforceAllowedGame:
                 "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
                 return_value={100: 570, 200: 440},
             ),
-            patch(
-                "steam_backlog_enforcer.enforcer.kill_process"
-            ) as mock_kill,
+            patch("steam_backlog_enforcer.enforcer.kill_process") as mock_kill,
         ):
             result = enforce_allowed_game(440, kill_unauthorized=True)
             assert result == [(100, 570)]
@@ -144,9 +142,7 @@ class TestEnforceAllowedGame:
                 "steam_backlog_enforcer.enforcer.is_protected_app",
                 side_effect=lambda aid: aid == 1331550,
             ),
-            patch(
-                "steam_backlog_enforcer.enforcer.kill_process"
-            ) as mock_kill,
+            patch("steam_backlog_enforcer.enforcer.kill_process") as mock_kill,
         ):
             result = enforce_allowed_game(440, kill_unauthorized=True)
             assert result == []
@@ -180,9 +176,7 @@ class TestSendNotification:
     """Tests for send_notification."""
 
     def test_sends(self) -> None:
-        with patch(
-            "steam_backlog_enforcer.enforcer.subprocess.run"
-        ) as mock_run:
+        with patch("steam_backlog_enforcer.enforcer.subprocess.run") as mock_run:
             send_notification("Title", "Body")
             mock_run.assert_called_once()
 

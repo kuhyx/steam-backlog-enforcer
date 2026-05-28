@@ -454,9 +454,7 @@ class TestFetchLeisureTimes:
                 new_callable=AsyncMock,
                 return_value=game_data,
             ),
-            patch(
-                "steam_backlog_enforcer._hltb_detail.save_hltb_cache"
-            ) as mock_save,
+            patch("steam_backlog_enforcer._hltb_detail.save_hltb_cache") as mock_save,
         ):
             asyncio.run(_fetch_leisure_times(results, cache, {}, None))
             mock_save.assert_called_once()

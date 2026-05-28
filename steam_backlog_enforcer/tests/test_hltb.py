@@ -32,25 +32,19 @@ class TestHltbCache:
     def test_load_cache_exists(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "hltb_cache.json"
         cache_file.write_text(json.dumps({"440": 10.5}), encoding="utf-8")
-        with patch(
-            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
-        ):
+        with patch("steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file):
             result = load_hltb_cache()
             assert result == {440: 10.5}
 
     def test_load_cache_missing(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "nonexistent.json"
-        with patch(
-            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
-        ):
+        with patch("steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file):
             assert load_hltb_cache() == {}
 
     def test_load_cache_corrupt(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "hltb_cache.json"
         cache_file.write_text("not json", encoding="utf-8")
-        with patch(
-            "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file
-        ):
+        with patch("steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file):
             assert load_hltb_cache() == {}
 
     def test_save_cache(self, tmp_path: Path) -> None:
@@ -79,18 +73,14 @@ class TestGetHltbSearchUrl:
     def test_discovers_url(self) -> None:
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/abc"
-        with patch(
-            "steam_backlog_enforcer._hltb_search.HTMLRequests"
-        ) as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.return_value = mock_info
             mock_html.BASE_URL = "https://howlongtobeat.com"
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/search/abc"
 
     def test_fallback_url(self) -> None:
-        with patch(
-            "steam_backlog_enforcer._hltb_search.HTMLRequests"
-        ) as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.return_value = None
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"
@@ -98,18 +88,14 @@ class TestGetHltbSearchUrl:
     def test_first_returns_none_second_returns_info(self) -> None:
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/xyz"
-        with patch(
-            "steam_backlog_enforcer._hltb_search.HTMLRequests"
-        ) as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.side_effect = [None, mock_info]
             mock_html.BASE_URL = "https://howlongtobeat.com"
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/search/xyz"
 
     def test_exception_fallback(self) -> None:
-        with patch(
-            "steam_backlog_enforcer._hltb_search.HTMLRequests"
-        ) as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.side_effect = RuntimeError
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"

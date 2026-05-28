@@ -98,9 +98,7 @@ class TestTriggerSteamInstall:
     """Tests for _trigger_steam_install."""
 
     def test_success(self) -> None:
-        with patch(
-            "steam_backlog_enforcer.game_install.subprocess.run"
-        ) as mock_run:
+        with patch("steam_backlog_enforcer.game_install.subprocess.run") as mock_run:
             result = _trigger_steam_install(440, "TF2")
             assert result is True
             mock_run.assert_called_once()
@@ -174,15 +172,11 @@ class TestIsGameInstalled:
     def test_installed(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.touch()
-        with patch(
-            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
-        ):
+        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
             assert is_game_installed(440) is True
 
     def test_not_installed(self, tmp_path: Path) -> None:
-        with patch(
-            "steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path
-        ):
+        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
             assert is_game_installed(440) is False
 
 
@@ -204,9 +198,7 @@ class TestEnsureSteamRunning:
                 "steam_backlog_enforcer.game_install.subprocess.run",
                 return_value=mock_result,
             ),
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.Popen"
-            ) as mock_popen,
+            patch("steam_backlog_enforcer.game_install.subprocess.Popen") as mock_popen,
             patch(
                 "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=1000,
@@ -226,9 +218,7 @@ class TestEnsureSteamRunning:
                 "steam_backlog_enforcer.game_install.subprocess.run",
                 return_value=mock_result,
             ),
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.Popen"
-            ) as mock_popen,
+            patch("steam_backlog_enforcer.game_install.subprocess.Popen") as mock_popen,
             patch(
                 "steam_backlog_enforcer.game_install.os.geteuid",
                 return_value=0,
