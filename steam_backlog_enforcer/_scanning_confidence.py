@@ -55,10 +55,11 @@ def _confidence_fail_reasons(game: GameInfo) -> list[str]:
 def _refresh_candidate_confidence(game: GameInfo) -> None:
     """Refresh confidence metrics for one candidate when cache looks stale.
 
-    Only refreshes when both metrics are missing (0), which typically means
-    the game was cached before confidence fields were added.
+    Refreshes when either metric is missing (0).  A game with comp_100_count>0
+    but count_comp==0 means the detail-page all-playstyles count was not yet
+    populated (e.g. the cache predates that field).
     """
-    if game.comp_100_count > 0 or game.count_comp > 0:
+    if game.comp_100_count > 0 and game.count_comp > 0:
         return
 
     _refresh_candidate_confidence_batch([game])

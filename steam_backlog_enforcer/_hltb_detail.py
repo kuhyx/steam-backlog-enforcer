@@ -232,6 +232,29 @@ def _process_game_detail(
     return leisure, rush_h, l100
 
 
+def _apply_detail_to_extras(
+    app_id: int,
+    game_data: dict[str, Any],
+    dlc_rels: list[tuple[int, float]],
+    dlc_hours_by_id: dict[int, float],
+    extras: _HLTBExtras,
+) -> float:
+    """Update extras in-place from detail data; return leisure hours (or -1)."""
+    leisure, rush_h, l100 = _process_game_detail(game_data, dlc_rels, dlc_hours_by_id)
+    if rush_h > 0:
+        extras.rush[app_id] = rush_h
+    if l100 > 0:
+        extras.leisure_100h[app_id] = l100
+    # The search API sometimes returns count_comp=0 even when the detail page
+    # has all-playstyles completion counts.  Use the detail value when present.
+    games_list = game_data.get("game")
+    if isinstance(games_list, list) and games_list:
+        count_comp_detail = _as_positive_int(games_list[0].get("count_comp", 0))
+        if count_comp_detail > 0:
+            extras.count_comp[app_id] = count_comp_detail
+    return leisure
+
+
 async def _fetch_leisure_times(
     search_results: list[HLTBResult],
     cache: dict[int, float],
@@ -279,17 +302,13 @@ async def _fetch_leisure_times(
             done += 1
             if game_data is not None:
                 dlc_rels = dlc_relationships_by_app.get(r.app_id, [])
-                leisure, rush_h, l100 = _process_game_detail(
-                    game_data, dlc_rels, dlc_hours_by_id
+                leisure = _apply_detail_to_extras(
+                    r.app_id, game_data, dlc_rels, dlc_hours_by_id, extras
                 )
                 if leisure > 0:
                     r.completionist_hours = leisure
                     cache[r.app_id] = leisure
                     found += 1
-                if rush_h > 0:
-                    extras.rush[r.app_id] = rush_h
-                if l100 > 0:
-                    extras.leisure_100h[r.app_id] = l100
 
             if progress_cb is not None:
                 progress_cb(done, total, found, r.game_name)

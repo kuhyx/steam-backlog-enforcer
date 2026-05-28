@@ -32,6 +32,13 @@ from steam_backlog_enforcer._hltb_types import (
 
 logger = logging.getLogger(__name__)
 
+# When extended entry has ≥ this many times more hours than the exact match,
+# prefer it even if its confidence count is lower.
+_EXTENDED_DOMINANCE_RATIO = 4.0
+# Minimum combined confidence for the dominance path (avoids picking entries
+# that have almost no data at all).
+_EXTENDED_MIN_CONFIDENCE = 3
+
 
 # ──────────────────────────────────────────────────────────────
 # HLTB API setup (done once, not per-request like the library)
@@ -326,12 +333,14 @@ def _find_best_extended(
 ) -> tuple[dict[str, Any], float] | None:
     """Find best extended entry ("Name: Subtitle" / "Name - Subtitle").
 
-    Skips subset entries (prologue, demo, etc.).
+    Skips subset entries (prologue, demo, etc.).  Compilations ("compil")
+    are included because HLTB classifies multi-chapter collections that
+    share the base title as compilations (e.g. "FAITH: The Unholy Trinity").
     """
     best: tuple[dict[str, Any], float] | None = None
     for entry, sim in usable:
         game_type = str(entry.get("game_type", "")).lower()
-        if game_type not in ("", "game"):
+        if game_type not in ("", "game", "compil"):
             continue
         entry_name = (entry.get("game_name") or "").lower()
         if entry_name.startswith((lower + ":", lower + " -")):
@@ -358,13 +367,20 @@ def _resolve_exact_vs_extended(
         extended_confidence = int(best_extended[0].get("comp_100_count", 0) or 0) + int(
             best_extended[0].get("count_comp", 0) or 0
         )
-        # Prefer the extended entry only when it has strictly more hours
-        # than the exact match AND at least as much confidence.
-        # This lets "FAITH: The Unholy Trinity" (full game) beat
-        # a low-confidence exact demo while preventing low-confidence
-        # mods like "Celeste - Strawberry Jam" from beating
-        # the exact base game.
-        if extended_hours > exact_hours and extended_confidence >= exact_confidence:
+        # Prefer the extended entry when it has more hours AND either:
+        #  (a) at least as much confidence (normal case), OR
+        #  (b) dominant hours ratio (>=4x) with minimal data — handles cases
+        #      like "FAITH: The Unholy Trinity" (17h, newer) vs "FAITH" 2017
+        #      (1.5h, older/more data) where the older exact match has
+        #      accumulated more confidence simply by being on HLTB longer.
+        dominates = (
+            exact_hours > 0
+            and extended_hours >= exact_hours * _EXTENDED_DOMINANCE_RATIO
+            and extended_confidence >= _EXTENDED_MIN_CONFIDENCE
+        )
+        if extended_hours > exact_hours and (
+            extended_confidence >= exact_confidence or dominates
+        ):
             return best_extended
         return best_exact
     if best_exact is not None:
@@ -419,6 +435,26 @@ async def _search_one(
                         continue
                     data = await resp.json()
                     candidates = _collect_candidates(query_name, data)
+                    # When we stripped ": subtitle" from the original name to
+                    # get query_name, only keep full-edition entries (those
+                    # whose HLTB name starts with query_name + ":"/"-") or
+                    # exact name/alias matches.  This prevents "Vox Populi"
+                    # (stripped from "Vox Populi: Poland 2023") from falsely
+                    # matching "Vox Populi Vox Dei 2".
+                    if ":" in name and ":" not in query_name:
+                        lower_q = query_name.lower()
+                        candidates = [
+                            (e, s)
+                            for e, s in candidates
+                            if (e.get("game_name") or "").lower() == lower_q
+                            or (e.get("game_alias") or "").lower() == lower_q
+                            or (e.get("game_name") or "")
+                            .lower()
+                            .startswith(lower_q + ":")
+                            or (e.get("game_name") or "")
+                            .lower()
+                            .startswith(lower_q + " -")
+                        ]
                     best = _pick_best_hltb_entry(query_name, candidates)
                     if best is None:
                         continue

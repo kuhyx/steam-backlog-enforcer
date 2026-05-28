@@ -216,6 +216,6 @@ def fetch_protondb_ratings(
         _save_cache(cache)
         logger.info("ProtonDB: fetched %d, total cached %d", len(fetched), len(cache))
     else:
-        logger.info("All %d ProtonDB ratings found in cache.", len(results))
+        logger.debug("All %d ProtonDB ratings found in cache.", len(results))
 
     return results
