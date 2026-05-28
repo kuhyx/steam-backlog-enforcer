@@ -84,6 +84,26 @@ class TestSearchOne:
         assert result is not None
         assert result.app_id == 440
 
+    def test_found_without_game_id(self) -> None:
+        """Found result with hltb_game_id=0 does not populate ctx.hltb_game_id."""
+        resp = _FakeResponse(
+            200,
+            {
+                "data": [
+                    {
+                        "game_name": "TF2",
+                        "game_alias": "",
+                        "comp_100": 180000,
+                        "game_id": 0,
+                    }
+                ],
+            },
+        )
+        ctx = _make_ctx(_make_session(resp))
+        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        assert result is not None
+        assert 440 not in ctx.hltb_game_id
+
     def test_not_found(self) -> None:
         resp = _FakeResponse(200, {"data": []})
         ctx = _make_ctx(_make_session(resp))

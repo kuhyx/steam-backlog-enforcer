@@ -222,7 +222,7 @@ class TestFetchOne:
 
         sem = asyncio.Semaphore(1)
         result = asyncio.run(_fetch_one(mock_session, sem, 440))
-        assert result.tier == ""
+        assert result is None
 
 
 class TestFetchBatch:
@@ -238,6 +238,25 @@ class TestFetchBatch:
             result = asyncio.run(_fetch_batch([440]))
             assert len(result) == 1
             assert result[0].tier == "gold"
+
+    def test_filters_none_results(self) -> None:
+        """Network failures (None) are filtered out of the batch result."""
+        rating = ProtonDBRating(app_id=440, tier="gold")
+
+        async def mock_fetch_one(
+            _session: aiohttp.ClientSession,
+            _sem: asyncio.Semaphore,
+            app_id: int,
+        ) -> ProtonDBRating | None:
+            return rating if app_id == 440 else None
+
+        with patch(
+            "python_pkg.steam_backlog_enforcer.protondb._fetch_one",
+            side_effect=mock_fetch_one,
+        ):
+            result = asyncio.run(_fetch_batch([440, 999]))
+            assert len(result) == 1
+            assert result[0].app_id == 440
 
 
 class TestFetchProtondbRatings:

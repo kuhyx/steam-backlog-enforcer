@@ -15,12 +15,18 @@ from python_pkg.steam_backlog_enforcer._hltb_detail import (
     _as_positive_int,
     _collect_dlc_relationships,
     _extract_base_leisure_hours,
+    _extract_comp_100_avg_and_high,
     _extract_dlc_relationships,
     _fetch_detail_one,
     _fetch_dlc_leisure_hours,
     _fetch_leisure_times,
+    _process_game_detail,
 )
-from python_pkg.steam_backlog_enforcer._hltb_types import _SAVE_INTERVAL, HLTBResult
+from python_pkg.steam_backlog_enforcer._hltb_types import (
+    _SAVE_INTERVAL,
+    HLTBResult,
+    _HLTBExtras,
+)
 
 
 class TestInternalHelpers:
@@ -181,6 +187,76 @@ class TestInternalHelpers:
                     )
 
         assert asyncio.run(_run()) == {}
+
+
+class TestExtractComp100AvgAndHigh:
+    """Tests for _extract_comp_100_avg_and_high."""
+
+    def test_returns_minus_one_for_empty_game_list(self) -> None:
+        assert _extract_comp_100_avg_and_high({"game": []}) == (-1, -1)
+
+    def test_returns_minus_one_for_non_list_game(self) -> None:
+        assert _extract_comp_100_avg_and_high({"game": "bad"}) == (-1, -1)
+
+    def test_returns_minus_one_when_game0_not_dict(self) -> None:
+        assert _extract_comp_100_avg_and_high({"game": [42]}) == (-1, -1)
+
+    def test_returns_avg_and_high(self) -> None:
+        data: dict[str, Any] = {"game": [{"comp_100": 7200, "comp_100_h": 10800}]}
+        avg_h, high_h = _extract_comp_100_avg_and_high(data)
+        assert avg_h == round(7200 / 3600, 2)
+        assert high_h == round(10800 / 3600, 2)
+
+    def test_high_falls_back_to_avg_when_zero(self) -> None:
+        data: dict[str, Any] = {"game": [{"comp_100": 7200, "comp_100_h": 0}]}
+        avg_h, high_h = _extract_comp_100_avg_and_high(data)
+        assert avg_h == round(7200 / 3600, 2)
+        assert high_h == avg_h
+
+    def test_avg_zero_returns_minus_one_avg(self) -> None:
+        data: dict[str, Any] = {"game": [{"comp_100": 0, "comp_100_h": 0}]}
+        avg_h, high_h = _extract_comp_100_avg_and_high(data)
+        assert avg_h == -1
+        assert high_h == -1
+
+
+class TestProcessGameDetail:
+    """Tests for _process_game_detail."""
+
+    def test_returns_leisure_rush_and_l100(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 10800, "comp_100": 7200}],
+            "relationships": [],
+        }
+        leisure, rush_h, l100 = _process_game_detail(data, [], {})
+        assert leisure == round(10800 / 3600, 2)
+        assert rush_h == round(7200 / 3600, 2)
+        assert l100 == round(10800 / 3600, 2)
+
+    def test_negative_leisure_when_no_data(self) -> None:
+        leisure, rush_h, l100 = _process_game_detail({"game": []}, [], {})
+        assert leisure == -1
+        assert rush_h == -1.0
+        assert l100 == -1.0
+
+    def test_rush_includes_dlc_fallback(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100": 7200, "comp_100_h": 0}],
+            "relationships": [],
+        }
+        dlc_rels = [(99, 1.5)]
+        _leisure, rush_h, _l100 = _process_game_detail(data, dlc_rels, {})
+        assert rush_h == round(7200 / 3600 + 1.5, 2)
+
+    def test_l100_uses_dlc_override(self) -> None:
+        data: dict[str, Any] = {
+            "game": [{"comp_100_h": 10800, "comp_100": 7200}],
+            "relationships": [],
+        }
+        dlc_rels = [(77, 2.0)]
+        dlc_hours_by_id = {77: 3.0}
+        _leisure, _rush_h, l100 = _process_game_detail(data, dlc_rels, dlc_hours_by_id)
+        assert l100 == round(10800 / 3600 + (3.0 - 2.0), 2)
 
 
 class _FakeTextResponse:
@@ -441,8 +517,34 @@ class TestFetchLeisureTimes:
         assert cache[1289310] == expected
         assert results[0].completionist_hours == expected
 
-    def test_with_explicit_count_comp(self) -> None:
-        """Pass a non-None count_comp to cover the False branch of the None check."""
+    def test_extras_populated_with_rush_and_l100(self) -> None:
+        """rush_h and l100 are stored in extras when game has comp_100 data."""
+        results = [
+            HLTBResult(
+                app_id=440,
+                game_name="TF2",
+                completionist_hours=50.0,
+                similarity=1.0,
+                hltb_game_id=12345,
+            ),
+        ]
+        game_data: dict[str, Any] = {
+            "game": [{"comp_100_h": 10800, "comp_100": 7200}],
+            "relationships": [],
+        }
+        cache: dict[int, float] = {}
+        extras = _HLTBExtras(count_comp={440: 5})
+        with patch(
+            "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            new_callable=AsyncMock,
+            return_value=game_data,
+        ):
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None, extras=extras))
+        assert extras.rush[440] == round(7200 / 3600, 2)
+        assert extras.leisure_100h[440] == round(10800 / 3600, 2)
+
+    def test_with_explicit_extras(self) -> None:
+        """Pass a pre-populated _HLTBExtras to cover the non-None extras branch."""
         results = [
             HLTBResult(
                 app_id=440,
@@ -457,12 +559,11 @@ class TestFetchLeisureTimes:
             "relationships": [],
         }
         cache: dict[int, float] = {}
+        extras = _HLTBExtras(count_comp={440: 5})
         with patch(
             "python_pkg.steam_backlog_enforcer._hltb_detail._fetch_detail_one",
             new_callable=AsyncMock,
             return_value=game_data,
         ):
-            asyncio.run(
-                _fetch_leisure_times(results, cache, {}, None, count_comp={440: 5})
-            )
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None, extras=extras))
         assert cache[440] == 1.0

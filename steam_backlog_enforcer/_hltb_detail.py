@@ -17,6 +17,7 @@ from python_pkg.steam_backlog_enforcer._hltb_types import (
     MAX_CONCURRENT,
     HLTBResult,
     ProgressCb,
+    _HLTBExtras,
     save_hltb_cache,
 )
 
@@ -68,6 +69,28 @@ def _platform_comp_high_candidates(game_data: dict[str, Any]) -> list[int]:
             if v > 0:
                 candidates.append(v)
     return candidates
+
+
+def _extract_comp_100_avg_and_high(game_data: dict[str, Any]) -> tuple[float, float]:
+    """Extract (average comp_100, high comp_100) from game detail data.
+
+    Returns hours as floats: (avg_hours, high_hours).  Returns (-1, -1) when
+    insufficient data is present.  The average is ``comp_100`` (seconds) from
+    ``game[0]``; the high is ``comp_100_h``.
+    """
+    games = game_data.get("game", [])
+    if not isinstance(games, list) or not games:
+        return -1, -1
+    if not isinstance(games[0], dict):
+        return -1, -1
+
+    base = games[0]
+    avg_s = _as_positive_int(base.get("comp_100", 0))
+    high_s = _as_positive_int(base.get("comp_100_h", 0))
+
+    avg_h = round(avg_s / 3600, 2) if avg_s > 0 else -1
+    high_h = round(high_s / 3600, 2) if high_s > 0 else avg_h
+    return avg_h, high_h
 
 
 def _extract_base_leisure_hours(game_data: dict[str, Any]) -> float:
@@ -186,22 +209,46 @@ async def _fetch_detail_one(
     return None
 
 
+def _process_game_detail(
+    game_data: dict[str, Any],
+    dlc_rels: list[tuple[int, float]],
+    dlc_hours_by_id: dict[int, float],
+) -> tuple[float, float, float]:
+    """Return (leisure_hours, rush_hours, leisure_100h) for one game's detail data."""
+    leisure = _extract_leisure_hours(game_data)
+    if leisure > 0:
+        leisure = _apply_dlc_leisure_overrides(leisure, dlc_rels, dlc_hours_by_id)
+
+    avg_h, high_h = _extract_comp_100_avg_and_high(game_data)
+    rush_h = -1.0
+    if avg_h > 0:
+        dlc_rush = sum(fh for _, fh in dlc_rels if fh > 0)
+        rush_h = round(avg_h + dlc_rush, 2)
+
+    l100 = -1.0
+    if high_h > 0:
+        l100 = _apply_dlc_leisure_overrides(high_h, dlc_rels, dlc_hours_by_id)
+
+    return leisure, rush_h, l100
+
+
 async def _fetch_leisure_times(
     search_results: list[HLTBResult],
     cache: dict[int, float],
     polls: dict[int, int],
     progress_cb: ProgressCb | None,
-    count_comp: dict[int, int] | None = None,
+    extras: _HLTBExtras | None = None,
 ) -> None:
     """Fetch leisure times from game detail pages for all search results.
 
     Updates ``cache`` in-place with leisure hours (including DLC time).
-    The ``polls`` and ``count_comp`` mappings are forwarded to
-    :func:`save_hltb_cache` so the on-disk cache keeps confidence metrics
-    captured during the search step.
+    Also populates ``extras.rush`` (avg comp_100 + DLC) and
+    ``extras.leisure_100h`` (comp_100_h + DLC leisure).
+    The ``polls`` and ``extras.count_comp`` are forwarded to
+    :func:`save_hltb_cache` so confidence metrics persist.
     """
-    if count_comp is None:
-        count_comp = {}
+    if extras is None:
+        extras = _HLTBExtras()
 
     valid = [r for r in search_results if r.hltb_game_id > 0]
     if not valid:
@@ -231,22 +278,24 @@ async def _fetch_leisure_times(
         for r, game_data in zip(valid, details, strict=False):
             done += 1
             if game_data is not None:
-                leisure = _extract_leisure_hours(game_data)
+                dlc_rels = dlc_relationships_by_app.get(r.app_id, [])
+                leisure, rush_h, l100 = _process_game_detail(
+                    game_data, dlc_rels, dlc_hours_by_id
+                )
                 if leisure > 0:
-                    leisure = _apply_dlc_leisure_overrides(
-                        leisure,
-                        dlc_relationships_by_app.get(r.app_id, []),
-                        dlc_hours_by_id,
-                    )
                     r.completionist_hours = leisure
                     cache[r.app_id] = leisure
                     found += 1
+                if rush_h > 0:
+                    extras.rush[r.app_id] = rush_h
+                if l100 > 0:
+                    extras.leisure_100h[r.app_id] = l100
 
             if progress_cb is not None:
                 progress_cb(done, total, found, r.game_name)
 
             if not done % _SAVE_INTERVAL:
-                save_hltb_cache(cache, polls, count_comp)
+                save_hltb_cache(cache, polls, extras)
 
 
 def _collect_dlc_relationships(

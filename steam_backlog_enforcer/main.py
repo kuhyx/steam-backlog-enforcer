@@ -13,6 +13,7 @@ from python_pkg.steam_backlog_enforcer._enforce_loop import (
     get_all_owned_app_ids,
 )
 from python_pkg.steam_backlog_enforcer._hltb_types import load_hltb_cache
+from python_pkg.steam_backlog_enforcer._stats import cmd_stats
 from python_pkg.steam_backlog_enforcer._whitelist import (
     WHITELIST_COOLDOWN_SECONDS,
     add_pending_exception,
@@ -397,6 +398,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "setup": ("Run first-time setup", cmd_setup),
     "done": ("Finish game, open HLTB, pick next", cmd_done),
     "pick": ("Manually pick your next game from candidates", cmd_pick),
+    "stats": ("Show backlog completion-time estimates", cmd_stats),
 }
 
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).

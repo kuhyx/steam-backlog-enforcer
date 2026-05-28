@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from python_pkg.steam_backlog_enforcer._hltb_types import (
+    _HLTBExtras,
     load_hltb_cache,
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
@@ -105,7 +106,7 @@ def _refresh_candidate_confidence_batch(
         cache.pop(aid, None)
         polls.pop(aid, None)
         count_comp.pop(aid, None)
-    save_hltb_cache(cache, polls, count_comp)
+    save_hltb_cache(cache, polls, _HLTBExtras(count_comp=count_comp))
 
     fetch_hltb_confidence_cached(names)
 
@@ -115,7 +116,9 @@ def _refresh_candidate_confidence_batch(
     for aid, old_hours in prior_hours.items():
         if old_hours > 0 and refreshed_hours.get(aid, -1) <= 0:
             refreshed_hours[aid] = old_hours
-    save_hltb_cache(refreshed_hours, refreshed_polls, refreshed_count_comp)
+    save_hltb_cache(
+        refreshed_hours, refreshed_polls, _HLTBExtras(count_comp=refreshed_count_comp)
+    )
 
     for game in refresh_slice:
         game.comp_100_count = refreshed_polls.get(game.app_id, 0)

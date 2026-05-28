@@ -9,8 +9,10 @@ from unittest.mock import patch
 from python_pkg.steam_backlog_enforcer import _cmd_done
 from python_pkg.steam_backlog_enforcer._hltb_types import (
     HLTBResult,
+    _HLTBExtras,
     load_hltb_cache,
     load_hltb_count_comp_cache,
+    load_hltb_game_id_cache,
     load_hltb_polls_cache,
     save_hltb_cache,
 )
@@ -67,9 +69,18 @@ class TestCacheSchema:
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
         ):
-            save_hltb_cache({440: 10.5}, {440: 7}, {440: 20})
+            save_hltb_cache({440: 10.5}, {440: 7}, _HLTBExtras(count_comp={440: 20}))
             data = json.loads(cache_file.read_text(encoding="utf-8"))
-            assert data == {"440": {"hours": 10.5, "polls": 7, "count_comp": 20}}
+            assert data == {
+                "440": {
+                    "hours": 10.5,
+                    "polls": 7,
+                    "count_comp": 20,
+                    "rush_hours": -1,
+                    "leisure_100h": -1,
+                    "hltb_game_id": 0,
+                }
+            }
 
     def test_save_without_polls_defaults_zero(self, tmp_path: Path) -> None:
         cache_file = tmp_path / "hltb_cache.json"
@@ -79,7 +90,26 @@ class TestCacheSchema:
         ):
             save_hltb_cache({440: 10.5})
             data = json.loads(cache_file.read_text(encoding="utf-8"))
-            assert data == {"440": {"hours": 10.5, "polls": 0, "count_comp": 0}}
+            assert data == {
+                "440": {
+                    "hours": 10.5,
+                    "polls": 0,
+                    "count_comp": 0,
+                    "rush_hours": -1,
+                    "leisure_100h": -1,
+                    "hltb_game_id": 0,
+                }
+            }
+
+    def test_load_game_id_cache(self, tmp_path: Path) -> None:
+        """load_hltb_game_id_cache returns the hltb_game_id portion of the cache."""
+        cache_file = tmp_path / "hltb_cache.json"
+        with (
+            patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
+            patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
+        ):
+            save_hltb_cache({440: 10.5}, extras=_HLTBExtras(hltb_game_id={440: 99}))
+            assert load_hltb_game_id_cache() == {440: 99}
 
 
 class TestHltbResultPolls:

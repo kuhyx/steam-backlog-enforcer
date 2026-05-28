@@ -45,6 +45,32 @@ class HLTBResult:
     hltb_game_id: int = 0
     comp_100_count: int = 0
     count_comp: int = 0
+    rush_hours: float = -1
+    leisure_100h: float = -1
+
+
+class _HLTBExtras:
+    """Mutable accumulator for HLTB data beyond the core hours cache.
+
+    Passed through the fetch pipeline so callers stay within the 5-arg limit.
+    """
+
+    def __init__(
+        self,
+        count_comp: dict[int, int] | None = None,
+        rush: dict[int, float] | None = None,
+        leisure_100h: dict[int, float] | None = None,
+        hltb_game_id: dict[int, int] | None = None,
+    ) -> None:
+        """Initialize with optional pre-populated dicts."""
+        self.count_comp: dict[int, int] = count_comp if count_comp is not None else {}
+        self.rush: dict[int, float] = rush if rush is not None else {}
+        self.leisure_100h: dict[int, float] = (
+            leisure_100h if leisure_100h is not None else {}
+        )
+        self.hltb_game_id: dict[int, int] = (
+            hltb_game_id if hltb_game_id is not None else {}
+        )
 
 
 @dataclass
@@ -64,7 +90,10 @@ def _read_raw_cache() -> dict[int, dict[str, Any]]:
             "<app_id>": {
                 "hours": <float>,
                 "polls": <int>,
-                "count_comp": <int>
+                "count_comp": <int>,
+                "rush_hours": <float>,
+                "leisure_100h": <float>,
+                "hltb_game_id": <int>
             }
         }
 
@@ -88,10 +117,20 @@ def _read_raw_cache() -> dict[int, dict[str, Any]]:
                 "hours": float(v.get("hours", -1)),
                 "polls": int(v.get("polls", 0)),
                 "count_comp": int(v.get("count_comp", 0)),
+                "rush_hours": float(v.get("rush_hours", -1)),
+                "leisure_100h": float(v.get("leisure_100h", -1)),
+                "hltb_game_id": int(v.get("hltb_game_id", 0)),
             }
         else:
             try:
-                out[aid] = {"hours": float(v), "polls": 0, "count_comp": 0}
+                out[aid] = {
+                    "hours": float(v),
+                    "polls": 0,
+                    "count_comp": 0,
+                    "rush_hours": -1,
+                    "leisure_100h": -1,
+                    "hltb_game_id": 0,
+                }
             except (TypeError, ValueError):
                 continue
     return out
@@ -121,19 +160,70 @@ def load_hltb_count_comp_cache() -> dict[int, int]:
     return {aid: v["count_comp"] for aid, v in _read_raw_cache().items()}
 
 
+def load_hltb_rush_cache() -> dict[int, float]:
+    """Load the rush-hours (avg comp_100 + DLC) portion of the HLTB cache.
+
+    Returns: dict mapping app_id -> rush_hours (-1 = not yet computed).
+    """
+    return {aid: v["rush_hours"] for aid, v in _read_raw_cache().items()}
+
+
+def load_hltb_leisure_100h_cache() -> dict[int, float]:
+    """Load the leisure-100h (comp_100_h + DLC) portion of the HLTB cache.
+
+    Returns: dict mapping app_id -> leisure_100h (-1 = not yet computed).
+    """
+    return {aid: v["leisure_100h"] for aid, v in _read_raw_cache().items()}
+
+
+def load_hltb_game_id_cache() -> dict[int, int]:
+    """Load the HLTB game ID portion of the cache.
+
+    Returns: dict mapping app_id -> hltb_game_id (0 = not yet looked up).
+    """
+    return {aid: v["hltb_game_id"] for aid, v in _read_raw_cache().items()}
+
+
 def save_hltb_cache(
     cache: dict[int, float],
     polls: dict[int, int] | None = None,
-    count_comp: dict[int, int] | None = None,
+    extras: _HLTBExtras | None = None,
 ) -> None:
-    """Save the HLTB cache to disk, including confidence metrics."""
+    """Save the HLTB cache to disk, including confidence and stats metrics."""
     polls = polls or {}
-    count_comp = count_comp or {}
+    if extras is None:
+        extras = _HLTBExtras()
+    # Preserve existing per-game data when the caller didn't populate the maps.
+    # A partial save (e.g. confidence-only) must not clobber rush/leisure/game-id
+    # data that a prior detail fetch already wrote.
+    needs_existing = (
+        not extras.hltb_game_id or not extras.rush or not extras.leisure_100h
+    )
+    if needs_existing:
+        existing = _read_raw_cache()
+        game_id_map: dict[int, int] = extras.hltb_game_id or {
+            aid: v["hltb_game_id"] for aid, v in existing.items()
+        }
+        rush_map: dict[int, float] = extras.rush or {
+            aid: v["rush_hours"] for aid, v in existing.items() if v["rush_hours"] > 0
+        }
+        leisure_map: dict[int, float] = extras.leisure_100h or {
+            aid: v["leisure_100h"]
+            for aid, v in existing.items()
+            if v["leisure_100h"] > 0
+        }
+    else:
+        game_id_map = extras.hltb_game_id
+        rush_map = extras.rush
+        leisure_map = extras.leisure_100h
     out = {
         str(aid): {
             "hours": hours,
             "polls": polls.get(aid, 0),
-            "count_comp": count_comp.get(aid, 0),
+            "count_comp": extras.count_comp.get(aid, 0),
+            "rush_hours": rush_map.get(aid, -1),
+            "leisure_100h": leisure_map.get(aid, -1),
+            "hltb_game_id": game_id_map.get(aid, 0),
         }
         for aid, hours in cache.items()
     }

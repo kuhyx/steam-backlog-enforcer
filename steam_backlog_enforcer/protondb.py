@@ -124,8 +124,12 @@ async def _fetch_one(
     session: aiohttp.ClientSession,
     sem: asyncio.Semaphore,
     app_id: int,
-) -> ProtonDBRating:
-    """Fetch a single game's ProtonDB rating."""
+) -> ProtonDBRating | None:
+    """Fetch a single game's ProtonDB rating.
+
+    Returns None on network/server errors (not cached, will retry next run).
+    Returns ProtonDBRating with empty tier on HTTP 404 (no ProtonDB data).
+    """
     url = _PROTONDB_API.format(app_id=app_id)
     async with sem:
         try:
@@ -142,9 +146,9 @@ async def _fetch_one(
                     confidence=data.get("confidence", ""),
                     total_reports=data.get("total", 0),
                 )
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
-            logger.warning("ProtonDB fetch failed for AppID=%d", app_id)
-            return ProtonDBRating(app_id=app_id)
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+            logger.warning("ProtonDB fetch failed for AppID=%d: %s", app_id, e)
+            return None  # Don't cache transient failures — retry next run.
 
 
 async def _fetch_batch(app_ids: list[int]) -> list[ProtonDBRating]:
@@ -152,7 +156,8 @@ async def _fetch_batch(app_ids: list[int]) -> list[ProtonDBRating]:
     sem = asyncio.Semaphore(MAX_CONCURRENT)
     async with aiohttp.ClientSession() as session:
         tasks = [_fetch_one(session, sem, aid) for aid in app_ids]
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+        return [r for r in results if r is not None]
 
 
 def _rating_to_dict(r: ProtonDBRating) -> dict[str, Any]:

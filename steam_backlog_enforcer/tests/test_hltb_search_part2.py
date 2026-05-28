@@ -14,6 +14,7 @@ from python_pkg.steam_backlog_enforcer._hltb_detail import (
     _parse_game_page,
 )
 from python_pkg.steam_backlog_enforcer._hltb_search import (
+    _build_search_variants,
     _fetch_batch,
     _pick_best_hltb_entry,
 )
@@ -305,3 +306,20 @@ class TestExtractLeisureHours:
             "relationships": "not-a-list",
         }
         assert _extract_leisure_hours(data) == 1.0
+
+
+class TestBuildSearchVariants:
+    """Tests for _build_search_variants."""
+
+    def test_subtitle_with_edition_strips_edition_from_subtitle_part(self) -> None:
+        # "Rocksmith 2014 Edition - Remastered" → no_subtitle = "Rocksmith 2014 Edition"
+        # (which != base), so lines 201-202 also add "Rocksmith" and "Rocksmith 2014"
+        variants = _build_search_variants("Rocksmith 2014 Edition - Remastered")
+        assert "Rocksmith 2014 Edition" in variants
+        assert "Rocksmith 2014" in variants
+        assert "Rocksmith" in variants
+
+    def test_no_subtitle_skips_edition_strip(self) -> None:
+        # No " - " → no_subtitle == base → lines 201-202 are not executed
+        variants = _build_search_variants("Portal 2")
+        assert "Portal 2" in variants

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -229,6 +230,8 @@ def _assign_chosen_game(
     """Save assignment, announce it, and handle install/uninstall."""
     state.current_app_id = chosen.app_id
     state.current_game_name = chosen.name
+    if not state.enforcement_started_at:
+        state.enforcement_started_at = datetime.now(timezone.utc).isoformat()
     state.save()
     hours_str = (
         f" (~{chosen.completionist_hours:.1f}h leisure+dlc)"

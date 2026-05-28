@@ -401,3 +401,14 @@ class TestPickNextGameSequential:
             pick_next_game([g1], state, config, on_select=lambda _g: True)
         assert state.current_app_id is None
         assert any("No assignable games" in line for line in echoed)
+
+    def test_enforcement_started_at_not_overwritten_when_set(self) -> None:
+        """enforcement_started_at is preserved when already populated."""
+        g1 = _game(app_id=1, name="G1", hours=5.0)
+        config = Config(steam_api_key="k", steam_id="i")
+        existing_ts = "2024-01-01T00:00:00+00:00"
+        state = State(enforcement_started_at=existing_ts)
+        with self._common_patches([]):
+            pick_next_game([g1], state, config, on_select=lambda _g: True)
+        assert state.current_app_id == 1
+        assert state.enforcement_started_at == existing_ts

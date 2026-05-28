@@ -87,6 +87,8 @@ class State:
     current_game_name: str = ""
     finished_app_ids: list[int] = field(default_factory=list)
     skipped_until: dict[str, str] = field(default_factory=dict)
+    enforcement_started_at: str = ""
+    """ISO-8601 UTC timestamp set on the first game assignment."""
     """Map of ``str(app_id)`` → ISO-8601 UTC timestamp when the skip expires.
 
     Games in this map are excluded from auto-assignment until the timestamp

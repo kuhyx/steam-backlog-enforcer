@@ -30,9 +30,13 @@ from python_pkg.steam_backlog_enforcer._hltb_types import (
     MAX_CONCURRENT,
     HLTBResult,
     ProgressCb,
+    _HLTBExtras,
     load_hltb_cache,
     load_hltb_count_comp_cache,
+    load_hltb_game_id_cache,
+    load_hltb_leisure_100h_cache,
     load_hltb_polls_cache,
+    load_hltb_rush_cache,
     save_hltb_cache,
 )
 
@@ -125,7 +129,7 @@ def fetch_hltb_times(
     cache: dict[int, float] | None = None,
     polls: dict[int, int] | None = None,
     progress_cb: ProgressCb | None = None,
-    count_comp: dict[int, int] | None = None,
+    extras: _HLTBExtras | None = None,
 ) -> list[HLTBResult]:
     """Synchronous wrapper: fetch HLTB times for games."""
     if not games:
@@ -134,10 +138,14 @@ def fetch_hltb_times(
         cache = {}
     if polls is None:
         polls = {}
-    if count_comp is None:
-        count_comp = {}
     return asyncio.run(
-        _fetch_batch(games, cache, polls, progress_cb, count_comp=count_comp)
+        _fetch_batch(
+            games,
+            cache,
+            polls,
+            progress_cb,
+            extras=extras,
+        )
     )
 
 
@@ -182,7 +190,11 @@ def fetch_hltb_times_cached(
     """
     cache = load_hltb_cache()
     polls = load_hltb_polls_cache()
-    count_comp = load_hltb_count_comp_cache()
+    extras = _HLTBExtras(
+        count_comp=load_hltb_count_comp_cache(),
+        rush=load_hltb_rush_cache(),
+        leisure_100h=load_hltb_leisure_100h_cache(),
+    )
     uncached = [(app_id, name) for app_id, name in games if app_id not in cache]
 
     if uncached:
@@ -197,12 +209,12 @@ def fetch_hltb_times_cached(
             cache=cache,
             polls=polls,
             progress_cb=progress_cb,
-            count_comp=count_comp,
+            extras=extras,
         )
         elapsed = time.monotonic() - t0
 
         # Final save.
-        save_hltb_cache(cache, polls, count_comp)
+        save_hltb_cache(cache, polls, extras)
 
         found = sum(1 for aid, _ in uncached if cache.get(aid, -1) > 0)
         rate = len(uncached) / elapsed if elapsed > 0 else 0
@@ -245,7 +257,7 @@ def fetch_hltb_confidence_cached(
         )
         elapsed = time.monotonic() - t0
 
-        save_hltb_cache(cache, polls, count_comp)
+        save_hltb_cache(cache, polls, _HLTBExtras(count_comp=count_comp))
 
         found = sum(1 for aid, _ in uncached if cache.get(aid, -1) > 0)
         rate = len(uncached) / elapsed if elapsed > 0 else 0
@@ -260,6 +272,75 @@ def fetch_hltb_confidence_cached(
         logger.info("All %d games found in HLTB cache.", len(games))
 
     return cache
+
+
+def fetch_hltb_detail_missing(
+    games: list[tuple[int, str]],
+    progress_cb: ProgressCb | None = None,
+) -> int:
+    """Fetch HLTB detail (rush + leisure) for games that are missing it.
+
+    Games already in the rush cache are skipped.  For the rest, temporarily
+    removes them from the hours cache so ``fetch_hltb_times`` will visit their
+    detail pages.  Restores prior hours for any game the re-fetch doesn't find.
+
+    Args:
+        games: list of (app_id, name) tuples to check.
+        progress_cb: optional progress callback.
+
+    Returns:
+        Number of games that now have rush-hour data after the fetch.
+    """
+    rush = load_hltb_rush_cache()
+    missing = [(app_id, name) for app_id, name in games if rush.get(app_id, -1) <= 0]
+    if not missing:
+        return 0
+
+    cache = load_hltb_cache()
+    polls = load_hltb_polls_cache()
+    extras = _HLTBExtras(
+        count_comp=load_hltb_count_comp_cache(),
+        rush=rush,
+        leisure_100h=load_hltb_leisure_100h_cache(),
+        hltb_game_id=load_hltb_game_id_cache(),
+    )
+
+    # Remove from hours cache so fetch_hltb_times will visit the detail page.
+    prior_hours: dict[int, float] = {}
+    for app_id, _ in missing:
+        prior_hours[app_id] = cache.pop(app_id, -1.0)
+
+    logger.info(
+        "Fetching HLTB detail for %d games missing rush/leisure data...",
+        len(missing),
+    )
+    t0 = time.monotonic()
+    fetch_hltb_times(
+        missing,
+        cache=cache,
+        polls=polls,
+        progress_cb=progress_cb,
+        extras=extras,
+    )
+    elapsed = time.monotonic() - t0
+
+    # Restore prior hours for games the detail fetch didn't re-find.
+    for app_id, old_hours in prior_hours.items():
+        if old_hours > 0 and cache.get(app_id, -1.0) <= 0:
+            cache[app_id] = old_hours
+
+    save_hltb_cache(cache, polls, extras)
+
+    fetched = sum(1 for app_id, _ in missing if extras.rush.get(app_id, -1) > 0)
+    rate = len(missing) / elapsed if elapsed > 0 else 0
+    logger.info(
+        "HLTB detail fetch done: %d/%d got rush data in %.1fs (%.0f games/s)",
+        fetched,
+        len(missing),
+        elapsed,
+        rate,
+    )
+    return fetched
 
 
 def get_hltb_submit_url(game_name: str) -> str | None:
