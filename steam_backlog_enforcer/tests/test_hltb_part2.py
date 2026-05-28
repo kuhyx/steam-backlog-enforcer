@@ -214,6 +214,32 @@ class TestConfidenceHelpers:
         assert result == []
         mock_search.assert_called_once()
 
+    def test_fetch_batch_confidence_only_with_hp_key_and_prepopulated_count_comp(
+        self,
+    ) -> None:
+        auth_token = str(1)
+        with (
+            patch(f"{PKG}.aiohttp.ClientSession", return_value=_DummySession()),
+            patch(f"{PKG}.aiohttp.TCPConnector"),
+            patch(f"{PKG}._get_hltb_search_url", return_value="https://example"),
+            patch(
+                f"{PKG}._get_auth_info",
+                return_value=_AuthInfo(token=auth_token, hp_key="hpk", hp_val="hpv"),
+            ),
+            patch(f"{PKG}._search_one", side_effect=[None]) as mock_search,
+        ):
+            result = asyncio.run(
+                _fetch_batch_confidence_only(
+                    games=[(1, "Game")],
+                    cache={},
+                    polls={},
+                    progress_cb=None,
+                    count_comp={1: 42},
+                ),
+            )
+        assert result == []
+        mock_search.assert_called_once()
+
     def test_fetch_hltb_confidence_initializes_optional_dicts(self) -> None:
         with patch(f"{PKG}.asyncio.run", return_value=[]) as mock_run:
             result = fetch_hltb_confidence([(1, "Game")])

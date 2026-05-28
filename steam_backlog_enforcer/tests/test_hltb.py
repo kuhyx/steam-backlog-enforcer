@@ -66,6 +66,24 @@ class TestHltbCache:
         ):
             save_hltb_cache({440: 10.5})  # Should not raise
 
+    def test_save_cache_full_extras_skips_existing_read(self, tmp_path: Path) -> None:
+        from steam_backlog_enforcer._hltb_types import _HLTBExtras
+
+        cache_file = tmp_path / "hltb_cache.json"
+        extras = _HLTBExtras(
+            hltb_game_id={440: 1},
+            rush={440: 5.0},
+            leisure_100h={440: 20.0},
+        )
+        with (
+            patch("steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE", cache_file),
+            patch("steam_backlog_enforcer._hltb_types.CONFIG_DIR", tmp_path),
+            patch("steam_backlog_enforcer._hltb_types._read_raw_cache") as mock_read,
+        ):
+            save_hltb_cache({440: 10.5}, extras=extras)
+        mock_read.assert_not_called()
+        assert cache_file.exists()
+
 
 class TestGetHltbSearchUrl:
     """Tests for _get_hltb_search_url."""

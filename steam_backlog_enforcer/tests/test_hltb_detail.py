@@ -565,3 +565,28 @@ class TestFetchLeisureTimes:
         ):
             asyncio.run(_fetch_leisure_times(results, cache, {}, None, extras=extras))
         assert cache[440] == 1.0
+
+    def test_count_comp_from_detail_page_stored_in_extras(self) -> None:
+        """Line 254: extras.count_comp updated when game detail has count_comp > 0."""
+        results = [
+            HLTBResult(
+                app_id=440,
+                game_name="TF2",
+                completionist_hours=50.0,
+                similarity=1.0,
+                hltb_game_id=12345,
+            ),
+        ]
+        game_data: dict[str, Any] = {
+            "game": [{"comp_100_h": 3600, "count_comp": 99}],
+            "relationships": [],
+        }
+        cache: dict[int, float] = {}
+        extras = _HLTBExtras()
+        with patch(
+            "steam_backlog_enforcer._hltb_detail._fetch_detail_one",
+            new_callable=AsyncMock,
+            return_value=game_data,
+        ):
+            asyncio.run(_fetch_leisure_times(results, cache, {}, None, extras=extras))
+        assert extras.count_comp[440] == 99
