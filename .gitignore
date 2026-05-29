@@ -20,3 +20,9 @@ coverage.xml
 htmlcov/
 *.log
 .DS_Store
+
+# Web UI (Vite + React frontend)
+node_modules/
+web/dist/
+coverage/
+*.tsbuildinfo

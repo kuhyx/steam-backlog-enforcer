@@ -142,6 +142,20 @@ repos:
         stages: [pre-push]
 
   # ===========================================================================
+  # VITEST + COVERAGE (push stage)
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: vitest-coverage
+        name: vitest with 100% coverage enforcement
+        entry: npm --prefix web run coverage
+        language: system
+        files: ^web/src/
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]
+
+  # ===========================================================================
   # CODESPELL - Spell checking
   # ===========================================================================
   - repo: https://github.com/codespell-project/codespell

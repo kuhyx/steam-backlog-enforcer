@@ -14,6 +14,7 @@ from steam_backlog_enforcer._enforce_loop import (
 )
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
 from steam_backlog_enforcer._stats import cmd_stats
+from steam_backlog_enforcer._web_server import serve
 from steam_backlog_enforcer._whitelist import (
     WHITELIST_COOLDOWN_SECONDS,
     add_pending_exception,
@@ -381,6 +382,11 @@ def cmd_pick(config: Config, state: State) -> None:
                 _echo(f"\n  Library: hid {hidden} games")
 
 
+def cmd_serve(_config: Config, _state: State) -> None:
+    """Start the interactive web UI server (read-only, localhost only)."""
+    serve()
+
+
 COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "scan": ("Scan library & assign a game", do_scan),
     "check": ("Check assigned game completion", do_check),
@@ -399,6 +405,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "done": ("Finish game, open HLTB, pick next", cmd_done),
     "pick": ("Manually pick your next game from candidates", cmd_pick),
     "stats": ("Show backlog completion-time estimates", cmd_stats),
+    "serve": ("Start the interactive web UI (browser) server", cmd_serve),
 }
 
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
