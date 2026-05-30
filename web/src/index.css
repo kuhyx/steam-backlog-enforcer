@@ -312,6 +312,68 @@ details[open] summary {
   padding: 1px 0;
 }
 
+/* ── Player Speed Insight ── */
+.player-insight {
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.player-insight--empty {
+  opacity: 0.7;
+}
+.player-insight-title {
+  font-weight: 600;
+  color: var(--heading);
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+.player-insight-empty {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.player-insight-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 20px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.player-insight-grid span:nth-child(odd) {
+  color: var(--muted);
+}
+.player-insight-fast {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.player-insight-slow {
+  color: var(--warn);
+  font-weight: 600;
+}
+.player-insight-style--faster_than_rush {
+  color: var(--accent-2);
+}
+.player-insight-style--slower_than_leisure {
+  color: var(--warn);
+}
+.player-insight-estimate {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.player-insight-estimate-total {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.player-insight-estimate-hours {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 16px;
+}
+
 /* ── Chart ── */
 .chart {
   background: var(--panel);

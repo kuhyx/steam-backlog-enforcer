@@ -270,9 +270,10 @@ class TestFetchHltbDetailMissing:
     """Tests for fetch_hltb_detail_missing."""
 
     def test_no_missing_returns_zero(self) -> None:
-        """All games in rush cache → early return without fetching."""
+        """All games in rush cache with known game IDs → early return."""
         with (
             patch(f"{PKG}.load_hltb_rush_cache", return_value={440: 15.0}),
+            patch(f"{PKG}.load_hltb_game_id_cache", return_value={440: 12345}),
             patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
         ):
             result = fetch_hltb_detail_missing([(440, "TF2")])
@@ -389,4 +390,20 @@ class TestFetchHltbDetailMissing:
             patch(f"{PKG}.time.monotonic", side_effect=[5.0, 5.0]),
         ):
             result = fetch_hltb_detail_missing([(730, "CS")])
+        assert result == 0
+
+    def test_id_only_missing_logs_else_branch(self) -> None:
+        """Rush data present but game ID missing → else branch in log selection."""
+        with (
+            patch(f"{PKG}.load_hltb_rush_cache", return_value={440: 15.0}),
+            patch(f"{PKG}.load_hltb_cache", return_value={440: 15.0}),
+            patch(f"{PKG}.load_hltb_polls_cache", return_value={}),
+            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
+            patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
+            patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
+            patch(f"{PKG}.fetch_hltb_times"),
+            patch(f"{PKG}.save_hltb_cache"),
+            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
+        ):
+            result = fetch_hltb_detail_missing([(440, "TF2")])
         assert result == 0

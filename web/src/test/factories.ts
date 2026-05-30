@@ -1,7 +1,7 @@
 // Shared test factories. Lives under src/test/ which is excluded from the
 // app build and from coverage.
 
-import type { Filters, WebDataset, WebGame, WebStateInfo } from '../types'
+import type { Filters, PaceVsHLTB, WebDataset, WebGame, WebStateInfo } from '../types'
 
 export function makeGame(over: Partial<WebGame> = {}): WebGame {
   return {
@@ -55,6 +55,17 @@ export function makeState(over: Partial<WebStateInfo> = {}): WebStateInfo {
   }
 }
 
+export function makePaceVsHltb(over: Partial<PaceVsHLTB> = {}): PaceVsHLTB {
+  return {
+    calibration_count: 10,
+    ratio_vs_rush: 1.05,
+    ratio_vs_leisure: 0.4,
+    interpolation_t: 0.05,
+    player_style: 'rush_to_leisure',
+    ...over,
+  }
+}
+
 export function makeDataset(
   games: WebGame[] = [makeGame()],
   over: Partial<WebDataset> = {},
@@ -75,6 +86,7 @@ export function makeDataset(
       leisure_total: 0,
       worst_total: 0,
     },
+    pace_vs_hltb: null,
     generated_at: '2026-05-29T00:00:00+00:00',
     ...over,
   }

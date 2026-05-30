@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyFilters, basisTotal, etaDays, paceDays } from './estimate'
-import { makeDataset, makeFilters, makeGame } from './test/factories'
+import { applyFilters, basisTotal, etaDays, paceDays, playerEstimatedTotal } from './estimate'
+import { makeDataset, makeFilters, makeGame, makePaceVsHltb } from './test/factories'
 
 describe('applyFilters — totals and parity', () => {
   it('sums each metric independently over qualifying games', () => {
@@ -149,6 +149,47 @@ describe('basis length proxy', () => {
       makeFilters({ basis: 'worst', maxHoursPerGame: 0 }),
     )
     expect(r.included[0].lengthHours).toBe(99)
+  })
+})
+
+describe('playerEstimatedTotal', () => {
+  it('returns null when pace is null', () => {
+    expect(playerEstimatedTotal(100, 200, null)).toBeNull()
+  })
+
+  it('returns null when calibration_count is 0', () => {
+    expect(playerEstimatedTotal(100, 200, makePaceVsHltb({ calibration_count: 0 }))).toBeNull()
+  })
+
+  it('uses interpolation_t when it is not -1', () => {
+    // rush=100, leisure=200, t=0.5 → 100 + 0.5 * 100 = 150
+    expect(playerEstimatedTotal(100, 200, makePaceVsHltb({ interpolation_t: 0.5 }))).toBe(150)
+  })
+
+  it('falls back to ratio_vs_rush when interpolation_t is -1', () => {
+    // rush=100, ratio=1.2 → 120
+    expect(
+      playerEstimatedTotal(
+        100,
+        200,
+        makePaceVsHltb({ interpolation_t: -1, ratio_vs_rush: 1.2 }),
+      ),
+    ).toBe(120)
+  })
+
+  it('returns null when interpolation_t is -1 and ratio_vs_rush is -1', () => {
+    expect(
+      playerEstimatedTotal(
+        100,
+        200,
+        makePaceVsHltb({ interpolation_t: -1, ratio_vs_rush: -1 }),
+      ),
+    ).toBeNull()
+  })
+
+  it('handles faster-than-rush (t < 0) correctly', () => {
+    // rush=100, leisure=200, t=-0.1 → 100 + (-0.1) * 100 = 90
+    expect(playerEstimatedTotal(100, 200, makePaceVsHltb({ interpolation_t: -0.1 }))).toBe(90)
   })
 })
 

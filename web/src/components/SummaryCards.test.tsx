@@ -2,12 +2,13 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { applyFilters } from '../estimate'
 import type { Filters } from '../types'
-import { makeDataset, makeFilters, makeGame, makeState } from '../test/factories'
+import { makeDataset, makeFilters, makeGame, makePaceVsHltb, makeState } from '../test/factories'
 import { SummaryCards } from './SummaryCards'
 
-function renderCards(filtersOver: Partial<Filters> = {}, statePace = 0) {
+function renderCards(filtersOver: Partial<Filters> = {}, statePace = 0, paceVsHltb = null) {
   const filters = makeFilters(filtersOver)
-  const result = applyFilters(makeDataset([makeGame({ app_id: 1 })]), filters)
+  const dataset = makeDataset([makeGame({ app_id: 1 })], { pace_vs_hltb: paceVsHltb })
+  const result = applyFilters(dataset, filters)
   render(
     <SummaryCards
       result={result}
@@ -15,6 +16,7 @@ function renderCards(filtersOver: Partial<Filters> = {}, statePace = 0) {
       state={makeState({ pace_games_per_day: statePace })}
       presets={[2, 4, 6, 8]}
       defaultQualifying={result.remainingGames}
+      paceVsHltb={paceVsHltb}
     />,
   )
   return result
@@ -43,5 +45,32 @@ describe('SummaryCards', () => {
     renderCards({ targetDate: '2099-01-01', basis: 'pace' }, 0.9)
     const banner = document.querySelector('.target-banner')
     expect(banner?.textContent).toMatch(/games\/day/i)
+  })
+})
+
+describe('PlayerSpeedInsight', () => {
+  it('shows empty state message when paceVsHltb is null', () => {
+    renderCards({}, 0, null)
+    expect(screen.getByText(/Your Play Style vs HLTB/i)).toBeInTheDocument()
+    expect(screen.getByText(/No calibration data yet/i)).toBeInTheDocument()
+  })
+
+  it('shows calibration stats when paceVsHltb is provided', () => {
+    renderCards({}, 0, makePaceVsHltb())
+    expect(screen.getByText(/Calibration games/i)).toBeInTheDocument()
+    expect(screen.getByText(/vs Rush speed/i)).toBeInTheDocument()
+    expect(screen.getByText('Play style')).toBeInTheDocument()
+    expect(screen.getByText(/Between rush and leisure/i)).toBeInTheDocument()
+  })
+
+  it('shows estimated total when calibration data is present', () => {
+    // rushTotal = 10, leisureTotal = 20, t = 0.05 → 10 + 0.05 * 10 = 10.5 h
+    renderCards({}, 0, makePaceVsHltb({ interpolation_t: 0.05 }))
+    expect(screen.getByText(/Estimated total at your pace/i)).toBeInTheDocument()
+  })
+
+  it('hides leisure ratio when ratio_vs_leisure is -1', () => {
+    renderCards({}, 0, makePaceVsHltb({ ratio_vs_leisure: -1, interpolation_t: -1 }))
+    expect(screen.queryByText(/vs Leisure speed/i)).not.toBeInTheDocument()
   })
 })

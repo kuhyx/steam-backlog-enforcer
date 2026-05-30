@@ -90,7 +90,7 @@ function App() {
                 ·{' '}
               </>
             )}
-            {dataset.state.games_done} games finished since{' '}
+            {dataset.state.games_done_since_start} games finished since{' '}
             {dataset.state.enforcement_started_at.slice(0, 10) || '—'} ·{' '}
             {dataset.games.length} candidates
           </p>
@@ -112,6 +112,7 @@ function App() {
             state={dataset.state}
             presets={dataset.defaults.hours_per_day_presets}
             defaultQualifying={dataset.default_summary.qualifying}
+            paceVsHltb={dataset.pace_vs_hltb}
           />
           <TimelineChart result={result} filters={filters} state={dataset.state} />
           <GameTable

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import logging
@@ -11,6 +12,7 @@ from urllib.parse import quote_plus
 
 from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
+    _read_raw_cache,
     load_hltb_cache,
     load_hltb_game_id_cache,
     load_hltb_leisure_100h_cache,
@@ -21,14 +23,19 @@ from steam_backlog_enforcer._scanning_confidence import (
     _confidence_fail_reasons,
     _refresh_candidate_confidence_batch,
 )
-from steam_backlog_enforcer.config import load_snapshot
+from steam_backlog_enforcer._web_dataset import (
+    PaceVsHLTB,
+    compute_pace_vs_hltb,
+    count_complete_since_start,
+)
+from steam_backlog_enforcer.config import SNAPSHOT_FILE, load_snapshot
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.hltb import fetch_hltb_detail_missing
 from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
     fetch_protondb_ratings,
 )
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
@@ -145,6 +152,27 @@ def _ensure_rush_data(qualified: list[_GameTimes]) -> bool:
     return True
 
 
+def _ensure_completed_rush_data(games: list[GameInfo]) -> bool:
+    """Fetch rush/leisure detail for completed games used for pace calibration.
+
+    Completed games aren't processed by ``_ensure_rush_data`` (which only
+    handles incomplete qualifying games), so this separate pass fills in
+    their rush/leisure data for ``compute_pace_vs_hltb``.
+
+    Returns True when at least one new fetch was performed.
+    """
+    pairs = [
+        (g.app_id, g.name) for g in games if g.is_complete and g.playtime_minutes > 0
+    ]
+    if not pairs:
+        return False
+    _echo(
+        f"Fetching HLTB detail for {len(pairs)} completed games (pace calibration)..."
+    )
+    fetched = fetch_hltb_detail_missing(pairs)
+    return fetched > 0
+
+
 def _print_worst_example(entries: list[_GameTimes]) -> None:
     """Print a randomly selected example from the worst-case qualified games."""
     examples = [e for e in entries if e.worst_hours > 0]
@@ -157,8 +185,13 @@ def _print_worst_example(entries: list[_GameTimes]) -> None:
         _echo(f"    Rush:       {example.rush_hours:.1f} h")
     if example.leisure_100h > 0:
         _echo(f"    Leisure:    {example.leisure_100h:.1f} h")
-    if example.hltb_game_id > 0:
-        _echo(f"    HLTB:       {HLTB_BASE_URL}/game/{example.hltb_game_id}")
+    hltb_game_id = example.hltb_game_id
+    if hltb_game_id == 0:
+        # On-demand backfill: one search to get the HLTB game ID for this game.
+        fetch_hltb_detail_missing([(example.game.app_id, example.game.name)])
+        hltb_game_id = load_hltb_game_id_cache().get(example.game.app_id, 0)
+    if hltb_game_id > 0:
+        _echo(f"    HLTB:       {HLTB_BASE_URL}/game/{hltb_game_id}")
     else:
         _echo(f"    HLTB:       {_HLTB_SEARCH_BASE}{quote_plus(example.game.name)}")
 
@@ -215,10 +248,9 @@ def _print_scenario(
 def _print_pace_scenario(state: State, remaining: int, games_done: int) -> None:
     """Print the pace-based completion estimate.
 
-    ``games_done`` should be the count of 100%-complete games in the library
-    snapshot (``sum(1 for g in games if g.is_complete)``), not the enforcer's
-    own ``finished_app_ids`` list, which misses games completed outside the
-    enforcer flow.
+    ``games_done`` must be the count of games completed ON OR AFTER
+    ``state.enforcement_started_at`` (use ``count_complete_since_start``).
+    Pre-enforcement completions inflate the rate and are excluded.
     """
     _echo("\n  1. AT YOUR CURRENT PACE")
     if not state.enforcement_started_at:
@@ -243,7 +275,9 @@ def _print_pace_scenario(state: State, remaining: int, games_done: int) -> None:
 
     rate = games_done / days_elapsed
     _echo(f"    Started:        {started.strftime('%Y-%m-%d')}")
-    _echo(f"    Finished:       {games_done} games in {days_elapsed} days")
+    _echo(
+        f"    Finished:       {games_done} games in {days_elapsed} days (since enforcement start)"
+    )
     _echo(
         f"    Pace:           {rate:.4f} games/day  (1 game every {1 / rate:.1f} days)"
     )
@@ -254,17 +288,139 @@ def _print_pace_scenario(state: State, remaining: int, games_done: int) -> None:
     _echo(f"    Est. complete:  {days_to_go} days ({finish.strftime('%Y-%m-%d')})")
 
 
+def _print_player_speed_scenario(
+    pace: PaceVsHLTB | None,
+    rush_total: float,
+    leisure_total: float,
+) -> None:
+    """Print player pace vs HLTB averages and an extrapolated backlog estimate."""
+    _echo(f"\n{_LINE}")
+    _echo("\n  5. YOUR PLAY STYLE vs HLTB AVERAGES")
+
+    if pace is None or pace.calibration_count == 0:
+        _echo("    No calibration data available.")
+        _echo(
+            "    Finish some games (100 % achievements) and re-run 'stats'"
+            " to enable this estimate."
+        )
+        return
+
+    _echo(f"\n    Calibration games: {pace.calibration_count}")
+    if pace.ratio_vs_rush > 0:
+        _echo(f"    vs Rush:           {pace.ratio_vs_rush:.2f}x rush pace")
+    if pace.ratio_vs_leisure > 0:
+        _echo(f"    vs Leisure:        {pace.ratio_vs_leisure:.2f}x leisure pace")
+    if pace.interpolation_t != -1.0:
+        _echo(
+            f"    Interpolation t:   {pace.interpolation_t:.3f}"
+            "  (0 = rush speed, 1 = leisure speed)"
+        )
+
+    style_labels = {
+        "faster_than_rush": "Faster than rush",
+        "rush_to_leisure": "Between rush and leisure",
+        "slower_than_leisure": "Slower than leisure",
+        "unknown": "Unknown",
+    }
+    style = style_labels.get(pace.player_style, pace.player_style)
+    _echo(f"    Play style:        {style}")
+
+    if pace.interpolation_t != -1.0 and rush_total > 0 and leisure_total > 0:
+        est = rush_total + pace.interpolation_t * (leisure_total - rush_total)
+    elif pace.ratio_vs_rush > 0 and rush_total > 0:
+        est = rush_total * pace.ratio_vs_rush
+    else:
+        est = -1.0
+
+    if est > 0:
+        _echo(f"\n    Estimated backlog total at your pace: {est:,.1f} h")
+        for daily in _HOURS_PER_DAY_PRESETS:
+            estimate = _format_completion_date(est, daily)
+            _echo(f"    @ {daily:.0f} h/day → {estimate}")
+
+
+def _refresh_recently_played_completions(
+    games: list[GameInfo],
+    config: Config,
+) -> list[GameInfo]:
+    """Refresh achievement data for incomplete games played since last scan.
+
+    Makes 1 ``GetOwnedGames`` request + 1 ``GetPlayerAchievements`` per
+    recently-played incomplete game.  Finds games newly completed since the
+    last ``scan`` without re-scanning the whole library.
+
+    Returns a new list with updated GameInfo objects for any game that was
+    played after the snapshot was written; all other games are unchanged.
+    """
+    try:
+        snapshot_mtime = SNAPSHOT_FILE.stat().st_mtime
+    except OSError:
+        return games
+
+    from steam_backlog_enforcer.steam_api import SteamAPIError
+
+    try:
+        client = SteamAPIClient(config.steam_api_key, config.steam_id)
+        owned_raw = client.get_owned_games()
+    except SteamAPIError:
+        logger.debug("Steam API unavailable; skipping completion refresh.")
+        return games
+    last_played_map = {g["appid"]: g.get("rtime_last_played", 0) for g in owned_raw}
+
+    to_refresh = [
+        g
+        for g in games
+        if not g.is_complete and last_played_map.get(g.app_id, 0) > snapshot_mtime
+    ]
+
+    if not to_refresh:
+        return games
+
+    _echo(
+        f"Refreshing {len(to_refresh)} recently-played game(s)"
+        " for up-to-date completion status..."
+    )
+
+    game_map = {g.app_id: g for g in games}
+
+    def _refresh_one(game: GameInfo) -> GameInfo:
+        achievements = client.get_achievement_details(game.app_id)
+        if not achievements:
+            return game
+        unlocked = sum(1 for a in achievements if a.achieved)
+        return GameInfo(
+            app_id=game.app_id,
+            name=game.name,
+            total_achievements=len(achievements),
+            unlocked_achievements=unlocked,
+            playtime_minutes=game.playtime_minutes,
+            achievements=achievements,
+            completionist_hours=game.completionist_hours,
+            comp_100_count=game.comp_100_count,
+            count_comp=game.count_comp,
+        )
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        futures = {pool.submit(_refresh_one, g): g for g in to_refresh}
+        for future in as_completed(futures):
+            refreshed = future.result()
+            game_map[refreshed.app_id] = refreshed
+
+    return list(game_map.values())
+
+
 def cmd_stats(_config: Config, state: State) -> None:
     """Display backlog completion-time statistics.
 
     Filters games by the same HLTB-confidence and Linux-compatibility rules
     used when picking the next game.  Auto-fetches missing rush/leisure detail
-    data before printing.  Shows four scenarios:
+    data before printing.  Shows five scenarios:
 
     1. At your current pace (games finished per day since enforcement started).
     2. Rush   — avg comp_100 + DLC completion time per HLTB.
     3. Leisure — comp_100_h (slowest 100 %) + DLC leisure per HLTB.
     4. Worst   — absolute maximum recorded time (any category) per HLTB.
+    5. Your play style — extrapolated from completed-game calibration vs HLTB.
     """
     snapshot = load_snapshot()
     if snapshot is None:
@@ -272,9 +428,18 @@ def cmd_stats(_config: Config, state: State) -> None:
         return
 
     games = [GameInfo.from_snapshot(d) for d in snapshot]
+    games = _refresh_recently_played_completions(games, _config)
     # Count all 100%-achievement games in library (more accurate than
     # finished_app_ids, which only tracks enforcer-assigned completions).
     games_done = sum(1 for g in games if g.is_complete)
+    # Only count games completed on/after enforcement start for pace — pre-start
+    # completions are not representative of the enforcer period's throughput.
+    games_done_since_start = count_complete_since_start(
+        games, state.enforcement_started_at
+    )
+
+    # Ensure completed games have rush/leisure data for pace calibration.
+    _ensure_completed_rush_data(games)
 
     qualified, hltb_skip, linux_skip, no_data_skip = _filter_qualifying_games(
         games, state
@@ -316,7 +481,7 @@ def cmd_stats(_config: Config, state: State) -> None:
     _echo(f"  Finished games:    {games_done} (excluded from totals)")
 
     _echo(f"\n{_LINE}")
-    _print_pace_scenario(state, total_q, games_done)
+    _print_pace_scenario(state, total_q, games_done_since_start)
 
     worst_total, worst_missing = _sum_hours(qualified, "worst_hours")
     rush_total, rush_missing = _sum_hours(qualified, "rush_hours")
@@ -346,5 +511,10 @@ def cmd_stats(_config: Config, state: State) -> None:
         total_q,
     )
     _print_worst_example(qualified)
+
+    # Pace calibration uses the freshly-updated cache (both fetches above ran).
+    raw_cache = _read_raw_cache()
+    pace_vs_hltb = compute_pace_vs_hltb(games, raw_cache)
+    _print_player_speed_scenario(pace_vs_hltb, rush_total, leisure_total)
 
     _echo(f"\n{_LINE}\n")

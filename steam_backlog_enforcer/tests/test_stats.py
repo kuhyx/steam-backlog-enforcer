@@ -6,16 +6,19 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from steam_backlog_enforcer._stats import (
+    _ensure_completed_rush_data,
     _ensure_rush_data,
     _filter_qualifying_games,
     _format_completion_date,
     _GameTimes,
     _print_pace_scenario,
+    _print_player_speed_scenario,
     _print_scenario,
     _print_worst_example,
     _sum_hours,
     cmd_stats,
 )
+from steam_backlog_enforcer._web_dataset import PaceVsHLTB
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.protondb import ProtonDBRating
 from steam_backlog_enforcer.steam_api import GameInfo
@@ -399,6 +402,8 @@ class TestCmdStats:
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], hltb_skip, linux_skip, no_data_skip),
             ),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
+            patch(f"{_PKG}._print_player_speed_scenario"),
             patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
             patch(f"{_PKG}._print_pace_scenario"),
             patch(f"{_PKG}._print_scenario"),
@@ -460,6 +465,8 @@ class TestCmdStats:
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),
             ),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
+            patch(f"{_PKG}._print_player_speed_scenario"),
             patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
             patch(f"{_PKG}._print_pace_scenario"),
             patch(f"{_PKG}._print_scenario"),
@@ -489,7 +496,9 @@ class TestCmdStats:
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),
             ),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
             patch(f"{_PKG}._ensure_rush_data", return_value=False),
+            patch(f"{_PKG}._print_player_speed_scenario"),
             patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
             patch(f"{_PKG}._print_pace_scenario"),
             patch(f"{_PKG}._print_scenario"),
@@ -509,7 +518,9 @@ class TestCmdStats:
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([], 0, 0, 0),
             ),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
             patch(f"{_PKG}._ensure_rush_data", return_value=False),
+            patch(f"{_PKG}._print_player_speed_scenario"),
             patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
             patch(f"{_PKG}._print_pace_scenario"),
             patch(f"{_PKG}._print_scenario"),
@@ -538,7 +549,9 @@ class TestCmdStats:
         with (
             patch(f"{_PKG}.load_snapshot", return_value=snapshot),
             patch(f"{_PKG}._filter_qualifying_games", side_effect=count_filter),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
             patch(f"{_PKG}._ensure_rush_data", return_value=True),
+            patch(f"{_PKG}._print_player_speed_scenario"),
             patch(f"{_PKG}._echo"),
             patch(f"{_PKG}._print_pace_scenario"),
             patch(f"{_PKG}._print_scenario"),
@@ -547,15 +560,37 @@ class TestCmdStats:
             cmd_stats(self._config(), state)
         assert len(filter_calls) == 2
 
-    def test_games_done_passed_to_pace_from_snapshot_complete(self) -> None:
-        """_print_pace_scenario receives is_complete count from snapshot."""
-        state = State()
-        # Snapshot: 1 complete game (unlocked=total=10), 1 incomplete.
-        snapshot_complete = {
+    def test_games_done_since_start_passed_to_pace(self) -> None:
+        """_print_pace_scenario gets only games completed after started_at."""
+        from datetime import datetime, timezone
+
+        started = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        state = State(enforcement_started_at=started.isoformat())
+
+        after_ts = int(datetime(2026, 3, 1, tzinfo=timezone.utc).timestamp())
+        before_ts = int(datetime(2025, 6, 1, tzinfo=timezone.utc).timestamp())
+
+        def _ach(ts: int) -> dict[str, object]:
+            return {
+                "api_name": "A",
+                "display_name": "A",
+                "achieved": True,
+                "unlock_time": ts,
+            }
+
+        # app_id=2: completed AFTER enforcement start → should count
+        snapshot_after = {
             **self._snapshot_game(app_id=2),
             "unlocked_achievements": 10,
+            "achievements": [_ach(after_ts)] * 10,
         }
-        snapshot = [self._snapshot_game(app_id=1), snapshot_complete]
+        # app_id=3: completed BEFORE enforcement start → should NOT count
+        snapshot_before = {
+            **self._snapshot_game(app_id=3),
+            "unlocked_achievements": 10,
+            "achievements": [_ach(before_ts)] * 10,
+        }
+        snapshot = [self._snapshot_game(app_id=1), snapshot_after, snapshot_before]
         game = GameInfo.from_snapshot(self._snapshot_game())
         entry = _GameTimes(
             game=game, worst_hours=20.0, rush_hours=15.0, leisure_100h=25.0
@@ -571,13 +606,59 @@ class TestCmdStats:
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),
             ),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
+            patch(f"{_PKG}._print_player_speed_scenario"),
             patch(f"{_PKG}._echo"),
             patch(f"{_PKG}._print_pace_scenario", side_effect=capture_pace),
             patch(f"{_PKG}._print_scenario"),
             patch(f"{_PKG}._print_worst_example"),
         ):
             cmd_stats(self._config(), state)
-        assert captured["games_done"] == 1
+        assert captured["games_done"] == 1  # only the post-start game
+
+    def test_player_speed_scenario_called_with_pace_and_totals(self) -> None:
+        """_print_player_speed_scenario receives pace, rush_total, and leisure_total."""
+        state = State()
+        snapshot = [self._snapshot_game()]
+        game = GameInfo.from_snapshot(snapshot[0])
+        entry = _GameTimes(
+            game=game, worst_hours=20.0, rush_hours=15.0, leisure_100h=25.0
+        )
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=1.1,
+            ratio_vs_leisure=0.4,
+            interpolation_t=0.05,
+            player_style="rush_to_leisure",
+        )
+        captured: dict[str, object] = {}
+
+        def capture_player_speed(p: object, rush: float, leisure: float) -> None:
+            captured["pace"] = p
+            captured["rush"] = rush
+            captured["leisure"] = leisure
+
+        with (
+            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                f"{_PKG}._filter_qualifying_games",
+                return_value=([entry], 0, 0, 0),
+            ),
+            patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
+            patch(f"{_PKG}.compute_pace_vs_hltb", return_value=pace),
+            patch(
+                f"{_PKG}._print_player_speed_scenario",
+                side_effect=capture_player_speed,
+            ),
+            patch(f"{_PKG}._echo"),
+            patch(f"{_PKG}._print_pace_scenario"),
+            patch(f"{_PKG}._print_scenario"),
+            patch(f"{_PKG}._print_worst_example"),
+        ):
+            cmd_stats(self._config(), state)
+        assert captured["pace"] is pace
+        assert captured["rush"] == 15.0
+        assert captured["leisure"] == 25.0
 
 
 class TestEnsureRushData:
@@ -612,6 +693,168 @@ class TestEnsureRushData:
         mock_fetch.assert_called_once()
 
 
+class TestEnsureCompletedRushData:
+    """Tests for _ensure_completed_rush_data."""
+
+    def _complete(self, app_id: int = 1, playtime: int = 600) -> GameInfo:
+        return GameInfo(
+            app_id=app_id,
+            name="Done",
+            total_achievements=10,
+            unlocked_achievements=10,
+            playtime_minutes=playtime,
+            completionist_hours=0.0,
+            comp_100_count=5,
+            count_comp=20,
+        )
+
+    def test_no_complete_games_returns_false_without_fetch(self) -> None:
+        incomplete = _game(app_id=1, total=10, unlocked=0)
+        with patch(f"{_PKG}.fetch_hltb_detail_missing") as mock_fetch:
+            result = _ensure_completed_rush_data([incomplete])
+        assert result is False
+        mock_fetch.assert_not_called()
+
+    def test_complete_game_with_zero_playtime_excluded(self) -> None:
+        """Games with playtime_minutes=0 are skipped (no calibration value)."""
+        no_play = self._complete(playtime=0)
+        with patch(f"{_PKG}.fetch_hltb_detail_missing") as mock_fetch:
+            result = _ensure_completed_rush_data([no_play])
+        assert result is False
+        mock_fetch.assert_not_called()
+
+    def test_complete_game_with_playtime_fetches(self) -> None:
+        game = self._complete()
+        with (
+            patch(f"{_PKG}.fetch_hltb_detail_missing", return_value=1) as mock_fetch,
+            patch(f"{_PKG}._echo"),
+        ):
+            result = _ensure_completed_rush_data([game])
+        assert result is True
+        mock_fetch.assert_called_once_with([(1, "Done")])
+
+    def test_fetch_returns_zero_means_no_new_data(self) -> None:
+        """When fetch_hltb_detail_missing returns 0, return False (all cached)."""
+        game = self._complete()
+        with (
+            patch(f"{_PKG}.fetch_hltb_detail_missing", return_value=0),
+            patch(f"{_PKG}._echo"),
+        ):
+            result = _ensure_completed_rush_data([game])
+        assert result is False
+
+
+class TestPrintPlayerSpeedScenario:
+    """Tests for _print_player_speed_scenario — 100 % branch coverage."""
+
+    def _echoed(
+        self,
+        pace: PaceVsHLTB | None,
+        rush: float = 100.0,
+        leisure: float = 200.0,
+    ) -> list[str]:
+        out: list[str] = []
+        with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: out.append(a[0])):
+            _print_player_speed_scenario(pace, rush, leisure)
+        return out
+
+    def test_none_pace_shows_no_calibration_message(self) -> None:
+        echoed = self._echoed(None)
+        assert any("No calibration data" in s for s in echoed)
+
+    def test_zero_calibration_count_shows_no_calibration_message(self) -> None:
+        pace = PaceVsHLTB(
+            calibration_count=0,
+            ratio_vs_rush=-1.0,
+            ratio_vs_leisure=-1.0,
+            interpolation_t=-1.0,
+            player_style="unknown",
+        )
+        echoed = self._echoed(pace)
+        assert any("No calibration data" in s for s in echoed)
+
+    def test_ratio_vs_rush_shown_when_positive(self) -> None:
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=1.05,
+            ratio_vs_leisure=-1.0,
+            interpolation_t=-1.0,
+            player_style="unknown",
+        )
+        echoed = self._echoed(pace)
+        assert any("rush pace" in s for s in echoed)
+
+    def test_ratio_vs_leisure_shown_when_positive(self) -> None:
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=1.05,
+            ratio_vs_leisure=0.5,
+            interpolation_t=-1.0,
+            player_style="unknown",
+        )
+        echoed = self._echoed(pace)
+        assert any("leisure pace" in s for s in echoed)
+
+    def test_interpolation_t_shown_when_not_minus_one(self) -> None:
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=1.05,
+            ratio_vs_leisure=0.5,
+            interpolation_t=0.1,
+            player_style="rush_to_leisure",
+        )
+        echoed = self._echoed(pace)
+        assert any("Interpolation t" in s for s in echoed)
+
+    def test_estimate_uses_interpolation_when_available(self) -> None:
+        # rush=100, leisure=200, t=0.5 → est=150
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=1.5,
+            ratio_vs_leisure=0.5,
+            interpolation_t=0.5,
+            player_style="rush_to_leisure",
+        )
+        echoed = self._echoed(pace, rush=100.0, leisure=200.0)
+        assert any("150" in s for s in echoed)
+
+    def test_estimate_falls_back_to_ratio_when_no_interpolation(self) -> None:
+        # interpolation_t=-1, ratio_vs_rush=2.0, rush=100 → est=200
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=2.0,
+            ratio_vs_leisure=-1.0,
+            interpolation_t=-1.0,
+            player_style="unknown",
+        )
+        echoed = self._echoed(pace, rush=100.0, leisure=0.0)
+        assert any("200" in s for s in echoed)
+
+    def test_no_estimate_when_both_methods_unavailable(self) -> None:
+        """No 'Estimated backlog total' line when t=-1 and ratio=-1."""
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=-1.0,
+            ratio_vs_leisure=-1.0,
+            interpolation_t=-1.0,
+            player_style="unknown",
+        )
+        echoed = self._echoed(pace, rush=100.0, leisure=0.0)
+        assert not any("Estimated backlog total" in s for s in echoed)
+
+    def test_no_estimate_when_rush_total_zero_and_no_interpolation(self) -> None:
+        """No estimate line when rush_total=0 and interpolation_t=-1."""
+        pace = PaceVsHLTB(
+            calibration_count=5,
+            ratio_vs_rush=1.5,
+            ratio_vs_leisure=-1.0,
+            interpolation_t=-1.0,
+            player_style="unknown",
+        )
+        echoed = self._echoed(pace, rush=0.0, leisure=0.0)
+        assert not any("Estimated backlog total" in s for s in echoed)
+
+
 class TestPrintWorstExample:
     """Tests for _print_worst_example."""
 
@@ -627,6 +870,7 @@ class TestPrintWorstExample:
             worst_hours=15.0,
             rush_hours=5.0,
             leisure_100h=20.0,
+            hltb_game_id=99999,
         )
         echoed: list[str] = []
         with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
@@ -637,7 +881,11 @@ class TestPrintWorstExample:
 
     def test_example_without_rush(self) -> None:
         entry = _GameTimes(
-            game=_game(name="X"), worst_hours=15.0, rush_hours=-1.0, leisure_100h=20.0
+            game=_game(name="X"),
+            worst_hours=15.0,
+            rush_hours=-1.0,
+            leisure_100h=20.0,
+            hltb_game_id=99999,
         )
         echoed: list[str] = []
         with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
@@ -647,7 +895,11 @@ class TestPrintWorstExample:
 
     def test_example_without_leisure(self) -> None:
         entry = _GameTimes(
-            game=_game(name="Y"), worst_hours=15.0, rush_hours=5.0, leisure_100h=-1.0
+            game=_game(name="Y"),
+            worst_hours=15.0,
+            rush_hours=5.0,
+            leisure_100h=-1.0,
+            hltb_game_id=99999,
         )
         echoed: list[str] = []
         with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
@@ -655,8 +907,8 @@ class TestPrintWorstExample:
         assert any("Rush" in s for s in echoed)
         assert not any("Leisure" in s for s in echoed)
 
-    def test_hltb_search_url_shown_when_no_game_id(self) -> None:
-        """Falls back to search URL when hltb_game_id is 0."""
+    def test_hltb_search_url_shown_when_lookup_finds_nothing(self) -> None:
+        """Falls back to search URL when hltb_game_id is 0 and lookup finds nothing."""
         entry = _GameTimes(
             game=_game(name="Portal 2"),
             worst_hours=15.0,
@@ -664,9 +916,31 @@ class TestPrintWorstExample:
             leisure_100h=-1.0,
         )
         echoed: list[str] = []
-        with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
+        with (
+            patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
+            patch(f"{_PKG}.fetch_hltb_detail_missing", return_value=0),
+            patch(f"{_PKG}.load_hltb_game_id_cache", return_value={}),
+        ):
             _print_worst_example([entry])
         assert any("howlongtobeat.com" in s and "Portal+2" in s for s in echoed)
+
+    def test_hltb_direct_link_shown_after_on_demand_lookup(self) -> None:
+        """Direct link shown when on-demand lookup successfully finds the game ID."""
+        entry = _GameTimes(
+            game=_game(app_id=111, name="Portal 2"),
+            worst_hours=15.0,
+            rush_hours=-1.0,
+            leisure_100h=-1.0,
+        )
+        echoed: list[str] = []
+        with (
+            patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
+            patch(f"{_PKG}.fetch_hltb_detail_missing", return_value=0),
+            patch(f"{_PKG}.load_hltb_game_id_cache", return_value={111: 42000}),
+        ):
+            _print_worst_example([entry])
+        assert any("howlongtobeat.com/game/42000" in s for s in echoed)
+        assert not any("?q=" in s for s in echoed)
 
     def test_hltb_direct_link_shown_when_game_id_known(self) -> None:
         """Direct HLTB game link shown when hltb_game_id is populated."""
@@ -693,9 +967,88 @@ class TestPrintWorstExample:
             worst_hours=10.0,
             rush_hours=-1.0,
             leisure_100h=-1.0,
+            hltb_game_id=99999,
         )
         echoed: list[str] = []
         with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
             _print_worst_example([bad, good])
         assert any("Pick" in s for s in echoed)
         assert not any("Skip" in s for s in echoed)
+
+
+class TestRefreshRecentlyPlayedCompletions:
+    """Tests for _refresh_recently_played_completions."""
+
+    def test_oserror_on_stat_returns_games_unchanged(self) -> None:
+        games = [GameInfo(1, "G", 10, 0, 60)]
+        with patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf:
+            mock_sf.stat.side_effect = OSError("no file")
+            from steam_backlog_enforcer._stats import (
+                _refresh_recently_played_completions,
+            )
+
+            result = _refresh_recently_played_completions(games, Config())
+        assert result == games
+
+    def test_no_recently_played_returns_games_unchanged(self) -> None:
+        games = [GameInfo(1, "G", 10, 0, 60)]
+        with (
+            patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf,
+            patch(f"{_PKG}.SteamAPIClient") as mock_cls,
+        ):
+            mock_sf.stat.return_value.st_mtime = 1_000_000.0
+            mock_cls.return_value.get_owned_games.return_value = [
+                {"appid": 1, "rtime_last_played": 500_000}
+            ]
+            from steam_backlog_enforcer._stats import (
+                _refresh_recently_played_completions,
+            )
+
+            result = _refresh_recently_played_completions(games, Config())
+        assert result == games
+
+    def test_recently_played_game_is_refreshed(self) -> None:
+        from steam_backlog_enforcer._stats import _refresh_recently_played_completions
+        from steam_backlog_enforcer.steam_api import AchievementInfo
+
+        game = GameInfo(1, "G", 5, 0, 60)
+        new_achievements = [
+            AchievementInfo("a1", "A1", achieved=True, unlock_time=1_500_001),
+            AchievementInfo("a2", "A2", achieved=True, unlock_time=1_500_002),
+            AchievementInfo("a3", "A3", achieved=False, unlock_time=0),
+            AchievementInfo("a4", "A4", achieved=False, unlock_time=0),
+            AchievementInfo("a5", "A5", achieved=False, unlock_time=0),
+        ]
+        with (
+            patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf,
+            patch(f"{_PKG}.SteamAPIClient") as mock_cls,
+            patch(f"{_PKG}._echo"),
+        ):
+            mock_sf.stat.return_value.st_mtime = 1_000_000.0
+            mock_cls.return_value.get_owned_games.return_value = [
+                {"appid": 1, "rtime_last_played": 1_500_000}
+            ]
+            mock_cls.return_value.get_achievement_details.return_value = (
+                new_achievements
+            )
+            result = _refresh_recently_played_completions([game], Config())
+        refreshed = next(g for g in result if g.app_id == 1)
+        assert refreshed.unlocked_achievements == 2
+
+    def test_get_achievement_details_empty_keeps_old_game(self) -> None:
+        from steam_backlog_enforcer._stats import _refresh_recently_played_completions
+
+        game = GameInfo(1, "G", 5, 3, 60)
+        with (
+            patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf,
+            patch(f"{_PKG}.SteamAPIClient") as mock_cls,
+            patch(f"{_PKG}._echo"),
+        ):
+            mock_sf.stat.return_value.st_mtime = 1_000_000.0
+            mock_cls.return_value.get_owned_games.return_value = [
+                {"appid": 1, "rtime_last_played": 1_500_000}
+            ]
+            mock_cls.return_value.get_achievement_details.return_value = []
+            result = _refresh_recently_played_completions([game], Config())
+        refreshed = next(g for g in result if g.app_id == 1)
+        assert refreshed.unlocked_achievements == 3

@@ -22,6 +22,7 @@ export interface WebStateInfo {
   current_app_id: number | null
   current_game_name: string
   games_done: number
+  games_done_since_start: number
   days_elapsed: number
   enforcement_started_at: string
   pace_games_per_day: number
@@ -42,11 +43,23 @@ export interface DefaultSummary {
   worst_total: number
 }
 
+export interface PaceVsHLTB {
+  calibration_count: number
+  /** -1 = no data */
+  ratio_vs_rush: number
+  /** -1 = no data */
+  ratio_vs_leisure: number
+  /** Position between rush (0) and leisure (1) speed; -1 = unknown */
+  interpolation_t: number
+  player_style: 'faster_than_rush' | 'rush_to_leisure' | 'slower_than_leisure' | 'unknown'
+}
+
 export interface WebDataset {
   games: WebGame[]
   state: WebStateInfo
   defaults: WebDefaults
   default_summary: DefaultSummary
+  pace_vs_hltb: PaceVsHLTB | null
   generated_at: string
 }
 

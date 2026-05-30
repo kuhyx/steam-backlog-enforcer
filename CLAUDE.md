@@ -1,0 +1,3 @@
+do NOT run tests unless specifically instructed to do so or before commiting
+ALWAYS confirm that the feature you add / bug you fixed behaves as it should by running the program after your changes (not tests!) and inspecting output comparing it with what user wanted, after confirming by yourself ask user if the program behaves as they indendent
+After running tests fix all coverage gaps and issues, do not ignore unless specifically instructed to do so

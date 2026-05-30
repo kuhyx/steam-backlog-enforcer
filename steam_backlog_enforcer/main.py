@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import logging
 import sys
 import time
@@ -45,7 +46,7 @@ from steam_backlog_enforcer.scanning import (
     do_scan,
     pick_next_game,
 )
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient, SteamAPIError
 from steam_backlog_enforcer.store_blocker import (
     block_store,
     is_store_blocked,
@@ -64,6 +65,85 @@ logger = logging.getLogger(__name__)
 
 _LIST_DISPLAY_LIMIT = 50
 _MIN_CLI_ARGS = 2
+
+# Days before the manual-pick lock automatically expires.
+_MANUAL_LOCK_DAYS = 14
+
+# Commands that remain usable while the manual pick lock is active.
+# Principle: only what is needed to release the lock (done/check) or
+# that cannot change the game assignment (status, enforce, setup, serve).
+_MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
+    {"done", "check", "status", "enforce", "setup", "serve"}
+)
+
+
+# ──────────────────────────────────────────────────────────────
+# Manual pick lock helpers
+# ──────────────────────────────────────────────────────────────
+
+
+def _is_manual_pick_locked(state: State) -> bool:
+    """Return True if the manual-pick lock is currently in force."""
+    if state.manual_pick_app_id is None:
+        return False
+
+    # Lock released once the game appears in finished_app_ids.
+    if state.manual_pick_app_id in state.finished_app_ids:
+        return False
+
+    # Lock released after 14 days from the pick timestamp.
+    if state.manual_pick_started_at:
+        try:
+            started = datetime.fromisoformat(state.manual_pick_started_at)
+            deadline = started + timedelta(days=_MANUAL_LOCK_DAYS)
+            if datetime.now(timezone.utc) >= deadline:
+                return False
+        except ValueError:
+            pass
+
+    return True
+
+
+def _show_manual_pick_lock_message(state: State) -> None:
+    """Print the aggressive lock-active message to stdout."""
+    _echo("\n" + "=" * 60)
+    _echo("  *** MANUAL PICK LOCK ACTIVE ***")
+    _echo("=" * 60)
+    _echo(
+        f"\nYou manually picked: {state.manual_pick_game_name}"
+        f" (AppID={state.manual_pick_app_id})"
+    )
+
+    if state.manual_pick_started_at:
+        try:
+            started = datetime.fromisoformat(state.manual_pick_started_at)
+            deadline = started + timedelta(days=_MANUAL_LOCK_DAYS)
+            days_left = (deadline - datetime.now(timezone.utc)).days
+            _echo(f"Locked since:  {started.strftime('%Y-%m-%d')}")
+            _echo(
+                f"Deadline:      {deadline.strftime('%Y-%m-%d')}"
+                f" ({max(0, days_left)} day(s) remaining)"
+            )
+        except ValueError:
+            pass
+
+    _echo(
+        "\nYou CANNOT use any other feature until you finish this game"
+        "\n(100% achievements) or the 2-week deadline passes."
+        "\n\nTo release the lock: finish the game, then run 'done' or 'check'."
+        f"\n\nAllowed commands: {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
+    )
+    _echo("=" * 60 + "\n")
+
+
+def _enforce_manual_pick_lock(command: str, state: State) -> None:
+    """Exit with a lock message if command is blocked by the manual pick."""
+    if not _is_manual_pick_locked(state):
+        return
+    if command in _MANUAL_LOCK_EXEMPT_COMMANDS:
+        return
+    _show_manual_pick_lock_message(state)
+    sys.exit(1)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -93,6 +173,9 @@ def cmd_status(_config: Config, state: State) -> None:
     if state.current_app_id:
         is_assigned_installed = any(aid == state.current_app_id for aid, _ in installed)
         _echo(f"Assigned game installed: {is_assigned_installed}")
+
+    if _is_manual_pick_locked(state):
+        _echo("\n[MANUAL PICK LOCK is active — most commands are blocked]")
 
 
 def cmd_list(_config: Config, state: State) -> None:
@@ -180,6 +263,9 @@ def cmd_reset(config: Config, state: State) -> None:
     state.current_app_id = None
     state.current_game_name = ""
     state.finished_app_ids = []
+    state.manual_pick_app_id = None
+    state.manual_pick_game_name = ""
+    state.manual_pick_started_at = ""
     state.save()
     _echo("State reset. Store unblocked.")
 
@@ -387,6 +473,106 @@ def cmd_serve(_config: Config, _state: State) -> None:
     serve()
 
 
+def _resolve_game_name(config: Config, app_id: int) -> str | None:
+    """Look up a game name by app_id, checking snapshot then Steam API.
+
+    Returns the game name, or None if not found.
+    """
+    # Fast path: snapshot already on disk.
+    snapshot = load_snapshot()
+    if snapshot:
+        for entry in snapshot:
+            if entry.get("app_id") == app_id:
+                return str(entry["name"])
+
+    # Slower path: owned games API.
+    try:
+        client = SteamAPIClient(config.steam_api_key, config.steam_id)
+        owned = client.get_owned_games()
+        for g in owned:
+            if g.get("appid") == app_id:
+                return str(g.get("name", f"Unknown ({app_id})"))
+    except (SteamAPIError, OSError, RuntimeError, ValueError):
+        return None
+
+    return None
+
+
+def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
+    """Manually pick a game by Steam app_id, locking the enforcer for 2 weeks.
+
+    Args:
+        config: Enforcer configuration.
+        state: Current enforcer state.
+        args: Remaining CLI args (first element should be the app_id).
+    """
+    raw_id = args[0] if args else input("Enter Steam app_id: ").strip()
+
+    try:
+        app_id = int(raw_id)
+    except ValueError:
+        _echo(f"Error: app_id must be a number, got '{raw_id}'.")
+        return
+
+    _echo(f"Looking up AppID={app_id}...")
+    game_name = _resolve_game_name(config, app_id)
+    if game_name is None:
+        _echo(
+            f"Error: AppID={app_id} not found in your Steam library or snapshot.\n"
+            "Run 'scan' first, or verify the app_id is correct."
+        )
+        return
+
+    _echo(f"\nGame found: {game_name} (AppID={app_id})")
+    _echo(
+        f"\nWARNING: Picking this game will:"
+        f"\n  - Override your current assignment"
+        f"\n  - Lock ALL other commands for {_MANUAL_LOCK_DAYS} DAYS or until"
+        f"\n    you reach 100% achievements"
+        f"\n  - Only 'done', 'check', 'status', 'enforce', 'setup', 'serve'"
+        f"\n    will remain usable during this period"
+    )
+    _echo()
+    confirm = input(
+        f"Type YES to confirm you will play {game_name} until completion: "
+    ).strip()
+    if confirm != "YES":
+        _echo("Aborted.")
+        return
+
+    state.manual_pick_app_id = app_id
+    state.manual_pick_game_name = game_name
+    state.manual_pick_started_at = datetime.now(timezone.utc).isoformat()
+    state.current_app_id = app_id
+    state.current_game_name = game_name
+    if not state.enforcement_started_at:
+        state.enforcement_started_at = datetime.now(timezone.utc).isoformat()
+    state.save()
+
+    _echo(f"\nManual pick confirmed: {game_name} (AppID={app_id})")
+    _echo(f"Lock active from now until 100% achievements or {_MANUAL_LOCK_DAYS} days.")
+    _echo("Run 'done' or 'check' once you have 100% to release the lock.\n")
+
+    # Post-assignment: mirror what _assign_chosen_game + cmd_pick do.
+    if config.uninstall_other_games:
+        _echo("  Uninstalling non-assigned games...")
+        count = uninstall_other_games(app_id)
+        if count:
+            _echo(f"  Uninstalled {count} non-assigned game(s)")
+
+    if not is_game_installed(app_id):
+        _echo(f"  Installing {game_name}...")
+        install_game(app_id, game_name, config.steam_id, use_steam_protocol=True)
+    else:
+        _echo(f"  {game_name} is already installed.")
+
+    owned_ids = get_all_owned_app_ids(config)
+    if owned_ids:
+        hidden = hide_other_games(owned_ids, app_id)
+        if hidden > 0:
+            _echo(f"  Library: hid {hidden} games")
+
+
 COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "scan": ("Scan library & assign a game", do_scan),
     "check": ("Check assigned game completion", do_check),
@@ -411,6 +597,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
 _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
     "add-exception": "Request 24h-locked whitelist exception (use --reason)",
+    "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
 }
 
 _ALL_COMMANDS: dict[str, str] = {
@@ -430,18 +617,27 @@ def main() -> None:
 
     command = sys.argv[1]
 
-    # add-exception has its own argument structure; handle before config load.
-    if command == "add-exception":
-        cmd_add_exception(sys.argv[2:])
-        return
-
     config = Config.load()
 
-    if command != "setup" and not config.steam_api_key:
+    if command not in {"setup", "add-exception"} and not config.steam_api_key:
         _echo("Not configured. Run 'setup' first.")
         sys.exit(1)
 
     state = State.load()
+
+    # Enforce the manual-pick lock before dispatching any command.
+    # This also covers add-exception (previously dispatched before state load).
+    _enforce_manual_pick_lock(command, state)
+
+    # add-exception and pick-manual have non-standard argument structures.
+    if command == "add-exception":
+        cmd_add_exception(sys.argv[2:])
+        return
+
+    if command == "pick-manual":
+        cmd_pick_manual(config, state, sys.argv[2:])
+        return
+
     _, func = COMMANDS[command]
     func(config, state)
 

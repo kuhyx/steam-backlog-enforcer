@@ -95,6 +95,10 @@ class State:
     elapses. Populated when the user declines a freshly-picked game via the
     interactive prompt in ``cmd_done``.
     """
+    manual_pick_app_id: int | None = None
+    manual_pick_game_name: str = ""
+    manual_pick_started_at: str = ""
+    """ISO-8601 UTC timestamp when the user manually locked in a game."""
 
     def skip_for_days(self, app_id: int, days: int) -> None:
         """Mark ``app_id`` as skipped for ``days`` days from now (UTC)."""

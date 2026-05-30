@@ -3,7 +3,7 @@
 // default thresholds, the totals reproduce the `stats` command exactly.
 
 import { isPlayable, passesMinTier } from './protondb'
-import type { EstimateBasis, Filters, WebDataset, WebGame } from './types'
+import type { EstimateBasis, Filters, PaceVsHLTB, WebDataset, WebGame } from './types'
 
 export interface GameRow {
   game: WebGame
@@ -146,6 +146,27 @@ export function etaDays(hours: number, daily: number): number | null {
 export function paceDays(remaining: number, pace: number): number | null {
   if (remaining <= 0 || pace <= 0) return null
   return Math.floor(remaining / pace)
+}
+
+/**
+ * Estimate the player's personal backlog total from their calibrated pace.
+ *
+ * Uses interpolation_t when leisure data exists, falls back to ratio_vs_rush
+ * otherwise.  Returns null when there is no calibration data.
+ */
+export function playerEstimatedTotal(
+  rushTotal: number,
+  leisureTotal: number,
+  pace: PaceVsHLTB | null,
+): number | null {
+  if (!pace || pace.calibration_count === 0) return null
+  if (pace.interpolation_t !== -1) {
+    return rushTotal + pace.interpolation_t * (leisureTotal - rushTotal)
+  }
+  if (pace.ratio_vs_rush !== -1) {
+    return rushTotal * pace.ratio_vs_rush
+  }
+  return null
 }
 
 /** Total hours for the selected basis, or null for the pace (count) basis. */

@@ -280,9 +280,12 @@ def fetch_hltb_detail_missing(
 ) -> int:
     """Fetch HLTB detail (rush + leisure) for games that are missing it.
 
-    Games already in the rush cache are skipped.  For the rest, temporarily
-    removes them from the hours cache so ``fetch_hltb_times`` will visit their
-    detail pages.  Restores prior hours for any game the re-fetch doesn't find.
+    Also backfills ``hltb_game_id`` for any game that already has rush/leisure
+    data but whose HLTB game ID was never stored (e.g. from an old cache).
+    Games with both rush data and a game_id are skipped entirely.  For the
+    rest, temporarily removes them from the hours cache so ``fetch_hltb_times``
+    will visit their detail pages.  Restores prior hours for any game the
+    re-fetch doesn't find.
 
     Args:
         games: list of (app_id, name) tuples to check.
@@ -292,7 +295,18 @@ def fetch_hltb_detail_missing(
         Number of games that now have rush-hour data after the fetch.
     """
     rush = load_hltb_rush_cache()
-    missing = [(app_id, name) for app_id, name in games if rush.get(app_id, -1) <= 0]
+    game_id_cache = load_hltb_game_id_cache()
+    missing_rush = [
+        (app_id, name) for app_id, name in games if rush.get(app_id, -1) <= 0
+    ]
+    # Also re-search games that have rush data but no HLTB game ID yet so the
+    # direct URL can be shown in stats output.
+    missing_id_only = [
+        (app_id, name)
+        for app_id, name in games
+        if rush.get(app_id, -1) > 0 and game_id_cache.get(app_id, 0) == 0
+    ]
+    missing = missing_rush + missing_id_only
     if not missing:
         return 0
 
@@ -302,7 +316,7 @@ def fetch_hltb_detail_missing(
         count_comp=load_hltb_count_comp_cache(),
         rush=rush,
         leisure_100h=load_hltb_leisure_100h_cache(),
-        hltb_game_id=load_hltb_game_id_cache(),
+        hltb_game_id=game_id_cache,
     )
 
     # Remove from hours cache so fetch_hltb_times will visit the detail page.
@@ -310,10 +324,21 @@ def fetch_hltb_detail_missing(
     for app_id, _ in missing:
         prior_hours[app_id] = cache.pop(app_id, -1.0)
 
-    logger.info(
-        "Fetching HLTB detail for %d games missing rush/leisure data...",
-        len(missing),
-    )
+    n_rush = len(missing_rush)
+    n_id = len(missing_id_only)
+    if n_rush and n_id:
+        logger.info(
+            "Fetching HLTB detail for %d games missing rush/leisure data"
+            " + %d games missing game ID...",
+            n_rush,
+            n_id,
+        )
+    elif n_rush:
+        logger.info(
+            "Fetching HLTB detail for %d games missing rush/leisure data...", n_rush
+        )
+    else:
+        logger.info("Backfilling HLTB game ID for %d game(s)...", n_id)
     t0 = time.monotonic()
     fetch_hltb_times(
         missing,
@@ -331,12 +356,12 @@ def fetch_hltb_detail_missing(
 
     save_hltb_cache(cache, polls, extras)
 
-    fetched = sum(1 for app_id, _ in missing if extras.rush.get(app_id, -1) > 0)
+    fetched = sum(1 for app_id, _ in missing_rush if extras.rush.get(app_id, -1) > 0)
     rate = len(missing) / elapsed if elapsed > 0 else 0
     logger.info(
         "HLTB detail fetch done: %d/%d got rush data in %.1fs (%.0f games/s)",
         fetched,
-        len(missing),
+        len(missing_rush),
         elapsed,
         rate,
     )
