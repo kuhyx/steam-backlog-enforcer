@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from steam_backlog_enforcer.store_blocker import (
     _disable_hosts_protection,
@@ -33,54 +33,23 @@ class TestSudoWriteHosts:
 class TestDisableHostsProtection:
     """Tests for _disable_hosts_protection."""
 
-    def test_stops_services_unmounts_chattr(self) -> None:
-        findmnt_found = MagicMock(returncode=0)
-
-        def run_side_effect(
-            cmd: list[str],
-            **_kwargs: object,
-        ) -> MagicMock:
-            if any("findmnt" in str(c) for c in cmd):
-                return findmnt_found
-            return MagicMock(returncode=0)
-
-        with patch(f"{PKG}.subprocess.run", side_effect=run_side_effect):
+    def test_calls_guardctl_pacman_unlock(self) -> None:
+        with patch(f"{PKG}.subprocess.run") as mock_run:
             _disable_hosts_protection()
-
-    def test_no_bind_mount(self) -> None:
-        findmnt_missing = MagicMock(returncode=1)
-
-        def run_side_effect(
-            cmd: list[str],
-            **_kwargs: object,
-        ) -> MagicMock:
-            if any("findmnt" in str(c) for c in cmd):
-                return findmnt_missing
-            return MagicMock(returncode=0)
-
-        with patch(f"{PKG}.subprocess.run", side_effect=run_side_effect):
-            _disable_hosts_protection()
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args.args[0]
+        assert cmd[-3:] == ["file-guard", "pacman-unlock", "hosts"]
 
 
 class TestEnableHostsProtection:
     """Tests for _enable_hosts_protection."""
 
-    def test_with_locked_copy(self, tmp_path: Path) -> None:
-        locked_copy = tmp_path / "locked-hosts"
-        locked_copy.touch()
-        with (
-            patch(f"{PKG}.subprocess.run"),
-            patch(f"{PKG}._LOCKED_HOSTS_COPY", locked_copy),
-        ):
+    def test_calls_guardctl_sync(self) -> None:
+        with patch(f"{PKG}.subprocess.run") as mock_run:
             _enable_hosts_protection()
-
-    def test_without_locked_copy(self, tmp_path: Path) -> None:
-        locked_copy = tmp_path / "nonexistent"
-        with (
-            patch(f"{PKG}.subprocess.run"),
-            patch(f"{PKG}._LOCKED_HOSTS_COPY", locked_copy),
-        ):
-            _enable_hosts_protection()
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args.args[0]
+        assert cmd[-3:] == ["file-guard", "sync", "hosts"]
 
 
 class TestUnblockHosts:

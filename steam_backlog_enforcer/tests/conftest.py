@@ -65,14 +65,31 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             "steam_backlog_enforcer._hltb_types.HLTB_CACHE_FILE",
             fake_config / "hltb_cache.json",
         ),
-        # /etc/hosts (store blocker)
+        # /etc/hosts (store blocker + total block - each module has its own
+        # `from ... import HOSTS_FILE` binding, so each needs its own patch)
         patch(
             "steam_backlog_enforcer.store_blocker.HOSTS_FILE",
             fake_hosts,
         ),
         patch(
+            "steam_backlog_enforcer._total_block.HOSTS_FILE",
+            fake_hosts,
+        ),
+        patch(
             "steam_backlog_enforcer.config.HOSTS_FILE",
             fake_hosts,
+        ),
+        # Total-block lock + IP cache (computed at import time from
+        # CONFIG_DIR, so patching CONFIG_DIR alone does not redirect them -
+        # same gotcha as HLTB_CACHE_FILE above. A real total-block lock may
+        # be active on the host machine; tests must never touch it.)
+        patch(
+            "steam_backlog_enforcer._total_block.TOTAL_BLOCK_LOCK_FILE",
+            fake_config / "total_block_lock.json",
+        ),
+        patch(
+            "steam_backlog_enforcer._total_block._IPTABLES_IP_CACHE_FILE",
+            fake_config / "total_block_ip_cache.json",
         ),
         # Whitelist exception files (_whitelist module-level constants)
         patch(
@@ -123,6 +140,10 @@ def _block_real_subprocesses() -> Iterator[None]:
         ),
         patch(
             "steam_backlog_enforcer.store_blocker.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "steam_backlog_enforcer._total_block.subprocess.run",
             noop_run,
         ),
         patch(

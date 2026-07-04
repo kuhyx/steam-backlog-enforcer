@@ -15,6 +15,12 @@ from steam_backlog_enforcer._enforce_loop import (
 )
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
 from steam_backlog_enforcer._stats import cmd_stats
+from steam_backlog_enforcer._total_block import (
+    TotalBlockStatus,
+    get_total_block_status,
+    is_total_block_active,
+    start_total_block,
+)
 from steam_backlog_enforcer._web_server import serve
 from steam_backlog_enforcer._whitelist import (
     WHITELIST_COOLDOWN_SECONDS,
@@ -75,6 +81,45 @@ _MANUAL_LOCK_DAYS = 14
 _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
     {"done", "check", "status", "enforce", "setup", "serve"}
 )
+
+# Commands that remain usable while a total gaming block is active. Far
+# stricter than _MANUAL_LOCK_EXEMPT_COMMANDS: no done/pick/reset/
+# add-exception - there is no in-app way to shorten a total block.
+_TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset({"status", "enforce"})
+
+
+# ──────────────────────────────────────────────────────────────
+# Total gaming block lock helpers
+# ──────────────────────────────────────────────────────────────
+
+
+def _show_total_block_lock_message(status: TotalBlockStatus) -> None:
+    """Print the total-gaming-block-active message to stdout."""
+    _echo("\n" + "=" * 60)
+    _echo("  *** TOTAL GAMING BLOCK ACTIVE ***")
+    _echo("=" * 60)
+
+    if status.until is not None:
+        _echo(f"\nBlocked until: {status.until.strftime('%Y-%m-%d %H:%M UTC')}")
+        _echo(f"Days remaining: {status.days_remaining:.1f}")
+
+    _echo(
+        "\nSteam has been uninstalled, all known game/launcher processes are"
+        "\nbeing killed on sight, and Steam + game-website domains are blocked."
+        "\nThere is NO in-app command to lift this early."
+        f"\n\nAllowed commands: {', '.join(sorted(_TOTAL_BLOCK_EXEMPT_COMMANDS))}"
+    )
+    _echo("=" * 60 + "\n")
+
+
+def _enforce_total_block_lock(command: str) -> None:
+    """Exit with a lock message if command is blocked by an active total block."""
+    if not is_total_block_active():
+        return
+    if command in _TOTAL_BLOCK_EXEMPT_COMMANDS:
+        return
+    _show_total_block_lock_message(get_total_block_status())
+    sys.exit(1)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -154,6 +199,13 @@ def _enforce_manual_pick_lock(command: str, state: State) -> None:
 def cmd_status(_config: Config, state: State) -> None:
     """Show current status."""
     _echo("=== Steam Backlog Enforcer ===\n")
+
+    total_block = get_total_block_status()
+    if total_block.active:
+        _echo("*** TOTAL GAMING BLOCK ACTIVE ***")
+        if total_block.until is not None:
+            _echo(f"Blocked until: {total_block.until.strftime('%Y-%m-%d %H:%M UTC')}")
+            _echo(f"Days remaining: {total_block.days_remaining:.1f}\n")
 
     if state.current_app_id:
         _echo(
@@ -573,6 +625,62 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
             _echo(f"  Library: hid {hidden} games")
 
 
+_BLOCK_GAMING_USAGE = (
+    "Usage: block-gaming <days>\n"
+    "  days : whole number of days to block ALL gaming:\n"
+    "         Steam uninstalled, all known game/launcher processes killed,\n"
+    "         Steam + game-website domains blocked.\n\n"
+    "There is NO in-app command to undo this early once confirmed."
+)
+
+
+def cmd_block_gaming(args: list[str]) -> None:
+    """Start a total gaming block for a fixed number of days.
+
+    Usage: block-gaming <days>
+
+    Args:
+        args: Remaining CLI args (first element should be the day count).
+    """
+    if not args:
+        _echo(_BLOCK_GAMING_USAGE)
+        sys.exit(1)
+
+    try:
+        days = int(args[0])
+    except ValueError:
+        _echo(f"Error: days must be a whole number, got '{args[0]}'.")
+        sys.exit(1)
+
+    if days < 1:
+        _echo("Error: days must be at least 1.")
+        sys.exit(1)
+
+    _echo(
+        f"\nWARNING: This will, for the next {days} day(s):"
+        f"\n  - Uninstall Steam"
+        f"\n  - Kill Steam and all known game-launcher processes on sight"
+        f"\n  - Block all Steam network domains AND known browser/flash"
+        f"\n    game websites"
+        f"\n\nThere is NO in-app command to undo this early. It can only be"
+        f"\nlifted by waiting out the {days} day(s), or by manual root-level"
+        f"\nsystem administration outside this tool."
+    )
+    _echo()
+    confirm = input(f"Type YES to confirm a {days}-day total gaming block: ").strip()
+    if confirm != "YES":
+        _echo("Aborted.")
+        return
+
+    _echo("\nStarting total gaming block...")
+    if start_total_block(days):
+        _echo(f"Total gaming block ACTIVE for {days} day(s).")
+        _echo("Run 'status' to check remaining time.")
+    else:
+        _echo("Error: failed to engage the block (see logs). Run with sudo?")
+        sys.exit(1)
+
+
 COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "scan": ("Scan library & assign a game", do_scan),
     "check": ("Check assigned game completion", do_check),
@@ -598,6 +706,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
 _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
     "add-exception": "Request 24h-locked whitelist exception (use --reason)",
     "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
+    "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
 }
 
 _ALL_COMMANDS: dict[str, str] = {
@@ -625,13 +734,21 @@ def main() -> None:
 
     state = State.load()
 
+    # Total block is the most restrictive lock - check it first.
+    _enforce_total_block_lock(command)
+
     # Enforce the manual-pick lock before dispatching any command.
     # This also covers add-exception (previously dispatched before state load).
     _enforce_manual_pick_lock(command, state)
 
-    # add-exception and pick-manual have non-standard argument structures.
+    # add-exception, pick-manual, and block-gaming have non-standard
+    # argument structures.
     if command == "add-exception":
         cmd_add_exception(sys.argv[2:])
+        return
+
+    if command == "block-gaming":
+        cmd_block_gaming(sys.argv[2:])
         return
 
     if command == "pick-manual":

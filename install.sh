@@ -12,6 +12,26 @@ echo "Installing Python dependencies..."
 pip3 install --break-system-packages requests howlongtobeatpy 2>/dev/null \
     || pip3 install requests howlongtobeatpy
 
+# 'block-gaming' depends on guard-lib (guardctl) for tamper-resistant
+# locking. Not fatal if missing - the rest of this tool works without it.
+echo
+echo "Checking for guard-lib (required by 'block-gaming')..."
+if command -v guardctl >/dev/null 2>&1; then
+    echo "guardctl found on PATH."
+elif [[ -x "$HOME/guard-lib/install.sh" ]]; then
+    echo "guardctl not found - installing guard-lib from $HOME/guard-lib..."
+    if [[ $EUID -eq 0 ]]; then
+        bash "$HOME/guard-lib/install.sh"
+    else
+        echo "guard-lib install needs root: sudo bash \"$HOME/guard-lib/install.sh\""
+        echo "('block-gaming' will not work until that is done; the rest of this tool is unaffected.)"
+    fi
+else
+    echo "Warning: guardctl not found and ~/guard-lib is not present."
+    echo "'block-gaming' requires guard-lib - set up ~/guard-lib and run its install.sh, then re-run this installer."
+    echo "(The rest of this tool is unaffected.)"
+fi
+
 # Install systemd service (system-level, runs as root).
 read -rp "Install systemd enforce service? [y/N] " ans
 if [[ "${ans,,}" == "y" ]]; then

@@ -1,15 +1,12 @@
 """Block Steam Store access via /etc/hosts (hosts install script) and iptables.
 
-The system uses a dedicated hosts install script at
-linux_configuration/hosts/install.sh that manages /etc/hosts with:
-  - chattr +ia (immutable + append-only)
-  - read-only bind mount
-  - protection against removing entries (only adding is easy)
-
-This module checks if the Steam Store domains are already blocked in
-/etc/hosts. If not, it runs the hosts install.sh (which must already
-contain the Steam Store entries in its heredoc). As a belt-and-suspenders
-fallback, it also blocks via iptables.
+/etc/hosts is protected by guard-lib (~/guard-lib, file-guard instance
+"hosts"): chattr +i, a read-only self-bind-mount, and a systemd path-unit
+watcher. This module checks if the Steam Store domains are already blocked
+in /etc/hosts. If not, it runs the hosts install.sh (which must already
+contain the Steam Store entries in its heredoc), going through guard-lib's
+unlock/relock around any edit. As a belt-and-suspenders fallback, it also
+blocks via iptables.
 """
 
 from __future__ import annotations
@@ -28,9 +25,19 @@ from steam_backlog_enforcer.config import (
 
 logger = logging.getLogger(__name__)
 
-# Path to the hosts install script (relative to repo root).
+# Path to the hosts install script. _REPO_ROOT resolves to $HOME (this
+# module lives two levels below it); the script itself is in the
+# linux_configuration checkout under testsAndMisc, not directly under $HOME.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-HOSTS_INSTALL_SCRIPT = _REPO_ROOT / "linux_configuration" / "hosts" / "install.sh"
+HOSTS_INSTALL_SCRIPT = (
+    _REPO_ROOT
+    / "testsAndMisc"
+    / "linux_configuration"
+    / "scripts"
+    / "periodic_background"
+    / "hosts"
+    / "install.sh"
+)
 
 # iptables chain name for our blocking rules.
 IPTABLES_CHAIN = "STEAM_ENFORCER"
@@ -39,13 +46,7 @@ IPTABLES_CHAIN = "STEAM_ENFORCER"
 _SUDO = shutil.which("sudo") or "/usr/bin/sudo"
 _IPTABLES = shutil.which("iptables") or "/usr/sbin/iptables"
 _BASH = shutil.which("bash") or "/usr/bin/bash"
-_CHATTR = shutil.which("chattr") or "/usr/bin/chattr"
-_SYSTEMCTL = shutil.which("systemctl") or "/usr/bin/systemctl"
-_UMOUNT = shutil.which("umount") or "/usr/bin/umount"
-_MOUNT = shutil.which("mount") or "/usr/bin/mount"
-_FINDMNT = shutil.which("findmnt") or "/usr/bin/findmnt"
-_CP = shutil.which("cp") or "/usr/bin/cp"
-_CHMOD = shutil.which("chmod") or "/usr/bin/chmod"
+_GUARDCTL = shutil.which("guardctl") or "/usr/local/bin/guardctl"
 _TEE = shutil.which("tee") or "/usr/bin/tee"
 
 # IP address used in /etc/hosts for blocking domains.
@@ -292,77 +293,44 @@ def flush_dns_cache() -> None:
 
 # ──────────────────────────────────────────────────────────────
 # /etc/hosts protection helpers
+#
+# /etc/hosts is managed by guard-lib (see ~/guard-lib) as file-guard
+# instance "hosts": chattr +i, a read-only self-bind-mount, and a
+# systemd path-unit watcher. "pacman-unlock" stops the watcher and
+# collapses the bind mount (same primitive guard-lib's own pacman hooks
+# use). Relocking uses "sync", NOT "pacman-relock" - pacman-relock calls
+# fg_enforce, which treats any diff from the (stale) canonical as drift
+# and reverts it; that's correct for pacman's own hook flow (undo
+# unwanted tampering) but wrong here, where *we* are the one legitimately
+# changing content - it would silently undo our own edit. "sync" instead
+# adopts the just-written content as the new canonical.
 # ──────────────────────────────────────────────────────────────
-
-_GUARD_SERVICES = ("hosts-bind-mount.service", "hosts-guard.path")
-_LOCKED_HOSTS_COPY = Path("/usr/local/share/locked-hosts")
 
 
 def _disable_hosts_protection() -> None:
-    """Stop guard services, unmount bind mount, remove chattr flags."""
-    for svc in _GUARD_SERVICES:
-        subprocess.run(
-            [_SUDO, _SYSTEMCTL, "stop", svc],
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
+    """Temporarily unlock /etc/hosts so its content can be edited.
 
-    # Unmount bind mount if active.
-    result = subprocess.run(
-        [_FINDMNT, str(HOSTS_FILE)],
-        capture_output=True,
-        timeout=5,
-        check=False,
-    )
-    if result.returncode == 0:
-        subprocess.run(
-            [_SUDO, _UMOUNT, str(HOSTS_FILE)],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-
-    # Remove immutable + append-only attributes.
+    Guard-lib: stop watcher, collapse bind mount, chattr -i.
+    """
     subprocess.run(
-        [_SUDO, _CHATTR, "-i", "-a", str(HOSTS_FILE)],
+        [_SUDO, _GUARDCTL, "file-guard", "pacman-unlock", "hosts"],
         capture_output=True,
-        timeout=5,
+        timeout=10,
         check=False,
     )
 
 
 def _enable_hosts_protection() -> None:
-    """Re-apply chattr flags and restart guard services."""
+    """Re-lock /etc/hosts, adopting its current content as the new canonical.
+
+    Guard-lib: chattr +i, reapply bind mount, restart watcher.
+    """
     subprocess.run(
-        [_SUDO, _CHMOD, "644", str(HOSTS_FILE)],
+        [_SUDO, _GUARDCTL, "file-guard", "sync", "hosts"],
         capture_output=True,
-        timeout=5,
+        timeout=10,
         check=False,
     )
-    subprocess.run(
-        [_SUDO, _CHATTR, "+ia", str(HOSTS_FILE)],
-        capture_output=True,
-        timeout=5,
-        check=False,
-    )
-
-    # Update the canonical copy so the guard doesn't revert changes.
-    if _LOCKED_HOSTS_COPY.exists():
-        subprocess.run(
-            [_SUDO, _CP, str(HOSTS_FILE), str(_LOCKED_HOSTS_COPY)],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-
-    for svc in _GUARD_SERVICES:
-        subprocess.run(
-            [_SUDO, _SYSTEMCTL, "start", svc],
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
 
 
 def _unblock_hosts() -> bool:

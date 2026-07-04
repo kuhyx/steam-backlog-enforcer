@@ -7,6 +7,12 @@ import logging
 import time
 from typing import Any
 
+from steam_backlog_enforcer._total_block import (
+    end_total_block_cleanup,
+    enforce_total_block_tick,
+    is_total_block_active,
+    total_block_needs_cleanup,
+)
 from steam_backlog_enforcer._whitelist import (
     lock_enforcement_files,
     promote_pending_exceptions,
@@ -244,6 +250,16 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
         config: Enforcer configuration.
         state: Current enforcer state.
     """
+    # Total block takes priority over the assigned-game enforcement below -
+    # while active, don't fight ourselves (e.g. installing the assigned
+    # game while total-block tries to keep Steam uninstalled).
+    if is_total_block_active():
+        enforce_total_block_tick()
+        return
+
+    if total_block_needs_cleanup():
+        end_total_block_cleanup()
+
     if state.current_app_id is None:
         return
 
@@ -298,12 +314,16 @@ def do_enforce(config: Config, state: State) -> None:
     3. Auto-installs the assigned game if missing.
     4. Kills any running unauthorized game processes.
     """
-    if state.current_app_id is None:
+    if is_total_block_active():
+        _echo(
+            "Total gaming block ACTIVE - enforcing that instead of any assigned game."
+        )
+    elif state.current_app_id is None:
         _echo("No game assigned. Run 'scan' first.")
         return
-
-    _echo(f"Enforcing: {state.current_game_name} (AppID={state.current_app_id})")
-    _enforce_setup(config, state)
+    else:
+        _echo(f"Enforcing: {state.current_game_name} (AppID={state.current_app_id})")
+        _enforce_setup(config, state)
 
     _echo(f"  Enforce loop: ACTIVE (every {ENFORCE_INTERVAL}s)")
     _echo("  Guarding: processes + installs + store")

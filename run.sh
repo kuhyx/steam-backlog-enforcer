@@ -4,4 +4,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-exec python -m steam_backlog_enforcer.main "${1:-done}"
+if [[ $# -eq 0 ]]; then
+    exec python -m steam_backlog_enforcer.main "done"
+else
+    exec python -m steam_backlog_enforcer.main "$@"
+fi

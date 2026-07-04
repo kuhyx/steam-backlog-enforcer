@@ -42,6 +42,65 @@ def get_running_steam_game_pids() -> dict[int, int]:
     return running
 
 
+def get_pids_by_process_names(names: frozenset[str]) -> dict[int, str]:
+    """Scan /proc/*/comm for processes whose command name is in *names*.
+
+    The kernel truncates ``/proc/[pid]/comm`` to 15 characters (plus a null
+    terminator), so *names* longer than that (e.g. ``EpicGamesLauncher``,
+    ``gdlauncher-carbon``) are matched against their own first 15 characters
+    - matching how the kernel actually stores them, not an exact string
+    that could never appear in ``comm``.
+
+    Returns: dict mapping PID -> matched comm string.
+    """
+    truncated = {name[:15]: name for name in names}
+    running: dict[int, str] = {}
+    proc = Path("/proc")
+
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            comm = (entry / "comm").read_text(encoding="utf-8").strip()
+        except (PermissionError, OSError, ValueError):
+            continue
+        if comm in truncated:
+            running[int(entry.name)] = truncated[comm]
+
+    return running
+
+
+def kill_processes_by_name(names: frozenset[str]) -> list[tuple[int, str]]:
+    """Kill (SIGTERM) every running process whose name is in *names*.
+
+    Matching is by ``/proc/[pid]/comm`` via :func:`get_pids_by_process_names`,
+    not the ``SteamAppId`` environment variable (unlike
+    :func:`get_running_steam_game_pids`) - this is for non-Steam processes
+    (the Steam client itself, and third-party game launchers) that don't set
+    that variable.
+
+    Returns: list of (pid, matched_name) actually killed.
+    """
+    killed: list[tuple[int, str]] = []
+    for pid, name in get_pids_by_process_names(names).items():
+        if _kill_pid_by_name(pid, name):
+            killed.append((pid, name))
+    return killed
+
+
+def _kill_pid_by_name(pid: int, name: str) -> bool:
+    """Send SIGTERM to *pid*. Returns True if the signal was delivered."""
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        logger.exception("No permission to kill PID %d (%s).", pid, name)
+        return False
+    else:
+        return True
+
+
 def enforce_allowed_game(
     allowed_app_id: int | None,
     *,
