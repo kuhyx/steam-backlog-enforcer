@@ -9,6 +9,8 @@ to temporary directories.  This stops tests from accidentally:
   - Modifying /etc/hosts via the store blocker
   - Corrupting the HLTB cache on disk
   - Launching real Steam or calling real subprocess commands
+  - Deleting real ~/.steam, ~/.local/share/Steam, etc. via the total-block
+    Steam/Proton remnant purge
 """
 
 from __future__ import annotations
@@ -90,6 +92,25 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
         patch(
             "steam_backlog_enforcer._total_block._IPTABLES_IP_CACHE_FILE",
             fake_config / "total_block_ip_cache.json",
+        ),
+        patch(
+            "steam_backlog_enforcer._total_block._STEAM_PURGE_LOG_FILE",
+            fake_config / "total_block_purge_log.json",
+        ),
+        # Steam/Proton remnant paths (real ~/.steam, ~/.local/share/Steam,
+        # etc. - _remove_steam_remnants() deletes these, so tests must never
+        # see the real ones)
+        patch(
+            "steam_backlog_enforcer._total_block._STEAM_REMNANT_PATHS",
+            (
+                tmp_path / "fake_home" / ".steam",
+                tmp_path / "fake_home" / "steam",
+                tmp_path / "fake_home" / ".local" / "share" / "Steam",
+                tmp_path / "fake_home" / ".steampath",
+                tmp_path / "fake_home" / ".steampid",
+                tmp_path / "fake_home" / ".config" / "steamtinkerlaunch",
+                tmp_path / "fake_home" / ".config" / "CSDSteamBuild",
+            ),
         ),
         # Whitelist exception files (_whitelist module-level constants)
         patch(

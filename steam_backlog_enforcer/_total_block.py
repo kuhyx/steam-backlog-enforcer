@@ -1,7 +1,8 @@
 """Total gaming block: no in-app command to lift it early.
 
-Uninstalls Steam, kills all game/launcher processes, and blocks all
-Steam + game-website domains for a fixed number of days.
+Uninstalls Steam, kills all game/launcher processes, blocks all Steam +
+game-website domains, purges known Steam/Proton filesystem remnants, and
+uninstalls Proton helper packages, for a fixed number of days.
 
 Tamper-resistance is provided by guard-lib (~/guard-lib): the lock file's
 ``until`` timestamp is protected by a bind-mounted, chattr-immutable
@@ -152,6 +153,37 @@ IPTABLES_CHAIN = "STEAM_TOTAL_BLOCK"
 # resolve nowhere - built from parts rather than the literal so linters don't
 # mistake it for a socket bind-all-interfaces address (it never is one).
 _NULL_ROUTE_IP = ".".join(["0"] * 4)
+
+_STEAM_PURGE_LOG_FILE = CONFIG_DIR / "total_block_purge_log.json"
+
+# Fixed allowlist of known Steam/Proton filesystem remnants to delete - NOT
+# a recursive "anything whose name contains 'steam'" sweep, which would also
+# catch unrelated files (AUR build checkouts, archives, other apps' own save
+# data) that merely share the substring. Confirmed present on the reference
+# machine: ~/.steam (symlink farm), ~/steam (secondary/portable install),
+# ~/.local/share/Steam (the real install - steamapps, userdata, screenshots,
+# and compatibilitytools.d's GE-Proton builds all live under here).
+_STEAM_REMNANT_PATHS: tuple[Path, ...] = (
+    Path.home() / ".steam",
+    Path.home() / "steam",
+    Path.home() / ".local" / "share" / "Steam",
+    Path.home() / ".steampath",
+    Path.home() / ".steampid",
+    Path.home() / ".config" / "steamtinkerlaunch",
+    Path.home() / ".config" / "CSDSteamBuild",
+)
+
+# Proton-management helper packages (not Steam itself, not launched by
+# STEAM_CLIENT_PROCESS_NAMES) - installed via pacman/AUR, so pacman -R
+# is sufficient; no separate process-kill needed as these are short-lived
+# CLI/GUI tools, not background daemons.
+_PROTON_HELPER_PACKAGES: tuple[str, ...] = (
+    "protondb-tags-git",
+    "protonhax-git",
+    "protontricks-git",
+    "protonup-ng-git",
+    "protonup-qt",
+)
 
 
 @dataclass
@@ -334,15 +366,20 @@ def _kill_steam_and_launchers() -> list[tuple[int, str]]:
 # ──────────────────────────────────────────────────────────────
 
 
-def _is_steam_installed() -> bool:
-    """Return True if the ``steam`` pacman package is currently installed."""
+def _is_package_installed(package: str) -> bool:
+    """Return True if *package* is currently installed via pacman."""
     result = subprocess.run(
-        [_PACMAN, "-Qi", _STEAM_PACKAGE],
+        [_PACMAN, "-Qi", package],
         capture_output=True,
         timeout=10,
         check=False,
     )
     return result.returncode == 0
+
+
+def _is_steam_installed() -> bool:
+    """Return True if the ``steam`` pacman package is currently installed."""
+    return _is_package_installed(_STEAM_PACKAGE)
 
 
 def _uninstall_steam_package() -> bool:
@@ -351,6 +388,90 @@ def _uninstall_steam_package() -> bool:
     Returns True on success or if it was already absent.
     """
     return _uninstall_package(_STEAM_PACKAGE)
+
+
+def _uninstall_proton_helpers() -> list[str]:
+    """Uninstall known Proton-management helper packages that are present.
+
+    Returns the subset of :data:`_PROTON_HELPER_PACKAGES` that were actually
+    installed and successfully removed (for logging), not the full fixed
+    list.
+    """
+    removed: list[str] = []
+    for package in _PROTON_HELPER_PACKAGES:
+        if not _is_package_installed(package):
+            continue
+        if _uninstall_package(package):
+            removed.append(package)
+        else:
+            logger.warning("Total block: failed to uninstall proton helper %s", package)
+    return removed
+
+
+def _remove_steam_remnants() -> list[str]:
+    """Delete the curated Steam/Proton filesystem remnants that exist.
+
+    Symlinks are unlinked directly rather than following them into
+    :func:`shutil.rmtree`, since e.g. ``~/.steampath`` -> a file inside
+    ``~/.steam``, which this same pass may already have removed.
+    """
+    removed: list[str] = []
+    for path in _STEAM_REMNANT_PATHS:
+        if not (path.is_symlink() or path.exists()):
+            continue
+        try:
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            else:
+                shutil.rmtree(path)
+        except OSError:
+            logger.exception("Failed to remove steam remnant %s", path)
+            continue
+        removed.append(str(path))
+    return removed
+
+
+def _log_steam_purge(removed_paths: list[str], removed_packages: list[str]) -> None:
+    """Append a timestamped record of a Steam/Proton purge to disk.
+
+    A no-op when nothing was actually removed, so the log only grows on
+    ticks that did real work (this runs every enforce tick while the block
+    is active - see :func:`enforce_total_block_tick`).
+    """
+    if not removed_paths and not removed_packages:
+        return
+    try:
+        existing = json.loads(_STEAM_PURGE_LOG_FILE.read_text(encoding="utf-8"))
+        if not isinstance(existing, list):
+            existing = []
+    except (OSError, json.JSONDecodeError, ValueError):
+        existing = []
+    existing.append(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "removed_paths": removed_paths,
+            "removed_packages": removed_packages,
+        }
+    )
+    _atomic_write(_STEAM_PURGE_LOG_FILE, json.dumps(existing, indent=2) + "\n")
+
+
+def _purge_steam_and_proton() -> None:
+    """Remove curated Steam/Proton filesystem remnants and helper packages.
+
+    Best-effort and re-run every enforce tick, same as the Steam-package
+    reappearance check: a stat() per fixed path and a ``pacman -Qi`` per
+    helper package are cheap even when there is nothing left to do.
+    """
+    removed_paths = _remove_steam_remnants()
+    removed_packages = _uninstall_proton_helpers()
+    if removed_paths or removed_packages:
+        logger.info(
+            "Total block: purged steam path(s) %s, proton package(s) %s",
+            removed_paths,
+            removed_packages,
+        )
+    _log_steam_purge(removed_paths, removed_packages)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -631,6 +752,8 @@ def start_total_block(days: int) -> bool:
     if not _uninstall_steam_package():
         logger.warning("Total block: failed to uninstall steam (will retry each tick)")
 
+    _purge_steam_and_proton()
+
     # iptables MUST be applied before hosts: it resolves real upstream IPs,
     # and once the hosts block is written, local resolution for these same
     # domains collapses to 0.0.0.0 (see _apply_total_block_iptables).
@@ -654,6 +777,8 @@ def enforce_total_block_tick() -> None:
     if _is_steam_installed():
         logger.warning("Steam reappeared during total block - removing again")
         _uninstall_steam_package()
+
+    _purge_steam_and_proton()
 
     _apply_total_block_iptables()
     _apply_total_block_hosts()
