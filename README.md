@@ -53,3 +53,26 @@ Preserves Proton versions and Steam Linux Runtime.
 ```bash
 python -m python_pkg.steam_backlog_enforcer.main uninstall
 ```
+
+## MCP server (Claude Code integration)
+
+The enforcer exposes an MCP server (`steam_backlog_enforcer._mcp`) so Claude Code
+and its subagents can query the backlog and drive it through typed tools.
+
+- **Read tools:** `get_dataset`, `get_status`, `get_stats`, `list_backlog`.
+- **Gated write tools:** `pick_manual`, `block_gaming` — each defaults to a
+  dry-run **preview**; pass `confirm=true` to actually apply. These write tools
+  must **never** be added to a permission allowlist (a subagent could otherwise
+  bypass the human confirmation).
+
+The `mcp` SDK is an optional dependency (`pip install -e '.[mcp]'`), kept out of
+the CLI/systemd system-python path. One-time setup of the dedicated venv that
+Claude Code spawns:
+
+```bash
+./scripts/setup_mcp.sh
+```
+
+Registration lives in the checked-in [`.mcp.json`](./.mcp.json) (project scope).
+Restart Claude Code in this repo and approve the project MCP-server prompt for it
+to load. Verify with `claude mcp list`.

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "steam-backlog-enforcer": {
+      "type": "stdio",
+      "command": "${HOME}/.venvs/steam-backlog-mcp/bin/python",
+      "args": ["-m", "steam_backlog_enforcer._mcp"],
+      "env": {}
+    }
+  }
+}

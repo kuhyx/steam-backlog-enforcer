@@ -6,7 +6,29 @@ requires-python = ">=3.10"
 dependencies = [
     "requests>=2.0",
     "howlongtobeatpy>=1.0",
+    # Directly imported by the package (aiohttp: _hltb_* async lookups;
+    # websockets: library_hider). aiohttp was previously satisfied only
+    # transitively via howlongtobeatpy and websockets was undeclared — both
+    # are declared here so a clean install imports the package.
+    "aiohttp>=3.0",
+    "websockets>=11.0",
 ]
+
+# Optional extras. The `mcp` group is ONLY needed by the MCP server
+# (steam_backlog_enforcer._mcp), which Claude Code spawns via a dedicated
+# venv (see scripts/setup_mcp.sh / .mcp.json). It is deliberately NOT a core
+# dependency so the systemd/CLI system-python path stays dependency-light and
+# never has to import the MCP SDK.
+[project.optional-dependencies]
+mcp = ["mcp>=1.9"]
+
+# Explicit package discovery. Without this, setuptools' flat-layout
+# auto-discovery aborts because the repo root holds two top-level dirs
+# (`steam_backlog_enforcer/` and the React `web/` frontend) and it refuses
+# to guess. Scoping discovery to the Python package fixes `pip install -e .`
+# for the CLI, systemd, AND the dedicated MCP venv.
+[tool.setuptools.packages.find]
+include = ["steam_backlog_enforcer*"]
 
 # ============================================================================
 # RUFF - Fast Python linter and formatter

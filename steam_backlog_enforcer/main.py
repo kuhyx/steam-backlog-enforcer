@@ -8,6 +8,15 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._actions import (
+    MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
+)
+from steam_backlog_enforcer._actions import (
+    apply_manual_pick,
+)
+from steam_backlog_enforcer._actions import (
+    is_manual_pick_locked as _is_manual_pick_locked,
+)
 from steam_backlog_enforcer._cmd_done import cmd_done
 from steam_backlog_enforcer._enforce_loop import (
     do_enforce,
@@ -72,9 +81,6 @@ logger = logging.getLogger(__name__)
 _LIST_DISPLAY_LIMIT = 50
 _MIN_CLI_ARGS = 2
 
-# Days before the manual-pick lock automatically expires.
-_MANUAL_LOCK_DAYS = 14
-
 # Commands that remain usable while the manual pick lock is active.
 # Principle: only what is needed to release the lock (done/check) or
 # that cannot change the game assignment (status, enforce, setup, serve).
@@ -124,29 +130,8 @@ def _enforce_total_block_lock(command: str) -> None:
 
 # ──────────────────────────────────────────────────────────────
 # Manual pick lock helpers
+# (the predicate itself lives in _actions so the MCP server can reuse it)
 # ──────────────────────────────────────────────────────────────
-
-
-def _is_manual_pick_locked(state: State) -> bool:
-    """Return True if the manual-pick lock is currently in force."""
-    if state.manual_pick_app_id is None:
-        return False
-
-    # Lock released once the game appears in finished_app_ids.
-    if state.manual_pick_app_id in state.finished_app_ids:
-        return False
-
-    # Lock released after 14 days from the pick timestamp.
-    if state.manual_pick_started_at:
-        try:
-            started = datetime.fromisoformat(state.manual_pick_started_at)
-            deadline = started + timedelta(days=_MANUAL_LOCK_DAYS)
-            if datetime.now(timezone.utc) >= deadline:
-                return False
-        except ValueError:
-            pass
-
-    return True
 
 
 def _show_manual_pick_lock_message(state: State) -> None:
@@ -592,14 +577,9 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         _echo("Aborted.")
         return
 
-    state.manual_pick_app_id = app_id
-    state.manual_pick_game_name = game_name
-    state.manual_pick_started_at = datetime.now(timezone.utc).isoformat()
-    state.current_app_id = app_id
-    state.current_game_name = game_name
-    if not state.enforcement_started_at:
-        state.enforcement_started_at = datetime.now(timezone.utc).isoformat()
-    state.save()
+    # State mutation is the shared, stdout-free core (also used by the MCP
+    # server); the destructive post-assignment cascade below stays CLI-only.
+    apply_manual_pick(state, app_id, game_name)
 
     _echo(f"\nManual pick confirmed: {game_name} (AppID={app_id})")
     _echo(f"Lock active from now until 100% achievements or {_MANUAL_LOCK_DAYS} days.")
