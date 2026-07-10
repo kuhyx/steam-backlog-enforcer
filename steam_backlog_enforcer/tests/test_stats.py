@@ -21,7 +21,7 @@ from steam_backlog_enforcer._stats import (
 from steam_backlog_enforcer._web_dataset import PaceVsHLTB
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.protondb import ProtonDBRating
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIError
 
 _PKG = "steam_backlog_enforcer._stats"
 
@@ -983,6 +983,24 @@ class TestRefreshRecentlyPlayedCompletions:
         games = [GameInfo(1, "G", 10, 0, 60)]
         with patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf:
             mock_sf.stat.side_effect = OSError("no file")
+            from steam_backlog_enforcer._stats import (
+                _refresh_recently_played_completions,
+            )
+
+            result = _refresh_recently_played_completions(games, Config())
+        assert result == games
+
+    def test_steam_api_error_returns_games_unchanged(self) -> None:
+        """A SteamAPIError while fetching owned games is swallowed."""
+        games = [GameInfo(1, "G", 10, 0, 60)]
+        with (
+            patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf,
+            patch(f"{_PKG}.SteamAPIClient") as mock_cls,
+        ):
+            mock_sf.stat.return_value.st_mtime = 1_000_000.0
+            mock_cls.return_value.get_owned_games.side_effect = SteamAPIError(
+                "api down"
+            )
             from steam_backlog_enforcer._stats import (
                 _refresh_recently_played_completions,
             )
