@@ -24,15 +24,12 @@ logger = logging.getLogger(__name__)
 # File paths (patched in tests via conftest)
 # ──────────────────────────────────────────────────────────────
 
-PENDING_EXCEPTIONS_FILE: Path = CONFIG_DIR / "pending_exceptions.json"
 APPROVED_EXCEPTIONS_FILE: Path = CONFIG_DIR / "approved_exceptions.json"
 EXCEPTION_AUDIT_LOG: Path = CONFIG_DIR / "exception_audit.log"
 
 # ──────────────────────────────────────────────────────────────
 # Constants
 # ──────────────────────────────────────────────────────────────
-
-WHITELIST_COOLDOWN_SECONDS: int = 86400  # 24 hours
 
 _MIN_REASON_WORDS: int = 5
 _MIN_REASON_LENGTH: int = 25
@@ -169,24 +166,6 @@ def unlock_for_write(path: Path) -> None:
 # ──────────────────────────────────────────────────────────────
 
 
-def _load_pending() -> list[dict[str, object]]:
-    """Load pending exception entries from disk."""
-    if not PENDING_EXCEPTIONS_FILE.exists():
-        return []
-    try:
-        data: object = json.loads(PENDING_EXCEPTIONS_FILE.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return cast("list[dict[str, object]]", data)
-    except (json.JSONDecodeError, OSError, ValueError):
-        pass
-    return []
-
-
-def _save_pending(entries: list[dict[str, object]]) -> None:
-    """Persist pending exception entries to disk."""
-    _atomic_write(PENDING_EXCEPTIONS_FILE, json.dumps(entries, indent=2) + "\n")
-
-
 def _load_approved() -> list[dict[str, object]]:
     """Load approved exception entries from disk."""
     if not APPROVED_EXCEPTIONS_FILE.exists():
@@ -232,17 +211,17 @@ def _append_audit_log(app_id: int, reason: str, event: str) -> None:
 
 
 def add_pending_exception(app_id: int, reason: str) -> str:
-    """Request a new whitelist exception for *app_id*.
+    """Add a whitelist exception for *app_id* immediately.
 
-    The entry becomes active only after ``WHITELIST_COOLDOWN_SECONDS`` have
-    elapsed (24 h by default).  Returns a human-readable status message.
+    The entry becomes active right away (no cooldown).  Returns a
+    human-readable status message.
 
     Args:
         app_id: Steam application ID to add.
         reason: Validated justification text (must pass :func:`validate_reason`).
 
     Returns:
-        Human-readable confirmation or remaining-cooldown message.
+        Human-readable confirmation message.
 
     Raises:
         ValueError: If the reason fails validation or the ID is already approved.
@@ -256,92 +235,25 @@ def add_pending_exception(app_id: int, reason: str) -> str:
         msg = f"AppID {app_id} is already in the approved exceptions list."
         raise ValueError(msg)
 
-    pending = _load_pending()
-    for entry in pending:
-        if int(entry["app_id"]) == app_id:
-            elapsed = time.time() - float(entry["requested_at"])
-            remaining = WHITELIST_COOLDOWN_SECONDS - elapsed
-            if remaining > 0:
-                hours = int(remaining // 3600)
-                mins = int((remaining % 3600) // 60)
-                return (
-                    f"AppID {app_id} is already pending; approves in {hours}h {mins}m."
-                )
-            # Cooldown already elapsed for this pending entry — promote now.
-            break
-
-    entry_new: dict[str, object] = {
-        "app_id": app_id,
-        "reason": reason,
-        "requested_at": time.time(),
-    }
-    pending.append(entry_new)
-    _save_pending(pending)
-    _append_audit_log(app_id, reason, "REQUESTED")
-
-    hours = WHITELIST_COOLDOWN_SECONDS // 3600
-    return (
-        f"Exception requested for AppID {app_id}. "
-        f"Will become active in {hours}h. Reason logged."
-    )
-
-
-def promote_pending_exceptions() -> list[int]:
-    """Move cooldown-elapsed pending entries to the approved list.
-
-    Called by the enforce daemon on each loop iteration.  Returns the list
-    of app IDs that were promoted this call.
-
-    Returns:
-        List of newly approved app IDs (may be empty).
-    """
-    pending = _load_pending()
     now = time.time()
-    still_pending: list[dict[str, object]] = []
-    newly_approved: list[int] = []
+    approved.append(
+        {
+            "app_id": app_id,
+            "reason": reason,
+            "approved_at": now,
+        }
+    )
+    _save_approved(approved)
+    _append_audit_log(app_id, reason, "APPROVED")
 
-    for entry in pending:
-        elapsed = now - float(entry["requested_at"])
-        if elapsed >= WHITELIST_COOLDOWN_SECONDS:
-            app_id = int(entry["app_id"])
-            approved = _load_approved()
-            if not any(int(e["app_id"]) == app_id for e in approved):
-                approved.append(
-                    {
-                        "app_id": app_id,
-                        "reason": entry["reason"],
-                        "approved_at": now,
-                    }
-                )
-                _save_approved(approved)
-                _append_audit_log(app_id, str(entry["reason"]), "APPROVED")
-                newly_approved.append(app_id)
-        else:
-            still_pending.append(entry)
-
-    if len(still_pending) != len(pending):
-        _save_pending(still_pending)
-
-    return newly_approved
+    return f"Exception approved for AppID {app_id}. Active immediately. Reason logged."
 
 
 def get_approved_exception_ids() -> frozenset[int]:
     """Return the frozenset of currently approved exception app IDs.
-
-    Does NOT trigger promotion — call :func:`promote_pending_exceptions`
-    explicitly when timely promotion is required (e.g. the enforce loop).
 
     Returns:
         Frozenset of approved app IDs.
     """
     approved = _load_approved()
     return frozenset(int(e["app_id"]) for e in approved)
-
-
-def list_pending_exceptions() -> list[dict[str, object]]:
-    """Return a copy of the current pending exception list.
-
-    Returns:
-        List of pending exception dicts with keys app_id, reason, requested_at.
-    """
-    return list(_load_pending())

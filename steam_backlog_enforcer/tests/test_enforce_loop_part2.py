@@ -100,22 +100,6 @@ class TestEnforceLoopIteration:
             mock_guard.assert_not_called()
             mock_installed.assert_not_called()
 
-    def test_promotes_newly_approved_exceptions(self) -> None:
-        """Loop body at line 286 executes when promote returns non-empty list."""
-        config = Config(
-            kill_unauthorized_games=False,
-            uninstall_other_games=False,
-        )
-        state = State(current_app_id=1, current_game_name="G")
-        with (
-            patch(f"{PKG}.is_game_installed", return_value=True),
-            patch(
-                f"{PKG}.promote_pending_exceptions",
-                return_value=[440],
-            ),
-        ):
-            _enforce_loop_iteration(config, state)
-
 
 class TestDoEnforce:
     """Tests for do_enforce."""

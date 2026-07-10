@@ -2,26 +2,20 @@
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 
 from steam_backlog_enforcer._whitelist import (
-    WHITELIST_COOLDOWN_SECONDS,
     _append_audit_log,
     _load_approved,
-    _load_pending,
     _save_approved,
-    _save_pending,
     _shannon_entropy,
     _try_set_immutable,
     add_pending_exception,
     get_approved_exception_ids,
-    list_pending_exceptions,
     lock_enforcement_files,
-    promote_pending_exceptions,
     unlock_for_write,
     validate_reason,
 )
@@ -194,39 +188,11 @@ class TestLockAndUnlock:
 
 
 # ──────────────────────────────────────────────────────────────
-# Persistence helpers (_load_pending, _save_pending, etc.)
+# Persistence helpers (_load_approved, _save_approved)
 # ──────────────────────────────────────────────────────────────
 
 
 class TestPersistence:
-    def test_load_pending_missing_file(self) -> None:
-        assert _load_pending() == []
-
-    def test_load_pending_corrupt_file(self, tmp_path: Path) -> None:
-        bad = tmp_path / "pending.json"
-        bad.write_text("not json{{", encoding="utf-8")
-        with patch(
-            "steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
-            bad,
-        ):
-            assert _load_pending() == []
-
-    def test_load_pending_non_list(self, tmp_path: Path) -> None:
-        bad = tmp_path / "pending.json"
-        bad.write_text('{"key": "value"}', encoding="utf-8")
-        with patch(
-            "steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
-            bad,
-        ):
-            assert _load_pending() == []
-
-    def test_save_and_load_pending_roundtrip(self) -> None:
-        entries: list[dict[str, object]] = [
-            {"app_id": 440, "reason": "test", "requested_at": 12345.0}
-        ]
-        _save_pending(entries)
-        assert _load_pending() == entries
-
     def test_load_approved_missing_file(self) -> None:
         assert _load_approved() == []
 
@@ -300,10 +266,12 @@ class TestAddPendingException:
         with patch("shutil.which", return_value=None):
             msg = add_pending_exception(440, _VALID_REASON)
         assert "440" in msg
-        assert "24h" in msg or "hours" in msg or "active" in msg.lower()
-        pending = _load_pending()
-        assert len(pending) == 1
-        assert int(pending[0]["app_id"]) == 440
+        assert "immediately" in msg.lower()
+        approved = _load_approved()
+        assert len(approved) == 1
+        assert int(approved[0]["app_id"]) == 440
+        # Now active right away, no cooldown.
+        assert 440 in get_approved_exception_ids()
 
     def test_invalid_reason_raises(self) -> None:
         with pytest.raises(
@@ -321,100 +289,6 @@ class TestAddPendingException:
             pytest.raises(ValueError, match="already in the approved"),
         ):
             add_pending_exception(440, _VALID_REASON)
-
-    def test_already_pending_cooldown_remaining(self) -> None:
-        existing: list[dict[str, object]] = [
-            {
-                "app_id": 440,
-                "reason": _VALID_REASON,
-                "requested_at": time.time(),  # just now → full cooldown remaining
-            }
-        ]
-        _save_pending(existing)
-        with patch("shutil.which", return_value=None):
-            msg = add_pending_exception(440, _VALID_REASON)
-        assert "already pending" in msg
-
-    def test_already_pending_cooldown_elapsed_promotes(self) -> None:
-        past = time.time() - WHITELIST_COOLDOWN_SECONDS - 1
-        existing: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "requested_at": past}
-        ]
-        _save_pending(existing)
-        with patch("shutil.which", return_value=None):
-            msg = add_pending_exception(440, _VALID_REASON)
-        # The elapsed entry is broken out of the pending-check loop via break,
-        # then a new entry is appended → still gets the "Will become active" msg.
-        assert "440" in msg
-
-
-# ──────────────────────────────────────────────────────────────
-# promote_pending_exceptions
-# ──────────────────────────────────────────────────────────────
-
-
-class TestPromotePendingExceptions:
-    def test_no_entries(self) -> None:
-        result = promote_pending_exceptions()
-        assert result == []
-
-    def test_cooldown_not_elapsed(self) -> None:
-        entries: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "requested_at": time.time()}
-        ]
-        _save_pending(entries)
-        with patch("shutil.which", return_value=None):
-            result = promote_pending_exceptions()
-        assert result == []
-        # Still pending
-        assert len(_load_pending()) == 1
-
-    def test_cooldown_elapsed_promotes(self) -> None:
-        past = time.time() - WHITELIST_COOLDOWN_SECONDS - 1
-        entries: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "requested_at": past}
-        ]
-        _save_pending(entries)
-        with patch("shutil.which", return_value=None):
-            result = promote_pending_exceptions()
-        assert 440 in result
-        assert _load_pending() == []
-        approved_ids = get_approved_exception_ids()
-        assert 440 in approved_ids
-
-    def test_already_in_approved_not_duplicated(self) -> None:
-        """If somehow already approved, skip duplicating it."""
-        past = time.time() - WHITELIST_COOLDOWN_SECONDS - 1
-        entries: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "requested_at": past}
-        ]
-        _save_pending(entries)
-        existing_approved: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "approved_at": 0.0}
-        ]
-        _save_approved(existing_approved)
-        with patch("shutil.which", return_value=None):
-            result = promote_pending_exceptions()
-        # Not added again
-        assert 440 not in result
-        approved = _load_approved()
-        assert sum(1 for e in approved if int(e["app_id"]) == 440) == 1
-
-    def test_pending_list_saved_when_entries_removed(self) -> None:
-        """_save_pending is called when the pending list shrinks."""
-        past = time.time() - WHITELIST_COOLDOWN_SECONDS - 1
-        future = time.time()
-        entries: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "requested_at": past},
-            {"app_id": 730, "reason": _VALID_REASON, "requested_at": future},
-        ]
-        _save_pending(entries)
-        with patch("shutil.which", return_value=None):
-            result = promote_pending_exceptions()
-        assert 440 in result
-        remaining = _load_pending()
-        assert len(remaining) == 1
-        assert int(remaining[0]["app_id"]) == 730
 
 
 # ──────────────────────────────────────────────────────────────
@@ -440,27 +314,6 @@ class TestGetApprovedExceptionIds:
 
 
 # ──────────────────────────────────────────────────────────────
-# list_pending_exceptions
-# ──────────────────────────────────────────────────────────────
-
-
-class TestListPendingExceptions:
-    def test_returns_copy(self) -> None:
-        """Mutating the result must not affect stored state."""
-        entries: list[dict[str, object]] = [
-            {"app_id": 440, "reason": "r", "requested_at": 1.0}
-        ]
-        _save_pending(entries)
-        result = list_pending_exceptions()
-        result.clear()
-        # Still present on next load
-        assert len(_load_pending()) == 1
-
-    def test_empty_when_no_pending(self) -> None:
-        assert list_pending_exceptions() == []
-
-
-# ──────────────────────────────────────────────────────────────
 # Extra coverage for validate_reason branches 94 & 106
 # ──────────────────────────────────────────────────────────────
 
@@ -481,16 +334,3 @@ class TestValidateReasonExtraBranches:
         err = validate_reason(reason)
         assert err is not None
         assert "repetitive" in err
-
-    def test_different_app_id_in_pending_does_not_block(self) -> None:
-        """Pending entry with a different app_id must not block a new add (covers
-        the 264→263 loop-continue branch)."""
-        other: list[dict[str, object]] = [
-            {"app_id": 440, "reason": _VALID_REASON, "requested_at": 1.0}
-        ]
-        _save_pending(other)
-        with patch("shutil.which", return_value=None):
-            msg = add_pending_exception(730, _VALID_REASON)
-        assert "730" in msg
-        pending = _load_pending()
-        assert len(pending) == 2  # original + new

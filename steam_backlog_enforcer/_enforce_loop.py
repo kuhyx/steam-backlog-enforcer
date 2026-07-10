@@ -15,7 +15,6 @@ from steam_backlog_enforcer._total_block import (
 )
 from steam_backlog_enforcer._whitelist import (
     lock_enforcement_files,
-    promote_pending_exceptions,
 )
 from steam_backlog_enforcer.config import (
     CONFIG_DIR,
@@ -296,12 +295,7 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
             config.steam_id,
         )
 
-    # D) Promote any cooldown-elapsed pending exceptions to approved.
-    newly_approved = promote_pending_exceptions()
-    for aid in newly_approved:
-        logger.info("Exception approved: AppID=%d", aid)
-
-    # E) Re-apply immutable flag so config cannot be edited without root.
+    # D) Re-apply immutable flag so config cannot be edited without root.
     lock_enforcement_files(CONFIG_FILE)
 
 

@@ -114,10 +114,6 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
         ),
         # Whitelist exception files (_whitelist module-level constants)
         patch(
-            "steam_backlog_enforcer._whitelist.PENDING_EXCEPTIONS_FILE",
-            fake_config / "pending_exceptions.json",
-        ),
-        patch(
             "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
             fake_config / "approved_exceptions.json",
         ),

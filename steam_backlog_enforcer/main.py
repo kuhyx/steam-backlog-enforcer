@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import logging
 import sys
-import time
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import (
@@ -32,9 +31,7 @@ from steam_backlog_enforcer._total_block import (
 )
 from steam_backlog_enforcer._web_server import serve
 from steam_backlog_enforcer._whitelist import (
-    WHITELIST_COOLDOWN_SECONDS,
     add_pending_exception,
-    list_pending_exceptions,
     validate_reason,
 )
 from steam_backlog_enforcer.config import (
@@ -364,17 +361,16 @@ _ADD_EXCEPTION_USAGE = (
     "Example:\n"
     "  add-exception 440 --reason "
     '"TF2 is needed for a community event this weekend"\n\n'
-    f"Exceptions become active after a {WHITELIST_COOLDOWN_SECONDS // 3600}h "
-    "cooldown."
+    "Exceptions become active immediately."
 )
 
 
 def cmd_add_exception(args: list[str]) -> None:
-    """Request a time-locked whitelist exception.
+    """Add a whitelist exception, active immediately.
 
     Usage: add-exception <app_id> --reason "<text>"
 
-    The exception becomes active after a 24-hour cooldown.  The reason must be
+    The exception becomes active right away (no cooldown).  The reason must be
     a genuine justification of at least 5 words with sufficient entropy.
 
     Args:
@@ -410,20 +406,6 @@ def cmd_add_exception(args: list[str]) -> None:
         sys.exit(1)
 
     _echo(msg)
-
-    # Show current pending list.
-    pending = list_pending_exceptions()
-    if pending:
-        _echo(f"\nPending exceptions ({len(pending)}):")
-        now = time.time()
-        for entry in pending:
-            aid = int(entry["app_id"])
-            elapsed = now - float(entry["requested_at"])
-            remaining = max(0.0, WHITELIST_COOLDOWN_SECONDS - elapsed)
-            hrs = int(remaining // 3600)
-            mins = int((remaining % 3600) // 60)
-            status = "ready" if remaining == 0.0 else f"approves in {hrs}h {mins}m"
-            _echo(f"  AppID={aid}  [{status}]")
 
 
 def cmd_install(config: Config, state: State) -> None:

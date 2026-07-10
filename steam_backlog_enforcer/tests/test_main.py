@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import sys
-import time
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer._whitelist import WHITELIST_COOLDOWN_SECONDS
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import (
     cmd_add_exception,
@@ -448,36 +446,16 @@ class TestCmdAddException:
         ):
             cmd_add_exception(["440", "--reason", _VALID_REASON])
 
-    def test_happy_path_no_pending(self) -> None:
+    def test_happy_path(self) -> None:
         with (
             patch(f"{PKG}._echo") as mock_echo,
             patch(
                 f"{PKG}.add_pending_exception",
-                return_value="Exception requested for AppID 440.",
+                return_value="Exception approved for AppID 440. Active immediately.",
             ),
-            patch(f"{PKG}.list_pending_exceptions", return_value=[]),
         ):
             cmd_add_exception(["440", "--reason", _VALID_REASON])
         mock_echo.assert_called()
-
-    def test_happy_path_with_pending_list(self) -> None:
-        now = time.time()
-        pending = [
-            {"app_id": 440, "requested_at": now - WHITELIST_COOLDOWN_SECONDS - 1},
-            {"app_id": 730, "requested_at": now},
-        ]
-        with (
-            patch(f"{PKG}._echo") as mock_echo,
-            patch(
-                f"{PKG}.add_pending_exception",
-                return_value="Exception requested for AppID 440.",
-            ),
-            patch(f"{PKG}.list_pending_exceptions", return_value=pending),
-        ):
-            cmd_add_exception(["440", "--reason", _VALID_REASON])
-        # At least the "Pending exceptions" line should be echoed
-        calls = [str(c) for c in mock_echo.call_args_list]
-        assert any("Pending" in s for s in calls)
 
 
 # ──────────────────────────────────────────────────────────────
