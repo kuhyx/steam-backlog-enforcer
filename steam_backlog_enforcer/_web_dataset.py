@@ -246,7 +246,7 @@ def count_complete_since_start(games: list[GameInfo], started_at: str) -> int:
     Games with no achievement timestamp data are excluded — their completion
     date is unknown, and they were most likely finished before Steam began
     recording unlock timestamps (i.e. before the enforcement period).
-    Returns 0 when started_at is empty or unparseable.
+    Returns 0 when started_at is empty or unparsable.
     """
     if not started_at:
         return 0

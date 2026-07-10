@@ -35,7 +35,11 @@ from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
     fetch_protondb_ratings,
 )
-from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
+from steam_backlog_enforcer.steam_api import (
+    GameInfo,
+    SteamAPIClient,
+    SteamAPIError,
+)
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
@@ -276,7 +280,8 @@ def _print_pace_scenario(state: State, remaining: int, games_done: int) -> None:
     rate = games_done / days_elapsed
     _echo(f"    Started:        {started.strftime('%Y-%m-%d')}")
     _echo(
-        f"    Finished:       {games_done} games in {days_elapsed} days (since enforcement start)"
+        f"    Finished:       {games_done} games in {days_elapsed} days "
+        "(since enforcement start)"
     )
     _echo(
         f"    Pace:           {rate:.4f} games/day  (1 game every {1 / rate:.1f} days)"
@@ -356,8 +361,6 @@ def _refresh_recently_played_completions(
         snapshot_mtime = SNAPSHOT_FILE.stat().st_mtime
     except OSError:
         return games
-
-    from steam_backlog_enforcer.steam_api import SteamAPIError
 
     try:
         client = SteamAPIClient(config.steam_api_key, config.steam_id)

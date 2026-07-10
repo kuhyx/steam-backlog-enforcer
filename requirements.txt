@@ -5,6 +5,7 @@ bandit>=1.7.0
 codespell>=2.2.0
 coverage>=7.4.0
 howlongtobeatpy>=1.0
+mcp>=1.9
 mypy>=1.8.0
 pre-commit>=3.6.0
 pylint>=3.0.0
