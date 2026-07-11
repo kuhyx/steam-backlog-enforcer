@@ -51,6 +51,12 @@ repos:
         entry: '(?i)#\s*ruff:\s*noqa'
         language: pygrep
         types: [python]
+      - id: requirements-sync
+        name: requirements.txt covers all package imports
+        entry: python3 scripts/check_requirements_sync.py
+        language: system
+        pass_filenames: false
+        files: ^(steam_backlog_enforcer/.*\.py|requirements\.txt)$
 
   # ===========================================================================
   # RUFF - Linter + formatter
@@ -132,12 +138,12 @@ repos:
   # ===========================================================================
   - repo: local
     hooks:
-      - id: pytest-coverage
-        name: pytest with coverage enforcement
-        entry: python -m pytest steam_backlog_enforcer/tests/ --cov=steam_backlog_enforcer --cov-branch --cov-fail-under=100
+      - id: ci-mirror
+        name: CI mirror (clean-venv pytest + pre-commit --all-files)
+        entry: bash scripts/ci_mirror.sh steam_backlog_enforcer/tests/
         language: system
-        types: [python]
         pass_filenames: false
+        always_run: true
         require_serial: true
         stages: [pre-push]
 

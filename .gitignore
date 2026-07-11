@@ -26,3 +26,6 @@ node_modules/
 web/dist/
 coverage/
 *.tsbuildinfo
+
+# ci_mirror.sh cached requirements.txt venv (rebuilt on demand)
+.ci-mirror-venv/
