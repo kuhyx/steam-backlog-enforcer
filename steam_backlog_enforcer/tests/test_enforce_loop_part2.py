@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import patch
+
+import pytest
 
 from steam_backlog_enforcer._enforce_loop import (
     _enforce_loop_iteration,
@@ -10,11 +13,25 @@ from steam_backlog_enforcer._enforce_loop import (
 )
 from steam_backlog_enforcer.config import Config, State
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 PKG = "steam_backlog_enforcer._enforce_loop"
 
 
 class TestEnforceLoopIteration:
     """Tests for _enforce_loop_iteration."""
+
+    @pytest.fixture(autouse=True)
+    def _steam_present(self) -> Iterator[None]:
+        """Pretend Steam is installed for every test in this class.
+
+        The iteration short-circuits when it is not, which on a test machine
+        without Steam would silently make every assertion below vacuous. The
+        absent case is covered explicitly by test_skips_when_steam_absent.
+        """
+        with patch(f"{PKG}.steam_is_installed", return_value=True):
+            yield
 
     def test_kills_unauthorized(self) -> None:
         config = Config(
@@ -71,6 +88,31 @@ class TestEnforceLoopIteration:
         ):
             _enforce_loop_iteration(config, state)
 
+    def test_skips_when_steam_absent(self) -> None:
+        """With Steam uninstalled the iteration must do nothing.
+
+        Regression guard: this path used to try to write an appmanifest into
+        a steamapps directory a total block had deleted, erroring every 3s.
+        """
+        config = Config(
+            kill_unauthorized_games=True,
+            uninstall_other_games=True,
+        )
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.steam_is_installed", return_value=False),
+            patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
+            patch(f"{PKG}._guard_installed_games") as mock_guard,
+            patch(f"{PKG}.is_game_installed") as mock_installed,
+            patch(f"{PKG}.install_game") as mock_install,
+        ):
+            _enforce_loop_iteration(config, state)
+
+        mock_enforce.assert_not_called()
+        mock_guard.assert_not_called()
+        mock_installed.assert_not_called()
+        mock_install.assert_not_called()
+
     def test_reinstalls_missing(self) -> None:
         config = Config(
             kill_unauthorized_games=False,
@@ -104,10 +146,47 @@ class TestEnforceLoopIteration:
 class TestDoEnforce:
     """Tests for do_enforce."""
 
+    @pytest.fixture(autouse=True)
+    def _steam_present(self) -> Iterator[None]:
+        """Pretend Steam is installed for every test in this class.
+
+        Without it do_enforce takes the "not installed" branch and never
+        reaches the normal enforcement path these tests are about. The
+        absent case is covered by test_steam_absent_idles_without_setup,
+        which opts back out.
+        """
+        with patch(f"{PKG}.steam_is_installed", return_value=True):
+            yield
+
     def test_no_game(self) -> None:
         with patch(f"{PKG}._echo") as mock_echo:
             do_enforce(Config(), State())
             assert any("No game" in str(c) for c in mock_echo.call_args_list)
+
+    def test_steam_absent_idles_without_setup(self) -> None:
+        """With Steam gone, say so and keep looping - never exit.
+
+        Returning here would end the process, and under Restart=always that
+        is the crash loop again by another name. Staying alive also lets a
+        later reinstall be picked up without a restart.
+        """
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.is_total_block_active", return_value=False),
+            patch(f"{PKG}.steam_is_installed", return_value=False),
+            patch(f"{PKG}._enforce_setup") as mock_setup,
+            patch(f"{PKG}._echo") as mock_echo,
+            patch.object(State, "load", return_value=state),
+            patch(
+                f"{PKG}._enforce_loop_iteration",
+                side_effect=KeyboardInterrupt,
+            ),
+            patch(f"{PKG}.time.sleep"),
+        ):
+            do_enforce(Config(), state)
+
+        mock_setup.assert_not_called()
+        assert any("not installed" in str(c) for c in mock_echo.call_args_list)
 
     def test_keyboard_interrupt(self) -> None:
         state = State(current_app_id=1, current_game_name="G")

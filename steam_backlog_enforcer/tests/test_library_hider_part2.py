@@ -7,17 +7,88 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 from steam_backlog_enforcer.library_hider import (
+    _SPAWNED,
+    _reap_spawned,
     _run_as_user,
     hide_other_games,
     restart_steam,
+    steam_is_installed,
     unhide_all_games,
 )
 
 PKG = "steam_backlog_enforcer.library_hider"
 
 
+class TestSteamIsInstalled:
+    """Tests for steam_is_installed."""
+
+    def test_true_when_binary_exists(self) -> None:
+        with patch(f"{PKG}.Path") as mock_path:
+            mock_path.return_value.exists.return_value = True
+            assert steam_is_installed() is True
+
+    def test_false_when_binary_missing(self) -> None:
+        with patch(f"{PKG}.Path") as mock_path:
+            mock_path.return_value.exists.return_value = False
+            assert steam_is_installed() is False
+
+    def test_checks_real_binary_not_path_lookup(self) -> None:
+        """Must probe the real binary, never a $PATH lookup.
+
+        A launcher wrapper on $PATH keeps `which steam` truthy long after the
+        package is uninstalled - which is exactly how a dead Steam went on
+        looking installed and got launched ~1000 times.
+        """
+        with patch(f"{PKG}.Path") as mock_path:
+            mock_path.return_value.exists.return_value = False
+            steam_is_installed()
+        mock_path.assert_called_once_with("/usr/bin/steam")
+
+
+class TestReapSpawned:
+    """Tests for _reap_spawned."""
+
+    def test_drops_exited_processes(self) -> None:
+        """An exited launch must be reaped so its name stops showing in /proc.
+
+        This is the zombie that focus-mode read as a live Steam.
+        """
+        dead = MagicMock()
+        dead.poll.return_value = 1
+        _SPAWNED[:] = [dead]
+        try:
+            _reap_spawned()
+            assert _SPAWNED == []
+        finally:
+            _SPAWNED.clear()
+
+    def test_keeps_running_processes(self) -> None:
+        """A Steam that is still alive must not be dropped from tracking."""
+        alive = MagicMock()
+        alive.poll.return_value = None
+        _SPAWNED[:] = [alive]
+        try:
+            _reap_spawned()
+            assert [alive] == _SPAWNED
+        finally:
+            _SPAWNED.clear()
+
+
 class TestRunAsUser:
     """Tests for _run_as_user."""
+
+    def test_tracks_spawned_process_for_reaping(self) -> None:
+        """Every launch must be tracked, or it can never be reaped."""
+        _SPAWNED.clear()
+        with (
+            patch(f"{PKG}.os.geteuid", return_value=1000),
+            patch(f"{PKG}.subprocess.Popen") as mock_popen,
+        ):
+            _run_as_user(["steam"], "alice")
+            try:
+                assert [mock_popen.return_value] == _SPAWNED
+            finally:
+                _SPAWNED.clear()
 
     def test_non_root_runs_directly(self) -> None:
         with (

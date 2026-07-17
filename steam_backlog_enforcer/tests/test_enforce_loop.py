@@ -16,6 +16,7 @@ from steam_backlog_enforcer._enforce_loop import (
     get_all_owned_app_ids,
 )
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.library_hider import SteamUnavailableError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -371,3 +372,23 @@ class TestEnforceHideGames:
         ):
             _enforce_hide_games(Config(), state)
             assert any("skipped" in str(c) for c in mock_echo.call_args_list)
+
+    def test_unreachable_steam_is_not_fatal(self) -> None:
+        """An unreachable Steam must degrade, never propagate.
+
+        Regression guard: this exception used to escape all the way out of
+        do_enforce, exiting the process into Restart=always - which spun the
+        service through ~1000 restarts against an uninstalled Steam.
+        """
+        state = State(current_app_id=1)
+        with (
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
+            patch(
+                f"{PKG}.hide_other_games",
+                side_effect=SteamUnavailableError("Steam is not installed"),
+            ),
+            patch(f"{PKG}._echo") as mock_echo,
+        ):
+            _enforce_hide_games(Config(), state)
+
+        assert any("skipped" in str(c) for c in mock_echo.call_args_list)

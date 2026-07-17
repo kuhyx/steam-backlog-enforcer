@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from steam_backlog_enforcer.library_hider import (
+    SteamUnavailableError,
     _cdp_result_value,
     _evaluate_js,
     _evaluate_js_async,
@@ -21,6 +23,9 @@ from steam_backlog_enforcer.library_hider import (
     _wait_for_collections_ready,
     ensure_steam_debug_port,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class TestGetSharedJsWsUrl:
@@ -317,6 +322,44 @@ class TestLaunchSteamWithDebug:
 
 class TestEnsureSteamDebugPort:
     """Tests for ensure_steam_debug_port."""
+
+    @pytest.fixture(autouse=True)
+    def _steam_present(self) -> Iterator[None]:
+        """Pretend Steam is installed for every test in this class.
+
+        Without it the function raises before reaching any launch logic,
+        which on a test machine without Steam would make the cases below
+        vacuous. The absent case has its own test.
+        """
+        with patch(
+            "steam_backlog_enforcer.library_hider.steam_is_installed",
+            return_value=True,
+        ):
+            yield
+
+    def test_raises_when_steam_absent(self) -> None:
+        """An uninstalled Steam must fail fast, before any launch attempt.
+
+        Regression guard: without this the caller spent ~45s waiting on a
+        CDP port that no process was ever going to open.
+        """
+        with (
+            patch(
+                "steam_backlog_enforcer.library_hider._steam_has_debug_port",
+                return_value=False,
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.steam_is_installed",
+                return_value=False,
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider._launch_steam_with_debug",
+            ) as mock_launch,
+            pytest.raises(SteamUnavailableError, match="not installed"),
+        ):
+            ensure_steam_debug_port()
+
+        mock_launch.assert_not_called()
 
     def test_already_available(self) -> None:
         with patch(

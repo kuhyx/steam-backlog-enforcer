@@ -37,7 +37,11 @@ from steam_backlog_enforcer.game_install import (
     uninstall_game,
     uninstall_other_games,
 )
-from steam_backlog_enforcer.library_hider import hide_other_games
+from steam_backlog_enforcer.library_hider import (
+    SteamUnavailableError,
+    hide_other_games,
+    steam_is_installed,
+)
 from steam_backlog_enforcer.steam_api import SteamAPIClient
 from steam_backlog_enforcer.store_blocker import block_store
 
@@ -232,14 +236,26 @@ def _enforce_hide_games(config: Config, state: State) -> None:
         state: Current enforcer state.
     """
     owned_ids = get_all_owned_app_ids(config)
-    if owned_ids:
-        hidden = hide_other_games(owned_ids, state.current_app_id)
-        if hidden > 0:
-            _echo(f"  Library: hid {hidden} games (only assigned game visible)")
-        else:
-            _echo("  Library: games already hidden")
-    else:
+    if not owned_ids:
         _echo("  Library hiding: skipped (no owned game list — run 'scan' first)")
+        return
+
+    # An unreachable Steam is not fatal: with no client there is no library to
+    # hide, and everything else the enforcer does (store block, install guard)
+    # still works. Letting this escape used to exit(1) into Restart=always,
+    # which spun the service through ~1000 restarts against a Steam that had
+    # been uninstalled - each attempt leaving a dead process named "steam"
+    # behind that /proc scanners misread as a live Steam.
+    try:
+        hidden = hide_other_games(owned_ids, state.current_app_id)
+    except SteamUnavailableError as exc:
+        _echo(f"  Library hiding: skipped ({exc})")
+        return
+
+    if hidden > 0:
+        _echo(f"  Library: hid {hidden} games (only assigned game visible)")
+    else:
+        _echo("  Library: games already hidden")
 
 
 def _enforce_loop_iteration(config: Config, state: State) -> None:
@@ -258,6 +274,14 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
 
     if total_block_needs_cleanup():
         end_total_block_cleanup()
+
+    # With no Steam client there is no library, no installs and no game
+    # processes, so every branch below is a no-op at best - and at worst a
+    # 3s-interval error loop trying to write manifests into a steamapps
+    # directory that a total block deleted. The total-block tick above still
+    # runs: keeping Steam uninstalled is exactly what it is for.
+    if not steam_is_installed():
+        return
 
     if state.current_app_id is None:
         return
@@ -315,6 +339,13 @@ def do_enforce(config: Config, state: State) -> None:
     elif state.current_app_id is None:
         _echo("No game assigned. Run 'scan' first.")
         return
+    elif not steam_is_installed():
+        # Fall through to the idle loop rather than returning: returning exits
+        # the process, and under Restart=always that is just the crash loop
+        # again by another name. Staying alive also means a later Steam
+        # reinstall is picked up without needing a restart.
+        _echo("Steam is not installed — nothing to enforce.")
+        _echo("  (Reinstall Steam to resume backlog enforcement.)")
     else:
         _echo(f"Enforcing: {state.current_game_name} (AppID={state.current_app_id})")
         _enforce_setup(config, state)

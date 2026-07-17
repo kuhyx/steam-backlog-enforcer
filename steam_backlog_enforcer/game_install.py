@@ -14,6 +14,7 @@ import sys
 import time
 
 from steam_backlog_enforcer._whitelist import get_approved_exception_ids
+from steam_backlog_enforcer.library_hider import steam_is_installed
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,15 @@ def is_game_installed(app_id: int) -> bool:
 
 
 def _ensure_steam_running() -> None:
-    """Start the Steam client if it is not already running."""
+    """Start the Steam client if it is not already running.
+
+    Does nothing if Steam is not installed - there is no client to start, and
+    trying anyway only sleeps 15s waiting on a process that died on exec.
+    """
+    if not steam_is_installed():
+        logger.info("Steam is not installed — skipping client start.")
+        return
+
     # Check if any steam process is running (main client, not just helpers).
     try:
         result = subprocess.run(

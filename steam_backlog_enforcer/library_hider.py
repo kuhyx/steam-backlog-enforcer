@@ -20,6 +20,7 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import pwd
 import shutil
 import subprocess
@@ -33,6 +34,33 @@ logger = logging.getLogger(__name__)
 _CDP_PORT = 8080
 _CDP_TIMEOUT = 120
 _STEAM_STARTUP_WAIT = 45
+
+# Real Steam client binary, as shipped by the distro's `steam` package.
+#
+# Deliberately NOT probed with shutil.which("steam"): a launcher wrapper on
+# $PATH (e.g. /usr/local/bin/steam adding -cef-* flags) keeps `which` truthy
+# long after the package itself is gone - as happens when a total block
+# uninstalls Steam. Checking the real binary is what actually answers
+# "can we launch Steam at all?".
+_STEAM_BINARY = "/usr/bin/steam"
+
+# Handles for fire-and-forget launches, kept only so they can be reaped.
+_SPAWNED: list[subprocess.Popen[bytes]] = []
+
+
+class SteamUnavailableError(RuntimeError):
+    """Raised when Steam cannot be driven over CDP.
+
+    Covers both "Steam is not installed" and "Steam is installed but never
+    opened its debug port". Callers are expected to degrade gracefully rather
+    than abort: an unreachable Steam means there is no library to hide, which
+    is not a fatal condition for the enforcer.
+    """
+
+
+def steam_is_installed() -> bool:
+    """Return True if the real Steam client binary is present."""
+    return Path(_STEAM_BINARY).exists()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -194,10 +222,21 @@ def ensure_steam_debug_port() -> None:
 
     If Steam is running without the port, it is restarted.
     If Steam is not running, it is launched.
+
+    Raises:
+        SteamUnavailableError: If Steam is not installed, or is installed but
+            never opens its debug port.
     """
     if _steam_has_debug_port():
         logger.debug("Steam CDP port already available.")
         return
+
+    # Bail out before the ~45s launch-and-wait: with no binary to exec there
+    # is nothing to wait for, and retrying every pass only burns time and
+    # leaves dead processes behind.
+    if not steam_is_installed():
+        msg = f"Steam is not installed ({_STEAM_BINARY} does not exist)"
+        raise SteamUnavailableError(msg)
 
     logger.info("Steam CDP port not available — (re)starting Steam...")
     if _is_steam_running():
@@ -207,12 +246,12 @@ def ensure_steam_debug_port() -> None:
 
     if not _wait_for_cdp_ready():
         msg = "Timed out waiting for Steam CDP port to become ready"
-        raise RuntimeError(msg)
+        raise SteamUnavailableError(msg)
     logger.info("Steam CDP port ready.")
 
     if not _wait_for_collections_ready():
         msg = "Timed out waiting for Steam collections to initialise"
-        raise RuntimeError(msg)
+        raise SteamUnavailableError(msg)
     logger.info("Steam collection store ready.")
 
 
@@ -355,8 +394,21 @@ def restart_steam() -> None:
         logger.info("Steam restarted with CDP port ready.")
 
 
+def _reap_spawned() -> None:
+    """Clear out previously launched processes that have since exited.
+
+    Launches here are fire-and-forget: Steam is meant to outlive the call, so
+    it is never waited on. That leaves any launch which dies immediately - a
+    missing binary, a broken wrapper - sitting as a zombie that still carries
+    the name ``steam``, which anything scanning /proc reads as "Steam is
+    running". Polling the old handles reaps them and retires the name.
+    """
+    _SPAWNED[:] = [proc for proc in _SPAWNED if proc.poll() is None]
+
+
 def _run_as_user(cmd: list[str], user: str | None) -> None:
     """Run a command, dropping to *user* if currently root."""
+    _reap_spawned()
     if os.geteuid() == 0 and user and user != "root":
         try:
             pw = pwd.getpwnam(user)
@@ -380,8 +432,10 @@ def _run_as_user(cmd: list[str], user: str | None) -> None:
     else:
         full_cmd = cmd
 
-    subprocess.Popen(
-        full_cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+    _SPAWNED.append(
+        subprocess.Popen(
+            full_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     )

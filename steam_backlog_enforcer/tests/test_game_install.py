@@ -19,6 +19,7 @@ from steam_backlog_enforcer.game_install import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 
@@ -182,6 +183,33 @@ class TestIsGameInstalled:
 
 class TestEnsureSteamRunning:
     """Tests for _ensure_steam_running."""
+
+    @pytest.fixture(autouse=True)
+    def _steam_present(self) -> Iterator[None]:
+        """Pretend Steam is installed for every test in this class.
+
+        Without it the function returns before any launch, which on a test
+        machine without Steam would make the launch assertions vacuous. The
+        absent case is covered by test_skips_when_steam_absent.
+        """
+        with patch(f"{PKG}.steam_is_installed", return_value=True):
+            yield
+
+    def test_skips_when_steam_absent(self) -> None:
+        """With Steam uninstalled, do not try to launch a missing client.
+
+        Regression guard: this path used to exec a dead launcher wrapper and
+        then sleep 15s, leaving a zombie named "steam" behind each time.
+        """
+        with (
+            patch(f"{PKG}.steam_is_installed", return_value=False),
+            patch(f"{PKG}.subprocess.Popen") as mock_popen,
+            patch(f"{PKG}.time.sleep") as mock_sleep,
+        ):
+            _ensure_steam_running()
+
+        mock_popen.assert_not_called()
+        mock_sleep.assert_not_called()
 
     def test_already_running(self) -> None:
         mock_result = MagicMock(returncode=0)
