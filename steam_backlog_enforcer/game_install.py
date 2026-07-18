@@ -60,11 +60,18 @@ def _echo(msg: str = "", *, end: str = "\n", flush: bool = False) -> None:
 
 # Steam infrastructure app IDs that should NEVER be uninstalled.
 PROTECTED_APP_IDS = {
+    # Steam runtimes and tooling (never uninstall these)
     228980,  # Steamworks Common Redistributables
     1070560,  # Steam Linux Runtime 1.0 (scout)
     1391110,  # Steam Linux Runtime 2.0 (soldier)
     1628350,  # Steam Linux Runtime 3.0 (sniper)
+    4183110, # Steam Linux Runtime 4.0
+    4185400, # Steam Linux Runtime 4.0 - Arm64
     961940,  # Steam Linux Runtime (legacy)
+    4690330, # Legacy Steam Runtime
+    613220, # Steam 360 Video Player
+    250820, # SteamVR
+    1007, # Steamworks SDK Redist
     # Proton versions (never uninstall these)
     858280,  # Proton 3.7 (Beta)
     930400,  # Proton 3.16 (Beta)
@@ -79,10 +86,13 @@ PROTECTED_APP_IDS = {
     2805730,  # Proton 9.0
     3201940,  # Proton 9.0 (alt)
     3658110,  # Proton 10.0
+    4628710,  # Proton 11.0
+    4628740,  # Proton 11.0 (ARM64)
     2180100,  # Proton Hotfix
     1493710,  # Proton Experimental
     1161040,  # Proton BattlEye Runtime
     1007020,  # Proton EasyAntiCheat Runtime
+    1826330,  # Proton EasyAntiCheat Runtime
 }
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
