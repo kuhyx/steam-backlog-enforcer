@@ -65,13 +65,13 @@ PROTECTED_APP_IDS = {
     1070560,  # Steam Linux Runtime 1.0 (scout)
     1391110,  # Steam Linux Runtime 2.0 (soldier)
     1628350,  # Steam Linux Runtime 3.0 (sniper)
-    4183110, # Steam Linux Runtime 4.0
-    4185400, # Steam Linux Runtime 4.0 - Arm64
+    4183110,  # Steam Linux Runtime 4.0
+    4185400,  # Steam Linux Runtime 4.0 - Arm64
     961940,  # Steam Linux Runtime (legacy)
-    4690330, # Legacy Steam Runtime
-    613220, # Steam 360 Video Player
-    250820, # SteamVR
-    1007, # Steamworks SDK Redist
+    4690330,  # Legacy Steam Runtime
+    613220,  # Steam 360 Video Player
+    250820,  # SteamVR
+    1007,  # Steamworks SDK Redist
     # Proton versions (never uninstall these)
     858280,  # Proton 3.7 (Beta)
     930400,  # Proton 3.16 (Beta)
