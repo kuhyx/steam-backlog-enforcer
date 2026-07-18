@@ -12,6 +12,8 @@ RestartSec=5
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONPATH=/opt/steam-backlog-enforcer
 Environment=HOME=/home/kuhy
+Environment=STEAM_ENFORCER_DESKTOP_USER=__DESKTOP_USER__
+Environment=DISPLAY=:0
 # Hardening: enforcer must not be easily killed.
 OOMScoreAdjust=-900
 

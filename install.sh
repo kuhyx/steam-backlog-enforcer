@@ -43,8 +43,14 @@ if [[ "${ans,,}" == "y" ]]; then
     SERVICE_SRC="$SCRIPT_DIR/steam-backlog-enforcer.service"
     SERVICE_DST="/etc/systemd/system/steam-backlog-enforcer.service"
 
-    # Set the correct working directory and PYTHONPATH in the service file.
-    sed "s|WorkingDirectory=.*|WorkingDirectory=$SCRIPT_DIR|; s|PYTHONPATH=.*|PYTHONPATH=$SCRIPT_DIR|" \
+    # Set the correct working directory, PYTHONPATH, and desktop user (the
+    # user whose Steam/X11 session the service should drive) in the service
+    # file. install.sh requires root, so it's invoked via `sudo` and
+    # SUDO_USER holds the real desktop user.
+    DESKTOP_USER="${SUDO_USER:-$USER}"
+    sed "s|WorkingDirectory=.*|WorkingDirectory=$SCRIPT_DIR|; \
+         s|PYTHONPATH=.*|PYTHONPATH=$SCRIPT_DIR|; \
+         s|__DESKTOP_USER__|$DESKTOP_USER|" \
         "$SERVICE_SRC" > "$SERVICE_DST"
 
     systemctl daemon-reload

@@ -31,7 +31,12 @@ import websockets
 
 logger = logging.getLogger(__name__)
 
-_CDP_PORT = 8080
+_CDP_PORT = 9222
+# NOTE: was 8080, which collided with a different local service (Open WebUI)
+# already bound to 0.0.0.0:8080. requests to 127.0.0.1:8080 resolved to that
+# service instead of steamwebhelper's CDP endpoint (which only bound
+# [::1]:8080), so CDP detection silently never worked. 9222 is the
+# conventional Chrome DevTools debug port and was confirmed free.
 _CDP_TIMEOUT = 120
 _STEAM_STARTUP_WAIT = 45
 
@@ -183,9 +188,24 @@ def _wait_for_collections_ready() -> bool:
     return False
 
 
+def _resolve_desktop_user() -> str | None:
+    """Resolve which desktop user owns the Steam/X11 session.
+
+    Prefers the explicit STEAM_ENFORCER_DESKTOP_USER (set by the systemd
+    unit, which has no SUDO_USER/USER of its own since it is started
+    directly by systemd rather than via `sudo`), then falls back to
+    SUDO_USER/USER for interactive `sudo` invocations.
+    """
+    return (
+        os.environ.get("STEAM_ENFORCER_DESKTOP_USER")
+        or os.environ.get("SUDO_USER")
+        or os.environ.get("USER")
+    )
+
+
 def _shutdown_steam() -> None:
     """Send ``steam -shutdown`` and wait for the process to exit."""
-    real_user = os.environ.get("SUDO_USER") or os.environ.get("USER")
+    real_user = _resolve_desktop_user()
     try:
         _run_as_user(["steam", "-shutdown"], real_user)
     except FileNotFoundError:
@@ -205,7 +225,7 @@ def _shutdown_steam() -> None:
 
 def _launch_steam_with_debug() -> None:
     """Launch Steam with CEF debugging enabled."""
-    real_user = os.environ.get("SUDO_USER") or os.environ.get("USER")
+    real_user = _resolve_desktop_user()
     _run_as_user(
         [
             "steam",

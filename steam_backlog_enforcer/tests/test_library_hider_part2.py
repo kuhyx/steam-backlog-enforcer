@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from steam_backlog_enforcer.library_hider import (
     _SPAWNED,
     _reap_spawned,
+    _resolve_desktop_user,
     _run_as_user,
     hide_other_games,
     restart_steam,
@@ -17,6 +18,48 @@ from steam_backlog_enforcer.library_hider import (
 )
 
 PKG = "steam_backlog_enforcer.library_hider"
+
+
+class TestResolveDesktopUser:
+    """Tests for _resolve_desktop_user."""
+
+    def test_prefers_steam_enforcer_desktop_user(self) -> None:
+        """The systemd unit's explicit var wins over SUDO_USER/USER."""
+        with patch.dict(
+            os.environ,
+            {
+                "STEAM_ENFORCER_DESKTOP_USER": "kuhy",
+                "SUDO_USER": "someone_else",
+                "USER": "root",
+            },
+        ):
+            assert _resolve_desktop_user() == "kuhy"
+
+    def test_falls_back_to_sudo_user(self) -> None:
+        """Interactive `sudo` invocations have no explicit var set."""
+        env = os.environ.copy()
+        env.pop("STEAM_ENFORCER_DESKTOP_USER", None)
+        env["SUDO_USER"] = "alice"
+        env["USER"] = "root"
+        with patch.dict(os.environ, env, clear=True):
+            assert _resolve_desktop_user() == "alice"
+
+    def test_falls_back_to_user(self) -> None:
+        """A direct, non-sudo invocation has neither var set."""
+        env = os.environ.copy()
+        env.pop("STEAM_ENFORCER_DESKTOP_USER", None)
+        env.pop("SUDO_USER", None)
+        env["USER"] = "kuhy"
+        with patch.dict(os.environ, env, clear=True):
+            assert _resolve_desktop_user() == "kuhy"
+
+    def test_returns_none_when_nothing_set(self) -> None:
+        env = os.environ.copy()
+        env.pop("STEAM_ENFORCER_DESKTOP_USER", None)
+        env.pop("SUDO_USER", None)
+        env.pop("USER", None)
+        with patch.dict(os.environ, env, clear=True):
+            assert _resolve_desktop_user() is None
 
 
 class TestSteamIsInstalled:
