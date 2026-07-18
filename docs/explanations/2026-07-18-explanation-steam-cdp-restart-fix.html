@@ -1,0 +1,641 @@
+<meta charset="utf-8">
+<title>Fix: Steam CDP restart never worked</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1d21;
+    --muted: #5b6470;
+    --card: #f4f6f8;
+    --border: #dde1e6;
+    --accent: #2f6fed;
+    --accent-fg: #ffffff;
+    --good: #1a7f37;
+    --bad: #cf222e;
+    --code-bg: #0f172a;
+    --code-fg: #e2e8f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --fg: #e6e9ec;
+      --muted: #9aa4b2;
+      --card: #1c2126;
+      --border: #2b3138;
+      --accent: #6ea8ff;
+      --accent-fg: #0b1220;
+      --good: #56d364;
+      --bad: #ff7b72;
+      --code-bg: #0b1020;
+      --code-fg: #dbe4f3;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --fg: #e6e9ec; --muted: #9aa4b2; --card: #1c2126;
+    --border: #2b3138; --accent: #6ea8ff; --accent-fg: #0b1220;
+    --good: #56d364; --bad: #ff7b72; --code-bg: #0b1020; --code-fg: #dbe4f3;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #5b6470; --card: #f4f6f8;
+    --border: #dde1e6; --accent: #2f6fed; --accent-fg: #ffffff;
+    --good: #1a7f37; --bad: #cf222e; --code-bg: #0f172a; --code-fg: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+  }
+  .wrap {
+    max-width: min(48rem, 92vw);
+    margin: 0 auto;
+    padding: 1.5rem 0 6rem;
+  }
+  header.hero {
+    padding: 2rem 0 1rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1rem;
+  }
+  header.hero h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
+  header.hero p.sub { color: var(--muted); margin: 0; font-size: 0.98rem; }
+  nav.toc {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0.6rem 0;
+    margin-bottom: 1.5rem;
+    display: flex; gap: 0.4rem; flex-wrap: wrap;
+  }
+  nav.toc a {
+    color: var(--fg);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+  nav.toc a:hover { border-color: var(--accent); color: var(--accent); }
+  section { margin: 2.5rem 0; }
+  h2 { font-size: 1.3rem; border-left: 4px solid var(--accent); padding-left: 0.6rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.6rem; }
+  p { margin: 0.8rem 0; }
+  .muted { color: var(--muted); }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--card);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; }
+  .diff-add { color: #7ee787; }
+  .diff-del { color: #ff9b9b; }
+  .diff-ctx { color: var(--code-fg); opacity: 0.75; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+  }
+  .card h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+  .flow {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    margin: 1.2rem 0;
+  }
+  .flow .step {
+    display: flex; align-items: center; gap: 0.7rem;
+  }
+  .box {
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 8px;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.85rem;
+    flex: 1;
+  }
+  .box.accent { border-color: var(--accent); }
+  .box.good { border-color: var(--good); }
+  .box.bad { border-color: var(--bad); }
+  .arrow-down {
+    text-align: center; color: var(--muted); font-size: 1.1rem; margin: -0.15rem 0;
+  }
+  .compare {
+    display: grid; grid-template-columns: 1fr; gap: 1rem;
+    margin: 1.2rem 0;
+  }
+  @media (min-width: 640px) { .compare { grid-template-columns: 1fr 1fr; } }
+  .path-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem; }
+  .verdict {
+    margin-top: 0.6rem; font-size: 0.82rem; font-weight: 600;
+    padding: 0.3rem 0.6rem; border-radius: 6px; display: inline-block;
+  }
+  .verdict.good { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
+  .verdict.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .ports {
+    display: grid; grid-template-columns: 1fr; gap: 0.8rem; margin: 1.2rem 0;
+  }
+  @media (min-width: 640px) { .ports { grid-template-columns: 1fr 1fr; } }
+  .port-box {
+    border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem;
+    background: var(--card); font-size: 0.85rem;
+  }
+  .port-box .label { font-weight: 600; margin-bottom: 0.3rem; }
+  .port-box .addr { font-family: ui-monospace, monospace; font-size: 0.82rem; color: var(--muted); }
+  .request-line {
+    text-align: center; margin: 0.8rem 0; font-family: ui-monospace, monospace;
+    font-size: 0.85rem; background: var(--card); border: 1px dashed var(--border);
+    border-radius: 8px; padding: 0.6rem;
+  }
+  .hits { color: var(--bad); font-weight: 700; }
+  .misses { color: var(--muted); }
+
+  /* micro-world */
+  .playground {
+    border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem;
+    background: var(--card); margin: 1.2rem 0;
+  }
+  .pg-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.6rem; align-items: center; }
+  .pg-row label { font-size: 0.82rem; width: 12rem; flex-shrink: 0; }
+  .pg-row input {
+    flex: 1; min-width: 8rem; padding: 0.4rem 0.6rem; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, monospace; font-size: 0.85rem;
+  }
+  .pg-presets { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.8rem 0; }
+  .pg-presets button, .quiz button.reset {
+    border: 1px solid var(--accent); color: var(--accent); background: transparent;
+    padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.8rem; cursor: pointer;
+  }
+  .pg-presets button:hover { background: var(--accent); color: var(--accent-fg); }
+  .pg-result {
+    margin-top: 1rem; padding: 0.9rem; border-radius: 8px; font-family: ui-monospace, monospace;
+    font-size: 0.88rem; background: var(--bg); border: 1px solid var(--border);
+  }
+  .pg-result .winner { font-weight: 700; }
+  .pg-result .winner.none { color: var(--bad); }
+  .pg-result .winner.set { color: var(--good); }
+  .pg-chain { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; font-size: 0.78rem; }
+  .pg-chain span {
+    padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .pg-chain span.active { border-color: var(--good); color: var(--good); font-weight: 600; }
+
+  /* quiz */
+  .quiz-q { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem; margin: 1.2rem 0; background: var(--card); }
+  .quiz-q h4 { margin: 0 0 0.8rem; font-size: 0.95rem; }
+  .quiz-opts { display: flex; flex-direction: column; gap: 0.5rem; }
+  .quiz-opt {
+    text-align: left; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font-size: 0.85rem; cursor: pointer;
+  }
+  .quiz-opt:hover { border-color: var(--accent); }
+  .quiz-opt.correct { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--bg)); }
+  .quiz-opt.incorrect { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--bg)); }
+  .quiz-opt.disabled { cursor: default; }
+  .rationale { margin-top: 0.6rem; font-size: 0.82rem; color: var(--muted); display: none; }
+  .rationale.shown { display: block; }
+  .quiz-score {
+    position: sticky; bottom: 0.8rem; float: right;
+    background: var(--accent); color: var(--accent-fg);
+    padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <h1>Why the enforcer could never actually restart Steam</h1>
+    <p class="sub">Explaining commit <code>00a08de</code> in <code>steam-backlog-enforcer</code> — two independent, silent bugs that together made the CDP restart path a no-op.</p>
+  </header>
+
+  <nav class="toc">
+    <a href="#background">Background</a>
+    <a href="#intuition">Intuition</a>
+    <a href="#code">Code</a>
+    <a href="#quiz">Quiz</a>
+  </nav>
+
+  <section id="background">
+    <h2>Background</h2>
+    <p>
+      Modern Steam clients don't store your library's "hidden games" list in a config file you
+      can just edit — it lives inside an in-memory JavaScript object called
+      <code>collectionStore</code>, running inside Steam's embedded Chromium browser (CEF).
+      The only way in is <strong>CDP</strong>, the Chrome DevTools Protocol: the same debugging
+      channel a browser dev-tools panel uses, exposed locally as a small HTTP + WebSocket server.
+    </p>
+    <p>
+      <code>library_hider.py</code> is the module that speaks this protocol. At a high level:
+    </p>
+    <div class="flow">
+      <div class="step"><div class="box accent">Enforcer process (often running as <strong>root</strong>, for other privileged jobs like editing <code>/etc/hosts</code>)</div></div>
+      <div class="arrow-down">↓ needs Steam started with special flags</div>
+      <div class="step"><div class="box">Steam client, launched with <code>-cef-enable-debugging -devtools-port=&lt;PORT&gt;</code></div></div>
+      <div class="arrow-down">↓ opens a local debug endpoint</div>
+      <div class="step"><div class="box">CDP HTTP server: <code>GET http://127.0.0.1:&lt;PORT&gt;/json</code> → list of debuggable pages</div></div>
+      <div class="arrow-down">↓ find the page titled "SharedJSContext"</div>
+      <div class="step"><div class="box good">WebSocket → evaluate JS → <code>collectionStore.SetAppsAsHidden(...)</code></div></div>
+    </div>
+    <p>
+      The function that stitches this together is <code>ensure_steam_debug_port()</code>: if the
+      CDP port isn't reachable, it shuts Steam down and relaunches it with the right flags, then
+      polls for up to 45 seconds waiting for the port (and later the collection store) to come up.
+    </p>
+    <p>
+      There's a wrinkle: Steam is a <em>desktop</em> app — it needs a real X11 display, and it
+      will not behave sensibly if launched as <code>root</code> with no graphical session attached.
+      But the enforcer sometimes <em>is</em> root, because other parts of it (blocking the Steam
+      store in <code>/etc/hosts</code>, killing unauthorized processes) genuinely need root. So
+      <code>library_hider.py</code> has a helper, <code>_run_as_user()</code>, whose whole job is:
+      "if I'm root, drop down to the real desktop user before launching Steam."
+    </p>
+    <p class="muted">
+      This is the piece that turned out to be broken — not because its logic was wrong, but
+      because the information it depended on was never there in the first place.
+    </p>
+  </section>
+
+  <section id="intuition">
+    <h2>Intuition</h2>
+    <p>
+      This fix addresses <strong>two separate bugs</strong> that each independently guaranteed
+      Steam's CDP port would never be reachable. Fixing only one would not have been enough —
+      both had to go.
+    </p>
+
+    <h3>Bug 1 — nobody told the systemd service who the desktop user was</h3>
+    <p>
+      <code>_run_as_user()</code> decides whether to drop root privileges by checking two
+      environment variables: <code>SUDO_USER</code> and <code>USER</code>. Both are only ever
+      populated by one specific launch path — running the command interactively through
+      <code>sudo</code>. The systemd service takes an entirely different path: <code>systemd</code>
+      forks the process directly as root, with no <code>sudo</code> involved anywhere.
+    </p>
+    <div class="compare">
+      <div class="card">
+        <div class="path-title">Path A — interactive, via <code>sudo</code></div>
+        <p class="muted" style="margin-top:0">
+          <code>sudo python3 -m ... enforce</code>
+        </p>
+        <div class="flow">
+          <div class="step"><div class="box">sudo sets <code>SUDO_USER=kuhy</code></div></div>
+          <div class="arrow-down">↓</div>
+          <div class="step"><div class="box">geteuid()==0 and user="kuhy" → drop privileges</div></div>
+          <div class="arrow-down">↓</div>
+          <div class="step"><div class="box good">Steam launched as kuhy, with DISPLAY/XAUTHORITY/DBUS</div></div>
+        </div>
+        <span class="verdict good">CDP opens</span>
+      </div>
+      <div class="card">
+        <div class="path-title">Path B — systemd service (before this fix)</div>
+        <p class="muted" style="margin-top:0">
+          <code>ExecStart=python3 -m ... enforce</code>
+        </p>
+        <div class="flow">
+          <div class="step"><div class="box">No sudo anywhere → <code>SUDO_USER</code>, <code>USER</code> both unset</div></div>
+          <div class="arrow-down">↓</div>
+          <div class="step"><div class="box">geteuid()==0 but user=None → "user and user != root" is falsy</div></div>
+          <div class="arrow-down">↓</div>
+          <div class="step"><div class="box bad">Steam launched as bare root, no display session</div></div>
+        </div>
+        <span class="verdict bad">CDP never opens</span>
+      </div>
+    </div>
+    <p>
+      Live evidence this was really happening: <code>journalctl</code> showed the service crash-looping
+      on exactly this failure — <strong>over 1000 restarts</strong> — each cycle waiting the full
+      45 seconds, timing out, and trying again.
+    </p>
+
+    <h3>Bug 2 — the CDP port itself was already taken, just not obviously</h3>
+    <p>
+      Even after fixing bug 1, a live check turned up a second, independent problem: the code
+      hardcoded port <code>8080</code> for CDP, and this machine already had a different local
+      service — Open WebUI — bound to that exact port number. Yet neither process failed to
+      start with an "address already in use" error, which made this bug invisible until directly
+      observed.
+    </p>
+    <div class="ports">
+      <div class="port-box">
+        <div class="label">Open WebUI (pre-existing)</div>
+        <div class="addr">binds <strong>0.0.0.0:8080</strong></div>
+        <p class="muted" style="margin:0.4rem 0 0">All IPv4 interfaces, including <code>127.0.0.1</code></p>
+      </div>
+      <div class="port-box">
+        <div class="label">steamwebhelper (CDP)</div>
+        <div class="addr">binds <strong>[::1]:8080</strong></div>
+        <p class="muted" style="margin:0.4rem 0 0">IPv6 loopback <em>only</em> — a different address family</p>
+      </div>
+    </div>
+    <p>Both binds succeed, because they're on different address families. But the enforcer's request is IPv4-only:</p>
+    <div class="request-line">GET http://<strong>127.0.0.1</strong>:8080/json</div>
+    <p>
+      Every single request from <code>_get_shared_js_ws_url()</code> resolved to Open WebUI's page,
+      never to Steam's actual CDP target list — so the code always parsed the wrong HTML and
+      concluded "CDP not available," <strong>even while Steam's CDP endpoint was healthy</strong>.
+    </p>
+    <p>
+      The fix moves <code>_CDP_PORT</code> to <code>9222</code> — the conventional Chrome DevTools
+      debug port, confirmed unused on this machine — so there's no ambiguity about which service
+      answers the enforcer's request.
+    </p>
+
+    <h3>Play with it: who does <code>_resolve_desktop_user()</code> pick?</h3>
+    <p>
+      The new helper resolves the desktop user with a strict priority order. Try clearing and
+      setting the fields below (empty = unset) to see how the systemd fix and the old interactive
+      path both resolve correctly now — and what happens if all three are empty.
+    </p>
+    <div class="playground">
+      <div class="pg-row">
+        <label for="pg-a">STEAM_ENFORCER_DESKTOP_USER</label>
+        <input id="pg-a" type="text" placeholder="(unset)" />
+      </div>
+      <div class="pg-row">
+        <label for="pg-b">SUDO_USER</label>
+        <input id="pg-b" type="text" placeholder="(unset)" />
+      </div>
+      <div class="pg-row">
+        <label for="pg-c">USER</label>
+        <input id="pg-c" type="text" placeholder="(unset)" />
+      </div>
+      <div class="pg-presets">
+        <button type="button" onclick="pgPreset('systemd')">Preset: systemd (this fix)</button>
+        <button type="button" onclick="pgPreset('sudo')">Preset: interactive sudo</button>
+        <button type="button" onclick="pgPreset('broken')">Preset: before the fix</button>
+        <button type="button" onclick="pgPreset('clear')">Clear all</button>
+      </div>
+      <div class="pg-result" id="pg-result">
+        <div>_resolve_desktop_user() → <span class="winner" id="pg-winner">None</span></div>
+        <div class="pg-chain" id="pg-chain">
+          <span id="pg-chain-a">STEAM_ENFORCER_DESKTOP_USER</span>
+          <span id="pg-chain-b">SUDO_USER</span>
+          <span id="pg-chain-c">USER</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function pgResolve() {
+        const a = document.getElementById('pg-a').value.trim();
+        const b = document.getElementById('pg-b').value.trim();
+        const c = document.getElementById('pg-c').value.trim();
+        const winnerEl = document.getElementById('pg-winner');
+        const chainEls = {
+          a: document.getElementById('pg-chain-a'),
+          b: document.getElementById('pg-chain-b'),
+          c: document.getElementById('pg-chain-c'),
+        };
+        Object.values(chainEls).forEach(el => el.classList.remove('active'));
+        let result = null, source = null;
+        if (a) { result = a; source = 'a'; }
+        else if (b) { result = b; source = 'b'; }
+        else if (c) { result = c; source = 'c'; }
+        if (result) {
+          winnerEl.textContent = `"${result}"`;
+          winnerEl.className = 'winner set';
+          chainEls[source].classList.add('active');
+        } else {
+          winnerEl.textContent = 'None  (→ _run_as_user falls to the bare-root branch, same bug as before)';
+          winnerEl.className = 'winner none';
+        }
+      }
+      function pgPreset(name) {
+        const a = document.getElementById('pg-a');
+        const b = document.getElementById('pg-b');
+        const c = document.getElementById('pg-c');
+        if (name === 'systemd') { a.value = 'kuhy'; b.value = ''; c.value = ''; }
+        if (name === 'sudo') { a.value = ''; b.value = 'kuhy'; c.value = 'root'; }
+        if (name === 'broken') { a.value = ''; b.value = ''; c.value = ''; }
+        if (name === 'clear') { a.value = ''; b.value = ''; c.value = ''; }
+        pgResolve();
+      }
+      ['pg-a', 'pg-b', 'pg-c'].forEach(id => {
+        document.getElementById(id).addEventListener('input', pgResolve);
+      });
+      pgResolve();
+    </script>
+  </section>
+
+  <section id="code">
+    <h2>Code walkthrough</h2>
+    <p>Grouped by concern, not by file — the four pieces below only work as a set.</p>
+
+    <h3>1. A single source of truth for "who's the desktop user"</h3>
+    <p>
+      New helper in <code>library_hider.py</code>, with an explicit priority order and a comment
+      explaining <em>why</em> each fallback exists:
+    </p>
+    <pre><code><span class="diff-add">+def _resolve_desktop_user() -> str | None:
++    """Resolve which desktop user owns the Steam/X11 session.
++
++    Prefers the explicit STEAM_ENFORCER_DESKTOP_USER (set by the systemd
++    unit, which has no SUDO_USER/USER of its own since it is started
++    directly by systemd rather than via `sudo`), then falls back to
++    SUDO_USER/USER for interactive `sudo` invocations.
++    """
++    return (
++        os.environ.get("STEAM_ENFORCER_DESKTOP_USER")
++        or os.environ.get("SUDO_USER")
++        or os.environ.get("USER")
++    )</span></code></pre>
+    <p>Both call sites that used to inline the (broken, under systemd) lookup now go through it:</p>
+    <pre><code> def _shutdown_steam() -> None:
+     """Send ``steam -shutdown`` and wait for the process to exit."""
+<span class="diff-del">-    real_user = os.environ.get("SUDO_USER") or os.environ.get("USER")</span>
+<span class="diff-add">+    real_user = _resolve_desktop_user()</span>
+     try:
+         _run_as_user(["steam", "-shutdown"], real_user)
+
+ def _launch_steam_with_debug() -> None:
+     """Launch Steam with CEF debugging enabled."""
+<span class="diff-del">-    real_user = os.environ.get("SUDO_USER") or os.environ.get("USER")</span>
+<span class="diff-add">+    real_user = _resolve_desktop_user()</span>
+     _run_as_user(</code></pre>
+    <p class="muted">
+      Note what didn't change: <code>_run_as_user()</code> itself is untouched. It already knew
+      how to drop privileges correctly — it just never received a usable username to drop to.
+    </p>
+
+    <h3>2. Wiring the new variable end-to-end</h3>
+    <p>The systemd unit gets the explicit variable, plus a hardened, explicit <code>DISPLAY</code>:</p>
+    <pre><code> Environment=HOME=/home/kuhy
+<span class="diff-add">+Environment=STEAM_ENFORCER_DESKTOP_USER=__DESKTOP_USER__
++Environment=DISPLAY=:0</span></code></pre>
+    <p>
+      <code>__DESKTOP_USER__</code> is a placeholder, not a literal value — the checked-in
+      <code>.service</code> file stays a reusable template. <code>install.sh</code> already had a
+      <code>sed</code> pipeline substituting <code>WorkingDirectory</code>/<code>PYTHONPATH</code>
+      at install time; this extends the same pipeline:
+    </p>
+    <pre><code><span class="diff-del">-    sed "s|WorkingDirectory=.*|WorkingDirectory=$SCRIPT_DIR|; s|PYTHONPATH=.*|PYTHONPATH=$SCRIPT_DIR|" \</span>
+<span class="diff-add">+    DESKTOP_USER="${SUDO_USER:-$USER}"
++    sed "s|WorkingDirectory=.*|WorkingDirectory=$SCRIPT_DIR|; \
++         s|PYTHONPATH=.*|PYTHONPATH=$SCRIPT_DIR|; \
++         s|__DESKTOP_USER__|$DESKTOP_USER|" \</span>
+         "$SERVICE_SRC" > "$SERVICE_DST"</code></pre>
+    <p>
+      This is the one place <code>SUDO_USER</code> is used correctly by design: <code>install.sh</code>
+      itself is required to run under <code>sudo</code> (it checks <code>EUID</code> earlier in the
+      script), so <em>at install time</em>, <code>SUDO_USER</code> reliably holds the real invoking
+      user — it's only the long-running <em>service</em>, started later by systemd with no sudo in
+      the picture, where that variable goes missing.
+    </p>
+
+    <h3>3. Moving off the colliding port</h3>
+    <pre><code><span class="diff-del">-_CDP_PORT = 8080</span>
+<span class="diff-add">+_CDP_PORT = 9222
++# NOTE: was 8080, which collided with a different local service (Open WebUI)
++# already bound to 0.0.0.0:8080. requests to 127.0.0.1:8080 resolved to that
++# service instead of steamwebhelper's CDP endpoint (which only bound
++# [::1]:8080), so CDP detection silently never worked. 9222 is the
++# conventional Chrome DevTools debug port and was confirmed free.</span></code></pre>
+    <p>
+      One constant, but it flows into both the launch flag (<code>-devtools-port={_CDP_PORT}</code>)
+      and the detection query, so a single change fixes both sides consistently.
+    </p>
+
+    <h3>4. Tests for the new priority chain</h3>
+    <p>
+      Four cases covering the exact fallback order, so a future change can't silently reorder or
+      drop a branch: explicit var wins, then <code>SUDO_USER</code>, then <code>USER</code>, then
+      <code>None</code> when nothing is set — the same four states the playground above lets you
+      trigger by hand.
+    </p>
+  </section>
+
+  <section id="quiz">
+    <h2>Quiz</h2>
+    <p class="muted">Click an option to reveal whether it's correct.</p>
+    <div id="quiz-root"></div>
+  </section>
+
+  <footer>Generated for commit <code>00a08de</code> — steam-backlog-enforcer.</footer>
+</div>
+
+<script>
+  const QUIZ = [
+    {
+      q: "Why did SUDO_USER and USER come back empty when steam-backlog-enforcer.service started, even though the service ultimately runs as root?",
+      options: [
+        "systemd starts the service directly as a child of PID 1; sudo is never invoked, so nothing sets those variables.",
+        "systemd clears the whole environment by default, and SUDO_USER isn't included on the unit's preserved-variable list.",
+        "The Environment=HOME=/home/kuhy line in the unit file overwrites SUDO_USER earlier in systemd's parsing order.",
+        "Steam itself clears SUDO_USER on startup so a relaunch can't reuse stale values from an earlier login session.",
+      ],
+      correct: 0,
+      rationale: "systemd forks and execs the ExecStart command directly — there's no sudo invocation anywhere in that path, so the environment variables sudo normally sets never exist in the first place. It's not that they get cleared; they were never set.",
+    },
+    {
+      q: "Before this fix, when the enforcer (running as root under systemd) called _launch_steam_with_debug(), what actually happened to the steam process it spawned?",
+      options: [
+        "It launched successfully but attached to the wrong DISPLAY value, so its window rendered on an invisible framebuffer.",
+        "It failed to launch at all, because /usr/bin/steam hard-refuses to execute for any process running as root.",
+        "It launched as root with no display session, so it couldn't reach the real desktop and its CDP port never opened.",
+        "It launched and opened a CDP port fine, just on a different port number than _CDP_PORT, causing a false negative.",
+      ],
+      correct: 2,
+      rationale: "_run_as_user()'s privilege-drop branch only triggers when it has a real target user. With user=None, it fell into the else branch and ran `steam ...` directly as root — no DISPLAY, XAUTHORITY, or DBUS session — so Steam had no working desktop to attach to and steamwebhelper's CDP listener never came up.",
+    },
+    {
+      q: "Both Open WebUI and Steam's steamwebhelper were listening on port 8080 at the same time, with neither process failing to bind. Why didn't that produce a normal 'address already in use' error?",
+      options: [
+        "Linux allows any number of listeners to share one port as long as each negotiates a SO_REUSEPORT priority level.",
+        "Different address families: Open WebUI took 0.0.0.0:8080, steamwebhelper took [::1]:8080 (IPv6-only) - no clash.",
+        "systemd's socket-activation subsystem claimed the port first and proxied requests to whichever service was busy.",
+        "Steam's container runtime remaps every port internally, so the real CDP listener never touches host port 8080.",
+      ],
+      correct: 1,
+      rationale: "A port number is scoped per address family (and per interface). Open WebUI bound the IPv4 wildcard address, steamwebhelper bound only the IPv6 loopback address — two genuinely different sockets that happen to share a port number, so the kernel had no reason to reject either bind.",
+    },
+    {
+      q: "install.sh resolves the desktop user with ${SUDO_USER:-$USER} rather than just $USER. Why does that distinction matter specifically inside install.sh?",
+      options: [
+        "$USER isn't defined in POSIX sh, only in bash, and install.sh needs to stay portable to dash and other shells.",
+        "SUDO_USER is deprecated on modern systemd distributions, so falling back to $USER is required for compatibility.",
+        "Without the fallback, a first-time install with no prior sudo session would leave the desktop user unset entirely.",
+        "install.sh must be run via sudo (it checks EUID), so plain $USER there resolves to root, not the desktop account.",
+      ],
+      correct: 3,
+      rationale: "install.sh explicitly requires root and is meant to be invoked as `sudo ./install.sh`. Inside that sudo session, $USER is 'root' (sudo doesn't rewrite $USER), while $SUDO_USER holds the account that actually ran sudo — exactly the desktop user the service needs to remember.",
+    },
+    {
+      q: "Suppose _resolve_desktop_user() returns None while _run_as_user() is running as root (e.g. all three env vars happen to be unset). What does _run_as_user() do with that None?",
+      options: [
+        "It raises a SteamUnavailableError immediately, since a None user can never resolve to a real desktop session.",
+        "It defaults to launching as root, reproducing exactly the no-display bug this change was meant to fix.",
+        "It falls back to UID 1000 by scanning /etc/passwd, guessing the first regular user found on the system.",
+        "It blocks on pwd.getpwnam(None), waiting indefinitely for a KeyError that structurally never arrives.",
+      ],
+      correct: 1,
+      rationale: "_run_as_user()'s privilege-drop branch requires `user and user != \"root\"` to be truthy. A None user makes that condition false regardless of geteuid(), so it falls straight to the else branch and runs the command unchanged — as root. This fix closes the gap by making sure a real value reaches that check under systemd; it doesn't change what happens if the value is still missing.",
+    },
+  ];
+
+  const root = document.getElementById('quiz-root');
+  let score = 0;
+  const scoreBadge = document.createElement('div');
+  scoreBadge.className = 'quiz-score';
+  scoreBadge.textContent = `Score: 0 / ${QUIZ.length}`;
+  document.body.appendChild(scoreBadge);
+
+  QUIZ.forEach((item, qi) => {
+    const box = document.createElement('div');
+    box.className = 'quiz-q';
+    const h4 = document.createElement('h4');
+    h4.textContent = `${qi + 1}. ${item.q}`;
+    box.appendChild(h4);
+
+    const optsWrap = document.createElement('div');
+    optsWrap.className = 'quiz-opts';
+
+    const rationale = document.createElement('div');
+    rationale.className = 'rationale';
+    rationale.textContent = item.rationale;
+
+    let answered = false;
+    item.options.forEach((optText, oi) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-opt';
+      btn.type = 'button';
+      btn.textContent = optText;
+      btn.addEventListener('click', () => {
+        if (answered) return;
+        answered = true;
+        const isCorrect = oi === item.correct;
+        btn.classList.add(isCorrect ? 'correct' : 'incorrect');
+        if (!isCorrect) {
+          [...optsWrap.children].find((_, i) => i === item.correct)?.classList.add('correct');
+        }
+        [...optsWrap.children].forEach(b => b.classList.add('disabled'));
+        rationale.classList.add('shown');
+        if (isCorrect) {
+          score += 1;
+          scoreBadge.textContent = `Score: ${score} / ${QUIZ.length}`;
+        }
+      });
+      optsWrap.appendChild(btn);
+    });
+
+    box.appendChild(optsWrap);
+    box.appendChild(rationale);
+    root.appendChild(box);
+  });
+</script>
