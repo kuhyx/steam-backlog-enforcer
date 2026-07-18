@@ -1,0 +1,459 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Defer Steam restart while a game update is in progress</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5b6472; --line: #e3e6ea;
+    --card: #f7f8fa; --accent: #2d6cdf; --good: #1a7f45; --good-bg: #e6f4ec;
+    --bad: #b3261e; --bad-bg: #fbe9e7; --warn: #8a6d00; --warn-bg: #fff4d6;
+    --code: #f2f3f5; --kw: #a626a4; --str: #1a7f45; --num: #986801; --com: #8a919a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --fg: #e6e9ee; --muted: #9aa4b2; --line: #2a2f37;
+      --card: #1b1f26; --accent: #6ea8ff; --good: #5bd68a; --good-bg: #17301f;
+      --bad: #ff8a80; --bad-bg: #331816; --warn: #ffd666; --warn-bg: #2e2712;
+      --code: #1b1f26; --kw: #d391e0; --str: #8fd6a5; --num: #e0b877; --com: #6b7480;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e9ee; --muted: #9aa4b2; --line: #2a2f37;
+    --card: #1b1f26; --accent: #6ea8ff; --good: #5bd68a; --good-bg: #17301f;
+    --bad: #ff8a80; --bad-bg: #331816; --warn: #ffd666; --warn-bg: #2e2712;
+    --code: #1b1f26; --kw: #d391e0; --str: #8fd6a5; --num: #e0b877; --com: #6b7480;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5b6472; --line: #e3e6ea;
+    --card: #f7f8fa; --accent: #2d6cdf; --good: #1a7f45; --good-bg: #e6f4ec;
+    --bad: #b3261e; --bad-bg: #fbe9e7; --warn: #8a6d00; --warn-bg: #fff4d6;
+    --code: #f2f3f5; --kw: #a626a4; --str: #1a7f45; --num: #986801; --com: #8a919a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 17px;
+  }
+  .wrap { width: min(48rem, 92vw); margin: 0 auto; padding: 2.5rem 0 5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .3rem; }
+  h2 { font-size: 1.4rem; margin: 2.6rem 0 .8rem; padding-top: .6rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.08rem; margin: 1.6rem 0 .5rem; }
+  p { margin: .7rem 0; }
+  a { color: var(--accent); }
+  code { background: var(--code); padding: .12em .35em; border-radius: 4px; font-size: .87em;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .sub { color: var(--muted); margin: 0 0 1.4rem; }
+  .toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .8rem 1.1rem; margin: 1.4rem 0; }
+  .toc b { font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .toc ol { margin: .4rem 0 0; padding-left: 1.3rem; }
+  .toc li { margin: .15rem 0; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px;
+    padding: .9rem 1rem; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .82rem; line-height: 1.55; }
+  .kw { color: var(--kw); } .str { color: var(--str); } .num { color: var(--num); } .com { color: var(--com); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.2rem; margin: 1.2rem 0; }
+  .note { border-left: 4px solid var(--accent); background: var(--card); padding: .7rem 1rem; border-radius: 0 8px 8px 0; margin: 1.1rem 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 1rem 0; }
+  .box { border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem; background: var(--bg); font-size: .86rem; }
+  .box.good { border-color: var(--good); background: var(--good-bg); }
+  .box.bad { border-color: var(--bad); background: var(--bad-bg); }
+  .box.warn { border-color: var(--warn); background: var(--warn-bg); }
+  .arrow { color: var(--muted); font-weight: 700; }
+  .tl { display: grid; grid-template-columns: auto 1fr; gap: .2rem .8rem; margin: 1rem 0; font-size: .88rem; }
+  .tl .t { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tl .e { padding-bottom: .15rem; }
+  .bars { display: grid; gap: .5rem; margin: .6rem 0; }
+  .bar { display: grid; grid-template-columns: 7.5rem 1fr; gap: .6rem; align-items: center; font-size: .82rem; }
+  .track { position: relative; height: 1.15rem; background: var(--code); border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+  .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: .55; }
+  /* widget */
+  .w { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.2rem; margin: 1.4rem 0; }
+  .toggles { display: flex; flex-wrap: wrap; gap: .5rem; margin: .3rem 0 1rem; }
+  .tg { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px;
+    padding: .38rem .8rem; cursor: pointer; font-size: .83rem; user-select: none; }
+  .tg[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .verdict { border-radius: 10px; padding: .8rem 1rem; font-weight: 600; margin-top: .6rem; }
+  .verdict small { display: block; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .v-restart { background: var(--good-bg); border: 1px solid var(--good); }
+  .v-defer { background: var(--warn-bg); border: 1px solid var(--warn); }
+  .v-noop { background: var(--card); border: 1px dashed var(--line); }
+  .sliders label { display: grid; grid-template-columns: 9rem 1fr 3.5rem; gap: .5rem; align-items: center; font-size: .82rem; margin: .35rem 0; }
+  input[type=range] { width: 100%; }
+  .pill { display: inline-block; border-radius: 999px; padding: .1rem .55rem; font-size: .8rem; font-weight: 600; }
+  .pill.active { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .pill.idle { background: var(--good-bg); color: var(--good); border: 1px solid var(--good); }
+  /* quiz */
+  .q { border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.15rem; margin: 1rem 0; background: var(--card); }
+  .q .stem { font-weight: 600; margin-bottom: .6rem; }
+  .opt { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--bg);
+    color: var(--fg); border-radius: 8px; padding: .55rem .75rem; margin: .35rem 0; cursor: pointer; font-size: .92rem; }
+  .opt:hover { border-color: var(--accent); }
+  .opt.correct { border-color: var(--good); background: var(--good-bg); }
+  .opt.wrong { border-color: var(--bad); background: var(--bad-bg); }
+  .rat { font-size: .85rem; color: var(--muted); margin-top: .5rem; display: none; }
+  .rat.show { display: block; }
+  .score { position: sticky; bottom: .6rem; background: var(--accent); color: #fff; border-radius: 999px;
+    padding: .4rem .9rem; font-size: .85rem; font-weight: 600; width: max-content; margin: 1rem auto 0; }
+  .themebtn { position: fixed; top: .7rem; right: .7rem; border: 1px solid var(--line); background: var(--card);
+    color: var(--fg); border-radius: 8px; padding: .3rem .55rem; cursor: pointer; font-size: .8rem; z-index: 5; }
+</style>
+
+<button class="themebtn" onclick="(function(r){var d=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.setAttribute('data-theme',d==='dark'?'light':'dark');})(document.documentElement)">◐ theme</button>
+
+<div class="wrap">
+  <h1>Never restart Steam mid-update</h1>
+  <p class="sub">How one guard fixed a deterministic game-crash bug in the Steam Backlog Enforcer · commit <code>dbc3242</code> · 2026-07-18</p>
+
+  <div class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#background">Background — the enforcer and why it restarts Steam</a></li>
+      <li><a href="#intuition">Intuition — a restart mid-download is a shredder</a></li>
+      <li><a href="#code">Code — the guard, the scan, and one leaf module</a></li>
+      <li><a href="#quiz">Quiz</a></li>
+    </ol>
+  </div>
+
+  <h2 id="background">1 · Background</h2>
+  <p>
+    The <b>Steam Backlog Enforcer</b> is a small systemd daemon whose one job is discipline: out of a
+    library of ~1,370 games, exactly one — the <i>assigned</i> game — may be visible and installed.
+    Everything else is hidden and, optionally, uninstalled. It runs an enforce loop every 3 seconds.
+  </p>
+  <p>
+    To hide games it can't just edit a file — Steam's library is a live web app. So the enforcer drives
+    Steam over the <b>Chrome DevTools Protocol (CDP)</b>: it talks to the Steam client's embedded browser
+    on a debug port. That port only exists if Steam was launched with a special flag. So the enforcer has
+    a helper, <code>ensure_steam_debug_port()</code>, that guarantees the port is open — and if Steam is
+    running <i>without</i> it, the helper <b>restarts Steam</b>: <code>steam -shutdown</code>, then relaunch
+    with the debug flag.
+  </p>
+  <p>
+    Here is the piece that matters, before the change. If Steam is up but the port is closed, it is
+    bounced — unconditionally:
+  </p>
+  <pre><span class="kw">def</span> ensure_steam_debug_port() -&gt; <span class="kw">None</span>:
+    <span class="kw">if</span> _steam_has_debug_port():
+        <span class="kw">return</span>                     <span class="com"># port already open — nothing to do</span>
+    ...
+    <span class="kw">if</span> _is_steam_running():
+        _shutdown_steam()             <span class="com"># &lt;-- bounce Steam, whatever it's doing</span>
+    _launch_steam_with_debug()</pre>
+  <p>
+    The trouble: Steam is also a <b>download manager</b>. At any moment it may be pulling a multi-gigabyte
+    game update — first downloading chunks, then <i>committing</i> them to disk (the <code>staging</code>
+    phase). <code>steam -shutdown</code> suspends whatever transfer is in flight.
+  </p>
+  <div class="note">
+    A one-off suspend-and-resume is usually harmless — Steam is built to resume downloads. The danger is
+    <b>repetition</b>. A daemon that bounces Steam every time it wants the CDP port, while a big update is
+    trying to finish, interrupts that update over and over — including mid-commit.
+  </div>
+
+  <h2 id="intuition">2 · Intuition</h2>
+  <p>
+    Picture the assigned game (Age of Empires II DE) receiving a ~16&nbsp;GB update the same morning the
+    enforcer's restart logic started actually working. The two fight for hours. Steam's own log tells the
+    story — the update is cancelled and restarted again and again, several times <i>while committing files
+    to disk</i>:
+  </p>
+  <div class="tl">
+    <span class="t">06:29</span><span class="e">update canceled : <b>Disabled</b> (Suspended) &nbsp;<span class="arrow">←</span> steam -shutdown</span>
+    <span class="t">07:15</span><span class="e">update canceled : Disabled (Suspended)</span>
+    <span class="t">07:21</span><span class="e">App update changed : Running Update, <b>Committing</b> &nbsp;<span class="arrow">←</span> writing files</span>
+    <span class="t">09:22</span><span class="e">update canceled : Priority (Suspended)</span>
+    <span class="t">10:00</span><span class="e">update canceled : <b>Restart</b> (Suspended) &nbsp;<span class="arrow">←</span> Steam bounced again</span>
+  </div>
+  <p>
+    Interrupt a commit halfway and the install is left inconsistent — some files from the new build, some
+    from the old, some half-written. The cruel part: Steam's <b>"Verify integrity"</b> reported all 350k
+    files "OK", so the corruption was invisible. But the game ships with <b>Arxan anti-tamper</b>, which
+    checks the code against itself at startup, spots the mismatch, and kills the process — a deterministic
+    <code>0xc0000005</code> null-dereference crash at the exact same address, every launch. Environment,
+    Proton version, GPU, kernel, prefix — none of it mattered, because the broken bytes were the one
+    constant. Only a full reinstall fixed it.
+  </p>
+
+  <h3>Before vs after — the decision</h3>
+  <div class="flow">
+    <span class="box">enforcer wants CDP port</span>
+    <span class="arrow">→</span>
+    <span class="box bad">Steam bounced mid-update</span>
+    <span class="arrow">→</span>
+    <span class="box bad">install corrupted → crash</span>
+  </div>
+  <div class="flow">
+    <span class="box">enforcer wants CDP port</span>
+    <span class="arrow">→</span>
+    <span class="box warn">update in progress? → <b>defer</b></span>
+    <span class="arrow">→</span>
+    <span class="box good">retry in 3s, restart once idle</span>
+  </div>
+  <p>
+    The fix is a single question asked <i>before</i> the restart: <b>is any game mid-transfer right now?</b>
+    If yes, don't touch Steam — skip this pass and try again in 3 seconds. The library stays un-hidden a
+    little longer; the install stays intact. That trade is the whole change.
+  </p>
+
+  <h3>How "mid-transfer" is detected</h3>
+  <p>
+    Steam records live progress inside each <code>appmanifest_&lt;id&gt;.acf</code>. A game is still working
+    if it has bytes left to download <i>or</i> bytes left to stage (commit). When both totals equal their
+    progress, it's idle. That's the entire rule:
+  </p>
+  <div class="bars" id="demoBars"></div>
+  <p style="text-align:center"><span id="demoVerdict"></span></p>
+
+  <div class="w">
+    <h3 style="margin-top:0">▶ Play: the manifest scan</h3>
+    <p style="font-size:.9rem;margin-top:.2rem">Drag the progress values. The verdict updates with the exact
+      logic of <code>_manifest_transfer_active()</code>: active when <code>ToDownload&gt;Downloaded</code>
+      <b>or</b> <code>ToStage&gt;Staged</code>.</p>
+    <div class="sliders" id="sliders"></div>
+    <div class="verdict" id="scanVerdict"></div>
+  </div>
+
+  <div class="w">
+    <h3 style="margin-top:0">▶ Play: should the enforcer restart Steam?</h3>
+    <p style="font-size:.9rem;margin-top:.2rem">Toggle the world state. The verdict runs the new
+      <code>ensure_steam_debug_port()</code> decision tree.</p>
+    <div class="toggles" id="toggles"></div>
+    <div class="verdict" id="restartVerdict"></div>
+  </div>
+
+  <h2 id="code">3 · Code</h2>
+
+  <h3>A. The scan — a new leaf module</h3>
+  <p>
+    The detector needs the Steam library path, which lived in <code>game_install.py</code>. But the guard
+    needs to run inside <code>library_hider.py</code> — and <code>game_install</code> already imports
+    <code>library_hider</code>. Importing the other way would form a cycle. So the scan and the
+    <code>STEAMAPPS_PATH</code> constant moved to a dependency-free <b>leaf module</b>,
+    <code>_steam_state.py</code>, that both can import safely:
+  </p>
+  <pre><span class="com"># _steam_state.py — imports only the stdlib, so no import cycle</span>
+STEAMAPPS_PATH = Path(<span class="str">"~/.local/share/Steam/steamapps"</span>).expanduser()
+
+<span class="kw">def</span> _manifest_transfer_active(manifest: Path) -&gt; <span class="kw">bool</span>:
+    <span class="com"># BytesTo* are totals; *Downloaded/*Staged are progress.</span>
+    <span class="kw">return</span> (
+        _field(<span class="str">"BytesToDownload"</span>) &gt; _field(<span class="str">"BytesDownloaded"</span>)
+        <span class="kw">or</span> _field(<span class="str">"BytesToStage"</span>) &gt; _field(<span class="str">"BytesStaged"</span>)
+    )
+
+<span class="kw">def</span> steam_update_in_progress() -&gt; <span class="kw">bool</span>:
+    <span class="kw">return</span> <span class="kw">any</span>(_manifest_transfer_active(m)
+               <span class="kw">for</span> m <span class="kw">in</span> STEAMAPPS_PATH.glob(<span class="str">"appmanifest_*.acf"</span>))</pre>
+  <p>
+    Using the byte totals (not <code>StateFlags</code>) is deliberate: <code>BytesToStage &gt; BytesStaged</code>
+    is exactly the <b>commit-to-disk</b> phase — the most dangerous moment to interrupt.
+  </p>
+
+  <h3>B. The guard — defer instead of bounce</h3>
+  <p>
+    In the daemon path, the check goes right before the shutdown. It raises a new
+    <code>SteamUpdateInProgressError</code> — deliberately a <b>subclass</b> of the existing
+    <code>SteamUnavailableError</code>, so the enforce loop's current handler already treats it as
+    "skip this pass, retry next tick." No new error-handling was needed anywhere.
+  </p>
+  <pre>    <span class="kw">if</span> _is_steam_running():
+        <span class="kw">if</span> steam_update_in_progress():
+            logger.info(<span class="str">"Deferring Steam restart: a game update is in progress..."</span>)
+            <span class="kw">raise</span> SteamUpdateInProgressError(msg)   <span class="com"># caught -&gt; skip + retry in 3s</span>
+        _shutdown_steam()
+    _launch_steam_with_debug()</pre>
+  <p>
+    The interactive "buy DLC → re-block store → restart Steam" path (<code>restart_steam()</code>) got the
+    same guard, but since it isn't inside the retry loop it simply <b>logs a warning and skips</b> the
+    restart rather than raising.
+  </p>
+
+  <h3>C. Wiring &amp; tests</h3>
+  <p>
+    <code>game_install.py</code> now imports <code>STEAMAPPS_PATH</code> from the leaf (single source of
+    truth). The test <code>conftest.py</code> redirects <i>both</i> bindings of the path to a temp dir —
+    the repo's established pattern, since each module holds its own import. A new
+    <code>test_update_restart_guard.py</code> adds 13 tests (manifest active/idle/complete/unreadable, the
+    scan, and both guard paths), keeping the suite at 988 passing / 100% coverage.
+  </p>
+  <div class="note">
+    Verified live: restarting the real daemon while a runtime update was mid-flight produced
+    <code>Deferring Steam restart: a game update is in progress</code> in the journal — the enforcer chose
+    not to bounce Steam, exactly as designed.
+  </div>
+
+  <h2 id="quiz">4 · Quiz</h2>
+  <p class="sub">Five questions on the <i>reasoning</i>. Click to reveal.</p>
+  <div id="quiz"></div>
+  <div class="score" id="score">Score: 0 / 0</div>
+</div>
+
+<script>
+/* ---------- manifest scan demo (static diagram, live) ---------- */
+function activeCheck(s){ return (s.toDl > s.dled) || (s.toStg > s.stg); }
+function renderBars(host, s){
+  const rows = [
+    ["Downloaded", s.dled, s.toDl, "download"],
+    ["Staged (commit)", s.stg, s.toStg, "stage"],
+  ];
+  host.innerHTML = rows.map(function(r){
+    var pct = r[2] ? Math.round(100*r[1]/r[2]) : 100;
+    return '<div class="bar"><span>'+r[0]+'</span><div class="track"><div class="fill" style="width:'+pct+'%"></div></div></div>'
+      + '<div class="bar"><span></span><span style="font-size:.75rem;color:var(--muted)">'+r[1].toLocaleString()+' / '+r[2].toLocaleString()+' bytes</span></div>';
+  }).join("");
+}
+var demoState = { toDl: 17324939056, dled: 9958785856, toStg: 28136876093, stg: 15748472761 };
+(function(){
+  var host = document.getElementById("demoBars");
+  renderBars(host, demoState);
+  var act = activeCheck(demoState);
+  document.getElementById("demoVerdict").innerHTML = act
+    ? '<span class="pill active">UPDATE IN PROGRESS — enforcer will defer</span>'
+    : '<span class="pill idle">idle — safe to restart</span>';
+})();
+
+/* ---------- interactive: manifest sliders ---------- */
+var scan = { toDl: 100, dled: 40, toStg: 100, stg: 100 };
+var defs = [["toDl","BytesToDownload"],["dled","BytesDownloaded"],["toStg","BytesToStage"],["stg","BytesStaged"]];
+(function(){
+  var host = document.getElementById("sliders");
+  host.innerHTML = defs.map(function(d){
+    return '<label><span>'+d[1]+'</span><input type="range" min="0" max="100" value="'+scan[d[0]]+'" data-k="'+d[0]+'"><span class="val" data-v="'+d[0]+'">'+scan[d[0]]+'</span></label>';
+  }).join("");
+  function upd(){
+    var active = activeCheck(scan);
+    var v = document.getElementById("scanVerdict");
+    v.className = "verdict " + (active ? "v-defer" : "v-restart");
+    v.innerHTML = active
+      ? '⏸ <b>_manifest_transfer_active → True</b><small>ToDownload&gt;Downloaded ('+(scan.toDl>scan.dled)+') or ToStage&gt;Staged ('+(scan.toStg>scan.stg)+'). Steam is mid-transfer — the enforcer defers.</small>'
+      : '✔ <b>_manifest_transfer_active → False</b><small>Both totals reached. Nothing in flight — safe to restart Steam.</small>';
+  }
+  host.addEventListener("input", function(e){
+    var k = e.target.getAttribute("data-k"); if(!k) return;
+    scan[k] = +e.target.value;
+    document.querySelector('[data-v="'+k+'"]').textContent = scan[k];
+    upd();
+  });
+  upd();
+})();
+
+/* ---------- interactive: restart decision tree ---------- */
+var world = { cdpOpen: false, steamRunning: true, updating: true };
+var tdefs = [["cdpOpen","CDP port already open"],["steamRunning","Steam is running"],["updating","a game update is in progress"]];
+(function(){
+  var host = document.getElementById("toggles");
+  host.innerHTML = tdefs.map(function(d){
+    return '<button class="tg" data-k="'+d[0]+'" aria-pressed="'+world[d[0]]+'">'+d[1]+'</button>';
+  }).join("");
+  function decide(){
+    // mirrors ensure_steam_debug_port()
+    if (world.cdpOpen) return ["v-noop","· No action","Port already open — the helper returns immediately; Steam is never touched."];
+    if (world.steamRunning && world.updating) return ["v-defer","⏸ Defer","Steam is up, the port is closed, but a game is mid-update — raise SteamUpdateInProgressError, skip, retry in 3s."];
+    if (world.steamRunning) return ["v-restart","↻ Restart Steam","Port closed, nothing downloading — shutdown + relaunch with the debug flag. Safe."];
+    return ["v-restart","▶ Launch Steam","Steam isn't running — just launch it with the debug flag (a fresh launch resumes any paused update, it doesn't interrupt one)."];
+  }
+  function upd(){
+    var d = decide();
+    var v = document.getElementById("restartVerdict");
+    v.className = "verdict " + d[0];
+    v.innerHTML = "<b>"+d[1]+"</b><small>"+d[2]+"</small>";
+  }
+  host.addEventListener("click", function(e){
+    var k = e.target.getAttribute("data-k"); if(!k) return;
+    world[k] = !world[k];
+    e.target.setAttribute("aria-pressed", world[k]);
+    upd();
+  });
+  upd();
+})();
+
+/* ---------- quiz ---------- */
+var QUIZ = [
+  {
+    q: "Why does bouncing Steam during an update corrupt the install rather than just pausing it?",
+    opts: [
+      "Shutting the client down cleanly always deletes partial download chunks",
+      "Repeated interruptions mid commit-to-disk leave files half-written",
+      "The CDP debug port holds a lock that blocks Steam's resume bookkeeping",
+      "A resumed download pulls chunks from a newer build than the paused one"
+    ],
+    correct: 1,
+    rat: "A single suspend resumes fine; the damage is repeated interruption mid-commit, leaving an inconsistent mix of old, new, and half-written files."
+  },
+  {
+    q: "Why is SteamUpdateInProgressError made a subclass of SteamUnavailableError?",
+    opts: [
+      "It lets the two errors share one journal log-message string constant",
+      "The two errors happen to be raised from the very same line of code",
+      "The enforce loop's existing handler catches it and skips the pass",
+      "It makes the new exception appear in mypy's error-coverage output"
+    ],
+    correct: 2,
+    rat: "The loop already treats SteamUnavailableError as 'no library to hide right now — skip this pass.' Subclassing means a deferral needs no new handling."
+  },
+  {
+    q: "How does the code decide that an update is in progress?",
+    opts: [
+      "It asks the already-running Steam client over its CDP debug port",
+      "It checks whether the steamwebhelper process is using the network",
+      "It reads StateFlags and calls any value other than 4 an update",
+      "It scans appmanifests for bytes still left to download or stage"
+    ],
+    correct: 3,
+    rat: "It reads the live byte totals from each appmanifest. Bytes-left-to-stage is what catches the dangerous commit-to-disk phase."
+  },
+  {
+    q: "Why was the scan placed in a new _steam_state module instead of in game_install or library_hider?",
+    opts: [
+      "game_install and library_hider import each other; a shared leaf breaks the cycle",
+      "Leaf modules are exempt from the repository's strict 100% coverage requirement",
+      "The systemd service can then import the scan without loading the full enforcer package",
+      "The tests can monkeypatch the scan without importing either of the big modules"
+    ],
+    correct: 0,
+    rat: "game_install already imports library_hider; importing back would cycle. A stdlib-only leaf that both import (and that owns STEAMAPPS_PATH) breaks the knot."
+  },
+  {
+    q: "An update is running and the enforcer finds the CDP port closed. What happens to library-hiding?",
+    opts: [
+      "Steam is force-killed and relaunched, and hiding proceeds right after",
+      "The enforcer blocks in place and waits until the whole update finishes",
+      "It's skipped this pass; games stay visible until a later idle tick",
+      "The daemon disables itself so it won't disturb the download any further"
+    ],
+    correct: 2,
+    rat: "Deferring postpones the restart, and therefore the hide. The loop keeps running every 3s and hides once no transfer is in flight — 'visible a bit longer beats corrupted.'"
+  }
+];
+(function(){
+  var host = document.getElementById("quiz"), answered = 0, right = 0;
+  QUIZ.forEach(function(item, qi){
+    var el = document.createElement("div"); el.className = "q";
+    var order = item.opts.map(function(_,i){return i;});
+    for (var i=order.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=order[i]; order[i]=order[j]; order[j]=t; }
+    var html = '<div class="stem">'+(qi+1)+'. '+item.q+'</div>';
+    order.forEach(function(oi){ html += '<button class="opt" data-oi="'+oi+'">'+item.opts[oi]+'</button>'; });
+    html += '<div class="rat"></div>';
+    el.innerHTML = html;
+    var done = false;
+    el.addEventListener("click", function(e){
+      var b = e.target.closest(".opt"); if(!b || done) return;
+      done = true; answered++;
+      var oi = +b.getAttribute("data-oi");
+      var ok = oi === item.correct;
+      if (ok) right++;
+      el.querySelectorAll(".opt").forEach(function(o){
+        var i = +o.getAttribute("data-oi");
+        if (i === item.correct) o.classList.add("correct");
+        else if (o === b) o.classList.add("wrong");
+        o.style.cursor = "default";
+      });
+      var r = el.querySelector(".rat");
+      r.classList.add("show");
+      r.innerHTML = (ok ? "✔ Correct. " : "✘ Not quite. ") + item.rat;
+      document.getElementById("score").textContent = "Score: " + right + " / " + answered;
+    });
+    host.appendChild(el);
+  });
+})();
+</script>
