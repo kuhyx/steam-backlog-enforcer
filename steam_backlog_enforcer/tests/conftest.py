@@ -56,7 +56,13 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             "steam_backlog_enforcer.config.SNAPSHOT_FILE",
             fake_config / "snapshot.json",
         ),
-        # Steam game manifests / install dirs
+        # Steam game manifests / install dirs. STEAMAPPS_PATH is canonical in
+        # _steam_state; game_install imports it, so both bindings need the
+        # patch (same gotcha as HOSTS_FILE below).
+        patch(
+            "steam_backlog_enforcer._steam_state.STEAMAPPS_PATH",
+            fake_steamapps,
+        ),
         patch(
             "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
             fake_steamapps,

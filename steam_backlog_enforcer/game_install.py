@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 
+from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
 from steam_backlog_enforcer._whitelist import get_approved_exception_ids
 from steam_backlog_enforcer.library_hider import steam_is_installed
 
@@ -94,8 +95,6 @@ PROTECTED_APP_IDS = {
     1007020,  # Proton EasyAntiCheat Runtime
     1826330,  # Proton EasyAntiCheat Runtime
 }
-
-STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
 
 
 def _trigger_steam_install(app_id: int, label: str) -> bool:

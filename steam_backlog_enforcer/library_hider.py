@@ -29,6 +29,8 @@ import time
 import requests
 import websockets
 
+from steam_backlog_enforcer._steam_state import steam_update_in_progress
+
 logger = logging.getLogger(__name__)
 
 _CDP_PORT = 9222
@@ -60,6 +62,16 @@ class SteamUnavailableError(RuntimeError):
     opened its debug port". Callers are expected to degrade gracefully rather
     than abort: an unreachable Steam means there is no library to hide, which
     is not a fatal condition for the enforcer.
+    """
+
+
+class SteamUpdateInProgressError(SteamUnavailableError):
+    """Raised to defer a Steam restart while a game update is in flight.
+
+    Subclasses :class:`SteamUnavailableError` so existing callers already
+    degrade gracefully (skip this pass, retry next loop). Restarting Steam
+    mid-update suspends and can corrupt the transfer, so the enforcer waits
+    for updates to finish before bouncing Steam to open the CDP port.
     """
 
 
@@ -260,6 +272,18 @@ def ensure_steam_debug_port() -> None:
 
     logger.info("Steam CDP port not available — (re)starting Steam...")
     if _is_steam_running():
+        # Never bounce a running Steam while a game update is downloading or
+        # committing: the shutdown suspends it and can leave a partially
+        # written install (the root cause of the AoE2 launch crash). Defer and
+        # retry on the next enforce pass.
+        if steam_update_in_progress():
+            msg = (
+                "Deferring Steam restart: a game update is in progress. "
+                "Restarting now would interrupt and can corrupt it; will "
+                "retry once the update settles."
+            )
+            logger.info(msg)
+            raise SteamUpdateInProgressError(msg)
         _shutdown_steam()
 
     _launch_steam_with_debug()
@@ -403,7 +427,18 @@ def unhide_all_games(owned_app_ids: list[int]) -> int:
 
 
 def restart_steam() -> None:
-    """Gracefully restart the Steam client with CEF debugging enabled."""
+    """Gracefully restart the Steam client with CEF debugging enabled.
+
+    Skips the restart if a game update is downloading or committing, so the
+    update is not interrupted (interrupting it can corrupt the install).
+    """
+    if steam_update_in_progress():
+        logger.warning(
+            "Skipping Steam restart — a game update is in progress; "
+            "restarting now could corrupt it.",
+        )
+        return
+
     logger.info("Restarting Steam client with debug port...")
     _shutdown_steam()
     _launch_steam_with_debug()
