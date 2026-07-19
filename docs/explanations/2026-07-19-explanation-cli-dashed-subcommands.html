@@ -1,0 +1,672 @@
+<title>Accepting flag-style subcommands in the enforcer CLI</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1b1d21;
+    --muted: #5c6370;
+    --rule: #e3e5e9;
+    --panel: #f6f7f9;
+    --accent: #2f6f4f;
+    --accent-soft: #e6f2eb;
+    --bad: #a33a2c;
+    --bad-soft: #fbeae7;
+    --code-bg: #f2f3f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --fg: #e6e8ec;
+      --muted: #9aa2af;
+      --rule: #2b2f36;
+      --panel: #1e2126;
+      --accent: #7fc9a0;
+      --accent-soft: #1d2b24;
+      --bad: #e8897a;
+      --bad-soft: #2c1e1c;
+      --code-bg: #1b1e23;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #16181c; --fg: #e6e8ec; --muted: #9aa2af; --rule: #2b2f36;
+    --panel: #1e2126; --accent: #7fc9a0; --accent-soft: #1d2b24;
+    --bad: #e8897a; --bad-soft: #2c1e1c; --code-bg: #1b1e23;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1b1d21; --muted: #5c6370; --rule: #e3e5e9;
+    --panel: #f6f7f9; --accent: #2f6f4f; --accent-soft: #e6f2eb;
+    --bad: #a33a2c; --bad-soft: #fbeae7; --code-bg: #f2f3f5;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    margin: 0 auto;
+    padding: 2.5rem 1rem 5rem;
+    max-width: min(48rem, 92vw);
+    overflow-x: hidden;
+  }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 .4rem; }
+  h2 {
+    font-size: 1.35rem; margin: 3rem 0 .8rem;
+    padding-top: .8rem; border-top: 1px solid var(--rule);
+  }
+  h3 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  p, li { color: var(--fg); }
+  .lede { color: var(--muted); font-size: 1.05rem; margin-top: 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .9em; background: var(--code-bg);
+    padding: .1em .35em; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule);
+    border-radius: 8px; padding: .9rem 1rem;
+    white-space: pre-wrap; overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+  nav.toc {
+    background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 10px; padding: .8rem 1.1rem; margin: 1.6rem 0 0;
+  }
+  nav.toc ol { margin: .3rem 0 0; padding-left: 1.2rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  /* diagrams */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: .5rem;
+          margin: 1.2rem 0; }
+  .node {
+    flex: 1 1 8rem; min-width: 7.5rem;
+    background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 8px; padding: .6rem .7rem; font-size: .85rem;
+  }
+  .node b { display: block; font-size: .82rem; }
+  .node span { color: var(--muted); font-size: .78rem; }
+  .node.new { border-color: var(--accent); background: var(--accent-soft); }
+  .arrow { align-self: center; color: var(--muted); font-size: 1.1rem; }
+  .cols { display: grid; gap: .8rem; grid-template-columns: 1fr;
+          margin: 1.2rem 0; }
+  @media (min-width: 40rem) { .cols { grid-template-columns: 1fr 1fr; } }
+  .card {
+    border: 1px solid var(--rule); border-radius: 10px;
+    padding: .8rem .9rem; background: var(--panel);
+  }
+  .card h4 { margin: 0 0 .5rem; font-size: .9rem; letter-spacing: .02em; }
+  .card.before h4 { color: var(--bad); }
+  .card.after h4 { color: var(--accent); }
+  .term {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem; line-height: 1.5; white-space: pre-wrap;
+    overflow-x: auto; margin: 0; color: var(--fg);
+  }
+  .tag {
+    display: inline-block; font-size: .72rem; padding: .05rem .4rem;
+    border-radius: 999px; border: 1px solid var(--rule);
+    color: var(--muted); margin-left: .3rem; vertical-align: middle;
+  }
+
+  /* micro-world */
+  .sim {
+    border: 1px solid var(--accent); border-radius: 10px;
+    background: var(--panel); padding: 1rem; margin: 1.4rem 0;
+  }
+  .sim label { font-size: .85rem; color: var(--muted); display: block;
+               margin-bottom: .3rem; }
+  .sim-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .sim input[type=text] {
+    flex: 1 1 12rem; font-family: ui-monospace, monospace; font-size: .9rem;
+    padding: .45rem .6rem; border-radius: 6px; color: var(--fg);
+    border: 1px solid var(--rule); background: var(--bg);
+  }
+  .sim button, .chip {
+    font: inherit; font-size: .82rem; cursor: pointer;
+    padding: .45rem .7rem; border-radius: 6px;
+    border: 1px solid var(--rule); background: var(--bg); color: var(--fg);
+  }
+  .sim button:hover, .chip:hover { border-color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .6rem; }
+  .steps { margin: .9rem 0 0; padding: 0; list-style: none; }
+  .steps li {
+    border-left: 3px solid var(--rule); padding: .35rem 0 .35rem .7rem;
+    margin: 0 0 .35rem; font-size: .87rem;
+  }
+  .steps li.hit { border-left-color: var(--accent); }
+  .steps li.miss { border-left-color: var(--bad); color: var(--muted); }
+  .verdict {
+    margin-top: .8rem; padding: .6rem .8rem; border-radius: 8px;
+    font-size: .88rem; border: 1px solid var(--rule);
+  }
+  .verdict.ok { background: var(--accent-soft); border-color: var(--accent); }
+  .verdict.no { background: var(--bad-soft); border-color: var(--bad); }
+  .verdict code { background: transparent; }
+
+  /* quiz */
+  .q { border: 1px solid var(--rule); border-radius: 10px;
+       padding: .9rem 1rem; margin: 1rem 0; background: var(--panel); }
+  .q p.stem { margin: 0 0 .7rem; font-weight: 600; }
+  .opt {
+    display: block; width: 100%; text-align: left; font: inherit;
+    font-size: .9rem; margin: .35rem 0; padding: .55rem .7rem;
+    border: 1px solid var(--rule); border-radius: 8px;
+    background: var(--bg); color: var(--fg); cursor: pointer;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); }
+  .opt:disabled { cursor: default; }
+  .opt.correct { background: var(--accent-soft); border-color: var(--accent); }
+  .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+  .why { font-size: .85rem; color: var(--muted); margin: .5rem 0 0; }
+  #score { font-size: .9rem; color: var(--muted); }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem;
+           border-top: 1px solid var(--rule); padding-top: 1rem; }
+</style>
+
+<h1>Accepting flag-style subcommands in the enforcer CLI</h1>
+<p class="lede">
+  Why <code>./run.sh --abandon-pick 1794680</code> silently printed a help
+  screen, and what changed so it now does the thing you asked for.
+  <span class="tag">commit a5dd569</span>
+</p>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#background">Background — how the CLI decides what to run</a></li>
+    <li><a href="#intuition">Intuition — one token, three possible fates</a></li>
+    <li><a href="#code">Code — what actually changed</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">Background — how the CLI decides what to run</h2>
+
+<p>
+  The Steam Backlog Enforcer is a self-imposed discipline tool: it picks one
+  game from your Steam library, uninstalls the rest, blocks the store, and
+  refuses to let you switch until you finish the assigned game. Because the
+  whole point is that you cannot talk yourself out of it, the CLI is
+  deliberately narrow — a handful of named subcommands, each of which has to
+  pass through two lock layers before it runs.
+</p>
+
+<p>
+  Those subcommands live in two dictionaries in
+  <code>steam_backlog_enforcer/main.py</code>. Most are ordinary
+  <code>(description, handler)</code> pairs in <code>COMMANDS</code>. Four
+  more — <code>add-exception</code>, <code>pick-manual</code>,
+  <code>abandon-pick</code>, <code>block-gaming</code> — take extra arguments
+  and are dispatched by hand, so they only carry a description in
+  <code>_EXTRA_COMMAND_DESCRIPTIONS</code>. The union of both is
+  <code>_ALL_COMMANDS</code>, and that union is the single source of truth for
+  "is this a real command?" as well as for the help screen.
+</p>
+
+<p>
+  Before the change, <code>main()</code> was a straight line: take
+  <code>sys.argv[1]</code>, check it is a key of <code>_ALL_COMMANDS</code>,
+  then hand that exact string to the lock checks and finally to a handler.
+</p>
+
+<div class="flow">
+  <div class="node"><b>sys.argv[1]</b><span>e.g. <code>abandon-pick</code></span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>in _ALL_COMMANDS?</b><span>membership test</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>_enforce_total_block_lock</b><span>only <code>status</code>, <code>enforce</code> survive a total block</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>_enforce_manual_pick_lock</b><span>exempt set includes <code>abandon-pick</code></span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>handler</b><span><code>cmd_abandon_pick</code></span></div>
+</div>
+
+<p>
+  Both lock functions take the command <em>name</em> as a string and compare it
+  against a frozenset of exempt names —
+  <code>_TOTAL_BLOCK_EXEMPT_COMMANDS</code> is just
+  <code>{"status", "enforce"}</code>; the manual-pick set is wider but still
+  explicit. That detail matters later: whatever string reaches those functions
+  is what the locks reason about.
+</p>
+
+<p>
+  The wrinkle is that this CLI is not purely positional. Individual commands do
+  take flags: <code>add-exception --reason "..."</code> passes
+  <code>sys.argv[2:]</code> to its own parser. So a user who has typed a flag
+  in this tool before has every reason to reach for
+  <code>--abandon-pick</code>.
+</p>
+
+<h2 id="intuition">Intuition — one token, three possible fates</h2>
+
+<p>
+  Here is the whole problem in one line. The old condition was a single
+  <code>or</code>:
+</p>
+
+<pre><code>if len(sys.argv) &lt; _MIN_CLI_ARGS or sys.argv[1] not in _ALL_COMMANDS:</code></pre>
+
+<p>
+  Two genuinely different situations — "you gave me nothing" and "you gave me
+  something I don't recognise" — collapsed into one branch that printed the
+  same help text and exited 1. The help screen never repeated back what you had
+  typed, so a typo and an empty invocation were indistinguishable. And because
+  <code>"--abandon-pick" != "abandon-pick"</code> as far as a dict lookup is
+  concerned, a perfectly reasonable spelling landed in the "unrecognised" bucket
+  with no hint about why.
+</p>
+
+<div class="cols">
+  <div class="card before">
+    <h4>Before</h4>
+    <p class="term">$ ./run.sh --abandon-pick 1794680
+Steam Backlog Enforcer
+
+Usage: python -m ... &lt;command&gt;
+
+Commands:
+  scan            Scan library &amp; assign a game
+  check           Check assigned game completion
+  ...
+$ echo $?
+1</p>
+  </div>
+  <div class="card after">
+    <h4>After</h4>
+    <p class="term">$ ./run.sh --abandon-pick 1794680
+Note: treating '--abandon-pick' as 'abandon-pick'.
+
+Abandoning manual pick: Vampire Survivors
+This will:
+  - Drop this pick from your allowed games
+  - Uninstall Vampire Survivors
+Type YES to abandon Vampire Survivors:</p>
+  </div>
+</div>
+
+<p>
+  The change splits that one branch into three outcomes for the first argument,
+  and the ordering is the whole idea: an exact name wins outright; otherwise a
+  leading-dash spelling is normalised (leading dashes carry no meaning in the
+  subcommand slot, so there is nothing to lose by stripping them); otherwise the
+  token is genuinely unknown and we say so, with a nearest-neighbour suggestion
+  from <code>difflib</code>.
+</p>
+
+<div class="flow">
+  <div class="node"><b>raw = "--abandon-pick"</b><span>as typed</span></div>
+  <div class="arrow">→</div>
+  <div class="node new"><b>1. exact hit?</b><span><code>raw in _ALL_COMMANDS</code> → no</span></div>
+  <div class="arrow">→</div>
+  <div class="node new"><b>2. strip dashes</b><span><code>"abandon-pick"</code> → hit ✓</span></div>
+  <div class="arrow">→</div>
+  <div class="node new"><b>3. else: suggest</b><span>skipped here</span></div>
+</div>
+
+<p>
+  One invariant holds this together. The normalised, canonical name is what
+  flows onward into the lock checks and the dispatch table; the raw token is
+  only ever used for the two messages aimed at the human. A dashed spelling
+  therefore cannot be a loophole: <code>--reset</code> is checked by the locks
+  as <code>reset</code>, gets refused exactly as <code>reset</code> would, and
+  the enforcer's guarantees are untouched.
+</p>
+
+<h3>Play with it</h3>
+<p>
+  Type anything into the box below and step through the resolution the way
+  <code>main()</code> now does. The suggestion step runs a faithful JavaScript
+  port of <code>difflib</code>'s Ratcliff–Obershelp similarity ratio with the
+  same <code>cutoff=0.6</code>, so the "did you mean" answers here match what
+  the real CLI prints.
+</p>
+
+<div class="sim">
+  <label for="raw">First CLI argument</label>
+  <div class="sim-row">
+    <input id="raw" type="text" value="--abandon-pick" spellcheck="false"
+           aria-label="First CLI argument">
+    <button id="step">Step ▸</button>
+    <button id="reset-sim">Reset</button>
+  </div>
+  <div class="chips">
+    <button class="chip" data-try="--abandon-pick">--abandon-pick</button>
+    <button class="chip" data-try="status">status</button>
+    <button class="chip" data-try="statu">statu</button>
+    <button class="chip" data-try="--uninstal">--uninstal</button>
+    <button class="chip" data-try="--zzzzzz">--zzzzzz</button>
+    <button class="chip" data-try="--">--</button>
+  </div>
+  <ol class="steps" id="steps"></ol>
+  <div class="verdict" id="verdict">Press <b>Step ▸</b> to begin.</div>
+</div>
+
+<h2 id="code">Code — what actually changed</h2>
+
+<p>
+  Two source concerns and one test concern. Roughly 55 lines of production code
+  and 75 of tests; no behaviour outside argument resolution moved.
+</p>
+
+<h3>1. Normalising the token</h3>
+<p>
+  A small pure function, easy to test in isolation and impossible to get
+  half-applied. Note the guard: dashes are only stripped when the raw token
+  actually starts with one, and the stripped result still has to be a real
+  command — so <code>--</code> and <code>--bogus</code> both fall through to
+  <code>None</code>.
+</p>
+<pre><code>def _resolve_command(raw: str) -&gt; str | None:
+    if raw in _ALL_COMMANDS:
+        return raw
+    if raw.startswith("-"):
+        stripped = raw.lstrip("-")
+        if stripped in _ALL_COMMANDS:
+            return stripped
+    return None</code></pre>
+
+<h3>2. A usage printer that can explain itself</h3>
+<p>
+  The old help block was inlined in <code>main()</code>, which is why the
+  no-args path and the bad-command path had to share it verbatim. Extracting it
+  lets the bad-command path prepend two lines the other path must not print.
+  <code>difflib.get_close_matches</code> compares against
+  <code>_ALL_COMMANDS</code> — iterating a dict yields its keys, so this
+  searches command names, not descriptions.
+</p>
+<pre><code>def _print_usage(unknown: str | None = None) -&gt; None:
+    if unknown is not None:
+        _echo(f"Unknown command: {unknown}")
+        close = difflib.get_close_matches(
+            unknown.lstrip("-"), _ALL_COMMANDS, n=1, cutoff=0.6
+        )
+        if close:
+            _echo(f"Did you mean '{close[0]}'?")
+        _echo("")
+    _echo("Steam Backlog Enforcer\n")
+    _echo("Usage: python -m steam_backlog_enforcer.main &lt;command&gt; [args]\n")
+    ...</code></pre>
+<p>
+  Stripping dashes again before the similarity search is deliberate:
+  <code>--zzzz</code> should be compared as <code>zzzz</code>, otherwise the
+  leading punctuation drags every ratio down and a near-miss like
+  <code>--uninstal</code> would get no suggestion.
+</p>
+
+<h3>3. Splitting the branch in <code>main()</code></h3>
+<p>
+  The empty-argv case and the unknown-command case now exit through different
+  doors, and the comment records the invariant so a future edit does not quietly
+  start passing <code>sys.argv[1]</code> to the locks.
+</p>
+<pre><code>if len(sys.argv) &lt; _MIN_CLI_ARGS:
+    _print_usage()
+    sys.exit(1)
+
+# Locks below are always given the canonical name, never raw argv,
+# so a dashed spelling can never be used to dodge one.
+command = _resolve_command(sys.argv[1])
+if command is None:
+    _print_usage(sys.argv[1])
+    sys.exit(1)
+if command != sys.argv[1]:
+    _echo(f"Note: treating '{sys.argv[1]}' as '{command}'.")</code></pre>
+<p>
+  Everything below this point in <code>main()</code> is unchanged — it already
+  used the local <code>command</code> variable rather than re-reading
+  <code>sys.argv</code>, which is why the invariant was cheap to establish.
+</p>
+
+<h3>4. Tests</h3>
+<p>
+  Added to <code>tests/test_main_part3.py</code>, following the file's existing
+  <code>patch.object(sys, "argv", ...)</code> style: a table-driven test of
+  <code>_resolve_command</code> (exact, dashed, <code>--</code>, unknown), a
+  dispatch test asserting both that the handler ran <em>and</em> that the
+  <code>Note: treating …</code> line was echoed, a parametrised check that
+  <code>bogus</code> and <code>--bogus</code> both name the offending token,
+  and two tests pinning the suggestion's presence on a near-miss and its
+  absence on a far-off token. The package stayed at 100% coverage.
+</p>
+
+<h2 id="quiz">Quiz</h2>
+<p id="score">Score: 0 / 0 answered</p>
+<div id="quiz"></div>
+
+<footer>
+  Generated from <code>git diff HEAD~1..HEAD</code> at commit
+  <code>a5dd569</code> — steam-backlog-enforcer.
+</footer>
+
+<script>
+// ── Ratcliff–Obershelp ratio, matching Python's difflib.SequenceMatcher ──
+function longestMatch(a, b, aStart, aEnd, bStart, bEnd) {
+  let bestI = aStart, bestJ = bStart, bestSize = 0;
+  let j2len = {};
+  for (let i = aStart; i < aEnd; i++) {
+    const newJ2len = {};
+    for (let j = bStart; j < bEnd; j++) {
+      if (a[i] !== b[j]) continue;
+      const k = (j2len[j - 1] || 0) + 1;
+      newJ2len[j] = k;
+      if (k > bestSize) { bestI = i - k + 1; bestJ = j - k + 1; bestSize = k; }
+    }
+    j2len = newJ2len;
+  }
+  return [bestI, bestJ, bestSize];
+}
+function matchCount(a, b, aStart, aEnd, bStart, bEnd) {
+  const [i, j, k] = longestMatch(a, b, aStart, aEnd, bStart, bEnd);
+  if (k === 0) return 0;
+  return k
+    + matchCount(a, b, aStart, i, bStart, j)
+    + matchCount(a, b, i + k, aEnd, j + k, bEnd);
+}
+function ratio(a, b) {
+  if (!a.length && !b.length) return 1;
+  return (2 * matchCount(a, b, 0, a.length, 0, b.length)) / (a.length + b.length);
+}
+
+const ALL_COMMANDS = [
+  "scan", "check", "status", "list", "enforce", "install", "hide", "unhide",
+  "unblock", "buy-dlc", "reset", "installed", "uninstall", "setup", "done",
+  "pick", "stats", "serve", "add-exception", "pick-manual", "abandon-pick",
+  "block-gaming"
+];
+function closeMatch(word) {
+  let best = null, bestR = 0.6;
+  for (const c of ALL_COMMANDS) {
+    const r = ratio(word, c);
+    if (r >= bestR && (best === null || r > bestR)) { best = c; bestR = r; }
+  }
+  return best ? { name: best, r: bestR } : null;
+}
+
+// ── micro-world ──
+const rawEl = document.getElementById("raw");
+const stepsEl = document.getElementById("steps");
+const verdictEl = document.getElementById("verdict");
+let stage = 0;
+
+function resetSim() {
+  stage = 0;
+  stepsEl.innerHTML = "";
+  verdictEl.className = "verdict";
+  verdictEl.innerHTML = "Press <b>Step ▸</b> to begin.";
+}
+function addStep(text, cls) {
+  const li = document.createElement("li");
+  li.className = cls;
+  li.innerHTML = text;
+  stepsEl.appendChild(li);
+}
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function settle(canonical, raw) {
+  verdictEl.className = "verdict ok";
+  const note = canonical !== raw
+    ? `The CLI prints <code>Note: treating '${esc(raw)}' as '${esc(canonical)}'.</code><br>`
+    : "";
+  verdictEl.innerHTML = note +
+    `Locks and dispatch receive <code>"${esc(canonical)}"</code> — the ` +
+    `canonical name, never the raw token.`;
+}
+function step() {
+  const raw = rawEl.value;
+  if (stage === 0) {
+    stepsEl.innerHTML = "";
+    verdictEl.className = "verdict";
+    verdictEl.textContent = "…";
+  }
+  if (stage === 0) {
+    const hit = ALL_COMMANDS.includes(raw);
+    addStep(`<b>1. Exact match?</b> <code>"${esc(raw)}" in _ALL_COMMANDS</code> → ` +
+            (hit ? "yes" : "no"), hit ? "hit" : "miss");
+    if (hit) { settle(raw, raw); stage = 3; return; }
+    stage = 1; verdictEl.textContent = "Not a known name as typed.";
+    return;
+  }
+  if (stage === 1) {
+    if (!raw.startsWith("-")) {
+      addStep("<b>2. Strip dashes?</b> token does not start with <code>-</code> → skipped",
+              "miss");
+    } else {
+      const stripped = raw.replace(/^-+/, "");
+      const hit = ALL_COMMANDS.includes(stripped);
+      addStep(`<b>2. Strip dashes:</b> <code>"${esc(raw)}".lstrip("-")</code> → ` +
+              `<code>"${esc(stripped)}"</code> → ` + (hit ? "hit" : "still unknown"),
+              hit ? "hit" : "miss");
+      if (hit) { settle(stripped, raw); stage = 3; return; }
+    }
+    stage = 2; verdictEl.textContent = "Still unresolved — falling through to the usage printer.";
+    return;
+  }
+  if (stage === 2) {
+    const probe = raw.replace(/^-+/, "");
+    const m = closeMatch(probe);
+    addStep(`<b>3. Suggest:</b> <code>get_close_matches("${esc(probe)}", …, cutoff=0.6)</code> → ` +
+            (m ? `<code>${esc(m.name)}</code> (ratio ${m.r.toFixed(2)})` : "no match above cutoff"),
+            m ? "hit" : "miss");
+    verdictEl.className = "verdict no";
+    verdictEl.innerHTML =
+      `<code>Unknown command: ${esc(raw)}</code><br>` +
+      (m ? `<code>Did you mean '${esc(m.name)}'?</code><br>` : "") +
+      `then the usage block, and <code>sys.exit(1)</code>. No handler runs.`;
+    stage = 3;
+    return;
+  }
+  resetSim();
+  step();
+}
+document.getElementById("step").addEventListener("click", step);
+document.getElementById("reset-sim").addEventListener("click", resetSim);
+rawEl.addEventListener("input", resetSim);
+document.querySelectorAll(".chip").forEach(function (c) {
+  c.addEventListener("click", function () {
+    rawEl.value = c.dataset.try;
+    resetSim();
+    step();
+  });
+});
+
+// ── quiz ──
+const QUIZ = [
+  {
+    "stem": "Why does main() keep the canonical name in a variable instead of stripping the dashes off sys.argv[1] and carrying on?",
+    "options": [
+      "Because sys.argv entries are immutable strings, so the first one can never be rewritten in place",
+      "Because the lock checks and the dispatch table are keyed by canonical names and must agree",
+      "Because add-exception parses its own flags and would break if its dashes were stripped too",
+      "Because the usage printer must echo the raw token back, and one variable cannot hold both"
+    ],
+    "answer": 1,
+    "why": "_enforce_total_block_lock and _enforce_manual_pick_lock compare the command string against frozensets of canonical names; feeding them raw argv would let a spelling change the lock decision."
+  },
+  {
+    "stem": "The old code tested `len(sys.argv) < _MIN_CLI_ARGS or sys.argv[1] not in _ALL_COMMANDS`. What did that `or` actually cost the user?",
+    "options": [
+      "Commands taking extra arguments could never be reached, since argv length was checked first",
+      "It ran the membership test on a missing element, so an empty argv raised IndexError",
+      "Locks were skipped for short invocations because the exit happened before they were called",
+      "A typo and an empty invocation printed the same help screen, and neither said why"
+    ],
+    "answer": 3,
+    "why": "Both situations printed the same help text and exited 1, and the help never repeated the offending token back."
+  },
+  {
+    "stem": "Could someone use a dashed spelling such as `--reset` to slip past an active manual-pick lock?",
+    "options": [
+      "No — the locks see the resolved name `reset` and refuse it exactly as before",
+      "Yes — resolution happens after the lock checks, so the dashed form arrives unfiltered",
+      "Yes — but only for the four commands dispatched outside the COMMANDS table",
+      "No — because _resolve_command rejects every token that is not spelled exactly right"
+    ],
+    "answer": 0,
+    "why": "Normalisation happens before both lock calls, and they receive the canonical string, so the dashed form is treated identically to the bare one."
+  },
+  {
+    "stem": "_print_usage strips leading dashes a second time before calling difflib.get_close_matches. Why bother?",
+    "options": [
+      "Because get_close_matches raises a ValueError on any argument beginning with a dash",
+      "Because _resolve_command hands over the already-stripped token and it must be undone",
+      "Because leading punctuation lowers the similarity ratio, hiding real near misses",
+      "Because the cutoff of 0.6 is measured against the description text rather than the name"
+    ],
+    "answer": 2,
+    "why": "The ratio divides by combined length, so extra dashes on one side drag it under the 0.6 cutoff and a token like --uninstal would get no suggestion."
+  },
+  {
+    "stem": "What does `_resolve_command(\"--\")` return, and why does that matter?",
+    "options": [
+      "The empty string, which the usage printer then treats as the no-arguments case",
+      "None, because stripping leaves nothing and only real command names resolve",
+      "The first command in _ALL_COMMANDS, since an empty probe matches everything",
+      "None, because the function refuses any token consisting only of punctuation"
+    ],
+    "answer": 1,
+    "why": "The stripped result still has to be a key of _ALL_COMMANDS; an empty string is not, so it falls through to None and the unknown-command path."
+  }
+];
+
+const quizEl = document.getElementById("quiz");
+const scoreEl = document.getElementById("score");
+let answered = 0, correct = 0;
+QUIZ.forEach(function (q, qi) {
+  const box = document.createElement("div");
+  box.className = "q";
+  const stem = document.createElement("p");
+  stem.className = "stem";
+  stem.textContent = (qi + 1) + ". " + q.stem;
+  box.appendChild(stem);
+  const why = document.createElement("p");
+  why.className = "why";
+  why.hidden = true;
+  why.textContent = q.why;
+  q.options.forEach(function (opt, oi) {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.type = "button";
+    b.textContent = String.fromCharCode(65 + oi) + ". " + opt;
+    b.addEventListener("click", function () {
+      if (box.dataset.done) return;
+      box.dataset.done = "1";
+      answered += 1;
+      if (oi === q.answer) { correct += 1; b.classList.add("correct"); }
+      else {
+        b.classList.add("wrong");
+        box.querySelectorAll(".opt")[q.answer].classList.add("correct");
+      }
+      box.querySelectorAll(".opt").forEach(function (o) { o.disabled = true; });
+      why.hidden = false;
+      scoreEl.textContent = "Score: " + correct + " / " + answered + " answered";
+    });
+    box.appendChild(b);
+  });
+  box.appendChild(why);
+  quizEl.appendChild(box);
+});
+</script>
