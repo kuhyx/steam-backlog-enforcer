@@ -38,9 +38,8 @@ from steam_backlog_enforcer.game_install import (
     uninstall_other_games,
 )
 from steam_backlog_enforcer.library_hider import (
-    SteamUnavailableError,
-    hide_other_games,
     steam_is_installed,
+    try_hide_other_games,
 )
 from steam_backlog_enforcer.steam_api import SteamAPIClient
 from steam_backlog_enforcer.store_blocker import block_store
@@ -246,10 +245,9 @@ def _enforce_hide_games(config: Config, state: State) -> None:
     # which spun the service through ~1000 restarts against a Steam that had
     # been uninstalled - each attempt leaving a dead process named "steam"
     # behind that /proc scanners misread as a live Steam.
-    try:
-        hidden = hide_other_games(owned_ids, state.current_app_id)
-    except SteamUnavailableError as exc:
-        _echo(f"  Library hiding: skipped ({exc})")
+    hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+    if skipped is not None:
+        _echo(f"  Library hiding: skipped ({skipped})")
         return
 
     if hidden > 0:

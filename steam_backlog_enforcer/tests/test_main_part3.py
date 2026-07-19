@@ -240,7 +240,7 @@ class TestCmdPick:
             patch(f"{PKG}.load_hltb_cache", return_value={2: 5.0}),
             patch(f"{PKG}.pick_next_game"),
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{PKG}.hide_other_games", return_value=2) as mock_hide,
+            patch(f"{PKG}.try_hide_other_games", return_value=(2, None)) as mock_hide,
             patch(f"{PKG}._echo"),
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
@@ -254,11 +254,29 @@ class TestCmdPick:
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{PKG}.hide_other_games", return_value=0),
+            patch(f"{PKG}.try_hide_other_games", return_value=(0, None)),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         mock_echo.assert_not_called()
+
+    def test_unreachable_steam_reports_skip(self) -> None:
+        snap = [_snap(2, "NewGame", 10, 0, 5.0)]
+        state = State(current_app_id=2, current_game_name="NewGame")
+        with (
+            patch(f"{PKG}.load_snapshot", return_value=snap),
+            patch(f"{PKG}.load_hltb_cache", return_value={}),
+            patch(f"{PKG}.pick_next_game"),
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
+            patch(
+                f"{PKG}.try_hide_other_games",
+                return_value=(0, "Steam is not installed"),
+            ),
+            patch(f"{PKG}._echo") as mock_echo,
+        ):
+            cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "skipped (Steam is not installed)" in output
 
     def test_no_hide_when_no_current_app(self) -> None:
         snap = [_snap(2, "NewGame", 10, 0, 5.0)]
@@ -279,7 +297,7 @@ class TestCmdPick:
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{PKG}.hide_other_games") as mock_hide,
+            patch(f"{PKG}.try_hide_other_games") as mock_hide,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         mock_hide.assert_not_called()

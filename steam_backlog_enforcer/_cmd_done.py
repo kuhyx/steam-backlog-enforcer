@@ -24,7 +24,7 @@ from steam_backlog_enforcer.hltb import (
     load_hltb_polls_cache,
     save_hltb_cache,
 )
-from steam_backlog_enforcer.library_hider import hide_other_games
+from steam_backlog_enforcer.library_hider import try_hide_other_games
 from steam_backlog_enforcer.scanning import pick_next_game
 from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
@@ -212,8 +212,10 @@ def _finalize_completion(
 
     owned_ids = get_all_owned_app_ids(config)
     if owned_ids:
-        hidden = hide_other_games(owned_ids, state.current_app_id)
-        if hidden > 0:
+        hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+        if skipped is not None:
+            _echo(f"\n  Library hiding: skipped ({skipped})")
+        elif hidden > 0:
             _echo(f"\n  Library: hid {hidden} games")
 
     if not is_game_installed(state.current_app_id):
@@ -276,8 +278,10 @@ def _enforce_on_done(config: Config, state: State) -> None:
     # assigned game hidden and stale games visible.
     owned_ids = get_all_owned_app_ids(config)
     if owned_ids:
-        hidden = hide_other_games(owned_ids, state.current_app_id)
-        if hidden > 0:
+        hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+        if skipped is not None:
+            _echo(f"  Library hiding: skipped ({skipped})")
+        elif hidden > 0:
             _echo(f"  Library: hid {hidden} games")
 
 

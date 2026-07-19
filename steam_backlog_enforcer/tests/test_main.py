@@ -342,7 +342,7 @@ class TestCmdHide:
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{PKG}.hide_other_games", return_value=1),
+            patch(f"{PKG}.try_hide_other_games", return_value=(1, None)),
             patch(f"{PKG}._echo"),
         ):
             cmd_hide(Config(), state)
@@ -351,10 +351,27 @@ class TestCmdHide:
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1]),
-            patch(f"{PKG}.hide_other_games", return_value=0),
+            patch(f"{PKG}.try_hide_other_games", return_value=(0, None)),
             patch(f"{PKG}._echo"),
         ):
             cmd_hide(Config(), state)
+
+    def test_unreachable_steam_reports_skip(self) -> None:
+        # Regression guard: a deferred Steam restart used to escape as a
+        # traceback instead of degrading to a skip message.
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(
+                f"{PKG}.try_hide_other_games",
+                return_value=(0, "update in progress"),
+            ),
+            patch(f"{PKG}._echo") as mock_echo,
+        ):
+            cmd_hide(Config(), state)
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "skipped (update in progress)" in output
+        assert "Hidden" not in output
 
 
 class TestCmdUnhide:

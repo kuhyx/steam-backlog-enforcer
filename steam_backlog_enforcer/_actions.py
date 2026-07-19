@@ -23,6 +23,15 @@ if TYPE_CHECKING:
 # truth: both ``main.py`` and the MCP server import it from here.
 MANUAL_LOCK_DAYS = 14
 
+# Mistake-correction window: for this many days after a manual pick the user
+# may still back out via ``abandon-pick``. Deliberately short — it exists to
+# undo a wrong pick, not to serve as an escape hatch from the lock.
+MANUAL_GRACE_DAYS = 4
+
+# How long an abandoned pick stays out of the auto-assignment pool, so that
+# ``scan`` does not immediately hand back the game the user just rejected.
+ABANDON_COOLDOWN_DAYS = 30
+
 
 def is_manual_pick_locked(state: State) -> bool:
     """Return ``True`` if the manual-pick lock is currently in force.
@@ -82,6 +91,76 @@ def apply_manual_pick(state: State, app_id: int, game_name: str) -> None:
     state.save()
 
 
+def manual_pick_grace_remaining(state: State) -> float | None:
+    """Return days left in the manual-pick grace window, or ``None``.
+
+    ``None`` means "no grace window applies": there is no manual pick, or its
+    timestamp is missing/malformed. A value <= 0 means the window has closed.
+
+    Args:
+        state: The loaded enforcer state.
+
+    Returns:
+        Fractional days remaining before the pick can no longer be abandoned,
+        or ``None`` when the question does not apply.
+    """
+    if state.manual_pick_app_id is None or not state.manual_pick_started_at:
+        return None
+    try:
+        started = datetime.fromisoformat(state.manual_pick_started_at)
+    except ValueError:
+        return None
+    deadline = started + timedelta(days=MANUAL_GRACE_DAYS)
+    return (deadline - datetime.now(timezone.utc)).total_seconds() / 86400
+
+
+def can_abandon_manual_pick(state: State) -> bool:
+    """Return ``True`` if the current manual pick is still inside its grace window.
+
+    Args:
+        state: The loaded enforcer state.
+
+    Returns:
+        Whether ``abandon_manual_pick`` would be accepted right now.
+    """
+    remaining = manual_pick_grace_remaining(state)
+    return remaining is not None and remaining > 0
+
+
+def abandon_manual_pick(state: State) -> bool:
+    """Drop the manual pick and persist ``state``, if still inside the grace window.
+
+    Clears both the manual-pick lock and the game assignment, and puts the
+    abandoned app id on the existing skip cooldown so ``scan`` will not hand
+    the same game straight back. State-only: like ``apply_manual_pick`` this
+    deliberately performs no uninstall/hide cascade, so the MCP server can call
+    it without touching the filesystem.
+
+    Args:
+        state: The enforcer state to mutate and save.
+
+    Returns:
+        ``True`` if the pick was abandoned, ``False`` if the grace window has
+        closed (or there was no pick), in which case ``state`` is untouched.
+    """
+    if not can_abandon_manual_pick(state):
+        return False
+
+    app_id = state.manual_pick_app_id
+    if app_id is not None:
+        state.skip_for_days(app_id, ABANDON_COOLDOWN_DAYS)
+
+    state.manual_pick_app_id = None
+    state.manual_pick_game_name = ""
+    state.manual_pick_started_at = ""
+    # The pick was also the assignment; clearing it lets 'scan' reassign.
+    if state.current_app_id == app_id:
+        state.current_app_id = None
+        state.current_game_name = ""
+    state.save()
+    return True
+
+
 def status_payload(state: State) -> dict[str, Any]:
     """Build the structured status snapshot that ``cmd_status`` renders as text.
 
@@ -116,4 +195,5 @@ def status_payload(state: State) -> dict[str, Any]:
             "until": total_block.until.isoformat() if total_block.until else None,
         },
         "manual_pick_locked": is_manual_pick_locked(state),
+        "manual_pick_grace_days_left": manual_pick_grace_remaining(state),
     }

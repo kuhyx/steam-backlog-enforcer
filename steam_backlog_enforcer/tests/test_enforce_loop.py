@@ -16,7 +16,6 @@ from steam_backlog_enforcer._enforce_loop import (
     get_all_owned_app_ids,
 )
 from steam_backlog_enforcer.config import Config, State
-from steam_backlog_enforcer.library_hider import SteamUnavailableError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -349,7 +348,7 @@ class TestEnforceHideGames:
         state = State(current_app_id=1)
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{PKG}.hide_other_games", return_value=2),
+            patch(f"{PKG}.try_hide_other_games", return_value=(2, None)),
             patch(f"{PKG}._echo"),
         ):
             _enforce_hide_games(Config(), state)
@@ -358,7 +357,7 @@ class TestEnforceHideGames:
         state = State(current_app_id=1)
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{PKG}.hide_other_games", return_value=0),
+            patch(f"{PKG}.try_hide_other_games", return_value=(0, None)),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             _enforce_hide_games(Config(), state)
@@ -384,8 +383,8 @@ class TestEnforceHideGames:
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
             patch(
-                f"{PKG}.hide_other_games",
-                side_effect=SteamUnavailableError("Steam is not installed"),
+                f"{PKG}.try_hide_other_games",
+                return_value=(0, "Steam is not installed"),
             ),
             patch(f"{PKG}._echo") as mock_echo,
         ):

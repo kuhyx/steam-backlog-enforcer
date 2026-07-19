@@ -32,8 +32,13 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from steam_backlog_enforcer._actions import (
+    ABANDON_COOLDOWN_DAYS,
+    MANUAL_GRACE_DAYS,
     MANUAL_LOCK_DAYS,
+    abandon_manual_pick,
     apply_manual_pick,
+    can_abandon_manual_pick,
+    manual_pick_grace_remaining,
     status_payload,
 )
 from steam_backlog_enforcer._total_block import start_total_block
@@ -204,6 +209,69 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
         "ok": True,
         "applied": True,
         "action": "pick_manual",
+        "app_id": app_id,
+        "game_name": game_name,
+    }
+
+
+@mcp.tool()
+def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
+    """Undo a manual pick inside its grace window (gated write).
+
+    With ``confirm=False`` (the default) this performs **no** mutation and
+    returns a preview. Only works within ``MANUAL_GRACE_DAYS`` days of the
+    pick. Like ``pick_manual``, this mutates **state only** — the CLI's
+    ``abandon-pick`` additionally uninstalls the abandoned game.
+
+    Args:
+        app_id: The manually-picked app id to back out of.
+        confirm: Set ``True`` to actually abandon the pick; otherwise preview.
+    """
+    state = State.load()
+    if state.manual_pick_app_id is None:
+        return {"ok": False, "reason": "No manual pick is active."}
+    if app_id != state.manual_pick_app_id:
+        return {
+            "ok": False,
+            "reason": (
+                f"AppID={app_id} is not the active manual pick "
+                f"(AppID={state.manual_pick_app_id})."
+            ),
+        }
+
+    remaining = manual_pick_grace_remaining(state)
+    if not can_abandon_manual_pick(state):
+        return {
+            "ok": False,
+            "reason": (
+                f"The {MANUAL_GRACE_DAYS}-day grace period has expired; "
+                "the pick can no longer be abandoned."
+            ),
+        }
+
+    game_name = state.manual_pick_game_name
+    if not confirm:
+        return {
+            "ok": True,
+            "preview": True,
+            "action": "abandon_pick",
+            "app_id": app_id,
+            "game_name": game_name,
+            "grace_days_left": remaining,
+            "effect": (
+                "Releases the manual pick lock, clears the assignment, and "
+                f"keeps the game out of auto-assignment for "
+                f"{ABANDON_COOLDOWN_DAYS} days."
+            ),
+            "confirm_required": True,
+        }
+
+    abandon_manual_pick(state)
+    logger.info("abandon_pick applied: %s (AppID=%s)", game_name, app_id)
+    return {
+        "ok": True,
+        "applied": True,
+        "action": "abandon_pick",
         "app_id": app_id,
         "game_name": game_name,
     }

@@ -7,9 +7,11 @@ already-tested leaf functions.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from steam_backlog_enforcer import _mcp
+from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import GameInfo
 
 
@@ -174,6 +176,61 @@ class TestPickManualGate:
         assert out["applied"] is True
         assert out["app_id"] == 440
         amp.assert_called_once_with(state.load.return_value, 440, "TF2")
+
+
+class TestAbandonPickGate:
+    """The MCP escape hatch mirrors the CLI grace rules, state-only."""
+
+    def _state(self, *, days_ago: float = 1.0, app_id: int = 440) -> State:
+        started = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
+        return State(
+            manual_pick_app_id=app_id,
+            manual_pick_game_name="TF2",
+            manual_pick_started_at=started,
+            current_app_id=app_id,
+            current_game_name="TF2",
+        )
+
+    def test_no_active_pick(self) -> None:
+        with patch.object(_mcp.State, "load", return_value=State()):
+            out = _mcp.abandon_pick(440)
+        assert out["ok"] is False
+        assert "No manual pick" in out["reason"]
+
+    def test_wrong_app_id(self) -> None:
+        with patch.object(_mcp.State, "load", return_value=self._state()):
+            out = _mcp.abandon_pick(999)
+        assert out["ok"] is False
+        assert "not the active manual pick" in out["reason"]
+
+    def test_expired_grace(self) -> None:
+        state = self._state(days_ago=_mcp.MANUAL_GRACE_DAYS + 1)
+        with patch.object(_mcp.State, "load", return_value=state):
+            out = _mcp.abandon_pick(440)
+        assert out["ok"] is False
+        assert "grace period has expired" in out["reason"]
+
+    def test_preview_does_not_mutate(self) -> None:
+        with (
+            patch.object(_mcp.State, "load", return_value=self._state()),
+            patch.object(_mcp, "abandon_manual_pick") as amp,
+        ):
+            out = _mcp.abandon_pick(440)
+        assert out["preview"] is True
+        assert out["game_name"] == "TF2"
+        assert out["grace_days_left"] > 0
+        amp.assert_not_called()
+
+    def test_confirm_applies(self) -> None:
+        state = self._state()
+        with (
+            patch.object(_mcp.State, "load", return_value=state),
+            patch.object(_mcp, "abandon_manual_pick") as amp,
+        ):
+            out = _mcp.abandon_pick(440, confirm=True)
+        assert out["applied"] is True
+        assert out["app_id"] == 440
+        amp.assert_called_once_with(state)
 
 
 class TestBlockGamingGate:

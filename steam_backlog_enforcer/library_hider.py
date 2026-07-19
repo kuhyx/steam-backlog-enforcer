@@ -394,6 +394,35 @@ def hide_other_games(
     return count
 
 
+def try_hide_other_games(
+    owned_app_ids: list[int],
+    allowed_app_id: int | None,
+) -> tuple[int, str | None]:
+    """Hide other games, degrading gracefully when Steam cannot be driven.
+
+    An unreachable Steam (not running, no debug port) or a deferred restart
+    (a game update is in flight) is never fatal: there is simply no library to
+    reconcile this pass. Every interactive command should skip and carry on
+    rather than abort with a traceback, so this wrapper turns the
+    :class:`SteamUnavailableError` family into a return value.
+
+    Stdout-free on purpose — callers phrase the skip message themselves.
+
+    Args:
+        owned_app_ids: All owned app ids, used to seed the first hide pass.
+        allowed_app_id: The one game that must stay visible, if any.
+
+    Returns:
+        ``(hidden_count, skip_reason)``. ``skip_reason`` is ``None`` when the
+        pass ran; otherwise it explains why hiding was skipped and the count
+        is 0.
+    """
+    try:
+        return hide_other_games(owned_app_ids, allowed_app_id), None
+    except SteamUnavailableError as exc:
+        return 0, str(exc)
+
+
 def unhide_all_games(owned_app_ids: list[int]) -> int:
     """Remove all games from the hidden collection.
 

@@ -8,12 +8,15 @@ from unittest.mock import MagicMock, patch
 
 from steam_backlog_enforcer.library_hider import (
     _SPAWNED,
+    SteamUnavailableError,
+    SteamUpdateInProgressError,
     _reap_spawned,
     _resolve_desktop_user,
     _run_as_user,
     hide_other_games,
     restart_steam,
     steam_is_installed,
+    try_hide_other_games,
     unhide_all_games,
 )
 
@@ -287,6 +290,37 @@ class TestHideOtherGames:
         ):
             count = hide_other_games([1, 2], None)
             assert count == 2
+
+
+class TestTryHideOtherGames:
+    """Tests for the graceful wrapper around hide_other_games.
+
+    Regression guard: an unreachable Steam (or a deferred restart while a game
+    update is in flight) used to escape as a traceback out of every
+    interactive command that reconciles the library.
+    """
+
+    def test_success_returns_count_and_no_reason(self) -> None:
+        with patch(f"{PKG}.hide_other_games", return_value=7):
+            assert try_hide_other_games([1, 2], 1) == (7, None)
+
+    def test_steam_unavailable_is_reported_not_raised(self) -> None:
+        with patch(
+            f"{PKG}.hide_other_games",
+            side_effect=SteamUnavailableError("Steam is not installed"),
+        ):
+            hidden, reason = try_hide_other_games([1, 2], 1)
+        assert hidden == 0
+        assert reason == "Steam is not installed"
+
+    def test_update_in_progress_is_reported_not_raised(self) -> None:
+        with patch(
+            f"{PKG}.hide_other_games",
+            side_effect=SteamUpdateInProgressError("update in progress"),
+        ):
+            hidden, reason = try_hide_other_games([1, 2], 1)
+        assert hidden == 0
+        assert reason == "update in progress"
 
 
 class TestUnhideAllGames:

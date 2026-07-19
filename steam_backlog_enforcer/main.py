@@ -8,10 +8,19 @@ import sys
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import (
+    ABANDON_COOLDOWN_DAYS as _ABANDON_COOLDOWN_DAYS,
+)
+from steam_backlog_enforcer._actions import (
+    MANUAL_GRACE_DAYS as _MANUAL_GRACE_DAYS,
+)
+from steam_backlog_enforcer._actions import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
 from steam_backlog_enforcer._actions import (
+    abandon_manual_pick,
     apply_manual_pick,
+    can_abandon_manual_pick,
+    manual_pick_grace_remaining,
 )
 from steam_backlog_enforcer._actions import (
     is_manual_pick_locked as _is_manual_pick_locked,
@@ -46,11 +55,12 @@ from steam_backlog_enforcer.game_install import (
     install_game,
     is_game_installed,
     is_protected_app,
+    uninstall_game,
     uninstall_other_games,
 )
 from steam_backlog_enforcer.library_hider import (
-    hide_other_games,
     restart_steam,
+    try_hide_other_games,
     unhide_all_games,
 )
 from steam_backlog_enforcer.scanning import (
@@ -82,7 +92,7 @@ _MIN_CLI_ARGS = 2
 # Principle: only what is needed to release the lock (done/check) or
 # that cannot change the game assignment (status, enforce, setup, serve).
 _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
-    {"done", "check", "status", "enforce", "setup", "serve"}
+    {"done", "check", "status", "enforce", "setup", "serve", "abandon-pick"}
 )
 
 # Commands that remain usable while a total gaming block is active. Far
@@ -158,8 +168,24 @@ def _show_manual_pick_lock_message(state: State) -> None:
         "\nYou CANNOT use any other feature until you finish this game"
         "\n(100% achievements) or the 2-week deadline passes."
         "\n\nTo release the lock: finish the game, then run 'done' or 'check'."
-        f"\n\nAllowed commands: {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
     )
+
+    # Mistake-correction window: only advertised while it is still open, and
+    # once closed 'abandon-pick' is dropped from the allowed list rather than
+    # offered as a command that would only refuse.
+    grace_left = manual_pick_grace_remaining(state)
+    in_grace = grace_left is not None and grace_left > 0
+    if in_grace:
+        _echo(
+            f"\nPicked this by mistake? You have {grace_left:.1f} day(s) of the"
+            f"\n{_MANUAL_GRACE_DAYS}-day grace period left:"
+            f"\n  abandon-pick {state.manual_pick_app_id}"
+        )
+
+    usable = set(_MANUAL_LOCK_EXEMPT_COMMANDS)
+    if not in_grace:
+        usable.discard("abandon-pick")
+    _echo(f"\nAllowed commands: {', '.join(sorted(usable))}")
     _echo("=" * 60 + "\n")
 
 
@@ -442,7 +468,10 @@ def cmd_hide(config: Config, state: State) -> None:
         return
 
     _echo(f"Hiding all games except {state.current_game_name}...")
-    hidden = hide_other_games(owned_ids, state.current_app_id)
+    hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+    if skipped is not None:
+        _echo(f"Library hiding: skipped ({skipped})")
+        return
     _echo(f"Hidden {hidden} games.")
 
     if hidden > 0:
@@ -482,8 +511,10 @@ def cmd_pick(config: Config, state: State) -> None:
     if state.current_app_id is not None:
         owned_ids = get_all_owned_app_ids(config)
         if owned_ids:
-            hidden = hide_other_games(owned_ids, state.current_app_id)
-            if hidden > 0:
+            hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+            if skipped is not None:
+                _echo(f"\n  Library hiding: skipped ({skipped})")
+            elif hidden > 0:
                 _echo(f"\n  Library: hid {hidden} games")
 
 
@@ -548,8 +579,10 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         f"\n  - Override your current assignment"
         f"\n  - Lock ALL other commands for {_MANUAL_LOCK_DAYS} DAYS or until"
         f"\n    you reach 100% achievements"
-        f"\n  - Only 'done', 'check', 'status', 'enforce', 'setup', 'serve'"
-        f"\n    will remain usable during this period"
+        f"\n  - Leave only these commands usable:"
+        f"\n    {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
+        f"\n  - Stay undoable via 'abandon-pick {app_id}' for the first"
+        f"\n    {_MANUAL_GRACE_DAYS} days"
     )
     _echo()
     confirm = input(
@@ -582,9 +615,120 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
 
     owned_ids = get_all_owned_app_ids(config)
     if owned_ids:
-        hidden = hide_other_games(owned_ids, app_id)
-        if hidden > 0:
+        hidden, skipped = try_hide_other_games(owned_ids, app_id)
+        if skipped is not None:
+            _echo(f"  Library hiding: skipped ({skipped})")
+        elif hidden > 0:
             _echo(f"  Library: hid {hidden} games")
+
+
+_ABANDON_PICK_USAGE = (
+    "Usage: abandon-pick <app_id>\n"
+    "  app_id : the manually-picked game you want to back out of.\n\n"
+    f"Only works within {_MANUAL_GRACE_DAYS} days of the pick."
+)
+
+
+def _abandon_pick_target(state: State, args: list[str]) -> int | None:
+    """Validate the abandon-pick argument against the active manual pick.
+
+    Requiring the explicit app_id (rather than defaulting to the current pick)
+    makes an accidental abandon impossible to trigger by muscle memory.
+
+    Args:
+        state: Current enforcer state.
+        args: Remaining CLI args (first element should be the app_id).
+
+    Returns:
+        The validated app id, or ``None`` if the input was unusable (a message
+        has already been printed in that case).
+    """
+    if not args:
+        _echo(_ABANDON_PICK_USAGE)
+        return None
+
+    try:
+        app_id = int(args[0])
+    except ValueError:
+        _echo(f"Error: app_id must be a number, got '{args[0]}'.")
+        return None
+
+    if state.manual_pick_app_id is None:
+        _echo("No manual pick is active — nothing to abandon.")
+        return None
+
+    if app_id != state.manual_pick_app_id:
+        _echo(
+            f"Error: AppID={app_id} is not your manual pick.\n"
+            f"Current pick: {state.manual_pick_game_name}"
+            f" (AppID={state.manual_pick_app_id})."
+        )
+        return None
+
+    return app_id
+
+
+def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
+    """Back out of a manual pick while still inside the grace period.
+
+    Args:
+        _config: Enforcer configuration (unused, kept for dispatch symmetry).
+        state: Current enforcer state.
+        args: Remaining CLI args (first element should be the app_id).
+    """
+    app_id = _abandon_pick_target(state, args)
+    if app_id is None:
+        sys.exit(1)
+
+    game_name = state.manual_pick_game_name
+
+    if not can_abandon_manual_pick(state):
+        # ``remaining`` is negative once the window has closed, so its
+        # magnitude is how long ago that happened.
+        remaining = manual_pick_grace_remaining(state)
+        elapsed = (
+            f"{abs(remaining):.1f} day(s) ago"
+            if remaining is not None
+            else "at an unknown time"
+        )
+        _echo(
+            f"\nGrace period EXPIRED for {game_name} (AppID={app_id}).\n"
+            f"The {_MANUAL_GRACE_DAYS}-day window closed {elapsed}.\n"
+            "Finish the game (100% achievements) or wait out the lock."
+        )
+        sys.exit(1)
+
+    _echo(f"\nAbandoning manual pick: {game_name} (AppID={app_id})")
+    _echo(
+        f"\nThis will:"
+        f"\n  - Release the manual pick lock"
+        f"\n  - Uninstall {game_name}"
+        f"\n  - Keep it out of auto-assignment for"
+        f" {_ABANDON_COOLDOWN_DAYS} days"
+        f"\n  - Leave you with no assigned game (run 'scan' to get one)"
+    )
+    _echo()
+    confirm = input(f"Type YES to abandon {game_name}: ").strip()
+    if confirm != "YES":
+        _echo("Aborted.")
+        return
+
+    if not abandon_manual_pick(state):
+        # Should be unreachable: the grace check above already passed.
+        _echo("Error: the grace period closed before the pick could be abandoned.")
+        sys.exit(1)
+
+    _echo(f"\nManual pick abandoned: {game_name}")
+
+    if is_game_installed(app_id):
+        _echo(f"  Uninstalling {game_name}...")
+        if uninstall_game(app_id, game_name):
+            _echo("  Uninstalled.")
+        else:
+            _echo("  Warning: could not uninstall — remove it from Steam manually.")
+
+    _echo("\nNo game is assigned now. Run 'scan' to get a new assignment,")
+    _echo("or 'pick-manual <app_id>' to choose one yourself.\n")
 
 
 _BLOCK_GAMING_USAGE = (
@@ -668,6 +812,9 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
 _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
     "add-exception": "Request 24h-locked whitelist exception (use --reason)",
     "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
+    "abandon-pick": (
+        f"Undo a manual pick within {_MANUAL_GRACE_DAYS} days (needs app_id)"
+    ),
     "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
 }
 
@@ -715,6 +862,10 @@ def main() -> None:
 
     if command == "pick-manual":
         cmd_pick_manual(config, state, sys.argv[2:])
+        return
+
+    if command == "abandon-pick":
+        cmd_abandon_pick(config, state, sys.argv[2:])
         return
 
     _, func = COMMANDS[command]

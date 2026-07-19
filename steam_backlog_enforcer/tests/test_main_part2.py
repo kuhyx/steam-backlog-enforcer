@@ -46,7 +46,7 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=2),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(2, None)),
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
@@ -63,6 +63,41 @@ class TestFinalizeCompletion:
             mock_pick.side_effect = set_next
             _finalize_completion(config, state, "G", 1)
         assert 1 in state.finished_app_ids
+
+    def test_hide_skipped_when_steam_unreachable(self) -> None:
+        # Reconciliation is best-effort: an undrivable Steam must not abort
+        # the completion flow.
+        config = Config(steam_api_key="k", steam_id="i")
+        state = State(current_app_id=1, current_game_name="G")
+        snap = [_snap(2, "NewGame", 10, 0, 5.0)]
+        with (
+            patch(f"{CMD_DONE_PKG}._echo") as mock_echo,
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
+            patch(
+                f"{CMD_DONE_PKG}.try_hide_other_games",
+                return_value=(0, "update in progress"),
+            ),
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.send_notification"),
+            patch.object(State, "save"),
+        ):
+
+            def set_next(
+                _games: object,
+                s: State,
+                _c: object,
+                **_kwargs: object,
+            ) -> None:
+                s.current_app_id = 2
+                s.current_game_name = "NewGame"
+
+            mock_pick.side_effect = set_next
+            _finalize_completion(config, state, "G", 1)
+        assert "skipped (update in progress)" in " ".join(
+            str(c) for c in mock_echo.call_args_list
+        )
 
     def test_no_snapshot(self) -> None:
         config = Config()
@@ -131,7 +166,7 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=0),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(0, None)),
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
@@ -206,7 +241,7 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=1),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(1, None)),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.send_notification"),
@@ -236,7 +271,7 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=1),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(1, None)),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.send_notification"),
@@ -268,7 +303,7 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=2),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=1),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(1, None)),
         ):
             _enforce_on_done(config, state)
 
@@ -284,9 +319,26 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=0),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=0),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(0, None)),
         ):
             _enforce_on_done(config, state)
+
+    def test_hide_skipped_when_steam_unreachable(self) -> None:
+        config = Config(kill_unauthorized_games=False, uninstall_other_games=False)
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{CMD_DONE_PKG}._echo") as mock_echo,
+            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(
+                f"{CMD_DONE_PKG}.try_hide_other_games",
+                return_value=(0, "Steam is not installed"),
+            ),
+        ):
+            _enforce_on_done(config, state)
+        assert "skipped (Steam is not installed)" in " ".join(
+            str(c) for c in mock_echo.call_args_list
+        )
 
     def test_reinstall_when_not_installed(self) -> None:
         config = Config(
@@ -300,7 +352,7 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.hide_other_games", return_value=0),
+            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(0, None)),
         ):
             _enforce_on_done(config, state)
         mock_install.assert_called_once_with(1, "G", "s1", use_steam_protocol=True)

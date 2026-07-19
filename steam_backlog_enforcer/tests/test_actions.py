@@ -5,10 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
+
 from steam_backlog_enforcer import _actions
 from steam_backlog_enforcer._actions import (
+    abandon_manual_pick,
     apply_manual_pick,
+    can_abandon_manual_pick,
     is_manual_pick_locked,
+    manual_pick_grace_remaining,
     status_payload,
 )
 from steam_backlog_enforcer._total_block import TotalBlockStatus
@@ -69,6 +74,115 @@ class TestApplyManualPick:
         state = State()
         apply_manual_pick(state, 70, "Half-Life")
         assert State.load().current_app_id == 70
+
+
+class TestManualPickGraceRemaining:
+    def test_no_pick_returns_none(self) -> None:
+        assert manual_pick_grace_remaining(State()) is None
+
+    def test_missing_timestamp_returns_none(self) -> None:
+        state = State(manual_pick_app_id=5, manual_pick_started_at="")
+        assert manual_pick_grace_remaining(state) is None
+
+    def test_malformed_timestamp_returns_none(self) -> None:
+        state = State(manual_pick_app_id=5, manual_pick_started_at="not-a-date")
+        assert manual_pick_grace_remaining(state) is None
+
+    def test_fresh_pick_has_almost_the_full_window(self) -> None:
+        state = State(manual_pick_app_id=5, manual_pick_started_at=_iso_days_ago(0))
+        remaining = manual_pick_grace_remaining(state)
+        assert remaining is not None
+        assert remaining == pytest.approx(_actions.MANUAL_GRACE_DAYS, abs=0.01)
+
+    def test_expired_window_is_negative(self) -> None:
+        state = State(
+            manual_pick_app_id=5,
+            manual_pick_started_at=_iso_days_ago(_actions.MANUAL_GRACE_DAYS + 1),
+        )
+        remaining = manual_pick_grace_remaining(state)
+        assert remaining is not None
+        assert remaining == pytest.approx(-1.0, abs=0.01)
+
+
+class TestCanAbandonManualPick:
+    def test_inside_window(self) -> None:
+        state = State(
+            manual_pick_app_id=5,
+            manual_pick_started_at=_iso_days_ago(_actions.MANUAL_GRACE_DAYS - 1),
+        )
+        assert can_abandon_manual_pick(state) is True
+
+    def test_outside_window(self) -> None:
+        state = State(
+            manual_pick_app_id=5,
+            manual_pick_started_at=_iso_days_ago(_actions.MANUAL_GRACE_DAYS + 1),
+        )
+        assert can_abandon_manual_pick(state) is False
+
+    def test_no_pick(self) -> None:
+        assert can_abandon_manual_pick(State()) is False
+
+
+class TestAbandonManualPick:
+    def _fresh_pick(self) -> State:
+        return State(
+            manual_pick_app_id=440,
+            manual_pick_game_name="Team Fortress 2",
+            manual_pick_started_at=_iso_days_ago(1),
+            current_app_id=440,
+            current_game_name="Team Fortress 2",
+        )
+
+    def test_clears_lock_and_assignment(self) -> None:
+        state = self._fresh_pick()
+        assert abandon_manual_pick(state) is True
+        assert state.manual_pick_app_id is None
+        assert state.manual_pick_game_name == ""
+        assert state.manual_pick_started_at == ""
+        assert state.current_app_id is None
+        assert state.current_game_name == ""
+        assert is_manual_pick_locked(state) is False
+
+    def test_records_cooldown(self) -> None:
+        state = self._fresh_pick()
+        abandon_manual_pick(state)
+        expiry = datetime.fromisoformat(state.skipped_until["440"])
+        expected = datetime.now(timezone.utc) + timedelta(
+            days=_actions.ABANDON_COOLDOWN_DAYS
+        )
+        assert abs((expiry - expected).total_seconds()) < 60
+
+    def test_persists_to_disk(self) -> None:
+        state = self._fresh_pick()
+        abandon_manual_pick(state)
+        assert State.load().manual_pick_app_id is None
+
+    def test_refuses_after_grace_and_leaves_state_untouched(self) -> None:
+        state = self._fresh_pick()
+        state.manual_pick_started_at = _iso_days_ago(_actions.MANUAL_GRACE_DAYS + 1)
+        assert abandon_manual_pick(state) is False
+        assert state.manual_pick_app_id == 440
+        assert state.current_app_id == 440
+        assert state.skipped_until == {}
+
+    def test_no_cooldown_when_pick_id_is_missing(self) -> None:
+        # Defensive branch: the grace check normally guarantees an app id, so
+        # force the inconsistent state to prove no cooldown key is invented.
+        state = State(current_app_id=None)
+        with patch.object(_actions, "can_abandon_manual_pick", return_value=True):
+            assert abandon_manual_pick(state) is True
+        assert state.skipped_until == {}
+        assert state.manual_pick_app_id is None
+
+    def test_keeps_unrelated_assignment(self) -> None:
+        # A pick whose lock outlived a later reassignment must not clear the
+        # newer assignment when abandoned.
+        state = self._fresh_pick()
+        state.current_app_id = 70
+        state.current_game_name = "Half-Life"
+        abandon_manual_pick(state)
+        assert state.current_app_id == 70
+        assert state.current_game_name == "Half-Life"
 
 
 class TestStatusPayload:

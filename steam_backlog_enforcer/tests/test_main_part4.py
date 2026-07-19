@@ -10,11 +10,13 @@ import pytest
 
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import (
+    _MANUAL_GRACE_DAYS,
     _MANUAL_LOCK_DAYS,
     _enforce_manual_pick_lock,
     _is_manual_pick_locked,
     _resolve_game_name,
     _show_manual_pick_lock_message,
+    cmd_abandon_pick,
     cmd_pick_manual,
     cmd_status,
     main,
@@ -221,7 +223,7 @@ class TestCmdPickManual:
             f"{PKG}.is_game_installed": False,
             f"{PKG}.install_game": None,
             f"{PKG}.get_all_owned_app_ids": [1, 2, 489830],
-            f"{PKG}.hide_other_games": 2,
+            f"{PKG}.try_hide_other_games": (2, None),
         }
 
     def test_invalid_app_id(self) -> None:
@@ -275,7 +277,7 @@ class TestCmdPickManual:
             patch(f"{PKG}.is_game_installed", return_value=False),
             patch(f"{PKG}.install_game") as mock_install,
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 489830]),
-            patch(f"{PKG}.hide_other_games", return_value=1) as mock_hide,
+            patch(f"{PKG}.try_hide_other_games", return_value=(1, None)) as mock_hide,
         ):
             cmd_pick_manual(config, state, ["489830"])
 
@@ -328,7 +330,7 @@ class TestCmdPickManual:
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_installed", return_value=True),
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{PKG}.hide_other_games") as mock_hide,
+            patch(f"{PKG}.try_hide_other_games") as mock_hide,
         ):
             cmd_pick_manual(Config(), state, ["489830"])
         mock_hide.assert_not_called()
@@ -388,11 +390,34 @@ class TestCmdPickManual:
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_installed", return_value=True),
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{PKG}.hide_other_games", return_value=0),
+            patch(f"{PKG}.try_hide_other_games", return_value=(0, None)),
         ):
             cmd_pick_manual(Config(), state, ["489830"])
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "Library: hid" not in output
+
+    def test_unreachable_steam_reports_skip(self) -> None:
+        # The pick itself must survive a Steam that cannot be driven: this
+        # used to abort cmd_pick_manual with a traceback after the pick had
+        # already been saved.
+        state = State()
+        with (
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            patch(f"{PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.uninstall_other_games", return_value=0),
+            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
+            patch(
+                f"{PKG}.try_hide_other_games",
+                return_value=(0, "update in progress"),
+            ),
+        ):
+            cmd_pick_manual(Config(), state, ["489830"])
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "skipped (update in progress)" in output
+        assert state.manual_pick_app_id == 489830
 
 
 # ──────────────────────────────────────────────────────────────
@@ -452,3 +477,165 @@ class TestCmdStatusLockHint:
             cmd_status(Config(), State())
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "MANUAL PICK LOCK" not in output
+
+
+# ──────────────────────────────────────────────────────────────
+# cmd_abandon_pick (grace period escape hatch)
+# ──────────────────────────────────────────────────────────────
+
+# Inside the 4-day grace window / already past it.
+_IN_GRACE = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+_PAST_GRACE = (
+    datetime.now(timezone.utc) - timedelta(days=_MANUAL_GRACE_DAYS + 1)
+).isoformat()
+
+
+def _abandonable_state(app_id: int = 100, started_at: str = _IN_GRACE) -> State:
+    state = _locked_state(app_id=app_id, started_at=started_at)
+    state.current_app_id = app_id
+    state.current_game_name = state.manual_pick_game_name
+    return state
+
+
+class TestCmdAbandonPick:
+    def test_no_args_exits(self) -> None:
+        with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit) as exc:
+            cmd_abandon_pick(Config(), _abandonable_state(), [])
+        assert exc.value.code == 1
+        assert "Usage" in " ".join(str(c) for c in mock_echo.call_args_list)
+
+    def test_non_numeric_app_id_exits(self) -> None:
+        with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
+            cmd_abandon_pick(Config(), _abandonable_state(), ["abc"])
+        assert "must be a number" in " ".join(str(c) for c in mock_echo.call_args_list)
+
+    def test_no_active_pick_exits(self) -> None:
+        with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
+            cmd_abandon_pick(Config(), State(), ["100"])
+        assert "No manual pick" in " ".join(str(c) for c in mock_echo.call_args_list)
+
+    def test_wrong_app_id_exits(self) -> None:
+        with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
+            cmd_abandon_pick(Config(), _abandonable_state(app_id=100), ["999"])
+        assert "not your manual pick" in " ".join(
+            str(c) for c in mock_echo.call_args_list
+        )
+
+    def test_expired_grace_exits_without_mutating(self) -> None:
+        state = _abandonable_state(started_at=_PAST_GRACE)
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch.object(State, "save") as mock_save,
+            pytest.raises(SystemExit) as exc,
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        assert exc.value.code == 1
+        assert "EXPIRED" in " ".join(str(c) for c in mock_echo.call_args_list)
+        mock_save.assert_not_called()
+        assert state.manual_pick_app_id == 100
+
+    def test_expired_grace_with_bad_timestamp_still_exits(self) -> None:
+        state = _abandonable_state(started_at="not-a-date")
+        with patch(f"{PKG}._echo"), pytest.raises(SystemExit):
+            cmd_abandon_pick(Config(), state, ["100"])
+
+    def test_aborted_when_not_yes(self) -> None:
+        state = _abandonable_state()
+        with (
+            patch(f"{PKG}._echo"),
+            patch("builtins.input", return_value="no"),
+            patch.object(State, "save") as mock_save,
+            patch(f"{PKG}.uninstall_game") as mock_uninstall,
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        mock_save.assert_not_called()
+        mock_uninstall.assert_not_called()
+        assert state.manual_pick_app_id == 100
+
+    def test_success_clears_lock_and_uninstalls(self) -> None:
+        state = _abandonable_state()
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.uninstall_game", return_value=True) as mock_uninstall,
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        assert state.manual_pick_app_id is None
+        assert state.current_app_id is None
+        assert state.skipped_until["100"] != ""
+        mock_uninstall.assert_called_once_with(100, "TestGame")
+        assert "abandoned" in " ".join(str(c) for c in mock_echo.call_args_list)
+
+    def test_skips_uninstall_when_not_installed(self) -> None:
+        state = _abandonable_state()
+        with (
+            patch(f"{PKG}._echo"),
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch(f"{PKG}.uninstall_game") as mock_uninstall,
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        mock_uninstall.assert_not_called()
+
+    def test_warns_when_uninstall_fails(self) -> None:
+        state = _abandonable_state()
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.uninstall_game", return_value=False),
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        assert "Warning" in " ".join(str(c) for c in mock_echo.call_args_list)
+
+    def test_race_between_check_and_apply_exits(self) -> None:
+        # The grace check passes, then the state-only core refuses: defensive
+        # branch that must exit rather than report a false success.
+        state = _abandonable_state()
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value="YES"),
+            patch(f"{PKG}.abandon_manual_pick", return_value=False),
+            pytest.raises(SystemExit) as exc,
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        assert exc.value.code == 1
+        assert "grace period closed" in " ".join(
+            str(c) for c in mock_echo.call_args_list
+        )
+
+
+class TestAbandonPickLockInteraction:
+    def test_abandon_pick_is_exempt_from_the_lock(self) -> None:
+        # The escape hatch must survive the pre-dispatch lock check.
+        _enforce_manual_pick_lock("abandon-pick", _locked_state())
+
+    def test_main_dispatches_abandon_pick_while_locked(self) -> None:
+        argv = ["prog", "abandon-pick", "100"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=_abandonable_state()),
+            patch(f"{PKG}.cmd_abandon_pick") as mock_cmd,
+        ):
+            main()
+        mock_cmd.assert_called_once()
+
+    def test_lock_message_advertises_abandon_within_grace(self) -> None:
+        state = _abandonable_state(started_at=_IN_GRACE)
+        with patch(f"{PKG}._echo") as mock_echo:
+            _show_manual_pick_lock_message(state)
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "abandon-pick 100" in output
+        assert "grace period" in output
+
+    def test_lock_message_hides_abandon_after_grace(self) -> None:
+        state = _abandonable_state(started_at=_PAST_GRACE)
+        with patch(f"{PKG}._echo") as mock_echo:
+            _show_manual_pick_lock_message(state)
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "abandon-pick" not in output
