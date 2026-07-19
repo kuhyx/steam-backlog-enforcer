@@ -60,6 +60,12 @@ class Config:
     kill_unauthorized_games: bool = True
     uninstall_other_games: bool = True
     desktop_notifications: bool = True
+    max_manual_picks: int = 2
+    """How many games may be manually locked in at once.
+
+    All active picks stay installed and visible; the enforcer treats them as
+    one allowed set. Raising this weakens enforcement proportionally.
+    """
 
     def save(self) -> None:
         """Persist config to disk."""
@@ -98,7 +104,18 @@ class State:
     manual_pick_app_id: int | None = None
     manual_pick_game_name: str = ""
     manual_pick_started_at: str = ""
-    """ISO-8601 UTC timestamp when the user manually locked in a game."""
+    """Legacy single-slot manual pick, migrated into ``manual_picks`` on load.
+
+    Kept as fields so an older ``state.json`` still deserialises; they are
+    blanked once migrated and are never written again.
+    """
+    manual_picks: list[dict[str, Any]] = field(default_factory=list)
+    """Active manual picks, newest last.
+
+    Each entry is ``{"app_id": int, "game_name": str, "started_at": iso}``.
+    Plain dicts rather than a dataclass because ``save`` serialises
+    ``self.__dict__`` straight to JSON.
+    """
 
     def skip_for_days(self, app_id: int, days: int) -> None:
         """Mark ``app_id`` as skipped for ``days`` days from now (UTC)."""
@@ -144,10 +161,32 @@ class State:
             except (json.JSONDecodeError, OSError, ValueError):
                 logger.warning("Corrupt state file, using defaults.")
                 return cls()
-            return cls(
+            state = cls(
                 **{k: v for k, v in data.items() if k in cls.__dataclass_fields__}
             )
+            state._migrate_legacy_manual_pick()
+            return state
         return cls()
+
+    def _migrate_legacy_manual_pick(self) -> None:
+        """Fold a pre-multi-pick single manual pick into ``manual_picks``.
+
+        A live lock written by the old single-slot code must survive the
+        upgrade, so the legacy fields are read once, converted, and cleared.
+        Migration happens in memory; the next ``save`` persists it.
+        """
+        if self.manual_pick_app_id is None or self.manual_picks:
+            return
+        self.manual_picks = [
+            {
+                "app_id": self.manual_pick_app_id,
+                "game_name": self.manual_pick_game_name,
+                "started_at": self.manual_pick_started_at,
+            }
+        ]
+        self.manual_pick_app_id = None
+        self.manual_pick_game_name = ""
+        self.manual_pick_started_at = ""
 
 
 def save_snapshot(data: list[dict[str, Any]]) -> None:

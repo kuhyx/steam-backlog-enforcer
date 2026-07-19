@@ -7,6 +7,7 @@ import logging
 import time
 from typing import Any
 
+from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._total_block import (
     end_total_block_cleanup,
     enforce_total_block_tick,
@@ -144,17 +145,34 @@ def get_all_owned_app_ids(config: Config) -> list[int]:
 ENFORCE_INTERVAL = 3
 
 
-def _guard_installed_games(allowed_app_id: int | None) -> int:
+def _allowed_names(state: State) -> str:
+    """Return a human-readable list of the games the user may play.
+
+    Args:
+        state: Current enforcer state.
+
+    Returns:
+        Comma-separated game names, or "your assigned game" when none is set.
+    """
+    names = [name for _, name in allowed_games(state) if name]
+    return ", ".join(names) if names else "your assigned game"
+
+
+def _guard_installed_games(allowed_app_ids: set[int]) -> int:
     """Remove any unauthorized game manifests + files.  Runs every loop.
+
+    Args:
+        allowed_app_ids: Every app id that may stay installed — the assignment
+            plus any concurrent manual picks.
 
     Returns number of games removed this pass.
     """
-    if allowed_app_id is None:
+    if not allowed_app_ids:
         return 0
     installed = get_installed_games()
     count = 0
     for app_id, name in installed:
-        if app_id == allowed_app_id:
+        if app_id in allowed_app_ids:
             continue
         if is_protected_app(app_id):
             continue
@@ -167,9 +185,23 @@ def _guard_installed_games(allowed_app_id: int | None) -> int:
             send_notification(
                 "Game Removed!",
                 f"Uninstalled {name} (AppID={app_id}). "
-                f"Only the assigned game is allowed.",
+                f"Only your assigned game(s) are allowed.",
             )
     return count
+
+
+def _reinstall_missing_allowed(config: Config, state: State) -> None:
+    """Re-install any allowed game that vanished between loop iterations.
+
+    Args:
+        config: Enforcer configuration.
+        state: Current enforcer state.
+    """
+    for app_id, name in allowed_games(state):
+        if is_game_installed(app_id):
+            continue
+        logger.info("Allowed game disappeared — re-installing %s", name)
+        install_game(app_id, name, config.steam_id)
 
 
 def _enforce_setup(config: Config, state: State) -> None:
@@ -189,7 +221,7 @@ def _enforce_setup(config: Config, state: State) -> None:
     # Initial cleanup.
     if config.uninstall_other_games:
         _echo("  Uninstalling non-assigned games...")
-        count = uninstall_other_games(state.current_app_id)
+        count = uninstall_other_games(allowed_app_ids(state))
         _echo(f"  Uninstalled {count} games")
 
     # Auto-install the assigned game.
@@ -200,31 +232,26 @@ def _enforce_setup(config: Config, state: State) -> None:
 
 
 def _enforce_auto_install(config: Config, state: State) -> None:
-    """Auto-install the assigned game if not already installed.
+    """Auto-install every allowed game that is not installed yet.
 
     Args:
         config: Enforcer configuration.
         state: Current enforcer state.
     """
-    app_id = state.current_app_id
-    if app_id is None:
-        return
-    if not is_game_installed(app_id):
-        _echo(f"  Auto-installing {state.current_game_name}...")
+    for app_id, name in allowed_games(state):
+        if is_game_installed(app_id):
+            _echo(f"  Allowed game already installed: {name}")
+            continue
+        _echo(f"  Auto-installing {name}...")
         if install_game(
             app_id,
-            state.current_game_name,
+            name,
             config.steam_id,
             use_steam_protocol=True,
         ):
-            send_notification(
-                "Game Installing",
-                f"{state.current_game_name} is being downloaded.",
-            )
+            send_notification("Game Installing", f"{name} is being downloaded.")
         else:
             _echo("  Could not auto-install. Install manually from Steam.")
-    else:
-        _echo(f"  Assigned game already installed: {state.current_game_name}")
 
 
 def _enforce_hide_games(config: Config, state: State) -> None:
@@ -245,7 +272,7 @@ def _enforce_hide_games(config: Config, state: State) -> None:
     # which spun the service through ~1000 restarts against a Steam that had
     # been uninstalled - each attempt leaving a dead process named "steam"
     # behind that /proc scanners misread as a live Steam.
-    hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+    hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
     if skipped is not None:
         _echo(f"  Library hiding: skipped ({skipped})")
         return
@@ -281,41 +308,29 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
     if not steam_is_installed():
         return
 
-    if state.current_app_id is None:
+    allowed = allowed_app_ids(state)
+    if not allowed:
         return
 
     # A) Kill unauthorized game processes.
     if config.kill_unauthorized_games:
-        violations = enforce_allowed_game(
-            state.current_app_id,
-            kill_unauthorized=True,
-        )
+        violations = enforce_allowed_game(allowed, kill_unauthorized=True)
         for pid, app_id in violations:
             _echo(f"  Killed unauthorized game: AppID={app_id} (PID={pid})")
             send_notification(
                 "Game Blocked!",
                 f"Killed unauthorized game (AppID={app_id}). "
-                f"Focus on {state.current_game_name}!",
+                f"Focus on {_allowed_names(state)}!",
             )
 
     # B) Remove any newly-installed unauthorized games.
     if config.uninstall_other_games:
-        removed = _guard_installed_games(state.current_app_id)
+        removed = _guard_installed_games(allowed)
         if removed > 0:
             _echo(f"  Guard removed {removed} unauthorized game(s)")
 
-    # C) Re-install assigned game if it was somehow removed.
-    app_id = state.current_app_id
-    if app_id is not None and not is_game_installed(app_id):
-        logger.info(
-            "Assigned game disappeared — re-installing %s",
-            state.current_game_name,
-        )
-        install_game(
-            app_id,
-            state.current_game_name,
-            config.steam_id,
-        )
+    # C) Re-install any allowed game that was somehow removed.
+    _reinstall_missing_allowed(config, state)
 
     # D) Re-apply immutable flag so config cannot be edited without root.
     lock_enforcement_files(CONFIG_FILE)

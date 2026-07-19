@@ -96,7 +96,7 @@ class TestEnforceAllowedGame:
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 440},
         ):
-            result = enforce_allowed_game(440)
+            result = enforce_allowed_game({440})
             assert result == []
 
     def test_kills_unauthorized(self) -> None:
@@ -107,7 +107,7 @@ class TestEnforceAllowedGame:
             ),
             patch("steam_backlog_enforcer.enforcer.kill_process") as mock_kill,
         ):
-            result = enforce_allowed_game(440, kill_unauthorized=True)
+            result = enforce_allowed_game({440}, kill_unauthorized=True)
             assert result == [(100, 570)]
             mock_kill.assert_called_once_with(100, 570)
 
@@ -116,7 +116,7 @@ class TestEnforceAllowedGame:
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 0},
         ):
-            result = enforce_allowed_game(440)
+            result = enforce_allowed_game({440})
             assert result == []
 
     def test_detects_without_killing(self) -> None:
@@ -124,11 +124,11 @@ class TestEnforceAllowedGame:
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 570},
         ):
-            result = enforce_allowed_game(440, kill_unauthorized=False)
+            result = enforce_allowed_game({440}, kill_unauthorized=False)
             assert result == [(100, 570)]
 
     def test_allowed_none(self) -> None:
-        result = enforce_allowed_game(None, kill_unauthorized=True)
+        result = enforce_allowed_game(set(), kill_unauthorized=True)
         assert result == []
 
     def test_skips_protected_app_id(self) -> None:
@@ -144,7 +144,7 @@ class TestEnforceAllowedGame:
             ),
             patch("steam_backlog_enforcer.enforcer.kill_process") as mock_kill,
         ):
-            result = enforce_allowed_game(440, kill_unauthorized=True)
+            result = enforce_allowed_game({440}, kill_unauthorized=True)
             assert result == []
             mock_kill.assert_not_called()
 

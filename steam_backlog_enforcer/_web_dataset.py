@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._hltb_types import _read_raw_cache
 from steam_backlog_enforcer._scanning_confidence import (
     _MIN_COMP_100_POLLS,
@@ -407,8 +408,7 @@ def build_web_dataset(state: State) -> WebDataset:
     )
 
     exclude = set(state.finished_app_ids)
-    if state.current_app_id is not None:
-        exclude.add(state.current_app_id)
+    exclude.update(allowed_app_ids(state))
 
     rows = _build_games(raw_games, exclude)
 

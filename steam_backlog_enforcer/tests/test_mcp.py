@@ -170,12 +170,18 @@ class TestPickManualGate:
                 _mcp, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
             ),
             patch.object(_mcp, "State") as state,
-            patch.object(_mcp, "apply_manual_pick") as amp,
+            patch.object(_mcp, "Config") as config,
+            patch.object(_mcp, "apply_manual_pick", return_value=None) as amp,
         ):
             out = _mcp.pick_manual(440, confirm=True)
         assert out["applied"] is True
         assert out["app_id"] == 440
-        amp.assert_called_once_with(state.load.return_value, 440, "TF2")
+        amp.assert_called_once_with(
+            state.load.return_value,
+            440,
+            "TF2",
+            max_picks=config.load.return_value.max_manual_picks,
+        )
 
 
 class TestAbandonPickGate:
@@ -184,9 +190,9 @@ class TestAbandonPickGate:
     def _state(self, *, days_ago: float = 1.0, app_id: int = 440) -> State:
         started = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
         return State(
-            manual_pick_app_id=app_id,
-            manual_pick_game_name="TF2",
-            manual_pick_started_at=started,
+            manual_picks=[
+                {"app_id": app_id, "game_name": "TF2", "started_at": started}
+            ],
             current_app_id=app_id,
             current_game_name="TF2",
         )
@@ -201,7 +207,7 @@ class TestAbandonPickGate:
         with patch.object(_mcp.State, "load", return_value=self._state()):
             out = _mcp.abandon_pick(999)
         assert out["ok"] is False
-        assert "not the active manual pick" in out["reason"]
+        assert "not one of the active manual picks" in out["reason"]
 
     def test_expired_grace(self) -> None:
         state = self._state(days_ago=_mcp.MANUAL_GRACE_DAYS + 1)
@@ -230,7 +236,20 @@ class TestAbandonPickGate:
             out = _mcp.abandon_pick(440, confirm=True)
         assert out["applied"] is True
         assert out["app_id"] == 440
-        amp.assert_called_once_with(state)
+        amp.assert_called_once_with(state, 440)
+
+    def test_refused_at_cap(self) -> None:
+        with (
+            patch.object(
+                _mcp, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
+            ),
+            patch.object(_mcp, "State"),
+            patch.object(_mcp, "Config"),
+            patch.object(_mcp, "apply_manual_pick", return_value="cap reached"),
+        ):
+            out = _mcp.pick_manual(440, confirm=True)
+        assert out["ok"] is False
+        assert out["reason"] == "cap reached"
 
 
 class TestBlockGamingGate:

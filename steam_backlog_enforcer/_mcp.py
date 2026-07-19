@@ -36,14 +36,16 @@ from steam_backlog_enforcer._actions import (
     MANUAL_GRACE_DAYS,
     MANUAL_LOCK_DAYS,
     abandon_manual_pick,
+    active_manual_picks,
     apply_manual_pick,
     can_abandon_manual_pick,
+    find_manual_pick,
     manual_pick_grace_remaining,
     status_payload,
 )
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer._web_dataset import build_web_dataset, dataset_to_payload
-from steam_backlog_enforcer.config import State, load_snapshot
+from steam_backlog_enforcer.config import Config, State, load_snapshot
 from steam_backlog_enforcer.steam_api import GameInfo
 
 # Log to STDERR only — STDOUT carries the MCP JSON-RPC protocol frames, so a
@@ -203,7 +205,15 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             ),
             "confirm_required": True,
         }
-    apply_manual_pick(State.load(), app_id, game_name)
+    state = State.load()
+    refused = apply_manual_pick(
+        state,
+        app_id,
+        game_name,
+        max_picks=Config.load().max_manual_picks,
+    )
+    if refused is not None:
+        return {"ok": False, "reason": refused}
     logger.info("pick_manual applied: %s (AppID=%s)", game_name, app_id)
     return {
         "ok": True,
@@ -228,19 +238,22 @@ def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
         confirm: Set ``True`` to actually abandon the pick; otherwise preview.
     """
     state = State.load()
-    if state.manual_pick_app_id is None:
+    picks = active_manual_picks(state)
+    if not picks:
         return {"ok": False, "reason": "No manual pick is active."}
-    if app_id != state.manual_pick_app_id:
+
+    pick = find_manual_pick(state, app_id)
+    if pick is None:
+        listed = ", ".join(f"AppID={p['app_id']}" for p in picks)
         return {
             "ok": False,
             "reason": (
-                f"AppID={app_id} is not the active manual pick "
-                f"(AppID={state.manual_pick_app_id})."
+                f"AppID={app_id} is not one of the active manual picks ({listed})."
             ),
         }
 
-    remaining = manual_pick_grace_remaining(state)
-    if not can_abandon_manual_pick(state):
+    remaining = manual_pick_grace_remaining(state, app_id)
+    if not can_abandon_manual_pick(state, app_id):
         return {
             "ok": False,
             "reason": (
@@ -249,7 +262,7 @@ def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             ),
         }
 
-    game_name = state.manual_pick_game_name
+    game_name = str(pick["game_name"])
     if not confirm:
         return {
             "ok": True,
@@ -266,7 +279,7 @@ def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             "confirm_required": True,
         }
 
-    abandon_manual_pick(state)
+    abandon_manual_pick(state, app_id)
     logger.info("abandon_pick applied: %s (AppID=%s)", game_name, app_id)
     return {
         "ok": True,

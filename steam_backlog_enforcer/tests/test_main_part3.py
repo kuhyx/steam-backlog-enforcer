@@ -244,7 +244,7 @@ class TestCmdPick:
             patch(f"{PKG}._echo"),
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
-        mock_hide.assert_called_once_with([1, 2, 3], 2)
+        mock_hide.assert_called_once_with([1, 2, 3], {2})
 
     def test_no_hide_message_when_none_hidden(self) -> None:
         snap = [_snap(2, "NewGame", 10, 0, 5.0)]

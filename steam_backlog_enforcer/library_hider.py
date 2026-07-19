@@ -311,9 +311,9 @@ _SETTLE_DELAY_MS = 200
 
 def hide_other_games(
     owned_app_ids: list[int],
-    allowed_app_id: int | None,
+    allowed_app_ids: set[int],
 ) -> int:
-    """Hide every game except *allowed_app_id* in the Steam library.
+    """Hide every game except *allowed_app_ids* in the Steam library.
 
     Uses the Chrome DevTools Protocol to call
     ``collectionStore.SetAppsAsHidden()`` in Steam's JS context.
@@ -331,12 +331,12 @@ def hide_other_games(
     """
     ensure_steam_debug_port()
 
-    allowed_js = str(allowed_app_id) if allowed_app_id is not None else "null"
-    extra_ids = sorted(aid for aid in owned_app_ids if aid != allowed_app_id)
+    allowed_json = json.dumps(sorted(allowed_app_ids))
+    extra_ids = sorted(aid for aid in owned_app_ids if aid not in allowed_app_ids)
     extra_json = json.dumps(extra_ids)
     js = f"""
     (async () => {{
-        const allowed = {allowed_js};
+        const allowed = new Set({allowed_json});
         const coll = collectionStore.allGamesCollection;
         const extraIds = {extra_json};
         let totalHidden = 0;
@@ -358,7 +358,7 @@ def hide_other_games(
 
         for (let pass = 0; pass < maxPasses; pass++) {{
             let visible = coll && coll.visibleApps
-                ? coll.visibleApps.map(a => a.appid).filter(id => id !== allowed)
+                ? coll.visibleApps.map(a => a.appid).filter(id => !allowed.has(id))
                 : [];
 
             if (pass === 0) {{
@@ -378,8 +378,8 @@ def hide_other_games(
             await new Promise(r => setTimeout(r, {_SETTLE_DELAY_MS}));
         }}
 
-        if (allowed !== null) {{
-            await collectionStore.SetAppsAsHidden([allowed], false);
+        if (allowed.size > 0) {{
+            await collectionStore.SetAppsAsHidden([...allowed], false);
         }}
 
         return JSON.stringify({{ totalHidden }});
@@ -396,7 +396,7 @@ def hide_other_games(
 
 def try_hide_other_games(
     owned_app_ids: list[int],
-    allowed_app_id: int | None,
+    allowed_app_ids: set[int],
 ) -> tuple[int, str | None]:
     """Hide other games, degrading gracefully when Steam cannot be driven.
 
@@ -410,7 +410,7 @@ def try_hide_other_games(
 
     Args:
         owned_app_ids: All owned app ids, used to seed the first hide pass.
-        allowed_app_id: The one game that must stay visible, if any.
+        allowed_app_ids: Every game that must stay visible.
 
     Returns:
         ``(hidden_count, skip_reason)``. ``skip_reason`` is ``None`` when the
@@ -418,7 +418,7 @@ def try_hide_other_games(
         is 0.
     """
     try:
-        return hide_other_games(owned_app_ids, allowed_app_id), None
+        return hide_other_games(owned_app_ids, allowed_app_ids), None
     except SteamUnavailableError as exc:
         return 0, str(exc)
 

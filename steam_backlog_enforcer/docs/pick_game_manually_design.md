@@ -38,3 +38,31 @@ full 2 weeks. There is now a short mistake-correction window:
 
 The lock-active message advertises `abandon-pick` only while the window is
 still open, and the `pick-manual` warning mentions it up front.
+
+## Two concurrent manual picks (added 2026-07-19)
+
+`Config.max_manual_picks` (default 2) is how many games may be locked in at
+once. Both stay installed, visible and un-killed; the lock releases only when
+every pick is finished or past its own 14-day deadline.
+
+- `State.manual_picks` is the list of `{app_id, game_name, started_at}`
+  entries. The old single-slot `manual_pick_*` fields are still read on load,
+  migrated into the list, then cleared — a live lock survives the upgrade.
+- `_actions.allowed_app_ids(state)` (assignment ∪ active picks) is the single
+  source of truth for "may exist". `uninstall_other_games`,
+  `hide_other_games`, `enforce_allowed_game` and `_guard_installed_games` all
+  take that set instead of one app id.
+- `pick-manual` is in `_MANUAL_LOCK_EXEMPT_COMMANDS` so a second game can be
+  added while the first holds the lock; the cap is what limits it. Its
+  post-pick cascade operates on the whole allowed set, so adding a pick never
+  tears down an earlier one.
+- `abandon-pick <app_id>` drops only that pick; a survivor inherits the
+  assignment and keeps the lock.
+- `cmd_done` still finishes `current_app_id` and auto-picks a replacement, so
+  two games stay queued. A finished pick leaves the active set automatically
+  via `finished_app_ids` — no pruning needed.
+
+**Deployment note:** the enforce daemon holds the allowed set in code, so
+`sudo systemctl restart steam-backlog-enforcer` is required after upgrading.
+A pre-upgrade daemon only knows `current_app_id` and will uninstall the other
+pick as "unauthorized" within seconds — this happened once during development.

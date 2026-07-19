@@ -254,7 +254,7 @@ class TestHideOtherGames:
                 return_value='{"totalHidden": 5}',
             ),
         ):
-            count = hide_other_games([1, 2, 3], 1)
+            count = hide_other_games([1, 2, 3], {1})
             assert count == 5
 
     def test_empty_list(self) -> None:
@@ -271,7 +271,7 @@ class TestHideOtherGames:
                 return_value='{"totalHidden": 0}',
             ),
         ):
-            count = hide_other_games([1], 1)
+            count = hide_other_games([1], {1})
             assert count == 0
 
     def test_no_allowed(self) -> None:
@@ -288,7 +288,7 @@ class TestHideOtherGames:
                 return_value='{"totalHidden": 2}',
             ),
         ):
-            count = hide_other_games([1, 2], None)
+            count = hide_other_games([1, 2], set())
             assert count == 2
 
 
@@ -302,14 +302,14 @@ class TestTryHideOtherGames:
 
     def test_success_returns_count_and_no_reason(self) -> None:
         with patch(f"{PKG}.hide_other_games", return_value=7):
-            assert try_hide_other_games([1, 2], 1) == (7, None)
+            assert try_hide_other_games([1, 2], {1}) == (7, None)
 
     def test_steam_unavailable_is_reported_not_raised(self) -> None:
         with patch(
             f"{PKG}.hide_other_games",
             side_effect=SteamUnavailableError("Steam is not installed"),
         ):
-            hidden, reason = try_hide_other_games([1, 2], 1)
+            hidden, reason = try_hide_other_games([1, 2], {1})
         assert hidden == 0
         assert reason == "Steam is not installed"
 
@@ -318,7 +318,7 @@ class TestTryHideOtherGames:
             f"{PKG}.hide_other_games",
             side_effect=SteamUpdateInProgressError("update in progress"),
         ):
-            hidden, reason = try_hide_other_games([1, 2], 1)
+            hidden, reason = try_hide_other_games([1, 2], {1})
         assert hidden == 0
         assert reason == "update in progress"
 

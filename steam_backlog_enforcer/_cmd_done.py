@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 
+from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer.config import Config, State, load_snapshot
 from steam_backlog_enforcer.enforcer import (
@@ -212,7 +213,7 @@ def _finalize_completion(
 
     owned_ids = get_all_owned_app_ids(config)
     if owned_ids:
-        hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+        hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
         if skipped is not None:
             _echo(f"\n  Library hiding: skipped ({skipped})")
         elif hidden > 0:
@@ -253,14 +254,14 @@ def _enforce_on_done(config: Config, state: State) -> None:
 
     if config.kill_unauthorized_games:
         violations = enforce_allowed_game(
-            state.current_app_id,
+            allowed_app_ids(state),
             kill_unauthorized=True,
         )
         for pid, app_id in violations:
             _echo(f"  Killed unauthorized game: AppID={app_id} (PID={pid})")
 
     if config.uninstall_other_games:
-        count = uninstall_other_games(state.current_app_id)
+        count = uninstall_other_games(allowed_app_ids(state))
         if count:
             _echo(f"  Uninstalled {count} unauthorized game(s)")
 
@@ -278,7 +279,7 @@ def _enforce_on_done(config: Config, state: State) -> None:
     # assigned game hidden and stale games visible.
     owned_ids = get_all_owned_app_ids(config)
     if owned_ids:
-        hidden, skipped = try_hide_other_games(owned_ids, state.current_app_id)
+        hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
         if skipped is not None:
             _echo(f"  Library hiding: skipped ({skipped})")
         elif hidden > 0:

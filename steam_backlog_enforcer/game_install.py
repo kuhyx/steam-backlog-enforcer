@@ -411,8 +411,12 @@ def uninstall_game(app_id: int, game_name: str = "") -> bool:
     return success
 
 
-def uninstall_other_games(allowed_app_id: int | None) -> int:
-    """Uninstall all installed games except the assigned one and protected IDs.
+def uninstall_other_games(allowed_app_ids: set[int]) -> int:
+    """Uninstall all installed games except the allowed ones and protected IDs.
+
+    Args:
+        allowed_app_ids: Every app id that must survive — the assignment plus
+            any concurrent manual picks. Empty means "keep nothing".
 
     Returns: number of games uninstalled.
     """
@@ -420,8 +424,8 @@ def uninstall_other_games(allowed_app_id: int | None) -> int:
     count = 0
 
     for app_id, name in installed:
-        if app_id == allowed_app_id:
-            logger.info("KEEPING assigned game: %s (AppID=%d)", name, app_id)
+        if app_id in allowed_app_ids:
+            logger.info("KEEPING allowed game: %s (AppID=%d)", name, app_id)
             continue
         if is_protected_app(app_id):
             logger.debug("Skipping protected: %s (AppID=%d)", name, app_id)

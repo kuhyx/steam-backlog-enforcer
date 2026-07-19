@@ -223,14 +223,14 @@ class TestGuardInstalledGames:
             patch(f"{PKG}.uninstall_game", return_value=True),
             patch(f"{PKG}.send_notification"),
         ):
-            assert _guard_installed_games(440) == 1
+            assert _guard_installed_games({440}) == 1
 
     def test_skips_allowed(self) -> None:
         with patch(
             f"{PKG}.get_installed_games",
             return_value=[(440, "TF2")],
         ):
-            assert _guard_installed_games(440) == 0
+            assert _guard_installed_games({440}) == 0
 
     def test_skips_protected(self) -> None:
         with (
@@ -240,7 +240,7 @@ class TestGuardInstalledGames:
             ),
             patch(f"{PKG}.is_protected_app", side_effect=lambda aid: aid == 228980),
         ):
-            assert _guard_installed_games(440) == 0
+            assert _guard_installed_games({440}) == 0
 
     def test_uninstall_fails(self) -> None:
         with (
@@ -250,10 +250,10 @@ class TestGuardInstalledGames:
             ),
             patch(f"{PKG}.uninstall_game", return_value=False),
         ):
-            assert _guard_installed_games(440) == 0
+            assert _guard_installed_games({440}) == 0
 
     def test_allowed_none_skips(self) -> None:
-        assert _guard_installed_games(None) == 0
+        assert _guard_installed_games(set()) == 0
 
 
 class TestEnforceSetup:

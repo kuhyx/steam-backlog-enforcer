@@ -123,7 +123,7 @@ class TestUninstallOtherGames:
             ),
             patch(f"{PKG}.uninstall_game", return_value=True) as mock_uninstall,
         ):
-            count = uninstall_other_games(440)
+            count = uninstall_other_games({440})
         assert count == 1
         mock_uninstall.assert_called_once_with(730, "CS")
 
@@ -135,7 +135,7 @@ class TestUninstallOtherGames:
             ),
             patch(f"{PKG}.uninstall_game") as mock_uninstall,
         ):
-            count = uninstall_other_games(None)
+            count = uninstall_other_games(set())
         assert count == 0
         mock_uninstall.assert_not_called()
 
@@ -147,7 +147,7 @@ class TestUninstallOtherGames:
             ),
             patch(f"{PKG}.uninstall_game", return_value=False),
         ):
-            count = uninstall_other_games(None)
+            count = uninstall_other_games(set())
         assert count == 0
 
     def test_all_allowed_or_protected(self) -> None:
@@ -158,6 +158,6 @@ class TestUninstallOtherGames:
             ),
             patch(f"{PKG}.uninstall_game") as mock_uninstall,
         ):
-            count = uninstall_other_games(440)
+            count = uninstall_other_games({440})
         assert count == 0
         mock_uninstall.assert_not_called()

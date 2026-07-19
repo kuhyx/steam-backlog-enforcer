@@ -102,21 +102,27 @@ def _kill_pid_by_name(pid: int, name: str) -> bool:
 
 
 def enforce_allowed_game(
-    allowed_app_id: int | None,
+    allowed_app_ids: set[int],
     *,
     kill_unauthorized: bool = True,
 ) -> list[tuple[int, int]]:
     """Check running games; optionally kill unauthorized ones.
 
+    Args:
+        allowed_app_ids: Every app id the user may play right now — the
+            assignment plus any concurrent manual picks. Empty disables the
+            check entirely (nothing is assigned, so nothing is unauthorized).
+        kill_unauthorized: Whether to kill violating processes.
+
     Returns list of (pid, app_id) that were killed or detected.
     """
-    if allowed_app_id is None:
+    if not allowed_app_ids:
         return []
     running = get_running_steam_game_pids()
     violations: list[tuple[int, int]] = []
 
     for pid, app_id in running.items():
-        if allowed_app_id is not None and app_id == allowed_app_id:
+        if app_id in allowed_app_ids:
             continue
         # Skip Steam client itself (app_id 0 or very low IDs).
         if app_id == 0:

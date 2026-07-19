@@ -39,9 +39,7 @@ def _locked_state(
     started_at: str = _STARTED_AT,
 ) -> State:
     return State(
-        manual_pick_app_id=app_id,
-        manual_pick_game_name=name,
-        manual_pick_started_at=started_at,
+        manual_picks=[{"app_id": app_id, "game_name": name, "started_at": started_at}],
     )
 
 
@@ -140,13 +138,10 @@ class TestEnforceManualPickLock:
         ):
             _enforce_manual_pick_lock("add-exception", state)
 
-    def test_pick_manual_blocked_when_already_locked(self) -> None:
-        state = _locked_state()
-        with (
-            patch(f"{PKG}._show_manual_pick_lock_message"),
-            pytest.raises(SystemExit),
-        ):
-            _enforce_manual_pick_lock("pick-manual", state)
+    def test_pick_manual_allowed_when_already_locked(self) -> None:
+        # A second pick must be reachable while the first holds the lock; the
+        # cap inside cmd_pick_manual is what limits it, not the lock check.
+        _enforce_manual_pick_lock("pick-manual", _locked_state())
 
 
 # ──────────────────────────────────────────────────────────────
@@ -281,12 +276,12 @@ class TestCmdPickManual:
         ):
             cmd_pick_manual(config, state, ["489830"])
 
-        assert state.manual_pick_app_id == 489830
-        assert state.manual_pick_game_name == "Skyrim SE"
-        assert state.manual_pick_started_at != ""
+        assert [p["app_id"] for p in state.manual_picks] == [489830]
+        assert state.manual_picks[0]["game_name"] == "Skyrim SE"
+        assert state.manual_picks[0]["started_at"] != ""
         assert state.current_app_id == 489830
         mock_save.assert_called_once()
-        mock_uninstall.assert_called_once_with(489830)
+        mock_uninstall.assert_called_once_with({489830})
         mock_install.assert_called_once()
         mock_hide.assert_called_once()
 
@@ -417,7 +412,7 @@ class TestCmdPickManual:
             cmd_pick_manual(Config(), state, ["489830"])
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "skipped (update in progress)" in output
-        assert state.manual_pick_app_id == 489830
+        assert [p["app_id"] for p in state.manual_picks] == [489830]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -437,18 +432,17 @@ class TestMainDispatchPickManual:
             main()
         mock_cmd.assert_called_once()
 
-    def test_pick_manual_blocked_when_locked(self) -> None:
-        state = _locked_state()
+    def test_pick_manual_dispatches_while_locked(self) -> None:
+        # Reaching cmd_pick_manual is required for a second concurrent pick.
         argv = ["prog", "pick-manual", "730"]
         with (
             patch.object(sys, "argv", argv),
             patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
-            patch(f"{PKG}.State.load", return_value=state),
-            patch(f"{PKG}._show_manual_pick_lock_message"),
-            pytest.raises(SystemExit) as exc_info,
+            patch(f"{PKG}.State.load", return_value=_locked_state()),
+            patch(f"{PKG}.cmd_pick_manual") as mock_cmd,
         ):
             main()
-        assert exc_info.value.code == 1
+        mock_cmd.assert_called_once()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -517,7 +511,7 @@ class TestCmdAbandonPick:
     def test_wrong_app_id_exits(self) -> None:
         with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
             cmd_abandon_pick(Config(), _abandonable_state(app_id=100), ["999"])
-        assert "not your manual pick" in " ".join(
+        assert "not one of your manual picks" in " ".join(
             str(c) for c in mock_echo.call_args_list
         )
 
@@ -532,7 +526,7 @@ class TestCmdAbandonPick:
         assert exc.value.code == 1
         assert "EXPIRED" in " ".join(str(c) for c in mock_echo.call_args_list)
         mock_save.assert_not_called()
-        assert state.manual_pick_app_id == 100
+        assert [p["app_id"] for p in state.manual_picks] == [100]
 
     def test_expired_grace_with_bad_timestamp_still_exits(self) -> None:
         state = _abandonable_state(started_at="not-a-date")
@@ -550,7 +544,7 @@ class TestCmdAbandonPick:
             cmd_abandon_pick(Config(), state, ["100"])
         mock_save.assert_not_called()
         mock_uninstall.assert_not_called()
-        assert state.manual_pick_app_id == 100
+        assert [p["app_id"] for p in state.manual_picks] == [100]
 
     def test_success_clears_lock_and_uninstalls(self) -> None:
         state = _abandonable_state()
@@ -562,7 +556,7 @@ class TestCmdAbandonPick:
             patch(f"{PKG}.uninstall_game", return_value=True) as mock_uninstall,
         ):
             cmd_abandon_pick(Config(), state, ["100"])
-        assert state.manual_pick_app_id is None
+        assert state.manual_picks == []
         assert state.current_app_id is None
         assert state.skipped_until["100"] != ""
         mock_uninstall.assert_called_once_with(100, "TestGame")
@@ -631,7 +625,7 @@ class TestAbandonPickLockInteraction:
             _show_manual_pick_lock_message(state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "abandon-pick 100" in output
-        assert "grace period" in output
+        assert "grace day(s) left" in output
 
     def test_lock_message_hides_abandon_after_grace(self) -> None:
         state = _abandonable_state(started_at=_PAST_GRACE)
@@ -639,3 +633,158 @@ class TestAbandonPickLockInteraction:
             _show_manual_pick_lock_message(state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "abandon-pick" not in output
+
+
+# ──────────────────────────────────────────────────────────────
+# Two concurrent manual picks (cap, coexistence, per-pick abandon)
+# ──────────────────────────────────────────────────────────────
+
+
+def _two_pick_state() -> State:
+    state = State(
+        manual_picks=[
+            {"app_id": 100, "game_name": "TestGame", "started_at": _IN_GRACE},
+            {"app_id": 200, "game_name": "SecondGame", "started_at": _IN_GRACE},
+        ],
+    )
+    state.current_app_id = 200
+    state.current_game_name = "SecondGame"
+    return state
+
+
+class TestPickManualCap:
+    def test_second_pick_is_added_not_replacing(self) -> None:
+        state = _locked_state(app_id=100)
+        with (
+            patch(f"{PKG}._echo"),
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.uninstall_other_games", return_value=0),
+            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+        ):
+            cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
+        assert [p["app_id"] for p in state.manual_picks] == [100, 489830]
+
+    def test_third_pick_refused_at_cap(self) -> None:
+        state = _two_pick_state()
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            pytest.raises(SystemExit) as exc,
+        ):
+            cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
+        assert exc.value.code == 1
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "already have 2 manual pick(s)" in output
+        assert "Already locked in (2/2)" in output
+        assert len(state.manual_picks) == 2
+
+    def test_duplicate_pick_refused_by_core(self) -> None:
+        # The cap has room, so this exercises the core's own refusal path.
+        state = _locked_state(app_id=489830)
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.uninstall_other_games", return_value=0),
+            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+            pytest.raises(SystemExit),
+        ):
+            cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
+        assert "already one of your manual picks" in " ".join(
+            str(c) for c in mock_echo.call_args_list
+        )
+
+    def test_cascade_keeps_every_allowed_game(self) -> None:
+        # The regression this whole feature turns on: adding a second pick must
+        # not uninstall or hide the first.
+        state = _locked_state(app_id=100)
+        with (
+            patch(f"{PKG}._echo"),
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.uninstall_other_games", return_value=0) as mock_uninstall,
+            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 100, 489830]),
+            patch(f"{PKG}.try_hide_other_games", return_value=(1, None)) as mock_hide,
+        ):
+            cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
+        mock_uninstall.assert_called_once_with({100, 489830})
+        mock_hide.assert_called_once_with([1, 100, 489830], {100, 489830})
+
+    def test_installs_every_missing_allowed_game(self) -> None:
+        state = _locked_state(app_id=100)
+        with (
+            patch(f"{PKG}._echo"),
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.uninstall_other_games", return_value=0),
+            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch(f"{PKG}.install_game") as mock_install,
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+        ):
+            cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
+        installed = {call.args[0] for call in mock_install.call_args_list}
+        assert installed == {100, 489830}
+
+
+class TestAbandonOneOfTwoPicks:
+    def test_other_pick_survives(self) -> None:
+        state = _two_pick_state()
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save"),
+            patch(f"{PKG}.is_game_installed", return_value=False),
+        ):
+            cmd_abandon_pick(Config(), state, ["200"])
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "stay locked in: TestGame (AppID=100)" in output
+        assert "Still assigned: TestGame" in output
+        assert [p["app_id"] for p in state.manual_picks] == [100]
+        assert state.current_app_id == 100
+
+    def test_wrong_id_lists_all_active_picks(self) -> None:
+        state = _two_pick_state()
+        with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
+            cmd_abandon_pick(Config(), state, ["999"])
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "TestGame (AppID=100)" in output
+        assert "SecondGame (AppID=200)" in output
+
+    def test_lock_message_lists_both_picks(self) -> None:
+        with patch(f"{PKG}._echo") as mock_echo:
+            _show_manual_pick_lock_message(_two_pick_state())
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "picked 2 game(s)" in output
+        assert "abandon-pick 100" in output
+        assert "abandon-pick 200" in output
+
+    def test_status_lists_both_picks(self) -> None:
+        with (
+            patch(f"{PKG}.is_store_blocked", return_value=False),
+            patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}._echo") as mock_echo,
+        ):
+            cmd_status(Config(), _two_pick_state())
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "Manual picks (2)" in output
+        assert "undoable for" in output
+
+    def test_status_omits_undo_after_grace(self) -> None:
+        state = _two_pick_state()
+        state.manual_picks[0]["started_at"] = _PAST_GRACE
+        state.manual_picks[1]["started_at"] = _PAST_GRACE
+        with (
+            patch(f"{PKG}.is_store_blocked", return_value=False),
+            patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}._echo") as mock_echo,
+        ):
+            cmd_status(Config(), state)
+        assert "undoable for" not in " ".join(str(c) for c in mock_echo.call_args_list)
