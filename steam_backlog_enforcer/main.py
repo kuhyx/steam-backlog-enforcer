@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import difflib
 import logging
 import sys
 from typing import TYPE_CHECKING
@@ -935,17 +936,65 @@ _ALL_COMMANDS: dict[str, str] = {
 } | _EXTRA_COMMAND_DESCRIPTIONS
 
 
+def _resolve_command(raw: str) -> str | None:
+    """Map a raw argv[1] onto a known command name.
+
+    Subcommands are bare words, but the CLI does use flags elsewhere
+    (``add-exception --reason``), so ``--abandon-pick`` is the natural
+    muscle-memory guess. Leading dashes carry no meaning in this slot,
+    so they are simply stripped rather than rejected.
+
+    Parameters:
+    raw (str): The first CLI argument, exactly as the user typed it.
+
+    Returns:
+    str | None: The canonical command name, or None if unrecognised.
+    """
+    if raw in _ALL_COMMANDS:
+        return raw
+    if raw.startswith("-"):
+        stripped = raw.lstrip("-")
+        if stripped in _ALL_COMMANDS:
+            return stripped
+    return None
+
+
+def _print_usage(unknown: str | None = None) -> None:
+    """Print the command list, optionally explaining a bad command.
+
+    Parameters:
+    unknown (str | None): The unrecognised argument to report. When None
+        (the no-arguments case) only the usage block is printed.
+    """
+    if unknown is not None:
+        _echo(f"Unknown command: {unknown}")
+        close = difflib.get_close_matches(
+            unknown.lstrip("-"), _ALL_COMMANDS, n=1, cutoff=0.6
+        )
+        if close:
+            _echo(f"Did you mean '{close[0]}'?")
+        _echo("")
+    _echo("Steam Backlog Enforcer\n")
+    _echo("Usage: python -m steam_backlog_enforcer.main <command> [args]\n")
+    _echo("Commands:")
+    for name, desc in _ALL_COMMANDS.items():
+        _echo(f"  {name:<14s}  {desc}")
+
+
 def main() -> None:
     """CLI entry point."""
-    if len(sys.argv) < _MIN_CLI_ARGS or sys.argv[1] not in _ALL_COMMANDS:
-        _echo("Steam Backlog Enforcer\n")
-        _echo("Usage: python -m steam_backlog_enforcer.main <command>\n")
-        _echo("Commands:")
-        for name, desc in _ALL_COMMANDS.items():
-            _echo(f"  {name:<14s}  {desc}")
+    if len(sys.argv) < _MIN_CLI_ARGS:
+        _print_usage()
         sys.exit(1)
 
-    command = sys.argv[1]
+    # Locks below are always given the canonical name, never raw argv,
+    # so a dashed spelling can never be used to dodge one.
+    command = _resolve_command(sys.argv[1])
+    if command is None:
+        _print_usage(sys.argv[1])
+        sys.exit(1)
+    if command != sys.argv[1]:
+        _echo(f"Note: treating '{sys.argv[1]}' as '{command}'.")
 
     config = Config.load()
 
