@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual picks: a way out, and a second slot</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1c1c1a; --muted: #5f6360; --rule: #e2e2dd;
+    --card: #ffffff; --accent: #1f6f5c; --accent-soft: #e6f2ee;
+    --warn: #8a4b1f; --warn-soft: #fbeee2; --code-bg: #f4f4f1;
+    --good: #1f6f5c; --bad: #a2352b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181a; --fg: #e6e6e2; --muted: #9aa0a0; --rule: #2c2f31;
+      --card: #1d2022; --accent: #6fd0b3; --accent-soft: #16302a;
+      --warn: #e0a878; --warn-soft: #2e2419; --code-bg: #202325;
+      --good: #6fd0b3; --bad: #e08a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; padding: 2.5rem 1rem 5rem; max-width: min(48rem, 92vw);
+    background: var(--bg); color: var(--fg); line-height: 1.65;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+  }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 .4rem; letter-spacing: -.015em; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 .8rem; letter-spacing: -.01em;
+       padding-bottom: .35rem; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  p, li { color: var(--fg); }
+  .sub { color: var(--muted); margin: 0 0 2rem; font-size: 1.02rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font-size: .88em; }
+  pre { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px;
+        padding: .9rem 1rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; white-space: pre-wrap; word-break: break-word; font-size: .82rem; line-height: 1.5; }
+  nav.toc { background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+            padding: .9rem 1.2rem; margin-bottom: 2rem; }
+  nav.toc ol { margin: .3rem 0 0; padding-left: 1.2rem; }
+  nav.toc li { margin: .18rem 0; }
+  .note { background: var(--accent-soft); border-left: 3px solid var(--accent);
+          padding: .8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.2rem 0; }
+  .warn { background: var(--warn-soft); border-left: 3px solid var(--warn);
+          padding: .8rem 1rem; border-radius: 0 8px 8px 0; margin: 1.2rem 0; }
+  .diagram { background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+             padding: 1.1rem; margin: 1.4rem 0; }
+  .diagram h4 { margin: 0 0 .9rem; font-size: .82rem; text-transform: uppercase;
+                letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: stretch; }
+  .chip { border: 1px solid var(--rule); border-radius: 8px; padding: .5rem .7rem;
+          background: var(--bg); font-size: .84rem; flex: 1 1 8rem; min-width: 7.5rem; }
+  .chip .t { font-weight: 600; display: block; }
+  .chip .m { color: var(--muted); font-size: .78rem; }
+  .chip.keep { border-color: var(--good); background: var(--accent-soft); }
+  .chip.kill { border-color: var(--bad); opacity: .72; text-decoration-color: var(--bad); }
+  .chip.kill .t { text-decoration: line-through; }
+  .arrow { text-align: center; color: var(--muted); font-size: 1.3rem; margin: .5rem 0; }
+  .split { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 40rem) { .split { grid-template-columns: 1fr 1fr; } }
+  .panel { border: 1px solid var(--rule); border-radius: 9px; padding: .9rem; background: var(--bg); }
+  .panel h5 { margin: 0 0 .6rem; font-size: .8rem; text-transform: uppercase;
+              letter-spacing: .07em; color: var(--muted); }
+  .tl { display: flex; align-items: center; gap: 0; margin: .5rem 0 1rem; }
+  .tl .seg { flex: 1; height: 26px; display: flex; align-items: center; justify-content: center;
+             font-size: .72rem; border: 1px solid var(--rule); }
+  .tl .seg:first-child { border-radius: 6px 0 0 6px; }
+  .tl .seg:last-child { border-radius: 0 6px 6px 0; }
+  .seg.grace { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); }
+  .seg.locked { background: var(--code-bg); }
+  /* micro-world */
+  .mw { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 1.1rem; margin: 1.5rem 0; }
+  .mw h4 { margin: 0 0 .2rem; font-size: 1rem; }
+  .mw .hint { color: var(--muted); font-size: .85rem; margin: 0 0 .9rem; }
+  .mw button { font: inherit; font-size: .82rem; padding: .35rem .7rem; border-radius: 6px;
+               border: 1px solid var(--rule); background: var(--bg); color: var(--fg); cursor: pointer; }
+  .mw button:hover:not(:disabled) { border-color: var(--accent); }
+  .mw button:disabled { opacity: .4; cursor: not-allowed; }
+  .mw .controls { display: flex; gap: .4rem; flex-wrap: wrap; margin: .7rem 0; }
+  .mw .out { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+             font-size: .8rem; background: var(--code-bg); border-radius: 8px; padding: .8rem;
+             overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  .mw .lockbar { padding: .5rem .8rem; border-radius: 7px; font-size: .85rem; font-weight: 600; margin: .6rem 0; }
+  .lockbar.on { background: var(--warn-soft); color: var(--warn); }
+  .lockbar.off { background: var(--accent-soft); color: var(--accent); }
+  .gamerow { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+             padding: .5rem 0; border-top: 1px solid var(--rule); font-size: .85rem; }
+  .gamerow:first-of-type { border-top: none; }
+  .gamerow .nm { flex: 1 1 9rem; min-width: 8rem; }
+  .badge { font-size: .7rem; padding: .12rem .45rem; border-radius: 999px; border: 1px solid var(--rule); color: var(--muted); }
+  .badge.act { border-color: var(--accent); color: var(--accent); }
+  /* quiz */
+  .q { border: 1px solid var(--rule); border-radius: 10px; padding: 1rem 1.1rem; margin: 1.1rem 0; background: var(--card); }
+  .q p.qt { font-weight: 600; margin: 0 0 .8rem; }
+  .opt { display: block; width: 100%; text-align: left; font: inherit; font-size: .9rem;
+         margin: .4rem 0; padding: .55rem .8rem; border: 1px solid var(--rule);
+         border-radius: 7px; background: var(--bg); color: var(--fg); cursor: pointer; }
+  .opt:hover:not(.done) { border-color: var(--accent); }
+  .opt.correct { border-color: var(--good); background: var(--accent-soft); }
+  .opt.wrong { border-color: var(--bad); opacity: .75; }
+  .opt.done { cursor: default; }
+  .why { font-size: .85rem; color: var(--muted); margin: .6rem 0 0; display: none; }
+  .why.show { display: block; }
+  .score { position: sticky; bottom: 1rem; background: var(--card); border: 1px solid var(--rule);
+           border-radius: 999px; padding: .5rem 1.1rem; font-size: .88rem; display: inline-block; margin-top: 1rem; }
+  footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<h1>Manual picks: a way out, and a second slot</h1>
+<p class="sub">Two changes to the Steam Backlog Enforcer — a 4-day window to undo a manual pick, and support for two locked-in games at once. Commits <code>eb1472a</code> and <code>05e070c</code>, 19 July 2026.</p>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#background">Background — what the enforcer does</a></li>
+    <li><a href="#intuition">Intuition — one slot becomes a set</a></li>
+    <li><a href="#code">The code, by concern</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">Background — what the enforcer does</h2>
+
+<p>The Steam Backlog Enforcer is a self-discipline tool. It picks one game from your Steam
+backlog, then makes it genuinely hard to play anything else: it uninstalls every other game,
+hides them from the Steam library, blocks the store, and runs a daemon that kills unauthorized
+game processes on sight. You finish the assigned game to 100% achievements, run <code>done</code>,
+and it hands you the next one.</p>
+
+<p>Most of that machinery answers a single question — <em>which game is allowed to exist right
+now?</em> Before this change, the answer lived in one field of the persisted state:</p>
+
+<pre><code>@dataclass
+class State:
+    current_app_id: int | None = None
+    current_game_name: str = ""
+    finished_app_ids: list[int] = field(default_factory=list)
+    ...</code></pre>
+
+<p>and every enforcement primitive took that one id as a parameter — <code>uninstall_other_games(allowed_app_id)</code>,
+<code>hide_other_games(owned, allowed_app_id)</code>, <code>enforce_allowed_game(allowed_app_id)</code>,
+<code>_guard_installed_games(allowed_app_id)</code>. Each one compared with <code>==</code> and removed
+everything else.</p>
+
+<h3>The manual pick, and its trap</h3>
+
+<p>Normally the enforcer chooses for you. <code>pick-manual &lt;app_id&gt;</code> lets you override that
+and name the game yourself — but because self-chosen commitments are the easy ones to wriggle
+out of, it was deliberately built as the strictest mode in the tool. Picking a game recorded
+three fields and slammed a door:</p>
+
+<pre><code>manual_pick_app_id: int | None
+manual_pick_game_name: str
+manual_pick_started_at: str   # ISO-8601 UTC</code></pre>
+
+<p>From then on, <code>main()</code> ran a check before dispatching <em>any</em> command:</p>
+
+<pre><code>def _enforce_manual_pick_lock(command: str, state: State) -> None:
+    if not _is_manual_pick_locked(state):
+        return
+    if command in _MANUAL_LOCK_EXEMPT_COMMANDS:
+        return
+    _show_manual_pick_lock_message(state)
+    sys.exit(1)</code></pre>
+
+<p>Only six commands survived that gate: <code>done</code>, <code>check</code>, <code>status</code>,
+<code>enforce</code>, <code>setup</code>, <code>serve</code>. The lock released on exactly two
+conditions — the picked game appearing in <code>finished_app_ids</code>, or 14 days elapsing.</p>
+
+<p>Which is fine right up until you pick the wrong game. That is what prompted this change: a
+manual pick of Age of Empires II that turned out to be a mistake, with no in-app path out of it
+for two weeks. <code>scan</code>, <code>pick</code>, <code>list</code>, <code>reset</code> — all
+of them exited 1.</p>
+
+<h2 id="intuition">Intuition — one slot becomes a set</h2>
+
+<p>Two independent problems, and the second one is what makes the first one safe.</p>
+
+<h3>Problem 1: a commitment with no undo</h3>
+
+<p>A lock is only useful if it survives the moment you want to break it — that is the whole point.
+But there's a difference between <em>"I don't feel like this game today"</em> (the lock should
+absolutely win) and <em>"I typed the wrong app id"</em> or <em>"this isn't the game I thought it
+was"</em>. The fix is a short window where the second reading is still plausible:</p>
+
+<div class="diagram">
+  <h4>Lifetime of one manual pick</h4>
+  <div class="tl">
+    <div class="seg grace">day 0</div>
+    <div class="seg grace">1</div>
+    <div class="seg grace">2</div>
+    <div class="seg grace">3</div>
+    <div class="seg locked">4</div>
+    <div class="seg locked">5</div>
+    <div class="seg locked">…</div>
+    <div class="seg locked">13</div>
+    <div class="seg locked">14 →</div>
+  </div>
+  <div class="row">
+    <div class="chip keep"><span class="t">Days 0–4: grace</span><span class="m"><code>abandon-pick &lt;id&gt;</code> works. Advertised in the lock message.</span></div>
+    <div class="chip"><span class="t">Days 4–14: locked</span><span class="m">Command refuses and exits 1; it is dropped from the advertised command list.</span></div>
+  </div>
+</div>
+
+<p>Four days, and the window is deliberately awkward to use: you must pass the app id explicitly
+and it must match an active pick, so no one abandons a commitment by muscle memory. Abandoning
+also costs something — the game goes onto the existing 30-day <code>skipped_until</code> cooldown,
+so <code>scan</code> will not hand it back tomorrow.</p>
+
+<div class="note">
+<strong>Why reuse <code>skipped_until</code>?</strong> The state already had a
+<code>skip_for_days(app_id, days)</code> helper, used when you decline a freshly-picked game in
+<code>cmd_done</code>. An abandoned pick is the same idea with a longer fuse, so it reuses the
+mechanism rather than inventing a parallel one.
+</div>
+
+<h3>Problem 2: undo alone is an escape hatch</h3>
+
+<p>Here's the loop that a naive grace period opens: pick a game → abandon it → pick another →
+abandon that one. Each new pick stamps a fresh <code>started_at</code>, so the grace clock resets
+forever and the enforcer enforces nothing.</p>
+
+<p>The chosen answer was not to forbid re-picking, but to make a second concurrent pick a
+first-class, <em>capped</em> feature. If you may legitimately have two games locked in, correcting
+a pick no longer requires a pick→abandon→pick cycle, and the cap is what bounds the whole thing.
+<code>Config.max_manual_picks</code> defaults to 2.</p>
+
+<p>That turns the enforcer's central question from "which game?" into "which <em>set</em> of
+games?" — and that is the real substance of the diff:</p>
+
+<div class="diagram">
+  <h4>An enforcement pass, before and after</h4>
+  <div class="split">
+    <div class="panel">
+      <h5>Before — one allowed id</h5>
+      <p style="margin:.2rem 0 .6rem;font-size:.85rem;color:var(--muted)"><code>current_app_id = 1794680</code></p>
+      <div class="row">
+        <div class="chip kill"><span class="t">KCD II</span><span class="m">1771300 · removed</span></div>
+        <div class="chip keep"><span class="t">Vampire Survivors</span><span class="m">1794680 · kept</span></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="chip kill" style="flex:none"><span class="t">Anything else</span><span class="m">uninstalled, hidden, killed</span></div>
+    </div>
+    <div class="panel">
+      <h5>After — an allowed set</h5>
+      <p style="margin:.2rem 0 .6rem;font-size:.85rem;color:var(--muted)"><code>allowed_app_ids = {1771300, 1794680}</code></p>
+      <div class="row">
+        <div class="chip keep"><span class="t">KCD II</span><span class="m">1771300 · kept</span></div>
+        <div class="chip keep"><span class="t">Vampire Survivors</span><span class="m">1794680 · kept</span></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="chip kill" style="flex:none"><span class="t">Anything else</span><span class="m">uninstalled, hidden, killed</span></div>
+    </div>
+  </div>
+</div>
+
+<p>One function now answers that question for the whole system:</p>
+
+<pre><code>def allowed_app_ids(state: State) -> set[int]:
+    """Return every app id the enforcer must leave installed and visible."""
+    return {app_id for app_id, _ in allowed_games(state)}</code></pre>
+
+<p>It is the union of the active manual picks and the current assignment. Every primitive that
+used to take one id now takes this set, and every call site passes <code>allowed_app_ids(state)</code>.
+"Active" does real work here — a pick drops out of the set the moment its game is finished or its
+own 14-day deadline passes, so nothing has to be explicitly cleaned up.</p>
+
+<h3>Play with the rule</h3>
+
+<p>The widget below runs the actual new logic — <code>_pick_is_active</code>, the grace test, the
+cap, and the allowed set — reimplemented faithfully in JS. Advance the clock and watch picks fall
+out of the set on their own.</p>
+
+<div class="mw" id="mw">
+  <h4>Enforcement sandbox</h4>
+  <p class="hint">Library below is what's installed. Advance days, finish a game, or abandon a pick, and watch the allowed set and lock recompute.</p>
+
+  <div id="mw-clock" style="font-size:.85rem;color:var(--muted)"></div>
+  <div class="controls">
+    <button data-act="day1">+1 day</button>
+    <button data-act="day3">+3 days</button>
+    <button data-act="pick3">pick-manual 620 (Portal 2)</button>
+    <button data-act="reset">reset</button>
+  </div>
+
+  <div id="mw-games"></div>
+  <div class="lockbar" id="mw-lock"></div>
+  <div class="out" id="mw-out"></div>
+</div>
+
+<h2 id="code">The code, by concern</h2>
+
+<h3>1. State: one slot becomes a list, without losing a live lock</h3>
+
+<p>The three <code>manual_pick_*</code> fields became a list of entries. The subtlety is that a
+lock was <em>active on the author's own machine</em> while this was being written — dropping the
+old fields would have silently released it. So they are still read, migrated once, and cleared:</p>
+
+<pre><code>def _migrate_legacy_manual_pick(self) -> None:
+    """Fold a pre-multi-pick single manual pick into ``manual_picks``."""
+    if self.manual_pick_app_id is None or self.manual_picks:
+        return
+    self.manual_picks = [{
+        "app_id": self.manual_pick_app_id,
+        "game_name": self.manual_pick_game_name,
+        "started_at": self.manual_pick_started_at,
+    }]
+    self.manual_pick_app_id = None
+    ...</code></pre>
+
+<p>Called from <code>State.load()</code>, so it happens in memory on read and persists on the next
+save. Entries are plain dicts rather than a dataclass because <code>save()</code> serialises
+<code>self.__dict__</code> straight to JSON.</p>
+
+<h3>2. Predicates: "is it locked" becomes "is anything still active"</h3>
+
+<p><code>_pick_is_active</code> holds the per-pick rule. Note the defensive branch — a corrupt
+timestamp keeps the pick <em>active</em>, because for an enforcement tool the safe answer to "I
+can't tell when this expires" is "it hasn't":</p>
+
+<pre><code>started_at = pick.get("started_at") or ""
+if started_at:
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return True
+    if datetime.now(timezone.utc) >= started + timedelta(days=MANUAL_LOCK_DAYS):
+        return False
+return True</code></pre>
+
+<p>Everything else is a thin layer on top: <code>active_manual_picks</code> filters the list,
+<code>is_manual_pick_locked</code> is <code>bool(active_manual_picks(state))</code>, and the grace
+helpers take an <code>app_id</code> so each pick has its own window.</p>
+
+<h3>3. Plumbing the set through the enforcement primitives</h3>
+
+<p>Four functions changed shape from <code>allowed_app_id: int | None</code> to
+<code>allowed_app_ids: set[int]</code>, swapping equality for membership. The interesting one is
+the library hider, because its comparison lives inside JavaScript injected into Steam over the
+DevTools Protocol:</p>
+
+<pre><code>- allowed_js = str(allowed_app_id) if allowed_app_id is not None else "null"
+- extra_ids = sorted(aid for aid in owned_app_ids if aid != allowed_app_id)
++ allowed_json = json.dumps(sorted(allowed_app_ids))
++ extra_ids = sorted(aid for aid in owned_app_ids if aid not in allowed_app_ids)
+
+- const allowed = {allowed_js};
++ const allowed = new Set({allowed_json});
+      ...
+-     .filter(id => id !== allowed)
++     .filter(id => !allowed.has(id))
+      ...
+- if (allowed !== null) await collectionStore.SetAppsAsHidden([allowed], false);
++ if (allowed.size > 0) await collectionStore.SetAppsAsHidden([...allowed], false);</code></pre>
+
+<h3>4. The CLI: the lock now permits the commands that manage it</h3>
+
+<p>Two commands had to become reachable <em>while locked</em>, which sounds like weakening the lock
+but isn't:</p>
+
+<pre><code>_MANUAL_LOCK_EXEMPT_COMMANDS = frozenset({
+    "done", "check", "status", "enforce", "setup", "serve",
+    "abandon-pick",
+    # Allowed so a second game can be locked in alongside the first; the
+    # cap inside cmd_pick_manual is what stops this being a way out.
+    "pick-manual",
+})</code></pre>
+
+<p><code>abandon-pick</code> is obvious — it is the only way out, so the pre-dispatch gate would
+otherwise make it dead on arrival. <code>pick-manual</code> is the subtle one: the gate no longer
+limits it, so the limit moved into the command itself, where <code>_report_pick_slots</code>
+exits 1 once <code>manual_pick_slots_left</code> hits zero. The lock check answers "may I run this
+command", the cap answers "may I add another game" — two different questions that used to share
+one mechanism.</p>
+
+<p>The post-pick cascade moved from a single id to the whole set, which is what stops a second
+pick from tearing down the first:</p>
+
+<pre><code>allowed = allowed_app_ids(state)
+if config.uninstall_other_games:
+    count = uninstall_other_games(allowed)
+for app_id, name in allowed_games(state):
+    if not is_game_installed(app_id):
+        install_game(app_id, name, config.steam_id, use_steam_protocol=True)
+hidden, skipped = try_hide_other_games(owned_ids, allowed)</code></pre>
+
+<h3>5. A crash found along the way</h3>
+
+<p>Picking a replacement game surfaced an unrelated bug: <code>SteamUpdateInProgressError</code>
+(raised when a game update defers a Steam restart) was only caught in the enforce loop. The five
+interactive call sites called <code>hide_other_games</code> bare, so an undrivable Steam aborted
+the command with a traceback — <em>after</em> the pick had already been saved. A small wrapper
+turns that class of failure into a return value:</p>
+
+<pre><code>def try_hide_other_games(owned_app_ids, allowed_app_ids) -> tuple[int, str | None]:
+    try:
+        return hide_other_games(owned_app_ids, allowed_app_ids), None
+    except SteamUnavailableError as exc:
+        return 0, str(exc)</code></pre>
+
+<p>All six sites now report <code>Library hiding: skipped (&lt;reason&gt;)</code> and carry on.</p>
+
+<div class="warn">
+<strong>The deployment trap.</strong> The enforce daemon runs from the working tree
+(<code>WorkingDirectory=/home/kuhy/steam-backlog-enforcer</code>) but only reloads on restart.
+During development, the still-running <em>pre-upgrade</em> daemon knew only <code>current_app_id</code> —
+which the second pick had just moved — so within one 3-second loop it uninstalled the other pick as
+"unauthorized" and deleted an in-progress download. The code was right; the running process was
+stale. <code>sudo systemctl restart steam-backlog-enforcer</code> is now part of deploying any
+change to this logic.
+</div>
+
+<h2 id="quiz">Quiz</h2>
+<p class="sub" style="margin-bottom:1rem">Five questions on the reasoning behind the change. Click an option to check it.</p>
+<div id="quiz"></div>
+<div class="score" id="score">Score: 0 / 0</div>
+
+<footer>
+Generated for <code>steam-backlog-enforcer</code> · commits <code>eb1472a</code>, <code>05e070c</code> ·
+sources: <code>_actions.py</code>, <code>config.py</code>, <code>main.py</code>,
+<code>library_hider.py</code>, <code>_enforce_loop.py</code>.
+</footer>
+
+<script>
+/* ---------- micro-world: the real rule, reimplemented ---------- */
+(function () {
+  var MANUAL_LOCK_DAYS = 14, MANUAL_GRACE_DAYS = 4, MAX_PICKS = 2;
+  var DAY = 86400000;
+  var state, now;
+
+  function initial() {
+    now = 0;
+    state = {
+      currentAppId: 1794680,
+      currentName: "Vampire Survivors",
+      finished: [],
+      picks: [
+        { app_id: 1771300, game_name: "Kingdom Come: Deliverance II", started_at: -1 * DAY },
+        { app_id: 1794680, game_name: "Vampire Survivors", started_at: 0 }
+      ],
+      library: [
+        { app_id: 1771300, name: "Kingdom Come: Deliverance II" },
+        { app_id: 1794680, name: "Vampire Survivors" },
+        { app_id: 620, name: "Portal 2" },
+        { app_id: 228980, name: "Steamworks Common", protected: true }
+      ]
+    };
+  }
+
+  // mirrors _pick_is_active
+  function pickIsActive(p) {
+    if (p.app_id == null || state.finished.indexOf(p.app_id) !== -1) return false;
+    if (p.started_at != null) {
+      if (now >= p.started_at + MANUAL_LOCK_DAYS * DAY) return false;
+    }
+    return true;
+  }
+  function activePicks() { return state.picks.filter(pickIsActive); }
+  function isLocked() { return activePicks().length > 0; }
+
+  // mirrors allowed_games / allowed_app_ids
+  function allowedGames() {
+    var out = [];
+    if (state.currentAppId != null) out.push([state.currentAppId, state.currentName]);
+    activePicks().forEach(function (p) {
+      if (!out.some(function (g) { return g[0] === p.app_id; })) out.push([p.app_id, p.game_name]);
+    });
+    return out;
+  }
+  function allowedIds() { return allowedGames().map(function (g) { return g[0]; }); }
+
+  // mirrors manual_pick_grace_remaining
+  function graceLeft(appId) {
+    var p = activePicks().filter(function (x) { return x.app_id === appId; })[0];
+    if (!p || p.started_at == null) return null;
+    return (p.started_at + MANUAL_GRACE_DAYS * DAY - now) / DAY;
+  }
+
+  function abandon(appId) {
+    var g = graceLeft(appId);
+    if (g === null || g <= 0) return false;
+    state.picks = activePicks().filter(function (p) { return p.app_id !== appId; });
+    if (state.currentAppId === appId) {
+      var survivor = state.picks.length ? state.picks[state.picks.length - 1] : null;
+      state.currentAppId = survivor ? survivor.app_id : null;
+      state.currentName = survivor ? survivor.game_name : "";
+    }
+    return true;
+  }
+
+  function addPick(appId, name) {
+    var act = activePicks();
+    if (act.length >= MAX_PICKS) return "cap of " + MAX_PICKS + " reached";
+    if (act.some(function (p) { return p.app_id === appId; })) return "already picked";
+    state.picks = act.concat([{ app_id: appId, game_name: name, started_at: now }]);
+    state.currentAppId = appId; state.currentName = name;
+    return null;
+  }
+
+  var elGames = document.getElementById("mw-games"),
+      elLock = document.getElementById("mw-lock"),
+      elOut = document.getElementById("mw-out"),
+      elClock = document.getElementById("mw-clock");
+
+  function render() {
+    var allowed = allowedIds();
+    elClock.textContent = "Clock: day " + (now / DAY).toFixed(0) +
+      "  ·  cap " + activePicks().length + "/" + MAX_PICKS;
+
+    elGames.innerHTML = "";
+    state.library.forEach(function (g) {
+      var isAllowed = allowed.indexOf(g.app_id) !== -1;
+      var pick = activePicks().filter(function (p) { return p.app_id === g.app_id; })[0];
+      var row = document.createElement("div");
+      row.className = "gamerow";
+
+      var nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = g.name + " (" + g.app_id + ")";
+      row.appendChild(nm);
+
+      var b = document.createElement("span");
+      b.className = "badge" + (isAllowed ? " act" : "");
+      b.textContent = g.protected ? "protected" : (isAllowed ? "allowed" : "would be removed");
+      row.appendChild(b);
+
+      if (pick) {
+        var gl = graceLeft(g.app_id);
+        var ab = document.createElement("button");
+        ab.textContent = gl !== null && gl > 0
+          ? "abandon-pick (" + gl.toFixed(1) + "d grace)" : "abandon-pick (expired)";
+        ab.disabled = !(gl !== null && gl > 0);
+        ab.onclick = function () { abandon(g.app_id); render(); };
+        row.appendChild(ab);
+
+        var fin = document.createElement("button");
+        fin.textContent = "finish 100%";
+        fin.onclick = function () { state.finished.push(g.app_id); render(); };
+        row.appendChild(fin);
+      }
+      elGames.appendChild(row);
+    });
+
+    var locked = isLocked();
+    elLock.className = "lockbar " + (locked ? "on" : "off");
+    elLock.textContent = locked
+      ? "MANUAL PICK LOCK ACTIVE — " + activePicks().length + " pick(s) still holding it"
+      : "Lock released — every pick is finished or past its 14-day deadline";
+
+    var lines = [];
+    lines.push("allowed_app_ids(state) = {" + allowed.join(", ") + "}");
+    lines.push("current_app_id         = " + (state.currentAppId === null ? "None" : state.currentAppId));
+    lines.push("");
+    var removed = state.library.filter(function (g) {
+      return !g.protected && allowed.indexOf(g.app_id) === -1;
+    });
+    lines.push("_guard_installed_games would remove: " +
+      (removed.length ? removed.map(function (g) { return g.name; }).join(", ") : "nothing"));
+    elOut.textContent = lines.join("\n");
+  }
+
+  document.getElementById("mw").addEventListener("click", function (ev) {
+    var act = ev.target.getAttribute && ev.target.getAttribute("data-act");
+    if (!act) return;
+    if (act === "day1") now += DAY;
+    else if (act === "day3") now += 3 * DAY;
+    else if (act === "pick3") {
+      var err = addPick(620, "Portal 2");
+      if (err) { elOut.textContent = "pick-manual 620 refused: " + err; return; }
+    } else if (act === "reset") initial();
+    render();
+  });
+
+  initial();
+  render();
+})();
+
+/* ---------- quiz ---------- */
+(function () {
+  var QUESTIONS = [
+    {
+      q: "During development the running daemon deleted an in-progress download the instant a second pick was added. Why?",
+      opts: [
+        "The new pick's cascade uninstalled it before the state file was saved",
+        "That game had passed its own 14-day deadline and left the active set",
+        "The live daemon still ran old code that allowed only current_app_id",
+        "Steam itself dropped the manifest because the update was interrupted"
+      ],
+      correct: 2,
+      why: "The daemon runs from the working tree but only reloads on restart, so it enforced the pre-upgrade single-slot rule."
+    },
+    {
+      q: "A stored pick has a started_at value that cannot be parsed. What does _pick_is_active do with it?",
+      opts: [
+        "Treats the pick as active, since no deadline can be evaluated",
+        "Drops the pick, on the grounds that corrupt data is not a lock",
+        "Rewrites started_at to now, restarting the 14-day countdown",
+        "Raises the ValueError so the caller can repair the state file"
+      ],
+      correct: 0,
+      why: "For an enforcement tool, 'I can't tell when this expires' has to mean 'it hasn't' — otherwise corrupt data becomes a way out."
+    },
+    {
+      q: "Why does the enforcer need allowed_app_ids() rather than reading current_app_id directly?",
+      opts: [
+        "It caches the id so the guard avoids re-reading state each loop",
+        "It resolves game names, which the notifications and installs need",
+        "It excludes protected Steam runtimes from the uninstall sweep",
+        "It unions the assignment with active picks, so both games survive"
+      ],
+      correct: 3,
+      why: "The guard, killer, hider and installer all consult that one set; a second pick is only safe because they share it."
+    },
+    {
+      q: "pick-manual was added to the commands allowed to run while the lock is active. What keeps that from defeating the lock?",
+      opts: [
+        "The 4-day grace window, which expires and re-blocks the command",
+        "The cap in cmd_pick_manual, which exits 1 once no slot is left",
+        "The pre-dispatch check, which still rejects a third pick attempt",
+        "The 30-day cooldown, which bars re-picking an abandoned game"
+      ],
+      correct: 1,
+      why: "The lock check answers 'may I run this command'; the cap answers 'may I add another game'. Two questions, two mechanisms."
+    },
+    {
+      q: "Two picks are active and you abandon the one that is also the current assignment. What happens to current_app_id?",
+      opts: [
+        "It is cleared to None, so scan can assign a fresh game next run",
+        "It stays pointed at the abandoned game until the next enforce pass",
+        "The surviving pick inherits it, so that game remains guarded",
+        "It moves to whichever allowed game is currently still installed"
+      ],
+      correct: 2,
+      why: "abandon_manual_pick hands the assignment to a survivor, and only clears it when no pick remains."
+    }
+  ];
+
+  var answered = 0, right = 0;
+  var host = document.getElementById("quiz"), score = document.getElementById("score");
+
+  QUESTIONS.forEach(function (item, qi) {
+    var box = document.createElement("div");
+    box.className = "q";
+    var t = document.createElement("p");
+    t.className = "qt";
+    t.textContent = (qi + 1) + ". " + item.q;
+    box.appendChild(t);
+
+    var why = document.createElement("p");
+    why.className = "why";
+    why.textContent = item.why;
+
+    item.opts.forEach(function (text, oi) {
+      var b = document.createElement("button");
+      b.className = "opt";
+      b.textContent = text;
+      b.onclick = function () {
+        if (box.dataset.done) return;
+        box.dataset.done = "1";
+        answered++;
+        if (oi === item.correct) right++;
+        Array.prototype.forEach.call(box.querySelectorAll(".opt"), function (o, i) {
+          o.classList.add("done");
+          if (i === item.correct) o.classList.add("correct");
+          else if (i === oi) o.classList.add("wrong");
+        });
+        why.classList.add("show");
+        score.textContent = "Score: " + right + " / " + answered;
+      };
+      box.appendChild(b);
+    });
+
+    box.appendChild(why);
+    host.appendChild(box);
+  });
+})();
+</script>
+</body>
+</html>
