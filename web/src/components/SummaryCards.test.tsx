@@ -73,4 +73,20 @@ describe('PlayerSpeedInsight', () => {
     renderCards({}, 0, makePaceVsHltb({ ratio_vs_leisure: -1, interpolation_t: -1 }))
     expect(screen.queryByText(/vs Leisure speed/i)).not.toBeInTheDocument()
   })
+
+  it('marks the rush ratio as fast when at or below 1', () => {
+    renderCards({}, 0, makePaceVsHltb({ ratio_vs_rush: 0.9 }))
+    expect(screen.getByText('0.90×')).toHaveClass('player-insight-fast')
+  })
+
+  it('falls back to the raw player_style key when it has no display label', () => {
+    renderCards({}, 0, makePaceVsHltb({ player_style: 'totally_unknown' }))
+    expect(screen.getByText('totally_unknown')).toBeInTheDocument()
+  })
+
+  it('shows N/A presets when the estimated pace total is not positive', () => {
+    renderCards({ excluded: new Set([1]) }, 0, makePaceVsHltb())
+    expect(screen.getByText(/Estimated total at your pace/i)).toBeInTheDocument()
+    expect(screen.getAllByText('N/A').length).toBeGreaterThan(0)
+  })
 })
