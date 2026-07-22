@@ -1,17 +1,25 @@
 :root {
-  --bg: #0f1117;
-  --panel: #161922;
-  --panel-2: #1b2030;
-  --card: #1b2838;
-  --border: #2a2f3a;
-  --text: #c6d4df;
-  --muted: #8b95a1;
-  --heading: #ffffff;
-  --accent: #66c0f4;
-  --accent-2: #a3cf06;
-  --warn: #f0a23b;
-  --danger: #e35d5d;
-  --radius: 10px;
+  --bg: #211d1b;
+  --panel: #2b2624;
+  --panel-2: #38312e;
+  --card: #38312e;
+  --border: #463e3a;
+  --text: #ecEae9;
+  --muted: #aaa09a;
+  --heading: #ecEae9;
+  --accent: #b8862e;
+  --accent-2: #8a9a3c;
+  --warn: #e0a63c;
+  --danger: #e2585f;
+  --on-fill: #211d1b;
+  --accent-bg: rgba(184, 134, 46, 0.12);
+  --accent-border: rgba(184, 134, 46, 0.4);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 16px;
+  --sp-4: 24px;
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'SF Mono', Consolas, monospace;
   color-scheme: dark;
@@ -25,7 +33,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 var(--sans);
+  font: 16px/1.5 var(--sans);
 }
 
 h1,
@@ -35,12 +43,12 @@ h2 {
   margin: 0;
 }
 h1 {
-  font-size: 26px;
+  font-size: 24px;
   letter-spacing: -0.4px;
 }
 h2 {
   font-size: 16px;
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-2);
 }
 a {
   color: var(--accent);
@@ -52,22 +60,22 @@ a:hover {
 code {
   font-family: var(--mono);
   background: var(--panel-2);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
   font-size: 0.9em;
 }
 
 .app {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  padding: var(--sp-4);
 }
 .app-head {
-  margin-bottom: 20px;
+  margin-bottom: var(--sp-4);
 }
 .sub {
   color: var(--muted);
-  margin-top: 6px;
+  margin-top: var(--sp-2);
 }
 
 .status {
@@ -81,14 +89,18 @@ code {
 .hint {
   color: var(--muted);
   font-size: 13px;
-  margin: 6px 0 0;
+  letter-spacing: 0.02em;
+  margin: var(--sp-2) 0 0;
 }
 
 /* ── Layout ── */
+/* Fixed sidebar + fluid content is a page-chrome split, not a content grid --
+   the 12-column rule below applies to .cards, which actually needs 1/2/3/4-up
+   flexibility; this shell doesn't. */
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
-  gap: 24px;
+  gap: var(--sp-4);
   align-items: start;
 }
 @media (max-width: 980px) {
@@ -99,7 +111,7 @@ code {
 .content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--sp-3);
   min-width: 0;
 }
 
@@ -107,27 +119,28 @@ code {
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
   position: sticky;
-  top: 16px;
+  top: var(--sp-3);
 }
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: var(--sp-3);
 }
 .field {
-  padding: 12px 0;
+  padding: var(--sp-2) 0;
   border-top: 1px solid var(--border);
 }
 .field > label {
   display: block;
   font-size: 13px;
+  letter-spacing: 0.02em;
   font-weight: 500;
   color: var(--heading);
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 .field .val {
   float: right;
@@ -140,18 +153,19 @@ code {
   accent-color: var(--accent);
 }
 .subfield {
-  margin-top: 10px;
+  margin-top: var(--sp-2);
 }
 .subfield.row {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-2);
   align-items: center;
 }
 .check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   font-size: 13px;
+  letter-spacing: 0.02em;
   color: var(--text);
   cursor: pointer;
 }
@@ -165,53 +179,58 @@ input[type='search'] {
   background: var(--panel-2);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 6px;
-  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  padding: 7px var(--sp-2);
   font: inherit;
 }
 details summary {
   cursor: pointer;
   font-size: 13px;
+  letter-spacing: 0.02em;
   font-weight: 500;
   color: var(--heading);
 }
 details[open] summary {
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 
 /* ── Buttons / segmented ── */
 .segmented {
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
   background: var(--panel-2);
-  padding: 4px;
-  border-radius: 8px;
+  padding: var(--sp-1);
+  border-radius: var(--radius-sm);
 }
 .seg {
   flex: 1;
   border: none;
   background: transparent;
   color: var(--muted);
-  padding: 6px 4px;
-  border-radius: 6px;
+  /* Padding = outer(2x vertical, rule 22). Radius = outer 8 - the .segmented
+     gap of 4 = 4 (rule 24), not a free choice. */
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 4px;
   cursor: pointer;
   font: inherit;
   font-size: 12px;
+  letter-spacing: 0.02em;
 }
 .seg.active {
   background: var(--accent);
-  color: #06121c;
+  color: var(--on-fill);
   font-weight: 600;
 }
 .ghost {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted);
-  padding: 5px 10px;
-  border-radius: 6px;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
+  letter-spacing: 0.02em;
 }
 .ghost:hover {
   color: var(--heading);
@@ -222,61 +241,68 @@ details[open] summary {
 .summary {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
 }
 .summary-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 .big {
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--heading);
 }
 .big-label {
-  margin-left: 8px;
+  margin-left: var(--sp-2);
   color: var(--muted);
 }
 .parity {
   color: var(--muted);
   font-size: 13px;
+  letter-spacing: 0.02em;
 }
 .parity .ok {
   color: var(--accent-2);
   font-weight: 600;
 }
 .target-banner {
-  background: var(--accent-bg, rgba(102, 192, 244, 0.12));
-  border: 1px solid rgba(102, 192, 244, 0.4);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) 12px;
+  margin-bottom: var(--sp-3);
   font-size: 14px;
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--sp-3);
+}
+.cards .card {
+  grid-column: span 3;
 }
 @media (max-width: 720px) {
-  .cards {
-    grid-template-columns: repeat(2, 1fr);
+  .cards .card {
+    grid-column: span 6;
   }
 }
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 14px;
 }
 .card.active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  /* Selection ring without a shadow (rule 26/27) -- inset outline reads
+     identically to the old 0-blur box-shadow ring. */
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 .card-title {
   font-weight: 600;
@@ -284,41 +310,44 @@ details[open] summary {
 }
 .card-blurb {
   font-size: 12px;
+  letter-spacing: 0.02em;
   color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-2);
   min-height: 28px;
 }
 .card-total {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--accent);
   font-family: var(--mono);
 }
 .card-eta {
   font-size: 13px;
+  letter-spacing: 0.02em;
   color: var(--text);
   margin-top: 2px;
 }
 .presets {
-  margin-top: 10px;
+  margin-top: var(--sp-2);
   border-top: 1px solid var(--border);
-  padding-top: 8px;
+  padding-top: var(--sp-2);
 }
 .preset {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
+  letter-spacing: 0.02em;
   color: var(--muted);
   padding: 1px 0;
 }
 
 /* ── Player Speed Insight ── */
 .player-insight {
-  margin-top: 16px;
+  margin-top: var(--sp-3);
   padding: 14px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .player-insight--empty {
   opacity: 0.7;
@@ -326,11 +355,12 @@ details[open] summary {
 .player-insight-title {
   font-weight: 600;
   color: var(--heading);
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-2);
   font-size: 14px;
 }
 .player-insight-empty {
   font-size: 13px;
+  letter-spacing: 0.02em;
   color: var(--muted);
   margin: 0;
 }
@@ -338,9 +368,12 @@ details[open] summary {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 4px 20px;
+  /* Dense stat grid, deliberately below the 16px body floor (rule 20) --
+     same density trade-off as the game table below, not an accidental default. */
   font-size: 13px;
+  letter-spacing: 0.02em;
   color: var(--text);
-  margin-bottom: 12px;
+  margin-bottom: var(--sp-2);
 }
 .player-insight-grid span:nth-child(odd) {
   color: var(--muted);
@@ -361,12 +394,13 @@ details[open] summary {
 }
 .player-insight-estimate {
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding-top: var(--sp-2);
 }
 .player-insight-estimate-total {
   font-size: 13px;
+  letter-spacing: 0.02em;
   color: var(--text);
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 .player-insight-estimate-hours {
   color: var(--accent);
@@ -378,8 +412,8 @@ details[open] summary {
 .chart {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
 }
 .chart-svg {
   width: 100%;
@@ -396,12 +430,13 @@ details[open] summary {
   stroke-width: 2.5;
 }
 .chart-svg .area {
-  fill: rgba(102, 192, 244, 0.12);
+  fill: var(--accent-bg);
   stroke: none;
 }
 .chart-svg .axis-label {
   fill: var(--muted);
   font-size: 11px;
+  letter-spacing: 0.02em;
   font-family: var(--mono);
 }
 .chart-svg .axis-label.end {
@@ -415,15 +450,15 @@ details[open] summary {
 .table-wrap {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
 }
 .table-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
 }
 .table-head input {
   max-width: 260px;
@@ -432,12 +467,17 @@ details[open] summary {
   max-height: 540px;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 table {
   width: 100%;
   border-collapse: collapse;
+  /* The game list is this app's primary read content, so 16px would be the
+     default -- but a data table this wide (name/hours/price/... columns)
+     needs the density; 13px is a deliberate trade-off, not the leftover
+     default, per the audit's own recommendation. */
   font-size: 13px;
+  letter-spacing: 0.02em;
 }
 thead th {
   position: sticky;
@@ -445,7 +485,7 @@ thead th {
   background: var(--panel-2);
   color: var(--heading);
   text-align: left;
-  padding: 9px 10px;
+  padding: var(--sp-2) 10px;
   font-weight: 600;
   white-space: nowrap;
   z-index: 1;
@@ -459,7 +499,7 @@ th.clickable {
   user-select: none;
 }
 tbody td {
-  padding: 7px 10px;
+  padding: var(--sp-2) 10px;
   border-top: 1px solid var(--border);
 }
 tbody tr:hover {
@@ -480,14 +520,16 @@ td.name {
 td.proton {
   font-family: var(--mono);
   font-size: 12px;
+  letter-spacing: 0.02em;
   color: var(--muted);
 }
 .badge {
-  margin-left: 8px;
+  margin-left: var(--sp-2);
   font-size: 10px;
+  letter-spacing: 0.02em;
   background: var(--warn);
-  color: #1a1205;
+  color: var(--on-fill);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   vertical-align: middle;
 }
