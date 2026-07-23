@@ -60,7 +60,7 @@ class Config:
     kill_unauthorized_games: bool = True
     uninstall_other_games: bool = True
     desktop_notifications: bool = True
-    max_manual_picks: int = 2
+    max_manual_picks: int = 3
     """How many games may be manually locked in at once.
 
     All active picks stay installed and visible; the enforcer treats them as

@@ -113,7 +113,7 @@
 <body>
 
 <h1>Manual picks: a way out, and a second slot</h1>
-<p class="sub">Two changes to the Steam Backlog Enforcer — a 4-day window to undo a manual pick, and support for two locked-in games at once. Commits <code>eb1472a</code> and <code>05e070c</code>, 19 July 2026.</p>
+<p class="sub">Two changes to the Steam Backlog Enforcer — a 4-day window to undo a manual pick, and support for up to three locked-in games at once. Commits <code>eb1472a</code> and <code>05e070c</code>, 19 July 2026.</p>
 
 <nav class="toc">
   <strong>Contents</strong>
@@ -227,9 +227,9 @@ abandon that one. Each new pick stamps a fresh <code>started_at</code>, so the g
 forever and the enforcer enforces nothing.</p>
 
 <p>The chosen answer was not to forbid re-picking, but to make a second concurrent pick a
-first-class, <em>capped</em> feature. If you may legitimately have two games locked in, correcting
+first-class, <em>capped</em> feature. If you may legitimately have several games locked in, correcting
 a pick no longer requires a pick→abandon→pick cycle, and the cap is what bounds the whole thing.
-<code>Config.max_manual_picks</code> defaults to 2.</p>
+<code>Config.max_manual_picks</code> defaults to 3.</p>
 
 <p>That turns the enforcer's central question from "which game?" into "which <em>set</em> of
 games?" — and that is the real substance of the diff:</p>
