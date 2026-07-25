@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer import _actions
+from steam_backlog_enforcer import _actions, _allowed_games
 from steam_backlog_enforcer._actions import (
     abandon_manual_pick,
     active_manual_picks,
@@ -59,7 +59,7 @@ class TestIsManualPickLocked:
                 {
                     "app_id": 5,
                     "game_name": "G",
-                    "started_at": _iso_days_ago(_actions.MANUAL_LOCK_DAYS + 1),
+                    "started_at": _iso_days_ago(_allowed_games.MANUAL_LOCK_DAYS + 1),
                 }
             ]
         )
@@ -255,7 +255,7 @@ class TestActiveManualPicksAndAllowedSet:
 
     def test_expired_pick_drops_out(self) -> None:
         state = State(
-            manual_picks=[_pick(days_ago=_actions.MANUAL_LOCK_DAYS + 1)],
+            manual_picks=[_pick(days_ago=_allowed_games.MANUAL_LOCK_DAYS + 1)],
         )
         assert active_manual_picks(state) == []
 

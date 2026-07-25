@@ -15,9 +15,6 @@ from steam_backlog_enforcer._actions import (
     MANUAL_GRACE_DAYS as _MANUAL_GRACE_DAYS,
 )
 from steam_backlog_enforcer._actions import (
-    MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
-)
-from steam_backlog_enforcer._actions import (
     abandon_manual_pick,
     active_manual_picks,
     allowed_app_ids,
@@ -30,6 +27,9 @@ from steam_backlog_enforcer._actions import (
 )
 from steam_backlog_enforcer._actions import (
     is_manual_pick_locked as _is_manual_pick_locked,
+)
+from steam_backlog_enforcer._allowed_games import (
+    MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
 from steam_backlog_enforcer._cmd_done import cmd_done
 from steam_backlog_enforcer._enforce_loop import (

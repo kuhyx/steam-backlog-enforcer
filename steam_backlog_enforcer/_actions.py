@@ -12,16 +12,26 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
+from steam_backlog_enforcer._allowed_games import (
+    active_manual_picks,
+    allowed_games,
+)
 from steam_backlog_enforcer._total_block import get_total_block_status
 from steam_backlog_enforcer.game_install import get_installed_games, is_protected_app
+
+# Marks these two as an intentional re-export (they're imported from
+# _allowed_games above, not defined here) -- without this, mypy's
+# --no-implicit-reexport flags every downstream `from _actions import
+# active_manual_picks` as an error. Everything else in this file is
+# accessible normally; this only needs to list names imported-then-reexported.
+__all__ = [
+    "active_manual_picks",
+    "allowed_games",
+]
 from steam_backlog_enforcer.store_blocker import is_store_blocked
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import State
-
-# Days before the manual-pick lock automatically expires. Single source of
-# truth: both ``main.py`` and the MCP server import it from here.
-MANUAL_LOCK_DAYS = 14
 
 # Mistake-correction window: for this many days after a manual pick the user
 # may still back out via ``abandon-pick``. Deliberately short — it exists to
@@ -31,50 +41,6 @@ MANUAL_GRACE_DAYS = 4
 # How long an abandoned pick stays out of the auto-assignment pool, so that
 # ``scan`` does not immediately hand back the game the user just rejected.
 ABANDON_COOLDOWN_DAYS = 30
-
-
-def _pick_is_active(state: State, pick: dict[str, Any]) -> bool:
-    """Return ``True`` if *pick* still holds the lock.
-
-    A pick stops being active once its game is finished (100% achievements) or
-    once ``MANUAL_LOCK_DAYS`` have elapsed. A missing or malformed timestamp
-    keeps it active: with no deadline to evaluate, the safe answer for an
-    enforcement tool is "still locked".
-
-    Args:
-        state: The loaded enforcer state (for ``finished_app_ids``).
-        pick: One ``state.manual_picks`` entry.
-
-    Returns:
-        Whether this pick still counts toward the lock.
-    """
-    app_id = pick.get("app_id")
-    if app_id is None or app_id in state.finished_app_ids:
-        return False
-
-    started_at = pick.get("started_at") or ""
-    if started_at:
-        try:
-            started = datetime.fromisoformat(started_at)
-        except ValueError:
-            return True
-        if datetime.now(timezone.utc) >= started + timedelta(days=MANUAL_LOCK_DAYS):
-            return False
-
-    return True
-
-
-def active_manual_picks(state: State) -> list[dict[str, Any]]:
-    """Return the manual picks that still hold the lock, oldest first.
-
-    Args:
-        state: The loaded enforcer state.
-
-    Returns:
-        The subset of ``state.manual_picks`` that is neither finished nor past
-        its own deadline.
-    """
-    return [p for p in state.manual_picks if _pick_is_active(state, p)]
 
 
 def find_manual_pick(state: State, app_id: int) -> dict[str, Any] | None:
@@ -124,28 +90,6 @@ def allowed_app_ids(state: State) -> set[int]:
         The set of allowed app ids (empty when nothing is assigned).
     """
     return {app_id for app_id, _ in allowed_games(state)}
-
-
-def allowed_games(state: State) -> list[tuple[int, str]]:
-    """Return ``(app_id, name)`` for every game the enforcer must keep.
-
-    Same membership as :func:`allowed_app_ids`, but carrying names so callers
-    can install and report on each one. The current assignment comes first.
-
-    Args:
-        state: The loaded enforcer state.
-
-    Returns:
-        Allowed games as ``(app_id, name)`` pairs, without duplicates.
-    """
-    games: list[tuple[int, str]] = []
-    if state.current_app_id is not None:
-        games.append((state.current_app_id, state.current_game_name))
-    for pick in active_manual_picks(state):
-        app_id = pick.get("app_id")
-        if app_id is not None and all(app_id != aid for aid, _ in games):
-            games.append((app_id, pick.get("game_name", "")))
-    return games
 
 
 def manual_pick_slots_left(state: State, max_picks: int) -> int:

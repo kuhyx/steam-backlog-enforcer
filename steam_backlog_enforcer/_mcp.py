@@ -34,7 +34,6 @@ from mcp.server.fastmcp import FastMCP
 from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS,
     MANUAL_GRACE_DAYS,
-    MANUAL_LOCK_DAYS,
     abandon_manual_pick,
     active_manual_picks,
     apply_manual_pick,
@@ -43,6 +42,7 @@ from steam_backlog_enforcer._actions import (
     manual_pick_grace_remaining,
     status_payload,
 )
+from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer._web_dataset import build_web_dataset, dataset_to_payload
 from steam_backlog_enforcer.config import Config, State, load_snapshot
