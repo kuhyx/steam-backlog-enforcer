@@ -22,14 +22,13 @@ hand-edited fields on its own.
 from __future__ import annotations
 
 import re
+import signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from steam_installer import vdf
 from steam_installer.library import SteamLibrary
-
-CRASH_SIGNATURE = "Standalone evaluator returned error code"
 
 MANIFEST_CACHE_RE = re.compile(r"^(\d+)_(\d+)\.manifest$")
 
@@ -42,14 +41,28 @@ class RecognizeError(Exception):
 class ValidateResult:
     completed: bool
     crashed_on_install_script: bool
-    output: str
+    returncode: int
 
 
 def run_steamcmd_validate(
     appid: int, install_dir: Path, username: str
 ) -> ValidateResult:
     """Run steamcmd's app_update ... validate. `force_install_dir` must precede `+login`
-    (steamcmd itself warns about this ordering)."""
+    (steamcmd itself warns about this ordering).
+
+    Deliberately does NOT capture stdout/stderr: steamcmd prompts for a
+    password (and possibly a Steam Guard code) on stdin, and prompt text
+    written to a captured/buffered stdout never reaches the terminal --
+    the process looks hung with no visible request for input. Output is
+    left to inherit the parent's terminal instead, exactly like
+    depotdownloader's own interactive login.
+
+    The confirmed steamcmd install-script bug (see module docstring) kills
+    the process with SIGSEGV -- Python reports that as returncode -11 on
+    POSIX. Checking the signal directly is more reliable than grepping
+    captured text for a message string, and doesn't require capturing
+    output at all.
+    """
     cmd = [
         "steamcmd",
         "+force_install_dir",
@@ -61,13 +74,64 @@ def run_steamcmd_validate(
         "validate",
         "+quit",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
-    output = result.stdout + result.stderr
-    crashed = CRASH_SIGNATURE in output
+    result = subprocess.run(cmd, timeout=3600)
+    crashed = result.returncode == -signal.SIGSEGV
     return ValidateResult(
         completed=result.returncode == 0,
         crashed_on_install_script=crashed,
-        output=output,
+        returncode=result.returncode,
+    )
+
+
+def ensure_installdir_correct(
+    library: SteamLibrary, appid: int, install_dir: Path
+) -> None:
+    """Patch a stale `installdir` field BEFORE running steamcmd, not just after.
+
+    Confirmed necessary: a prior, unrelated Steam GUI glitch left this app's
+    manifest pointing at a different folder name. steamcmd's own validate run
+    didn't correct it despite a clean exit, and relaunching the Steam client
+    read that same stale field and wiped the correctly-downloaded folder as
+    "orphaned" while starting a fresh download into the wrong one. Fixing it
+    proactively, before steamcmd ever runs, closes that window entirely.
+    Does nothing if no manifest exists yet -- steamcmd creates one itself in
+    that case, with the right installdir since we pass force_install_dir.
+    """
+    manifest_path = library.steamapps / f"appmanifest_{appid}.acf"
+    if not manifest_path.is_file():
+        return
+    data = vdf.parse(manifest_path.read_text())
+    app_state = data.get("AppState", {})
+    if not isinstance(app_state, dict):
+        return
+    if app_state.get("installdir") == install_dir.name:
+        return
+    app_state["installdir"] = install_dir.name
+    manifest_path.write_text(vdf.dumps("AppState", app_state))
+
+
+def manifest_reflects_real_install(
+    library: SteamLibrary, appid: int, install_dir: Path
+) -> bool:
+    """Don't trust steamcmd's exit code alone -- verify the manifest actually matches
+    reality. Confirmed necessary the hard way: steamcmd exited 0 while leaving
+    `installdir` pointed at a stale, unrelated folder name from an earlier corrupted
+    manifest state, `InstalledDepots` empty, and `StateFlags` still "update needed" --
+    a "clean" exit that hadn't actually recognized anything. Relaunching the Steam
+    client then treated the real, correctly-downloaded folder as orphaned and wiped
+    it while starting a fresh (slow, wrong-folder) download.
+    """
+    manifest_path = library.steamapps / f"appmanifest_{appid}.acf"
+    if not manifest_path.is_file():
+        return False
+    data = vdf.parse(manifest_path.read_text())
+    app_state = data.get("AppState", {})
+    if not isinstance(app_state, dict):
+        return False
+    return (
+        app_state.get("StateFlags") == "4"
+        and app_state.get("installdir") == install_dir.name
+        and bool(app_state.get("InstalledDepots"))
     )
 
 
@@ -115,7 +179,12 @@ def finish_manifest_manually(
         )
 
     size_on_disk = sum(f.stat().st_size for f in install_dir.rglob("*") if f.is_file())
-    buildid = app_state.get("buildid") or app_state.get("TargetBuildID") or "0"
+    # "0" means "no real build installed yet" (steamcmd/Steam use it as a
+    # sentinel) -- a bare `or` treats that non-empty string as truthy and
+    # never falls through to TargetBuildID, leaving a stale/wrong buildid.
+    existing_buildid = app_state.get("buildid")
+    buildid = existing_buildid if existing_buildid and existing_buildid != "0" else None
+    buildid = buildid or app_state.get("TargetBuildID") or "0"
 
     installed_depots = {
         depot_id: {"manifest": manifest_id, "size": "0"}
@@ -123,6 +192,7 @@ def finish_manifest_manually(
     }
 
     app_state["StateFlags"] = "4"
+    app_state["installdir"] = install_dir.name
     app_state["LastUpdated"] = str(now_unix)
     app_state["SizeOnDisk"] = str(size_on_disk)
     app_state["StagingSize"] = "0"

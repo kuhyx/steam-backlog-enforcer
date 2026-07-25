@@ -7,7 +7,9 @@ from steam_installer.library import SteamLibrary
 from steam_installer.recognize import (
     RecognizeError,
     discover_cached_depot_manifests,
+    ensure_installdir_correct,
     finish_manifest_manually,
+    manifest_reflects_real_install,
 )
 
 
@@ -79,3 +81,136 @@ def test_finish_manifest_manually_sets_state_flags_and_depots(tmp_path):
     assert app_state["SharedDepots"] == {"228989": "228980"}
     assert "StagedDepots" not in app_state
     assert manifest_path.with_suffix(".acf.bak").is_file()
+
+
+def test_finish_manifest_manually_falls_back_to_target_buildid_when_zero(tmp_path):
+    """buildid "0" is a sentinel for "no real build installed yet", not a real
+    value -- a naive `or` chain treats it as truthy and never falls through."""
+    library = SteamLibrary(tmp_path / "Steam")
+    library.steamapps.mkdir(parents=True)
+    data = {
+        "appid": "1771300",
+        "StateFlags": "1026",
+        "buildid": "0",
+        "TargetBuildID": "23914554",
+    }
+    (library.steamapps / "appmanifest_1771300.acf").write_text(
+        vdf.dumps("AppState", data)
+    )
+    install_dir = library.common / "Game"
+    cache_dir = install_dir / ".DepotDownloader"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "1771302_257127247679847518.manifest").write_bytes(b"x")
+
+    manifest_path = finish_manifest_manually(
+        library, 1771300, install_dir, now_unix=1000
+    )
+
+    app_state = vdf.parse(manifest_path.read_text())["AppState"]
+    assert app_state["buildid"] == "23914554"
+
+
+def test_finish_manifest_manually_corrects_installdir(tmp_path):
+    """The exact bug that caused real data loss: a stale installdir field
+    pointing at a different folder than where content was actually downloaded."""
+    library = SteamLibrary(tmp_path / "Steam")
+    _write_partial_manifest(library.steamapps, 1771300)
+    data = vdf.parse((library.steamapps / "appmanifest_1771300.acf").read_text())
+    data["AppState"]["installdir"] = "Some Stale Wrong Name"
+    (library.steamapps / "appmanifest_1771300.acf").write_text(
+        vdf.dumps("AppState", data["AppState"])
+    )
+
+    install_dir = library.common / "KingdomComeDeliverance2"
+    cache_dir = install_dir / ".DepotDownloader"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "1771302_257127247679847518.manifest").write_bytes(b"x")
+
+    manifest_path = finish_manifest_manually(
+        library, 1771300, install_dir, now_unix=1000
+    )
+
+    app_state = vdf.parse(manifest_path.read_text())["AppState"]
+    assert app_state["installdir"] == "KingdomComeDeliverance2"
+
+
+def test_ensure_installdir_correct_patches_stale_field(tmp_path):
+    library = SteamLibrary(tmp_path / "Steam")
+    _write_partial_manifest(library.steamapps, 1771300)
+    data = vdf.parse((library.steamapps / "appmanifest_1771300.acf").read_text())
+    data["AppState"]["installdir"] = "Kingdom Come: Deliverance II"
+    (library.steamapps / "appmanifest_1771300.acf").write_text(
+        vdf.dumps("AppState", data["AppState"])
+    )
+
+    install_dir = library.common / "KingdomComeDeliverance2"
+    ensure_installdir_correct(library, 1771300, install_dir)
+
+    app_state = vdf.parse((library.steamapps / "appmanifest_1771300.acf").read_text())[
+        "AppState"
+    ]
+    assert app_state["installdir"] == "KingdomComeDeliverance2"
+
+
+def test_ensure_installdir_correct_noop_when_already_correct(tmp_path):
+    library = SteamLibrary(tmp_path / "Steam")
+    _write_partial_manifest(library.steamapps, 1771300)
+    manifest_path = library.steamapps / "appmanifest_1771300.acf"
+    data = vdf.parse(manifest_path.read_text())
+    data["AppState"]["installdir"] = "KingdomComeDeliverance2"
+    manifest_path.write_text(vdf.dumps("AppState", data["AppState"]))
+    before = manifest_path.read_text()
+
+    ensure_installdir_correct(
+        library, 1771300, library.common / "KingdomComeDeliverance2"
+    )
+
+    assert manifest_path.read_text() == before
+
+
+def test_ensure_installdir_correct_noop_when_no_manifest(tmp_path):
+    library = SteamLibrary(tmp_path / "Steam")
+    library.steamapps.mkdir(parents=True)
+    # Should not raise, and should not create a manifest out of nothing.
+    ensure_installdir_correct(library, 1771300, library.common / "Game")
+    assert not (library.steamapps / "appmanifest_1771300.acf").exists()
+
+
+def test_manifest_reflects_real_install_true_when_consistent(tmp_path):
+    library = SteamLibrary(tmp_path / "Steam")
+    library.steamapps.mkdir(parents=True)
+    data = {
+        "StateFlags": "4",
+        "installdir": "KingdomComeDeliverance2",
+        "InstalledDepots": {"1771302": {"manifest": "257127247679847518"}},
+    }
+    (library.steamapps / "appmanifest_1771300.acf").write_text(
+        vdf.dumps("AppState", data)
+    )
+
+    assert manifest_reflects_real_install(
+        library, 1771300, library.common / "KingdomComeDeliverance2"
+    )
+
+
+def test_manifest_reflects_real_install_false_when_installdir_mismatches(tmp_path):
+    library = SteamLibrary(tmp_path / "Steam")
+    library.steamapps.mkdir(parents=True)
+    data = {
+        "StateFlags": "4",
+        "installdir": "Kingdom Come: Deliverance II",
+        "InstalledDepots": {"1771302": {"manifest": "257127247679847518"}},
+    }
+    (library.steamapps / "appmanifest_1771300.acf").write_text(
+        vdf.dumps("AppState", data)
+    )
+
+    assert not manifest_reflects_real_install(
+        library, 1771300, library.common / "KingdomComeDeliverance2"
+    )
+
+
+def test_manifest_reflects_real_install_false_when_no_manifest(tmp_path):
+    library = SteamLibrary(tmp_path / "Steam")
+    library.steamapps.mkdir(parents=True)
+    assert not manifest_reflects_real_install(library, 1771300, library.common / "Game")

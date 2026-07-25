@@ -55,13 +55,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--max-downloads", type=int, default=depotdl.DEFAULT_MAX_DOWNLOADS
     )
+    parser.add_argument(
+        "--skip-steamcmd",
+        action="store_true",
+        help=(
+            "Finish the manifest directly from depotdownloader's own cached data "
+            "instead of running steamcmd's app_update. Steamcmd's install-script "
+            "step has shown two separate failure modes (a confirmed segfault, "
+            "and a silent no-op run); this is the same direct-write approach "
+            "already confirmed to work."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.appid is None and args.name is None:
         parser.error("provide a game name to search for, or --appid directly")
 
     _require_tool("depotdownloader", "See ~/depotdownloader.")
-    _require_tool("steamcmd", "Run: yay -S steamcmd")
+    if not args.skip_steamcmd:
+        _require_tool("steamcmd", "Run: yay -S steamcmd")
 
     appid = _resolve_appid(args)
     metadata = appinfo.get_metadata(appid)
@@ -89,32 +101,43 @@ def main(argv: list[str] | None = None) -> int:
         max_downloads=args.max_downloads,
     )
 
-    print("Reconciling with steamcmd (validate)...")
     library = next(lib for lib in libraries if lib.common == target.parent)
-    result = recognize.run_steamcmd_validate(metadata.appid, target, args.username)
+    recognize.ensure_installdir_correct(library, metadata.appid, target)
 
-    if result.completed:
-        print("steamcmd finished cleanly -- Steam should show Play.")
-        return 0
+    if not args.skip_steamcmd:
+        print("Reconciling with steamcmd (validate)...")
+        result = recognize.run_steamcmd_validate(metadata.appid, target, args.username)
 
-    if result.crashed_on_install_script:
-        print(
-            "steamcmd hit the known install-script crash; finishing the manifest manually..."
-        )
-        manifest_path = recognize.finish_manifest_manually(
-            library=library,
-            appid=metadata.appid,
-            install_dir=target,
-            now_unix=int(time.time()),
-        )
-        print(f"Wrote {manifest_path} -- launch Steam and confirm Play works.")
-        return 0
+        # Never trust steamcmd's exit code alone -- verify the manifest actually
+        # reflects a real install before believing it. A "clean" exit has
+        # produced a manifest steamcmd itself hadn't finished updating before.
+        if (
+            not result.crashed_on_install_script
+            and recognize.manifest_reflects_real_install(
+                library, metadata.appid, target
+            )
+        ):
+            print("steamcmd finished cleanly -- Steam should show Play.")
+            return 0
 
-    print(
-        "steamcmd failed for an unrecognized reason -- output above, not auto-resolved."
+        if result.crashed_on_install_script:
+            print(
+                "steamcmd hit the known install-script crash; finishing the manifest manually..."
+            )
+        else:
+            print(
+                f"steamcmd exited {result.returncode} but the manifest doesn't reflect a "
+                "real install; finishing it manually..."
+            )
+
+    manifest_path = recognize.finish_manifest_manually(
+        library=library,
+        appid=metadata.appid,
+        install_dir=target,
+        now_unix=int(time.time()),
     )
-    print(result.output[-4000:])
-    return 1
+    print(f"Wrote {manifest_path} -- launch Steam and confirm Play works.")
+    return 0
 
 
 if __name__ == "__main__":
