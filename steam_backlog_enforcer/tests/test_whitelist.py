@@ -9,6 +9,7 @@ import pytest
 
 from steam_backlog_enforcer._whitelist import (
     _append_audit_log,
+    _immutable_flag_is,
     _load_approved,
     _save_approved,
     _shannon_entropy,
@@ -21,6 +22,7 @@ from steam_backlog_enforcer._whitelist import (
 )
 
 if TYPE_CHECKING:
+    import array
     from pathlib import Path
 
 # ──────────────────────────────────────────────────────────────
@@ -125,11 +127,72 @@ class TestTrySetImmutable:
         fake_chattr = tmp_path / "chattr"
         with (
             patch("shutil.which", return_value=str(fake_chattr)),
+            # A fresh tmp file is already mutable, so without this the call
+            # would (correctly) short-circuit before reaching chattr.
+            patch(
+                "steam_backlog_enforcer._whitelist._immutable_flag_is",
+                return_value=False,
+            ),
             patch("subprocess.run") as mock_run,
         ):
             _try_set_immutable(target, immutable=False)
             args = mock_run.call_args[0][0]
             assert "-i" in args
+
+    def test_skips_chattr_when_flag_already_correct(self, tmp_path: Path) -> None:
+        # The hot path: lock_enforcement_files runs every loop iteration, and
+        # the flag is already what it should be, so nothing should be spawned.
+        target = tmp_path / "file.txt"
+        target.write_text("data", encoding="utf-8")
+        with (
+            patch(
+                "steam_backlog_enforcer._whitelist._immutable_flag_is",
+                return_value=True,
+            ),
+            patch("shutil.which") as mock_which,
+            patch("subprocess.run") as mock_run,
+        ):
+            _try_set_immutable(target, immutable=True)
+            mock_run.assert_not_called()
+            mock_which.assert_not_called()
+
+
+class TestImmutableFlagIs:
+    def test_reads_clear_flag_on_real_file(self, tmp_path: Path) -> None:
+        target = tmp_path / "file.txt"
+        target.write_text("data", encoding="utf-8")
+        assert _immutable_flag_is(target, immutable=False) is True
+        assert _immutable_flag_is(target, immutable=True) is False
+
+    def test_fails_closed_when_ioctl_refuses(self, tmp_path: Path) -> None:
+        # Filesystems without flag support raise OSError; we must report False
+        # so the caller still shells out rather than silently skipping.
+        target = tmp_path / "file.txt"
+        target.write_text("data", encoding="utf-8")
+        with patch("fcntl.ioctl", side_effect=OSError("unsupported")):
+            assert _immutable_flag_is(target, immutable=False) is False
+            assert _immutable_flag_is(target, immutable=True) is False
+
+    def test_fails_closed_on_value_error(self, tmp_path: Path) -> None:
+        target = tmp_path / "file.txt"
+        target.write_text("data", encoding="utf-8")
+        with patch("fcntl.ioctl", side_effect=ValueError("bad buffer")):
+            assert _immutable_flag_is(target, immutable=True) is False
+
+    def test_fails_closed_when_file_cannot_be_opened(self, tmp_path: Path) -> None:
+        assert _immutable_flag_is(tmp_path / "missing.txt", immutable=True) is False
+
+    def test_reports_set_flag(self, tmp_path: Path) -> None:
+        target = tmp_path / "file.txt"
+        target.write_text("data", encoding="utf-8")
+
+        def _fake_ioctl(_fd: int, _req: int, buf: array.array[int]) -> int:
+            buf[0] = 0x00000010  # FS_IMMUTABLE_FL
+            return 0
+
+        with patch("fcntl.ioctl", side_effect=_fake_ioctl):
+            assert _immutable_flag_is(target, immutable=True) is True
+            assert _immutable_flag_is(target, immutable=False) is False
 
     def test_oserror_swallowed(self, tmp_path: Path) -> None:
         target = tmp_path / "file.txt"
@@ -180,11 +243,24 @@ class TestLockAndUnlock:
         target.write_text("data", encoding="utf-8")
         with (
             patch("shutil.which", return_value="/usr/bin/chattr"),
+            # Pretend the file really is immutable; a fresh tmp file is not,
+            # and unlocking an already-mutable file is now a no-op.
+            patch(
+                "steam_backlog_enforcer._whitelist._immutable_flag_is",
+                return_value=False,
+            ),
             patch("subprocess.run") as mock_run,
         ):
             unlock_for_write(target)
             args = mock_run.call_args[0][0]
             assert "-i" in args
+
+    def test_unlock_for_write_skips_already_mutable_file(self, tmp_path: Path) -> None:
+        target = tmp_path / "file.txt"
+        target.write_text("data", encoding="utf-8")
+        with patch("subprocess.run") as mock_run:
+            unlock_for_write(target)
+            mock_run.assert_not_called()
 
 
 # ──────────────────────────────────────────────────────────────

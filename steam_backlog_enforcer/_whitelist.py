@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import array
 from collections import Counter
 import contextlib
+import fcntl
 import json
 import logging
 import math
@@ -112,19 +114,56 @@ def validate_reason(reason: str) -> str | None:
 # Immutability helpers
 # ──────────────────────────────────────────────────────────────
 
+# From <linux/fs.h>. FS_IOC_GETFLAGS is the 64-bit encoding of _IOR('f', 1,
+# long); FS_IMMUTABLE_FL is the "immutable" bit that `chattr +i` sets.
+_FS_IOC_GETFLAGS = 0x80086601
+_FS_IMMUTABLE_FL = 0x00000010
+
+
+def _immutable_flag_is(path: Path, *, immutable: bool) -> bool:
+    """Report whether *path*'s immutable bit already equals *immutable*.
+
+    Reading the flag is an ioctl, which costs no process; ``chattr`` costs a
+    fork and an exec. Since ``lock_enforcement_files`` runs on every
+    enforce-loop iteration, asking first turns a steady ~0.65 execs/second
+    into none at all for a flag that essentially never changes.
+
+    Fails closed: any uncertainty at all — filesystem without flag support,
+    ioctl refused, file unreadable — reports False so the caller still shells
+    out to chattr. A wrong True would silently stop enforcing immutability.
+
+    Args:
+        path: File to inspect.
+        immutable: The state to compare against.
+
+    Returns:
+        True only if the flag could be read and already matches.
+    """
+    buf = array.array("L", [0])
+    try:
+        with path.open("rb") as handle:
+            # mutate_flag defaults to True, so buf receives the flags in place.
+            fcntl.ioctl(handle.fileno(), _FS_IOC_GETFLAGS, buf)
+    except (OSError, ValueError):
+        return False
+    return bool(buf[0] & _FS_IMMUTABLE_FL) is immutable
+
 
 def _try_set_immutable(path: Path, *, immutable: bool) -> None:
     """Silently attempt to set or clear the immutable flag on *path*.
 
     This is a best-effort operation — it fails silently if chattr is not
     available, the process lacks the required capability, or the filesystem
-    does not support the flag.
+    does not support the flag. When the flag already holds the requested
+    value, no subprocess is spawned at all.
 
     Args:
         path: File to modify.
         immutable: True to set +i, False to clear -i.
     """
     if not path.exists():
+        return
+    if _immutable_flag_is(path, immutable=immutable):
         return
     chattr = shutil.which("chattr")
     if chattr is None:
