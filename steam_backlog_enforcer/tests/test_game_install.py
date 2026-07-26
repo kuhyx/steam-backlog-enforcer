@@ -259,10 +259,58 @@ class TestEnsureSteamRunning:
                 "steam_backlog_enforcer.game_install._get_uid_gid_for_user",
                 return_value=(1000, 1000),
             ),
+            patch(
+                "steam_backlog_enforcer.game_install.desktop_session_ready",
+                return_value=True,
+            ),
             patch("steam_backlog_enforcer.game_install.time.sleep"),
         ):
             _ensure_steam_running()
             mock_popen.assert_called_once()
+
+        # Assert the env vector, not just that a launch happened: dropping
+        # XDG_RUNTIME_DIR here is silent, and cost a Proton game its audio
+        # backend (winepulse -> winealsa) and a crash on startup.
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[:4] == ["sudo", "-u", "alice", "env"]
+        assert "XDG_RUNTIME_DIR=/run/user/1000" in cmd
+
+    def test_defers_when_runtime_dir_missing(self) -> None:
+        """Do not start Steam before the desktop session's runtime dir exists.
+
+        Launching in that window yields a Steam whose Wine children cannot
+        find PulseAudio, and it stays that way for the whole session. The
+        enforce loop retries every 3s, so deferring is nearly free.
+        """
+        mock_result = MagicMock(returncode=1)
+        with (
+            patch(
+                "steam_backlog_enforcer.game_install.subprocess.run",
+                return_value=mock_result,
+            ),
+            patch("steam_backlog_enforcer.game_install.subprocess.Popen") as mock_popen,
+            patch(
+                "steam_backlog_enforcer.game_install.os.geteuid",
+                return_value=0,
+            ),
+            patch(
+                "steam_backlog_enforcer.game_install._get_real_user",
+                return_value="alice",
+            ),
+            patch(
+                "steam_backlog_enforcer.game_install._get_uid_gid_for_user",
+                return_value=(1000, 1000),
+            ),
+            patch(
+                "steam_backlog_enforcer.game_install.desktop_session_ready",
+                return_value=False,
+            ),
+            patch("steam_backlog_enforcer.game_install.time.sleep") as mock_sleep,
+        ):
+            _ensure_steam_running()
+
+        mock_popen.assert_not_called()
+        mock_sleep.assert_not_called()
 
     def test_pgrep_not_found(self) -> None:
         with (

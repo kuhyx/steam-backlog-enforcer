@@ -15,6 +15,11 @@ import sys
 import time
 
 from steam_backlog_enforcer._allowed_games import allowed_games
+from steam_backlog_enforcer._desktop_env import (
+    desktop_env_args,
+    desktop_runtime_dir,
+    desktop_session_ready,
+)
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
 from steam_backlog_enforcer._whitelist import get_approved_exception_ids
 from steam_backlog_enforcer.config import State
@@ -265,18 +270,20 @@ def _ensure_steam_running() -> None:
     try:
         if os.geteuid() == 0 and real_user and real_user != "root":
             uid, _ = _get_uid_gid_for_user(real_user)
-            dbus_default = f"unix:path=/run/user/{uid}/bus"
-            dbus_addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS", dbus_default)
-            xauth_default = f"/home/{real_user}/.Xauthority"
-            xauth = os.environ.get("XAUTHORITY", xauth_default)
+            # Defer rather than launch a Steam that would come up without a
+            # runtime dir, and so without working audio, for the session.
+            if not desktop_session_ready(uid):
+                logger.info(
+                    "Deferring Steam start: %s does not exist yet.",
+                    desktop_runtime_dir(uid),
+                )
+                return
             cmd = [
                 "sudo",
                 "-u",
                 real_user,
                 "env",
-                f"DISPLAY={os.environ.get('DISPLAY', ':0')}",
-                f"XAUTHORITY={xauth}",
-                f"DBUS_SESSION_BUS_ADDRESS={dbus_addr}",
+                *desktop_env_args(real_user, uid),
                 "steam",
                 "-silent",
             ]

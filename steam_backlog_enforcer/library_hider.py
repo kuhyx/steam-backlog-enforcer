@@ -29,6 +29,11 @@ import time
 import requests
 import websockets
 
+from steam_backlog_enforcer._desktop_env import (
+    desktop_env_args,
+    desktop_runtime_dir,
+    desktop_session_ready,
+)
 from steam_backlog_enforcer._steam_state import steam_update_in_progress
 
 logger = logging.getLogger(__name__)
@@ -73,6 +78,28 @@ class SteamUpdateInProgressError(SteamUnavailableError):
     mid-update suspends and can corrupt the transfer, so the enforcer waits
     for updates to finish before bouncing Steam to open the CDP port.
     """
+
+
+class DesktopSessionNotReadyError(SteamUnavailableError):
+    """Raised to defer a Steam launch until the user's session exists.
+
+    Subclasses :class:`SteamUnavailableError` so existing callers already
+    degrade gracefully (skip this pass, retry next loop). Launching Steam
+    before ``/run/user/<uid>`` exists hands every Wine child a runtime dir
+    that is not there, so it falls back from winepulse to winealsa and stays
+    that way for the whole session — the Kingdom Come: Deliverance II startup
+    crash. Waiting a pass costs 3s; getting it wrong costs a reboot.
+    """
+
+
+def _desktop_uid(user: str | None) -> int:
+    """Resolve *user* to a uid, defaulting to the usual first desktop uid."""
+    if user:
+        try:
+            return pwd.getpwnam(user).pw_uid
+        except KeyError:
+            pass
+    return 1000
 
 
 def steam_is_installed() -> bool:
@@ -269,6 +296,19 @@ def ensure_steam_debug_port() -> None:
     if not steam_is_installed():
         msg = f"Steam is not installed ({_STEAM_BINARY} does not exist)"
         raise SteamUnavailableError(msg)
+
+    # Never launch Steam into a session that does not exist yet: it would get
+    # a missing XDG_RUNTIME_DIR, silently fall back to winealsa, and stay
+    # audio-broken until the next restart. Defer instead — the loop retries.
+    real_user = _resolve_desktop_user()
+    if os.geteuid() == 0 and not desktop_session_ready(_desktop_uid(real_user)):
+        msg = (
+            "Deferring Steam launch: the desktop session's runtime directory "
+            f"({desktop_runtime_dir(_desktop_uid(real_user))}) does not exist "
+            "yet. Launching now would leave Steam without audio; will retry."
+        )
+        logger.info(msg)
+        raise DesktopSessionNotReadyError(msg)
 
     logger.info("Steam CDP port not available — (re)starting Steam...")
     if _is_steam_running():
@@ -494,23 +534,13 @@ def _run_as_user(cmd: list[str], user: str | None) -> None:
     """Run a command, dropping to *user* if currently root."""
     _reap_spawned()
     if os.geteuid() == 0 and user and user != "root":
-        try:
-            pw = pwd.getpwnam(user)
-            uid = pw.pw_uid
-        except KeyError:
-            uid = 1000
-
-        dbus_default = f"unix:path=/run/user/{uid}/bus"
-        dbus_addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS", dbus_default)
-        xauth = os.environ.get("XAUTHORITY", f"/home/{user}/.Xauthority")
+        uid = _desktop_uid(user)
         full_cmd = [
             "sudo",
             "-u",
             user,
             "env",
-            f"DISPLAY={os.environ.get('DISPLAY', ':0')}",
-            f"XAUTHORITY={xauth}",
-            f"DBUS_SESSION_BUS_ADDRESS={dbus_addr}",
+            *desktop_env_args(user, uid),
             *cmd,
         ]
     else:
