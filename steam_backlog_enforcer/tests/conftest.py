@@ -138,6 +138,74 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_playtime(tmp_path: Path) -> Iterator[None]:
+    """Redirect the daily-gaming-budget paths to a temporary directory.
+
+    Separate from :func:`_isolate_filesystem` only because CPython caps a
+    ``with`` statement at 20 statically nested blocks and that fixture is
+    already at the limit.
+
+    The ``BLOCK_TARGETS`` patch is the load-bearing one: unpatched, that tuple
+    names the real ``/usr/bin/steam``, and a test reaching the mount code would
+    mask the user's actual Steam install behind a refusal stub.
+    """
+    # Namespaced names: an autouse fixture that creates bare "proc"/"targets"
+    # inside tmp_path would claim those names for every other test in the
+    # suite (test_enforcer builds its own tmp_path/"proc" with mkdir()).
+    fake_config = tmp_path / "config"
+    fake_config.mkdir(exist_ok=True)
+    fake_proc = tmp_path / "playtime_proc"
+    fake_proc.mkdir(exist_ok=True)
+    fake_targets = tmp_path / "playtime_targets"
+    fake_targets.mkdir(exist_ok=True)
+
+    with (
+        # Computed at import time from CONFIG_DIR, so patching CONFIG_DIR
+        # alone does not redirect them.
+        patch(
+            "steam_backlog_enforcer._playtime.PLAYTIME_STATE_FILE",
+            fake_config / "playtime_state.json",
+        ),
+        patch(
+            "steam_backlog_enforcer._playtime.PLAYTIME_DEMO_STATE_FILE",
+            fake_config / "playtime_demo_state.json",
+        ),
+        patch("steam_backlog_enforcer._playtime._PROC", fake_proc),
+        # Never let a test chattr +i a file inside tmp_path — pytest could
+        # then not clean the directory up.
+        patch("steam_backlog_enforcer._playtime._try_set_immutable", MagicMock()),
+        patch("steam_backlog_enforcer._playtime.unlock_for_write", MagicMock()),
+        patch(
+            "steam_backlog_enforcer._playtime_block.BLOCK_TARGETS",
+            (
+                fake_targets / "steam",
+                fake_targets / "bin_steam.sh",
+                fake_targets / "steam.sh",
+                fake_targets / "lutris",
+            ),
+        ),
+        patch("steam_backlog_enforcer._playtime_block._STUB_DIR", tmp_path / "run"),
+        patch(
+            "steam_backlog_enforcer._playtime_block.STUB_PATH",
+            tmp_path / "run" / "gaming-blocked",
+        ),
+        patch(
+            "steam_backlog_enforcer._playtime_block.MOUNTINFO_PATH",
+            tmp_path / "mountinfo",
+        ),
+        patch(
+            "steam_backlog_enforcer._playtime_block._INIT_MOUNTINFO_PATH",
+            tmp_path / "init_mountinfo",
+        ),
+        patch(
+            "steam_backlog_enforcer._playtime_block.PACMAN_LOCK", tmp_path / "db.lck"
+        ),
+        patch("steam_backlog_enforcer._playtime_block._PROC", fake_proc),
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _block_real_subprocesses() -> Iterator[None]:
     """Block subprocess calls that could launch real Steam or modify system.
 
@@ -176,6 +244,14 @@ def _block_real_subprocesses() -> Iterator[None]:
         patch(
             "steam_backlog_enforcer.library_hider.subprocess.Popen",
             noop_popen,
+        ),
+        # The single most important patch in this file. _playtime_block._run
+        # executes `mount --bind` against paths that, unpatched, are the real
+        # /usr/bin/steam. A test that reached the real subprocess would mask
+        # the user's actual Steam install with a refusal stub.
+        patch(
+            "steam_backlog_enforcer._playtime_block.subprocess.run",
+            noop_run,
         ),
     ):
         yield

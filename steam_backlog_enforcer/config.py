@@ -66,6 +66,25 @@ class Config:
     All active picks stay installed and visible; the enforcer treats them as
     one allowed set. Raising this weakens enforcement proportionally.
     """
+    daily_gaming_seconds: int = 8 * 3600
+    """Gaming seconds allowed per gaming day, which starts at 06:00 local.
+
+    Spending this budget shuts Steam down and masks the launcher binaries until
+    the next 06:00. See :mod:`steam_backlog_enforcer._playtime`.
+    """
+    count_launcher_processes: bool = True
+    """Whether time spent in non-Steam launchers counts against the budget.
+
+    Set False if a launcher legitimately idles in the tray all day. Leaving it
+    True is the safer default: under-counting is the failure mode that quietly
+    defeats the budget entirely.
+    """
+    playtime_enforcement: bool = True
+    """Master switch for the daily gaming budget.
+
+    Disabling stops the cutoff but never strands a live block — the release
+    path runs regardless, so "disabled" cannot come to mean "blocked forever".
+    """
 
     def save(self) -> None:
         """Persist config to disk."""

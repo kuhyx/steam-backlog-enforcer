@@ -32,8 +32,13 @@ from steam_backlog_enforcer._allowed_games import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
 from steam_backlog_enforcer._cmd_done import cmd_done
+from steam_backlog_enforcer._cmd_playtime import (
+    cmd_enforce,
+    cmd_gaming_reset,
+    cmd_gaming_status,
+    cmd_gaming_unblock,
+)
 from steam_backlog_enforcer._enforce_loop import (
-    do_enforce,
     get_all_owned_app_ids,
 )
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
@@ -109,13 +114,25 @@ _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
         # Allowed so a second game can be locked in alongside the first; the
         # cap inside cmd_pick_manual is what stops this being a way out.
         "pick-manual",
+        # The daily gaming budget is orthogonal to which game is assigned, and
+        # gaming-unblock is a recovery hatch for a stuck bind mount - locking
+        # it behind a manual pick would leave Steam masked with no way back.
+        "gaming-status",
+        "gaming-unblock",
+        "gaming-reset",
     }
 )
 
 # Commands that remain usable while a total gaming block is active. Far
 # stricter than _MANUAL_LOCK_EXEMPT_COMMANDS: no done/pick/reset/
 # add-exception - there is no in-app way to shorten a total block.
-_TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset({"status", "enforce"})
+#
+# gaming-unblock is included because a playtime bind mount makes the total
+# block's own `pacman -R steam` fail EBUSY - it must stay reachable exactly
+# when the two collide. gaming-reset is NOT included: it shortens enforcement.
+_TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset(
+    {"status", "enforce", "gaming-status", "gaming-unblock"}
+)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -905,7 +922,6 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "check": ("Check assigned game completion", do_check),
     "status": ("Show current status", cmd_status),
     "list": ("List games from snapshot", cmd_list),
-    "enforce": ("Run enforcer: block, uninstall, kill, hide", do_enforce),
     "install": ("Install the assigned game", cmd_install),
     "hide": ("Hide all non-assigned games in library", cmd_hide),
     "unhide": ("Unhide all games in library", cmd_unhide),
@@ -919,6 +935,8 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "pick": ("Manually pick your next game from candidates", cmd_pick),
     "stats": ("Show backlog completion-time estimates", cmd_stats),
     "serve": ("Start the interactive web UI (browser) server", cmd_serve),
+    "gaming-status": ("Show today's gaming time and block state", cmd_gaming_status),
+    "gaming-reset": ("Reset today's gaming counter (root + YES)", cmd_gaming_reset),
 }
 
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
@@ -929,6 +947,8 @@ _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
         f"Undo a manual pick within {_MANUAL_GRACE_DAYS} days (needs app_id)"
     ),
     "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
+    "enforce": "Run enforcer: block, uninstall, kill, hide (--demo for a 60s budget)",
+    "gaming-unblock": "Force-release playtime bind mounts (root; recovery hatch)",
 }
 
 _ALL_COMMANDS: dict[str, str] = {
@@ -981,6 +1001,40 @@ def _print_usage(unknown: str | None = None) -> None:
         _echo(f"  {name:<14s}  {desc}")
 
 
+def _dispatch_extra_command(command: str, config: Config, state: State) -> bool:
+    """Dispatch commands whose arguments do not fit the ``COMMANDS`` signature.
+
+    Split out of :func:`main` to keep its branch count within the complexity
+    limit; every entry here takes raw ``sys.argv`` tail arguments rather than
+    the ``(config, state)`` pair ``COMMANDS`` callables receive.
+
+    Args:
+        command: Canonical command name.
+        config: Loaded configuration.
+        state: Loaded state.
+
+    Returns:
+        True if *command* was handled here.
+    """
+    if command == "add-exception":
+        cmd_add_exception(sys.argv[2:])
+        return True
+    if command == "block-gaming":
+        cmd_block_gaming(sys.argv[2:])
+        return True
+    if command == "pick-manual":
+        cmd_pick_manual(config, state, sys.argv[2:])
+        return True
+    if command == "abandon-pick":
+        cmd_abandon_pick(config, state, sys.argv[2:])
+        return True
+    if command == "enforce":
+        sys.exit(cmd_enforce(config, state, sys.argv[2:]))
+    if command == "gaming-unblock":
+        sys.exit(cmd_gaming_unblock(sys.argv[2:]))
+    return False
+
+
 def main() -> None:
     """CLI entry point."""
     if len(sys.argv) < _MIN_CLI_ARGS:
@@ -1011,22 +1065,7 @@ def main() -> None:
     # This also covers add-exception (previously dispatched before state load).
     _enforce_manual_pick_lock(command, state)
 
-    # add-exception, pick-manual, and block-gaming have non-standard
-    # argument structures.
-    if command == "add-exception":
-        cmd_add_exception(sys.argv[2:])
-        return
-
-    if command == "block-gaming":
-        cmd_block_gaming(sys.argv[2:])
-        return
-
-    if command == "pick-manual":
-        cmd_pick_manual(config, state, sys.argv[2:])
-        return
-
-    if command == "abandon-pick":
-        cmd_abandon_pick(config, state, sys.argv[2:])
+    if _dispatch_extra_command(command, config, state):
         return
 
     _, func = COMMANDS[command]

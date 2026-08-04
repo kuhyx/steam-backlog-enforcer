@@ -16,6 +16,15 @@ Environment=STEAM_ENFORCER_DESKTOP_USER=__DESKTOP_USER__
 Environment=DISPLAY=:0
 # Hardening: enforcer must not be easily killed.
 OOMScoreAdjust=-900
+#
+# DO NOT ADD PrivateMounts=, PrivateTmp=, ProtectSystem= OR ProtectHome= HERE.
+# The daily gaming budget enforces its cutoff by bind-mounting a refusal stub
+# over /usr/bin/steam and the other launcher entry points. Any of those
+# directives gives this service a private mount namespace, so those mounts stay
+# invisible to the rest of the system: the launchers keep working while the
+# counter keeps running, and the block silently becomes a no-op. That failure
+# mode is invisible from the outside, which is why it is spelled out here.
+# _playtime_block.mounts_are_visible() logs an error if it ever happens.
 
 [Install]
 WantedBy=multi-user.target

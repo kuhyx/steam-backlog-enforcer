@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
+from steam_backlog_enforcer._playtime import playtime_tick
 from steam_backlog_enforcer._total_block import (
     end_total_block_cleanup,
     enforce_total_block_tick,
@@ -283,13 +284,25 @@ def _enforce_hide_games(config: Config, state: State) -> None:
         _echo("  Library: games already hidden")
 
 
-def _enforce_loop_iteration(config: Config, state: State) -> None:
+def _enforce_loop_iteration(
+    config: Config,
+    state: State,
+    *,
+    demo: bool = False,
+) -> None:
     """Perform one iteration of the enforcement loop.
 
     Args:
         config: Enforcer configuration.
         state: Current enforcer state.
+        demo: Run the gaming budget on a 60-second demo budget.
     """
+    # Daily gaming budget runs FIRST and unconditionally. Every guard below
+    # returns early in situations where gaming time is still being spent (total
+    # block active, Steam absent, nothing assigned) and where a 06:00 release
+    # still has to happen — gating this on any of them would strand the block.
+    playtime_tick(config, interval=ENFORCE_INTERVAL, demo=demo)
+
     # Total block takes priority over the assigned-game enforcement below -
     # while active, don't fight ourselves (e.g. installing the assigned
     # game while total-block tries to keep Steam uninstalled).
@@ -336,7 +349,7 @@ def _enforce_loop_iteration(config: Config, state: State) -> None:
     lock_enforcement_files(CONFIG_FILE)
 
 
-def do_enforce(config: Config, state: State) -> None:
+def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
     """Run the enforcer: block store, uninstall other games, kill processes.
 
     This is a persistent loop that continuously:
@@ -344,14 +357,24 @@ def do_enforce(config: Config, state: State) -> None:
     2. Removes any newly-installed unauthorized games.
     3. Auto-installs the assigned game if missing.
     4. Kills any running unauthorized game processes.
+    5. Accounts for the daily gaming budget and enforces its cutoff.
+
+    Args:
+        config: Enforcer configuration.
+        state: Current enforcer state.
+        demo: Run the gaming budget on a 60-second demo budget.
     """
     if is_total_block_active():
         _echo(
             "Total gaming block ACTIVE - enforcing that instead of any assigned game."
         )
     elif state.current_app_id is None:
+        # Fall through to the idle loop for the same reason as the Steam
+        # branch below, plus one of its own: the daily gaming budget is
+        # enforced from this loop, so returning here would silently stop
+        # counting playtime whenever a game is finished but not yet rescanned.
         _echo("No game assigned. Run 'scan' first.")
-        return
+        _echo("  (Daily gaming budget is still enforced.)")
     elif not steam_is_installed():
         # Fall through to the idle loop rather than returning: returning exits
         # the process, and under Restart=always that is just the crash loop
@@ -381,7 +404,7 @@ def do_enforce(config: Config, state: State) -> None:
             state.current_game_name = fresh.current_game_name
             state.finished_app_ids = fresh.finished_app_ids
 
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, demo=demo)
             time.sleep(ENFORCE_INTERVAL)
     except KeyboardInterrupt:
         _echo("\nEnforcer stopped.")

@@ -87,8 +87,7 @@ class TestDoEnforceTotalBlock:
         mock_setup.assert_not_called()
 
     def test_active_with_no_game_does_not_early_return(self) -> None:
-        """Without total block, no assigned game means do_enforce returns
-        immediately. With it active, the loop must still run."""
+        """A total block with no assigned game must still run the loop."""
         state = State()
         config = Config()
         with (
@@ -105,11 +104,82 @@ class TestDoEnforceTotalBlock:
             do_enforce(config, state)
         mock_iter.assert_called_once()
 
-    def test_inactive_with_no_game_returns_early(self) -> None:
+    def test_inactive_with_no_game_still_enters_the_loop(self) -> None:
+        """No assigned game must NOT exit the process.
+
+        It used to return here, which silently stopped enforcing the daily
+        gaming budget for as long as a game was finished but not yet
+        rescanned - the budget is accounted for from inside this loop.
+        """
+        state = State()
         with (
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}._echo") as mock_echo,
+            patch.object(State, "load", return_value=state),
+            patch(
+                f"{PKG}._enforce_loop_iteration",
+                side_effect=KeyboardInterrupt,
+            ) as mock_iter,
+            patch(f"{PKG}.time.sleep"),
         ):
-            do_enforce(Config(), State())
+            do_enforce(Config(), state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "No game" in output
+        assert "budget is still enforced" in output
+        mock_iter.assert_called_once()
+
+
+class TestPlaytimeIsEnforcedFirst:
+    """The gaming budget must run before every other guard in the tick."""
+
+    def test_runs_even_when_total_block_short_circuits(self) -> None:
+        """Time is still spent, and a 06:00 release still has to happen."""
+        config = Config()
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.playtime_tick") as mock_playtime,
+            patch(f"{PKG}.is_total_block_active", return_value=True),
+            patch(f"{PKG}.enforce_total_block_tick"),
+        ):
+            _enforce_loop_iteration(config, state)
+        mock_playtime.assert_called_once()
+
+    def test_receives_the_loop_interval(self) -> None:
+        config = Config()
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.playtime_tick") as mock_playtime,
+            patch(f"{PKG}.is_total_block_active", return_value=True),
+            patch(f"{PKG}.enforce_total_block_tick"),
+        ):
+            _enforce_loop_iteration(config, state)
+        assert mock_playtime.call_args.kwargs["interval"] == 3
+        assert mock_playtime.call_args.kwargs["demo"] is False
+
+    def test_demo_flag_is_plumbed_through(self) -> None:
+        config = Config()
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.playtime_tick") as mock_playtime,
+            patch(f"{PKG}.is_total_block_active", return_value=True),
+            patch(f"{PKG}.enforce_total_block_tick"),
+        ):
+            _enforce_loop_iteration(config, state, demo=True)
+        assert mock_playtime.call_args.kwargs["demo"] is True
+
+    def test_do_enforce_plumbs_demo_into_the_iteration(self) -> None:
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.is_total_block_active", return_value=False),
+            patch(f"{PKG}.steam_is_installed", return_value=True),
+            patch(f"{PKG}._enforce_setup"),
+            patch(f"{PKG}._echo"),
+            patch.object(State, "load", return_value=state),
+            patch(
+                f"{PKG}._enforce_loop_iteration",
+                side_effect=KeyboardInterrupt,
+            ) as mock_iter,
+            patch(f"{PKG}.time.sleep"),
+        ):
+            do_enforce(Config(), state, demo=True)
+        assert mock_iter.call_args.kwargs["demo"] is True

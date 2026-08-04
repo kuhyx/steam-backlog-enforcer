@@ -281,6 +281,99 @@ class TestBlockGamingGate:
         assert "privileges" in out["reason"]
 
 
+class TestGetGamingTime:
+    def test_reports_unrecorded_state(self) -> None:
+        with (
+            patch.object(_mcp, "load_state", return_value=None),
+            patch.object(_mcp, "mounted_targets", return_value=set()),
+        ):
+            out = _mcp.get_gaming_time()
+        assert out["recorded"] is False
+        assert out["budget_seconds"] == 8 * 3600
+
+    def test_reports_usage(self) -> None:
+        stored = _mcp.PlaytimeState(day_key="2026-07-27", seconds=100.0)
+        with (
+            patch.object(_mcp, "load_state", return_value=stored),
+            patch.object(_mcp, "mounted_targets", return_value=set()),
+        ):
+            out = _mcp.get_gaming_time()
+        assert out["recorded"] is True
+        assert out["gaming_day"] == "2026-07-27"
+        assert out["seconds_used"] == 100.0
+        assert out["seconds_remaining"] == 8 * 3600 - 100.0
+        assert out["blocked"] is False
+
+    def test_remaining_never_goes_negative(self) -> None:
+        stored = _mcp.PlaytimeState(day_key="d", seconds=10**9)
+        with (
+            patch.object(_mcp, "load_state", return_value=stored),
+            patch.object(_mcp, "mounted_targets", return_value=set()),
+        ):
+            out = _mcp.get_gaming_time()
+        assert out["seconds_remaining"] == 0.0
+
+    def test_lists_masked_launchers(self) -> None:
+        stored = _mcp.PlaytimeState(day_key="d", seconds=1.0, blocked_at=2.0)
+        with (
+            patch.object(_mcp, "load_state", return_value=stored),
+            patch.object(_mcp, "mounted_targets", return_value={"/usr/bin/steam"}),
+        ):
+            out = _mcp.get_gaming_time()
+        assert out["blocked"] is True
+        assert out["masked_launchers"] == ["/usr/bin/steam"]
+
+    def test_leaks_no_secret(self) -> None:
+        """No Config secret may cross the MCP boundary."""
+        with (
+            patch.object(_mcp, "load_state", return_value=None),
+            patch.object(_mcp, "mounted_targets", return_value=set()),
+        ):
+            out = _mcp.get_gaming_time()
+        assert "steam_api_key" not in out
+        assert "steam_id" not in out
+
+
+class TestResetGamingTime:
+    def test_preview_by_default(self) -> None:
+        with patch.object(_mcp, "release_block") as mock_release:
+            out = _mcp.reset_gaming_time()
+        mock_release.assert_not_called()
+        assert out["preview"] is True
+        assert out["confirm_required"] is True
+        assert out["requires_root"] is True
+
+    def test_confirm_unprivileged_returns_gracefully(self) -> None:
+        with (
+            patch.object(_mcp.os, "geteuid", return_value=1000),
+            patch.object(_mcp, "release_block") as mock_release,
+        ):
+            out = _mcp.reset_gaming_time(confirm=True)
+        mock_release.assert_not_called()
+        assert out["ok"] is False
+        assert "privileges" in out["reason"]
+
+    def test_confirm_applies_as_root(self) -> None:
+        with (
+            patch.object(_mcp.os, "geteuid", return_value=0),
+            patch.object(_mcp, "release_block", return_value=["/usr/bin/steam"]),
+            patch.object(_mcp, "save_state") as mock_save,
+        ):
+            out = _mcp.reset_gaming_time(confirm=True)
+        mock_save.assert_called_once()
+        assert out["applied"] is True
+        assert out["released"] == ["/usr/bin/steam"]
+
+    def test_confirm_oserror_returns_gracefully(self) -> None:
+        with (
+            patch.object(_mcp.os, "geteuid", return_value=0),
+            patch.object(_mcp, "release_block", side_effect=OSError("boom")),
+        ):
+            out = _mcp.reset_gaming_time(confirm=True)
+        assert out["ok"] is False
+        assert "privileges" in out["reason"]
+
+
 def test_main_runs_stdio_server() -> None:
     with patch.object(_mcp.mcp, "run") as run:
         _mcp.main()

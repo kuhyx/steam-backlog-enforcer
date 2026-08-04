@@ -158,10 +158,26 @@ class TestDoEnforce:
         with patch(f"{PKG}.steam_is_installed", return_value=True):
             yield
 
-    def test_no_game(self) -> None:
-        with patch(f"{PKG}._echo") as mock_echo:
-            do_enforce(Config(), State())
-            assert any("No game" in str(c) for c in mock_echo.call_args_list)
+    def test_no_game_says_so_but_keeps_looping(self) -> None:
+        """No assignment is reported, but the loop still runs.
+
+        The daily gaming budget is accounted for from inside this loop, so
+        returning here would stop enforcing it whenever a game is finished
+        but not yet rescanned.
+        """
+        state = State()
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            patch.object(State, "load", return_value=state),
+            patch(
+                f"{PKG}._enforce_loop_iteration",
+                side_effect=KeyboardInterrupt,
+            ) as mock_iter,
+            patch(f"{PKG}.time.sleep"),
+        ):
+            do_enforce(Config(), state)
+        assert any("No game" in str(c) for c in mock_echo.call_args_list)
+        mock_iter.assert_called_once()
 
     def test_steam_absent_idles_without_setup(self) -> None:
         """With Steam gone, say so and keep looping - never exit.

@@ -1,0 +1,29 @@
+# steam-backlog-enforcer: release daily-gaming-budget bind mounts before pacman
+# touches the packages they mask.
+#
+# While the daily gaming budget is exhausted, a refusal stub is bind-mounted
+# over the launcher entry points. A bind-mounted file is a mountpoint, so
+# unlink(2)/rename(2) over it returns EBUSY and package extraction fails. This
+# hook clears the mounts for the duration of the transaction; the enforcer's
+# 3-second tick re-applies them afterwards, so there is no PostTransaction half.
+#
+# The daemon side also refuses to (re-)mount while /var/lib/pacman/db.lck
+# exists, which is what stops a tick from remounting mid-transaction.
+#
+# KEEP THE TARGET LIST IN SYNC with BLOCK_TARGETS in
+# steam_backlog_enforcer/_playtime_block.py. The user-owned
+# ~/.local/share/Steam/steam.sh is deliberately absent here: it is not owned by
+# any package, so no pacman transaction can collide with it.
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = steam
+Target = lutris
+
+[Action]
+Description = steam-backlog-enforcer: releasing playtime bind mounts
+When = PreTransaction
+Exec = /bin/sh -c 'for t in /usr/bin/steam /usr/lib/steam/bin_steam.sh /usr/bin/lutris; do i=0; while mountpoint -q "$t" && [ "$i" -lt 20 ]; do umount -l "$t" || break; i=$((i+1)); done; done'

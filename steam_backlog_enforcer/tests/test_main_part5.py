@@ -106,7 +106,18 @@ class TestEnforceTotalBlockLock:
             _enforce_total_block_lock("add-exception")
 
     def test_exempt_set_is_stricter_than_manual_pick(self) -> None:
-        assert frozenset({"status", "enforce"}) == _TOTAL_BLOCK_EXEMPT_COMMANDS
+        """Pinned exactly: widening this set weakens the total block.
+
+        gaming-unblock is present because a playtime bind mount makes the
+        total block's own `pacman -R steam` fail EBUSY - it has to stay
+        reachable exactly when the two collide. gaming-reset is deliberately
+        absent: it would shorten enforcement.
+        """
+        assert (
+            frozenset({"status", "enforce", "gaming-status", "gaming-unblock"})
+            == _TOTAL_BLOCK_EXEMPT_COMMANDS
+        )
+        assert "gaming-reset" not in _TOTAL_BLOCK_EXEMPT_COMMANDS
 
 
 # ──────────────────────────────────────────────────────────────
@@ -258,3 +269,66 @@ class TestCmdStatusTotalBlock:
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "TOTAL GAMING BLOCK ACTIVE" in output
         assert "Days remaining" not in output
+
+
+# ──────────────────────────────────────────────────────────────
+# main() dispatch to the daily-gaming-budget commands
+# ──────────────────────────────────────────────────────────────
+
+
+class TestMainDispatchGamingCommands:
+    def test_enforce_passes_its_tail_args_and_exits_with_the_code(self) -> None:
+        """`enforce` left COMMANDS because its signature cannot carry --demo."""
+        argv = ["prog", "enforce", "--demo"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=State()),
+            patch(f"{PKG}.is_total_block_active", return_value=False),
+            patch(f"{PKG}.cmd_enforce", return_value=0) as mock_cmd,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 0
+        assert mock_cmd.call_args.args[2] == ["--demo"]
+
+    def test_enforce_propagates_a_nonzero_exit(self) -> None:
+        argv = ["prog", "enforce", "--bogus"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=State()),
+            patch(f"{PKG}.is_total_block_active", return_value=False),
+            patch(f"{PKG}.cmd_enforce", return_value=2),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 2
+
+    def test_gaming_unblock_dispatches(self) -> None:
+        argv = ["prog", "gaming-unblock"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=State()),
+            patch(f"{PKG}.is_total_block_active", return_value=False),
+            patch(f"{PKG}.cmd_gaming_unblock", return_value=0) as mock_cmd,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 0
+        mock_cmd.assert_called_once_with([])
+
+    def test_gaming_unblock_reachable_during_a_total_block(self) -> None:
+        """A playtime mount makes the total block's own pacman -R fail EBUSY."""
+        argv = ["prog", "gaming-unblock"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=State()),
+            patch(f"{PKG}.is_total_block_active", return_value=True),
+            patch(f"{PKG}.cmd_gaming_unblock", return_value=0) as mock_cmd,
+            pytest.raises(SystemExit),
+        ):
+            main()
+        mock_cmd.assert_called_once_with([])

@@ -53,6 +53,16 @@ if [[ "${ans,,}" == "y" ]]; then
          s|__DESKTOP_USER__|$DESKTOP_USER|" \
         "$SERVICE_SRC" > "$SERVICE_DST"
 
+    # Daily-gaming-budget pacman hook. While the budget is exhausted a refusal
+    # stub is bind-mounted over /usr/bin/steam and friends; a bind mount makes
+    # package extraction fail EBUSY, so the mounts must be dropped before any
+    # transaction touching those packages.
+    HOOK_SRC="$SCRIPT_DIR/pacman-hooks/50-steam-backlog-playtime-unblock.hook"
+    HOOK_DST="/etc/pacman.d/hooks/50-steam-backlog-playtime-unblock.hook"
+    mkdir -p /etc/pacman.d/hooks
+    install -m 644 "$HOOK_SRC" "$HOOK_DST"
+    echo "Installed pacman hook: $HOOK_DST"
+
     systemctl daemon-reload
     systemctl enable steam-backlog-enforcer
     echo "Service installed and enabled."
