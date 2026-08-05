@@ -11,8 +11,10 @@ built to avoid.
 
 from __future__ import annotations
 
-import subprocess
+import logging
 from pathlib import Path
+
+from steam_installer import runlog
 
 DEFAULT_MAX_DOWNLOADS = 32
 
@@ -21,11 +23,17 @@ def download(
     appid: int,
     install_dir: Path,
     username: str,
+    logger: logging.Logger,
     language: str = "english",
     os_name: str = "windows",
     max_downloads: int = DEFAULT_MAX_DOWNLOADS,
-) -> None:
-    """Run depotdownloader against `install_dir`, streaming its own progress output live."""
+) -> int:
+    """Run depotdownloader against `install_dir`, streaming its own progress output live.
+
+    Returns the exit code rather than raising: the caller has to distinguish
+    "download failed" from "download fine, manifest step failed" to decide
+    whether touching the manifest is safe at all.
+    """
     install_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         "depotdownloader",
@@ -43,4 +51,5 @@ def download(
         "-dir",
         str(install_dir),
     ]
-    subprocess.run(cmd, check=True)
+    returncode, _ = runlog.run_logged(cmd, logger)
+    return returncode

@@ -98,6 +98,20 @@ def _tokenize(text: str) -> list[str]:
     return tokens
 
 
+def _escape(value: str) -> str:
+    r"""Re-escape a value for VDF output.
+
+    The tokenizer consumes `\` escapes, so a manifest holding
+    `_CommonRedist\\vcredist\\2015\\installscript.vdf` parses to a value with
+    single backslashes. Writing that back verbatim would halve them on every
+    parse/dump cycle and silently corrupt the path -- confirmed against the
+    real appmanifest_228980.acf (Steamworks Common Redistributables), whose
+    InstallScripts entries are Windows paths and whose depot 228989 is shared
+    with other games.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def dumps(root_key: str, data: dict[str, VdfValue], indent: str = "\t") -> str:
     """Serialize a dict back to VDF text, matching Steam's own tab-indented style."""
     lines = [f'"{root_key}"', "{"]
@@ -112,9 +126,9 @@ def _dump_block(
     prefix = indent * depth
     for key, value in data.items():
         if isinstance(value, dict):
-            lines.append(f'{prefix}"{key}"')
+            lines.append(f'{prefix}"{_escape(key)}"')
             lines.append(f"{prefix}{{")
             _dump_block(value, indent, depth + 1, lines)
             lines.append(f"{prefix}}}")
         else:
-            lines.append(f'{prefix}"{key}"\t\t"{value}"')
+            lines.append(f'{prefix}"{_escape(key)}"\t\t"{_escape(value)}"')

@@ -14,3 +14,18 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["steam_installer"]
+branch = true
+# The `__main__` guard is exercised by running the module as a script in a
+# subprocess; without this its coverage would be recorded in a child process
+# and thrown away.
+parallel = true
+concurrency = ["multiprocessing"]
+
+[tool.coverage.report]
+# The suite covers every line and branch. Anything less is a regression, so
+# make it fail rather than merely reporting a lower number.
+fail_under = 100
+show_missing = true
