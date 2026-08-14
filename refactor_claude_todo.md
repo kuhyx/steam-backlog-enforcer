@@ -13,14 +13,15 @@ enforced by a gate that fails the commit, not by a note anyone can ignore.
 Why: a file that cannot be read in one piece forces re-reads and partial edits,
 which is the single largest avoidable cost in an LLM-assisted workflow. Aim by
 churn, not size alone — refactoring pays where code is read and changed often
-(Fowler, *refactoring economic benefit*).
+(Fowler, _refactoring economic benefit_).
 
 ## Scope in this repo
 
-- **55 files** currently exceed 250 lines (of 113 eligible files).
+- **55 files** currently exceed 250 lines (of 114 eligible files).
 - **24,887 lines** sit in violation; longest file is **1076 lines**.
 
 Exempt (do NOT split these):
+
 - generated files — `*.g.dart`, `*.freezed.dart`, `*.gr.dart`, `**/l10n/generated/**`,
   anything with a `GENERATED` header
 - markup — `.html`, `.css`, `.scss`
@@ -32,23 +33,23 @@ Exempt (do NOT split these):
 ROI = lines x commits in the last year. Work top-down; a long file nobody edits
 has near-zero payoff and should not be first.
 
-| lines | commits/yr | kind | file |
-|------:|-----------:|:-----|:-----|
-| 1076 | 26 | code | `steam_backlog_enforcer/main.py` |
-| 553 | 18 | code | `steam_backlog_enforcer/game_install.py` |
-| 555 | 13 | code | `steam_backlog_enforcer/library_hider.py` |
-| 521 | 13 | code | `steam_backlog_enforcer/scanning.py` |
-| 384 | 16 | code | `steam_backlog_enforcer/hltb.py` |
-| 447 | 12 | code | `steam_backlog_enforcer/tests/test_hltb.py` |
-| 410 | 12 | code | `steam_backlog_enforcer/_enforce_loop.py` |
-| 444 | 11 | code | `steam_backlog_enforcer/tests/test_scanning.py` |
-| 476 | 10 | code | `steam_backlog_enforcer/tests/test_main_part2.py` |
-| 1072 | 4 | code | `steam_backlog_enforcer/tests/test_stats.py` |
-| 592 | 7 | code | `steam_backlog_enforcer/tests/test_hltb_detail.py` |
-| 393 | 10 | code | `steam_backlog_enforcer/tests/test_enforce_loop.py` |
-| 491 | 7 | code | `steam_backlog_enforcer/tests/test_main.py` |
-| 333 | 10 | code | `steam_backlog_enforcer/_cmd_done.py` |
-| 409 | 8 | code | `steam_backlog_enforcer/tests/test_hltb_part2.py` |
+| lines | commits/yr | kind | file                                                |
+| ----: | ---------: | :--- | :-------------------------------------------------- |
+|  1076 |         26 | code | `steam_backlog_enforcer/main.py`                    |
+|   553 |         18 | code | `steam_backlog_enforcer/game_install.py`            |
+|   555 |         13 | code | `steam_backlog_enforcer/library_hider.py`           |
+|   521 |         13 | code | `steam_backlog_enforcer/scanning.py`                |
+|   384 |         16 | code | `steam_backlog_enforcer/hltb.py`                    |
+|   447 |         12 | code | `steam_backlog_enforcer/tests/test_hltb.py`         |
+|   410 |         12 | code | `steam_backlog_enforcer/_enforce_loop.py`           |
+|   444 |         11 | code | `steam_backlog_enforcer/tests/test_scanning.py`     |
+|   476 |         10 | code | `steam_backlog_enforcer/tests/test_main_part2.py`   |
+|  1072 |          4 | code | `steam_backlog_enforcer/tests/test_stats.py`        |
+|   592 |          7 | code | `steam_backlog_enforcer/tests/test_hltb_detail.py`  |
+|   393 |         10 | code | `steam_backlog_enforcer/tests/test_enforce_loop.py` |
+|   491 |          7 | code | `steam_backlog_enforcer/tests/test_main.py`         |
+|   333 |         10 | code | `steam_backlog_enforcer/_cmd_done.py`               |
+|   409 |          8 | code | `steam_backlog_enforcer/tests/test_hltb_part2.py`   |
 
 _(40 further files over 250 lines not listed — re-run the survey for the full set.)_
 
