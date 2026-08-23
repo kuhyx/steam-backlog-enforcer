@@ -10,13 +10,17 @@ from steam_backlog_enforcer import _playtime_block as blk
 from steam_backlog_enforcer._playtime_block import (
     _ensure_stub,
     _mount_bin,
-    _mountpoints,
-    _run,
     _umount_bin,
-    _unescape_mountinfo,
     block_targets,
     mounted_targets,
     mounts_are_visible,
+)
+from steam_backlog_enforcer._playtime_mountinfo import (
+    _mountpoints,
+    _unescape_mountinfo,
+)
+from steam_backlog_enforcer._playtime_run import (
+    _run,
 )
 
 if TYPE_CHECKING:
@@ -124,30 +128,39 @@ class TestEnsureStub:
         assert _ensure_stub() is True
 
     def test_returns_false_on_oserror(self) -> None:
-        with patch(f"{PKG}.Path.mkdir", side_effect=OSError("boom")):
+        with patch(
+            "steam_backlog_enforcer._playtime_block.Path.mkdir",
+            side_effect=OSError("boom"),
+        ):
             assert _ensure_stub() is False
 
 
 class TestRun:
     def test_true_on_zero_exit(self) -> None:
         with patch(
-            f"{PKG}.subprocess.run",
+            "steam_backlog_enforcer._playtime_run.subprocess.run",
             return_value=MagicMock(returncode=0),
         ) as mock_run:
             assert _run(["mount", "--bind", "a", "b"]) is True
         mock_run.assert_called_once()
 
     def test_false_on_nonzero_exit(self) -> None:
-        with patch(f"{PKG}.subprocess.run", return_value=MagicMock(returncode=1)):
+        with patch(
+            "steam_backlog_enforcer._playtime_run.subprocess.run",
+            return_value=MagicMock(returncode=1),
+        ):
             assert _run(["mount"]) is False
 
     def test_false_on_oserror(self) -> None:
-        with patch(f"{PKG}.subprocess.run", side_effect=OSError("nope")):
+        with patch(
+            "steam_backlog_enforcer._playtime_run.subprocess.run",
+            side_effect=OSError("nope"),
+        ):
             assert _run(["mount"]) is False
 
     def test_false_on_timeout(self) -> None:
         with patch(
-            f"{PKG}.subprocess.run",
+            "steam_backlog_enforcer._playtime_run.subprocess.run",
             side_effect=subprocess.TimeoutExpired("mount", 15),
         ):
             assert _run(["mount"]) is False
@@ -155,19 +168,29 @@ class TestRun:
 
 class TestBinaryResolution:
     def test_mount_bin_found(self) -> None:
-        with patch(f"{PKG}.shutil.which", return_value="/bin/mount"):
+        with patch(
+            "steam_backlog_enforcer._playtime_block.shutil.which",
+            return_value="/bin/mount",
+        ):
             assert _mount_bin() == "/bin/mount"
 
     def test_mount_bin_fallback(self) -> None:
-        with patch(f"{PKG}.shutil.which", return_value=None):
+        with patch(
+            "steam_backlog_enforcer._playtime_block.shutil.which", return_value=None
+        ):
             assert _mount_bin() == "/usr/bin/mount"
 
     def test_umount_bin_found(self) -> None:
-        with patch(f"{PKG}.shutil.which", return_value="/bin/umount"):
+        with patch(
+            "steam_backlog_enforcer._playtime_block.shutil.which",
+            return_value="/bin/umount",
+        ):
             assert _umount_bin() == "/bin/umount"
 
     def test_umount_bin_fallback(self) -> None:
-        with patch(f"{PKG}.shutil.which", return_value=None):
+        with patch(
+            "steam_backlog_enforcer._playtime_block.shutil.which", return_value=None
+        ):
             assert _umount_bin() == "/usr/bin/umount"
 
 

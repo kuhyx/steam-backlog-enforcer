@@ -20,6 +20,23 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Imported for its autouse side effect: naming it here registers it.
+from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
+from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
+
+# Re-exported so ruff --fix does not delete the imports above: pytest
+# registers autouse fixtures by name, so they look unused to the linter.
+__all__ = ["_block_real_subprocesses", "_isolate_playtime"]
+
+from steam_backlog_enforcer.tests._total_block_paths import (
+    BLOCK,
+    HOSTS,
+    IPTABLES,
+    PURGE,
+    Paths,
+    build_paths,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
@@ -80,7 +97,7 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             fake_hosts,
         ),
         patch(
-            "steam_backlog_enforcer._total_block.HOSTS_FILE",
+            "steam_backlog_enforcer._total_block_hosts.HOSTS_FILE",
             fake_hosts,
         ),
         patch(
@@ -96,18 +113,18 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             fake_config / "total_block_lock.json",
         ),
         patch(
-            "steam_backlog_enforcer._total_block._IPTABLES_IP_CACHE_FILE",
+            "steam_backlog_enforcer._total_block_iptables._IPTABLES_IP_CACHE_FILE",
             fake_config / "total_block_ip_cache.json",
         ),
         patch(
-            "steam_backlog_enforcer._total_block._STEAM_PURGE_LOG_FILE",
+            "steam_backlog_enforcer._total_block_purge._STEAM_PURGE_LOG_FILE",
             fake_config / "total_block_purge_log.json",
         ),
         # Steam/Proton remnant paths (real ~/.steam, ~/.local/share/Steam,
         # etc. - _remove_steam_remnants() deletes these, so tests must never
         # see the real ones)
         patch(
-            "steam_backlog_enforcer._total_block._STEAM_REMNANT_PATHS",
+            "steam_backlog_enforcer._total_block_purge._STEAM_REMNANT_PATHS",
             (
                 tmp_path / "fake_home" / ".steam",
                 tmp_path / "fake_home" / "steam",
@@ -138,126 +155,6 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_playtime(tmp_path: Path) -> Iterator[None]:
-    """Redirect the daily-gaming-budget paths to a temporary directory.
-
-    Separate from :func:`_isolate_filesystem` only because CPython caps a
-    ``with`` statement at 20 statically nested blocks and that fixture is
-    already at the limit.
-
-    The ``BLOCK_TARGETS`` patch is the load-bearing one: unpatched, that tuple
-    names the real ``/usr/bin/steam``, and a test reaching the mount code would
-    mask the user's actual Steam install behind a refusal stub.
-    """
-    # Namespaced names: an autouse fixture that creates bare "proc"/"targets"
-    # inside tmp_path would claim those names for every other test in the
-    # suite (test_enforcer builds its own tmp_path/"proc" with mkdir()).
-    fake_config = tmp_path / "config"
-    fake_config.mkdir(exist_ok=True)
-    fake_proc = tmp_path / "playtime_proc"
-    fake_proc.mkdir(exist_ok=True)
-    fake_targets = tmp_path / "playtime_targets"
-    fake_targets.mkdir(exist_ok=True)
-
-    with (
-        # Computed at import time from CONFIG_DIR, so patching CONFIG_DIR
-        # alone does not redirect them.
-        patch(
-            "steam_backlog_enforcer._playtime.PLAYTIME_STATE_FILE",
-            fake_config / "playtime_state.json",
-        ),
-        patch(
-            "steam_backlog_enforcer._playtime.PLAYTIME_DEMO_STATE_FILE",
-            fake_config / "playtime_demo_state.json",
-        ),
-        patch("steam_backlog_enforcer._playtime._PROC", fake_proc),
-        # Never let a test chattr +i a file inside tmp_path — pytest could
-        # then not clean the directory up.
-        patch("steam_backlog_enforcer._playtime._try_set_immutable", MagicMock()),
-        patch("steam_backlog_enforcer._playtime.unlock_for_write", MagicMock()),
-        patch(
-            "steam_backlog_enforcer._playtime_block.BLOCK_TARGETS",
-            (
-                fake_targets / "steam",
-                fake_targets / "bin_steam.sh",
-                fake_targets / "steam.sh",
-                fake_targets / "lutris",
-            ),
-        ),
-        patch("steam_backlog_enforcer._playtime_block._STUB_DIR", tmp_path / "run"),
-        patch(
-            "steam_backlog_enforcer._playtime_block.STUB_PATH",
-            tmp_path / "run" / "gaming-blocked",
-        ),
-        patch(
-            "steam_backlog_enforcer._playtime_block.MOUNTINFO_PATH",
-            tmp_path / "mountinfo",
-        ),
-        patch(
-            "steam_backlog_enforcer._playtime_block._INIT_MOUNTINFO_PATH",
-            tmp_path / "init_mountinfo",
-        ),
-        patch(
-            "steam_backlog_enforcer._playtime_block.PACMAN_LOCK", tmp_path / "db.lck"
-        ),
-        patch("steam_backlog_enforcer._playtime_block._PROC", fake_proc),
-    ):
-        yield
-
-
-@pytest.fixture(autouse=True)
-def _block_real_subprocesses() -> Iterator[None]:
-    """Block subprocess calls that could launch real Steam or modify system.
-
-    Individual tests that need to test subprocess behaviour should
-    patch the specific module's ``subprocess.run`` / ``subprocess.Popen``
-    themselves — their local patch will override this one.
-    """
-    noop_run = MagicMock(return_value=MagicMock(returncode=1))
-    noop_popen = MagicMock()
-
-    with (
-        patch(
-            "steam_backlog_enforcer.game_install.subprocess.run",
-            noop_run,
-        ),
-        patch(
-            "steam_backlog_enforcer.game_install.subprocess.Popen",
-            noop_popen,
-        ),
-        patch(
-            "steam_backlog_enforcer.enforcer.subprocess.run",
-            noop_run,
-        ),
-        patch(
-            "steam_backlog_enforcer.store_blocker.subprocess.run",
-            noop_run,
-        ),
-        patch(
-            "steam_backlog_enforcer._total_block.subprocess.run",
-            noop_run,
-        ),
-        patch(
-            "steam_backlog_enforcer.library_hider.subprocess.run",
-            noop_run,
-        ),
-        patch(
-            "steam_backlog_enforcer.library_hider.subprocess.Popen",
-            noop_popen,
-        ),
-        # The single most important patch in this file. _playtime_block._run
-        # executes `mount --bind` against paths that, unpatched, are the real
-        # /usr/bin/steam. A test that reached the real subprocess would mask
-        # the user's actual Steam install with a refusal stub.
-        patch(
-            "steam_backlog_enforcer._playtime_block.subprocess.run",
-            noop_run,
-        ),
-    ):
-        yield
-
-
-@pytest.fixture(autouse=True)
 def _no_real_sleep() -> Iterator[None]:
     """No-op every ``time.sleep`` used by the package.
 
@@ -273,3 +170,26 @@ def _no_real_sleep() -> Iterator[None]:
         patch("steam_backlog_enforcer._enforce_loop.time.sleep", noop),
     ):
         yield
+
+
+# ──────────────────────────────────────────────────────────────
+# Total-block path redirection
+#
+# Lives here rather than in a helper module because pytest resolves
+# fixtures by name: an imported fixture looks unused to ruff, and this
+# repo runs `ruff --fix --unsafe-fixes`, which deletes the import.
+# ──────────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def total_block_paths(tmp_path: Path) -> Iterator[Paths]:
+    """Redirect every total-block path constant to tmp_path for one test."""
+    built = build_paths(tmp_path)
+    with (
+        patch(f"{BLOCK}.TOTAL_BLOCK_LOCK_FILE", built.lock_file),
+        patch(f"{IPTABLES}._IPTABLES_IP_CACHE_FILE", built.ip_cache_file),
+        patch(f"{HOSTS}.HOSTS_FILE", built.hosts_file),
+        patch(f"{PURGE}._STEAM_PURGE_LOG_FILE", built.purge_log_file),
+        patch(f"{PURGE}._STEAM_REMNANT_PATHS", built.remnant_paths),
+    ):
+        yield built

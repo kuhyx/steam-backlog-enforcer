@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer._playtime import (
+from steam_backlog_enforcer._playtime_state import (
     PlaytimeState,
     gaming_day_key,
     load_state,
@@ -102,7 +102,7 @@ class TestSaveLoadRoundTrip:
 
     def test_unreadable_file_is_none(self) -> None:
         save_state(PlaytimeState(day_key="x"), demo=False)
-        with patch(f"{PKG}.Path.read_text", side_effect=OSError("nope")):
+        with patch("pathlib.Path.read_text", side_effect=OSError("nope")):
             assert load_state(demo=False) is None
 
     def test_wrong_schema_version_is_none(self) -> None:
@@ -129,8 +129,12 @@ class TestSaveStateImmutability:
     def test_production_save_unlocks_then_relocks(self) -> None:
         """rename(2) onto an immutable file is EPERM, so the unlock is required."""
         with (
-            patch(f"{PKG}.unlock_for_write") as mock_unlock,
-            patch(f"{PKG}._try_set_immutable") as mock_lock,
+            patch(
+                "steam_backlog_enforcer._playtime_state.unlock_for_write"
+            ) as mock_unlock,
+            patch(
+                "steam_backlog_enforcer._playtime_state._try_set_immutable"
+            ) as mock_lock,
         ):
             save_state(PlaytimeState(day_key="x"), demo=False)
         mock_unlock.assert_called_once_with(state_path(demo=False))
@@ -139,8 +143,12 @@ class TestSaveStateImmutability:
     def test_demo_save_is_left_mutable(self) -> None:
         """An immutable demo file could not be deleted during cleanup."""
         with (
-            patch(f"{PKG}.unlock_for_write") as mock_unlock,
-            patch(f"{PKG}._try_set_immutable") as mock_lock,
+            patch(
+                "steam_backlog_enforcer._playtime_state.unlock_for_write"
+            ) as mock_unlock,
+            patch(
+                "steam_backlog_enforcer._playtime_state._try_set_immutable"
+            ) as mock_lock,
         ):
             save_state(PlaytimeState(day_key="x"), demo=True)
         mock_unlock.assert_not_called()

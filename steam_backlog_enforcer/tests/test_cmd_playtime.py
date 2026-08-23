@@ -10,7 +10,11 @@ from steam_backlog_enforcer._cmd_playtime import (
     cmd_gaming_status,
     cmd_gaming_unblock,
 )
-from steam_backlog_enforcer._playtime import PlaytimeState, load_state, save_state
+from steam_backlog_enforcer._playtime_state import (
+    PlaytimeState,
+    load_state,
+    save_state,
+)
 from steam_backlog_enforcer.config import Config, State
 
 PKG = "steam_backlog_enforcer._cmd_playtime"

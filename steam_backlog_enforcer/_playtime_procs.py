@@ -1,0 +1,111 @@
+"""Identifying gaming processes by their /proc cmdline.
+
+Process-name matching alone misses launchers run through an interpreter
+(``lutris`` is a Python script; several Minecraft launchers are ``java -jar``),
+so this reads argv and looks past the interpreter to the real program.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from steam_backlog_enforcer._total_block_launchers import LAUNCHER_PROCESS_NAMES
+from steam_backlog_enforcer.enforcer import (
+    get_pids_by_process_names,
+    get_running_steam_game_pids,
+)
+
+if TYPE_CHECKING:
+    from steam_backlog_enforcer._playtime_state import PlaytimeRules
+
+_PROC = Path("/proc")
+
+# argv[0] basenames that tell us nothing: the real program is argv[1].
+_INTERPRETERS = frozenset({"bash", "env", "java", "perl", "python", "python3", "sh"})
+
+# An interpreter invocation needs at least `<interp> <script>` to name a program.
+_MIN_ARGV_FOR_INTERPRETER = 2
+
+
+def get_pids_by_cmdline_names(names: frozenset[str]) -> dict[int, str]:
+    """Scan ``/proc/*/cmdline`` for processes whose program name is in *names*.
+
+    Complements ``enforcer.get_pids_by_process_names``, which matches on
+    ``comm`` and therefore cannot see interpreter-launched programs: the kernel
+    records ``/usr/bin/lutris`` as ``python3``. When ``argv[0]``'s basename is a
+    known interpreter this falls through to ``argv[1]``.
+
+    The daemon itself runs under ``python3``, so its own PID is skipped.
+
+    Args:
+        names: Program basenames to match.
+
+    Returns:
+        Mapping of PID to the matched name.
+    """
+    own_pid = os.getpid()
+    found: dict[int, str] = {}
+
+    for entry in _PROC.iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == own_pid:
+            continue
+        matched = _match_cmdline(entry, names)
+        if matched is not None:
+            found[pid] = matched
+
+    return found
+
+
+def _match_cmdline(entry: Path, names: frozenset[str]) -> str | None:
+    """Return the name in *names* that *entry*'s cmdline runs, if any.
+
+    Args:
+        entry: A ``/proc/<pid>`` directory.
+        names: Program basenames to match.
+
+    Returns:
+        The matched name, or ``None``.
+    """
+    try:
+        raw = (entry / "cmdline").read_bytes()
+    except (OSError, ValueError):
+        return None
+
+    argv = [
+        part for part in raw.decode("utf-8", errors="replace").split("\x00") if part
+    ]
+    if not argv:
+        return None
+
+    first = Path(argv[0]).name
+    if first in names:
+        return first
+    if first not in _INTERPRETERS or len(argv) < _MIN_ARGV_FOR_INTERPRETER:
+        return None
+    second = Path(argv[1]).name
+    return second if second in names else None
+
+
+def qualifying_pids(rules: PlaytimeRules) -> set[int]:
+    """Return PIDs whose runtime counts against the daily budget.
+
+    Steam games are identified by the ``SteamAppId`` environment variable, using
+    the same ``!= 0`` predicate ``enforcer.enforce_allowed_game`` uses to exclude
+    the Steam client tree — browsing the store is not gaming.
+
+    Args:
+        rules: Policy for this tick.
+
+    Returns:
+        The set of qualifying PIDs.
+    """
+    pids = {pid for pid, app_id in get_running_steam_game_pids().items() if app_id != 0}
+    if rules.count_launchers:
+        pids |= set(get_pids_by_process_names(LAUNCHER_PROCESS_NAMES))
+        pids |= set(get_pids_by_cmdline_names(LAUNCHER_PROCESS_NAMES))
+    return pids

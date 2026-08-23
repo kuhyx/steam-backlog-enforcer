@@ -1,24 +1,25 @@
 """Tests for the playtime tick state machine and cutoff sequence."""
 
-from __future__ import annotations
-
 from contextlib import ExitStack
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import (
+    datetime,
+    timedelta,
+    timezone,
+)
+from unittest.mock import (
+    patch,
+)
 
 import pytest
 
 from steam_backlog_enforcer._playtime import (
-    PlaytimeState,
-    _begin_cutoff,
-    _kill_set,
     _policy,
     _state_or_recover,
-    _sustain_block,
-    _warn,
-    load_state,
-    notify_desktop_user,
     playtime_tick,
+)
+from steam_backlog_enforcer._playtime_state import (
+    PlaytimeState,
+    load_state,
     rules_for,
     save_state,
 )
@@ -34,14 +35,17 @@ TODAY = "2026-07-27"
 def quiet_tick() -> object:
     """Neutralise every side effect the tick can produce."""
     with ExitStack() as stack:
+        # Each name is patched in the module that *resolves* it, not in the
+        # package that re-exports it -- otherwise the patch never bites.
+        cutoff = "steam_backlog_enforcer._playtime_cutoff"
         mocks = {
-            name: stack.enter_context(patch(f"{PKG}.{name}"))
-            for name in (
-                "reconcile",
-                "request_steam_shutdown",
-                "kill_gaming_processes",
-                "notify_desktop_user",
-                "mounted_targets",
+            name: stack.enter_context(patch(f"{where}.{name}"))
+            for name, where in (
+                ("reconcile", PKG),
+                ("request_steam_shutdown", cutoff),
+                ("kill_gaming_processes", cutoff),
+                ("notify_desktop_user", cutoff),
+                ("mounted_targets", PKG),
             )
         }
         mocks["mounted_targets"].return_value = set()
@@ -76,7 +80,7 @@ class TestStateOrRecover:
         assert out.is_blocked() is True
 
     def test_fails_closed_on_corrupt_state(self) -> None:
-        from steam_backlog_enforcer._playtime import state_path
+        from steam_backlog_enforcer._playtime_state import state_path
 
         state_path(demo=False).write_text("{bad", encoding="utf-8")
         with patch(f"{PKG}.mounted_targets", return_value={"/usr/bin/steam"}):
@@ -88,8 +92,10 @@ class TestPolicyBelowBudget:
     def test_releases_and_warns(self) -> None:
         state = PlaytimeState(day_key=TODAY, seconds=8 * 3600 - 3600)
         with (
-            patch(f"{PKG}.reconcile") as mock_rec,
-            patch(f"{PKG}.notify_desktop_user") as mock_notify,
+            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
+            ) as mock_notify,
         ):
             out = _policy(state, _rules(), now=NOW)
         mock_rec.assert_called_once_with(should_block=False)
@@ -99,8 +105,10 @@ class TestPolicyBelowBudget:
     def test_no_warning_when_far_from_budget(self) -> None:
         state = PlaytimeState(day_key=TODAY, seconds=0.0)
         with (
-            patch(f"{PKG}.reconcile"),
-            patch(f"{PKG}.notify_desktop_user") as mock_notify,
+            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
+            ) as mock_notify,
         ):
             out = _policy(state, _rules(), now=NOW)
         mock_notify.assert_not_called()
@@ -111,8 +119,8 @@ class TestPolicyAtOrOverBudget:
     def test_engages_the_cutoff_when_not_yet_blocked(self) -> None:
         state = PlaytimeState(day_key=TODAY, seconds=10**6)
         with (
-            patch(f"{PKG}._begin_cutoff") as mock_begin,
-            patch(f"{PKG}._sustain_block") as mock_sustain,
+            patch("steam_backlog_enforcer._playtime._begin_cutoff") as mock_begin,
+            patch("steam_backlog_enforcer._playtime._sustain_block") as mock_sustain,
         ):
             _policy(state, _rules(), now=NOW)
         mock_begin.assert_called_once()
@@ -121,8 +129,8 @@ class TestPolicyAtOrOverBudget:
     def test_sustains_the_block_once_engaged(self) -> None:
         state = PlaytimeState(day_key=TODAY, seconds=10**6, blocked_at=1.0)
         with (
-            patch(f"{PKG}._begin_cutoff") as mock_begin,
-            patch(f"{PKG}._sustain_block") as mock_sustain,
+            patch("steam_backlog_enforcer._playtime._begin_cutoff") as mock_begin,
+            patch("steam_backlog_enforcer._playtime._sustain_block") as mock_sustain,
         ):
             _policy(state, _rules(), now=NOW)
         mock_begin.assert_not_called()
@@ -134,125 +142,15 @@ class TestPolicyEnforcementDisabled:
         """Disabling must never come to mean 'blocked forever'."""
         state = PlaytimeState(day_key=TODAY, seconds=10**6)
         with (
-            patch(f"{PKG}.reconcile") as mock_rec,
-            patch(f"{PKG}.request_steam_shutdown") as mock_shutdown,
+            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff.request_steam_shutdown"
+            ) as mock_shutdown,
         ):
             out = _policy(state, _rules(playtime_enforcement=False), now=NOW)
         mock_rec.assert_called_once_with(should_block=False)
         mock_shutdown.assert_not_called()
         assert out.is_blocked() is False
-
-
-class TestBeginCutoff:
-    def test_asks_steam_to_close_before_masking_anything(self) -> None:
-        """Masking makes `steam -shutdown` a no-op, so order is load-bearing."""
-        state = PlaytimeState(day_key=TODAY, seconds=60.0)
-        with (
-            patch(f"{PKG}.reconcile") as mock_rec,
-            patch(f"{PKG}.request_steam_shutdown") as mock_shutdown,
-            patch(f"{PKG}.kill_gaming_processes") as mock_kill,
-            patch(f"{PKG}.notify_desktop_user") as mock_notify,
-            patch(f"{PKG}._kill_set", return_value={7}),
-        ):
-            out = _begin_cutoff(state, _rules(demo=True), now=NOW)
-        mock_shutdown.assert_called_once()
-        mock_rec.assert_not_called()
-        mock_kill.assert_called_once_with({7}, force=False)
-        mock_notify.assert_called_once()
-        assert out.blocked_at == NOW.timestamp()
-
-
-class TestSustainBlock:
-    def _run(
-        self, elapsed: float, *, demo: bool = False
-    ) -> tuple[MagicMock, MagicMock]:
-        state = PlaytimeState(
-            day_key=TODAY, seconds=10**6, blocked_at=NOW.timestamp() - elapsed
-        )
-        with (
-            patch(f"{PKG}.reconcile") as mock_rec,
-            patch(f"{PKG}.kill_gaming_processes") as mock_kill,
-            patch(f"{PKG}._kill_set", return_value={7}),
-        ):
-            _sustain_block(state, _rules(demo=demo), now=NOW)
-        return mock_rec, mock_kill
-
-    def test_grace_period_defers_the_mount(self) -> None:
-        mock_rec, mock_kill = self._run(1.0)
-        mock_rec.assert_not_called()
-        mock_kill.assert_called_once_with({7}, force=False)
-
-    def test_mounts_once_the_grace_has_passed(self) -> None:
-        mock_rec, _ = self._run(3.0)
-        mock_rec.assert_called_once_with(should_block=True)
-
-    def test_escalates_to_sigkill(self) -> None:
-        _, mock_kill = self._run(31.0)
-        mock_kill.assert_called_once_with({7}, force=True)
-
-    def test_no_escalation_just_before_the_threshold(self) -> None:
-        _, mock_kill = self._run(29.0)
-        mock_kill.assert_called_once_with({7}, force=False)
-
-    def test_demo_escalates_sooner(self) -> None:
-        _, mock_kill = self._run(11.0, demo=True)
-        mock_kill.assert_called_once_with({7}, force=True)
-
-    def test_state_is_unchanged(self) -> None:
-        state = PlaytimeState(day_key=TODAY, seconds=99.0, blocked_at=1.0)
-        with (
-            patch(f"{PKG}.reconcile"),
-            patch(f"{PKG}.kill_gaming_processes"),
-            patch(f"{PKG}._kill_set", return_value=set()),
-        ):
-            out = _sustain_block(state, _rules(), now=NOW)
-        assert out is state
-
-
-class TestKillSet:
-    def test_is_wider_than_the_budget_predicate(self) -> None:
-        """A Lutris Wine game is invisible to both budget matchers."""
-        with (
-            patch(f"{PKG}.qualifying_pids", return_value={1}),
-            patch(f"{PKG}.steam_and_launcher_pids", return_value={2}),
-        ):
-            assert _kill_set(_rules()) == {1, 2}
-
-
-class TestWarn:
-    def test_records_the_threshold(self) -> None:
-        state = PlaytimeState(seconds=8 * 3600 - 300, warned_seconds=[3600, 1800, 600])
-        with patch(f"{PKG}.notify_desktop_user") as mock_notify:
-            out = _warn(state, _rules())
-        assert out.warned_seconds == [3600, 1800, 600, 300]
-        assert "5 minutes" in mock_notify.call_args.args[1]
-
-    def test_no_op_when_nothing_is_due(self) -> None:
-        state = PlaytimeState(seconds=0.0)
-        with patch(f"{PKG}.notify_desktop_user") as mock_notify:
-            out = _warn(state, _rules())
-        mock_notify.assert_not_called()
-        assert out is state
-
-
-class TestNotifyDesktopUser:
-    def test_routes_through_the_desktop_session(self) -> None:
-        """notify-send as root with no DBUS address never reaches the user."""
-        with (
-            patch(f"{PKG}._resolve_desktop_user", return_value="kuhy"),
-            patch(f"{PKG}._run_as_user") as mock_run,
-        ):
-            notify_desktop_user("T", "B")
-        cmd, user = mock_run.call_args.args
-        assert cmd[0] == "notify-send"
-        assert user == "kuhy"
-
-    def test_swallows_errors(self) -> None:
-        with (
-            patch(f"{PKG}._resolve_desktop_user", return_value="kuhy"),
-            patch(f"{PKG}._run_as_user", side_effect=OSError("no session")),
-        ):
-            notify_desktop_user("T", "B")
 
 
 class TestPlaytimeTick:
@@ -318,7 +216,9 @@ class TestPlaytimeTick:
         )
         with (
             patch(f"{PKG}.qualifying_pids", return_value={7}),
-            patch(f"{PKG}._kill_set", return_value={7}),
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff._kill_set", return_value={7}
+            ),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW

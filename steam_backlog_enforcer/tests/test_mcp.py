@@ -1,17 +1,12 @@
-"""Tests for the MCP server tools in ``_mcp``.
-
-Tools are patched at the ``_mcp`` module namespace (where the helpers are
-imported), keeping each tool's own logic under test while isolating the
-already-tested leaf functions.
-"""
+"""Tests for the read-only MCP tools."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from steam_backlog_enforcer import _mcp
-from steam_backlog_enforcer.config import State
+from steam_backlog_enforcer import _mcp_actions as mcp_actions
+from steam_backlog_enforcer import _mcp_query as mcp_query
+from steam_backlog_enforcer import _mcp_server as mcp_server
 from steam_backlog_enforcer.steam_api import GameInfo
 
 
@@ -29,20 +24,20 @@ def _game(app_id: int, hours: float) -> GameInfo:
 class TestReadTools:
     def test_get_dataset(self) -> None:
         with (
-            patch.object(_mcp, "State") as state,
-            patch.object(_mcp, "build_web_dataset", return_value="DS") as bwd,
-            patch.object(_mcp, "dataset_to_payload", return_value={"x": 1}) as dtp,
+            patch.object(mcp_query, "State") as state,
+            patch.object(mcp_query, "build_web_dataset", return_value="DS") as bwd,
+            patch.object(mcp_query, "dataset_to_payload", return_value={"x": 1}) as dtp,
         ):
-            assert _mcp.get_dataset() == {"x": 1}
+            assert mcp_query.get_dataset() == {"x": 1}
         bwd.assert_called_once_with(state.load.return_value)
         dtp.assert_called_once_with("DS")
 
     def test_get_status(self) -> None:
         with (
-            patch.object(_mcp, "State") as state,
-            patch.object(_mcp, "status_payload", return_value={"ok": 1}) as sp,
+            patch.object(mcp_query, "State") as state,
+            patch.object(mcp_query, "status_payload", return_value={"ok": 1}) as sp,
         ):
-            assert _mcp.get_status() == {"ok": 1}
+            assert mcp_query.get_status() == {"ok": 1}
         sp.assert_called_once_with(state.load.return_value)
 
     def test_get_stats_subsets_dataset(self) -> None:
@@ -52,18 +47,18 @@ class TestReadTools:
             "games": ["ignored"],
         }
         with (
-            patch.object(_mcp, "State"),
-            patch.object(_mcp, "build_web_dataset"),
-            patch.object(_mcp, "dataset_to_payload", return_value=payload),
+            patch.object(mcp_query, "State"),
+            patch.object(mcp_query, "build_web_dataset"),
+            patch.object(mcp_query, "dataset_to_payload", return_value=payload),
         ):
-            out = _mcp.get_stats()
+            out = mcp_query.get_stats()
         assert out == {"default_summary": {"qualifying": 3}, "pace_vs_hltb": None}
 
 
 class TestListBacklog:
     def test_no_snapshot_returns_note(self) -> None:
-        with patch.object(_mcp, "load_snapshot", return_value=None):
-            out = _mcp.list_backlog()
+        with patch.object(mcp_query, "load_snapshot", return_value=None):
+            out = mcp_query.list_backlog()
         assert out["total"] == 0
         assert out["games"] == []
         assert "note" in out
@@ -101,8 +96,8 @@ class TestListBacklog:
                 "completionist_hours": -1,
             },
         ]
-        with patch.object(_mcp, "load_snapshot", return_value=snap):
-            out = _mcp.list_backlog(limit=2)
+        with patch.object(mcp_query, "load_snapshot", return_value=snap):
+            out = mcp_query.list_backlog(limit=2)
         assert out["total"] == 3
         assert out["returned"] == 2
         assert [g["app_id"] for g in out["games"]] == [70, 440]
@@ -117,8 +112,8 @@ class TestListBacklog:
                 "unlocked_achievements": 1,
             }
         ]
-        with patch.object(_mcp, "load_snapshot", return_value=snap):
-            out = _mcp.list_backlog(limit=-5)
+        with patch.object(mcp_query, "load_snapshot", return_value=snap):
+            out = mcp_query.list_backlog(limit=-5)
         assert out["returned"] == 0
         assert out["games"] == []
 
@@ -126,255 +121,20 @@ class TestListBacklog:
 class TestResolveAndSort:
     def test_resolve_found(self) -> None:
         with patch.object(
-            _mcp, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
+            mcp_server, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
         ):
-            assert _mcp._resolve_game_name(440) == "TF2"
+            assert mcp_actions._resolve_game_name(440) == "TF2"
 
     def test_resolve_missing(self) -> None:
         with patch.object(
-            _mcp, "load_snapshot", return_value=[{"app_id": 1, "name": "X"}]
+            mcp_server, "load_snapshot", return_value=[{"app_id": 1, "name": "X"}]
         ):
-            assert _mcp._resolve_game_name(440) is None
+            assert mcp_actions._resolve_game_name(440) is None
 
     def test_resolve_no_snapshot(self) -> None:
-        with patch.object(_mcp, "load_snapshot", return_value=None):
-            assert _mcp._resolve_game_name(440) is None
+        with patch.object(mcp_query, "load_snapshot", return_value=None):
+            assert mcp_actions._resolve_game_name(440) is None
 
     def test_sort_key_branches(self) -> None:
-        assert _mcp._backlog_sort_key(_game(1, 5.0)) == (0, 5.0)
-        assert _mcp._backlog_sort_key(_game(2, -1)) == (1, 0.0)
-
-
-class TestPickManualGate:
-    def test_not_found(self) -> None:
-        with patch.object(_mcp, "load_snapshot", return_value=[]):
-            out = _mcp.pick_manual(440)
-        assert out["ok"] is False
-        assert "not found" in out["reason"]
-
-    def test_preview_does_not_mutate(self) -> None:
-        with (
-            patch.object(
-                _mcp, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
-            ),
-            patch.object(_mcp, "apply_manual_pick") as amp,
-        ):
-            out = _mcp.pick_manual(440)
-        assert out["preview"] is True
-        assert out["game_name"] == "TF2"
-        amp.assert_not_called()
-
-    def test_confirm_applies(self) -> None:
-        with (
-            patch.object(
-                _mcp, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
-            ),
-            patch.object(_mcp, "State") as state,
-            patch.object(_mcp, "Config") as config,
-            patch.object(_mcp, "apply_manual_pick", return_value=None) as amp,
-        ):
-            out = _mcp.pick_manual(440, confirm=True)
-        assert out["applied"] is True
-        assert out["app_id"] == 440
-        amp.assert_called_once_with(
-            state.load.return_value,
-            440,
-            "TF2",
-            max_picks=config.load.return_value.max_manual_picks,
-        )
-
-
-class TestAbandonPickGate:
-    """The MCP escape hatch mirrors the CLI grace rules, state-only."""
-
-    def _state(self, *, days_ago: float = 1.0, app_id: int = 440) -> State:
-        started = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
-        return State(
-            manual_picks=[
-                {"app_id": app_id, "game_name": "TF2", "started_at": started}
-            ],
-            current_app_id=app_id,
-            current_game_name="TF2",
-        )
-
-    def test_no_active_pick(self) -> None:
-        with patch.object(_mcp.State, "load", return_value=State()):
-            out = _mcp.abandon_pick(440)
-        assert out["ok"] is False
-        assert "No manual pick" in out["reason"]
-
-    def test_wrong_app_id(self) -> None:
-        with patch.object(_mcp.State, "load", return_value=self._state()):
-            out = _mcp.abandon_pick(999)
-        assert out["ok"] is False
-        assert "not one of the active manual picks" in out["reason"]
-
-    def test_expired_grace(self) -> None:
-        state = self._state(days_ago=_mcp.MANUAL_GRACE_DAYS + 1)
-        with patch.object(_mcp.State, "load", return_value=state):
-            out = _mcp.abandon_pick(440)
-        assert out["ok"] is False
-        assert "grace period has expired" in out["reason"]
-
-    def test_preview_does_not_mutate(self) -> None:
-        with (
-            patch.object(_mcp.State, "load", return_value=self._state()),
-            patch.object(_mcp, "abandon_manual_pick") as amp,
-        ):
-            out = _mcp.abandon_pick(440)
-        assert out["preview"] is True
-        assert out["game_name"] == "TF2"
-        assert out["grace_days_left"] > 0
-        amp.assert_not_called()
-
-    def test_confirm_applies(self) -> None:
-        state = self._state()
-        with (
-            patch.object(_mcp.State, "load", return_value=state),
-            patch.object(_mcp, "abandon_manual_pick") as amp,
-        ):
-            out = _mcp.abandon_pick(440, confirm=True)
-        assert out["applied"] is True
-        assert out["app_id"] == 440
-        amp.assert_called_once_with(state, 440)
-
-    def test_refused_at_cap(self) -> None:
-        with (
-            patch.object(
-                _mcp, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
-            ),
-            patch.object(_mcp, "State"),
-            patch.object(_mcp, "Config"),
-            patch.object(_mcp, "apply_manual_pick", return_value="cap reached"),
-        ):
-            out = _mcp.pick_manual(440, confirm=True)
-        assert out["ok"] is False
-        assert out["reason"] == "cap reached"
-
-
-class TestBlockGamingGate:
-    def test_invalid_days(self) -> None:
-        out = _mcp.block_gaming(0)
-        assert out["ok"] is False
-
-    def test_preview(self) -> None:
-        out = _mcp.block_gaming(3)
-        assert out["preview"] is True
-        assert out["requires_root"] is True
-
-    def test_confirm_success(self) -> None:
-        with patch.object(_mcp, "start_total_block", return_value=True):
-            out = _mcp.block_gaming(3, confirm=True)
-        assert out["applied"] is True
-        assert out["days"] == 3
-
-    def test_confirm_unprivileged_returns_gracefully(self) -> None:
-        with patch.object(_mcp, "start_total_block", return_value=False):
-            out = _mcp.block_gaming(3, confirm=True)
-        assert out["ok"] is False
-        assert "privileges" in out["reason"]
-
-    def test_confirm_oserror_returns_gracefully(self) -> None:
-        with patch.object(_mcp, "start_total_block", side_effect=OSError("boom")):
-            out = _mcp.block_gaming(3, confirm=True)
-        assert out["ok"] is False
-        assert "privileges" in out["reason"]
-
-
-class TestGetGamingTime:
-    def test_reports_unrecorded_state(self) -> None:
-        with (
-            patch.object(_mcp, "load_state", return_value=None),
-            patch.object(_mcp, "mounted_targets", return_value=set()),
-        ):
-            out = _mcp.get_gaming_time()
-        assert out["recorded"] is False
-        assert out["budget_seconds"] == 8 * 3600
-
-    def test_reports_usage(self) -> None:
-        stored = _mcp.PlaytimeState(day_key="2026-07-27", seconds=100.0)
-        with (
-            patch.object(_mcp, "load_state", return_value=stored),
-            patch.object(_mcp, "mounted_targets", return_value=set()),
-        ):
-            out = _mcp.get_gaming_time()
-        assert out["recorded"] is True
-        assert out["gaming_day"] == "2026-07-27"
-        assert out["seconds_used"] == 100.0
-        assert out["seconds_remaining"] == 8 * 3600 - 100.0
-        assert out["blocked"] is False
-
-    def test_remaining_never_goes_negative(self) -> None:
-        stored = _mcp.PlaytimeState(day_key="d", seconds=10**9)
-        with (
-            patch.object(_mcp, "load_state", return_value=stored),
-            patch.object(_mcp, "mounted_targets", return_value=set()),
-        ):
-            out = _mcp.get_gaming_time()
-        assert out["seconds_remaining"] == 0.0
-
-    def test_lists_masked_launchers(self) -> None:
-        stored = _mcp.PlaytimeState(day_key="d", seconds=1.0, blocked_at=2.0)
-        with (
-            patch.object(_mcp, "load_state", return_value=stored),
-            patch.object(_mcp, "mounted_targets", return_value={"/usr/bin/steam"}),
-        ):
-            out = _mcp.get_gaming_time()
-        assert out["blocked"] is True
-        assert out["masked_launchers"] == ["/usr/bin/steam"]
-
-    def test_leaks_no_secret(self) -> None:
-        """No Config secret may cross the MCP boundary."""
-        with (
-            patch.object(_mcp, "load_state", return_value=None),
-            patch.object(_mcp, "mounted_targets", return_value=set()),
-        ):
-            out = _mcp.get_gaming_time()
-        assert "steam_api_key" not in out
-        assert "steam_id" not in out
-
-
-class TestResetGamingTime:
-    def test_preview_by_default(self) -> None:
-        with patch.object(_mcp, "release_block") as mock_release:
-            out = _mcp.reset_gaming_time()
-        mock_release.assert_not_called()
-        assert out["preview"] is True
-        assert out["confirm_required"] is True
-        assert out["requires_root"] is True
-
-    def test_confirm_unprivileged_returns_gracefully(self) -> None:
-        with (
-            patch.object(_mcp.os, "geteuid", return_value=1000),
-            patch.object(_mcp, "release_block") as mock_release,
-        ):
-            out = _mcp.reset_gaming_time(confirm=True)
-        mock_release.assert_not_called()
-        assert out["ok"] is False
-        assert "privileges" in out["reason"]
-
-    def test_confirm_applies_as_root(self) -> None:
-        with (
-            patch.object(_mcp.os, "geteuid", return_value=0),
-            patch.object(_mcp, "release_block", return_value=["/usr/bin/steam"]),
-            patch.object(_mcp, "save_state") as mock_save,
-        ):
-            out = _mcp.reset_gaming_time(confirm=True)
-        mock_save.assert_called_once()
-        assert out["applied"] is True
-        assert out["released"] == ["/usr/bin/steam"]
-
-    def test_confirm_oserror_returns_gracefully(self) -> None:
-        with (
-            patch.object(_mcp.os, "geteuid", return_value=0),
-            patch.object(_mcp, "release_block", side_effect=OSError("boom")),
-        ):
-            out = _mcp.reset_gaming_time(confirm=True)
-        assert out["ok"] is False
-        assert "privileges" in out["reason"]
-
-
-def test_main_runs_stdio_server() -> None:
-    with patch.object(_mcp.mcp, "run") as run:
-        _mcp.main()
-    run.assert_called_once_with()
+        assert mcp_query._backlog_sort_key(_game(1, 5.0)) == (0, 5.0)
+        assert mcp_query._backlog_sort_key(_game(2, -1)) == (1, 0.0)
