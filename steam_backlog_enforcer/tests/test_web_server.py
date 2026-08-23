@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from steam_backlog_enforcer import main as main_mod
 from steam_backlog_enforcer._web_server import create_server, serve
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.main import misc as misc_mod
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -176,6 +177,9 @@ class TestCmdServe:
     """Tests for the main.cmd_serve wiring."""
 
     def test_invokes_serve(self) -> None:
-        with patch.object(main_mod, "serve") as mock_serve:
+        # Patch the module that *defines* cmd_serve, not the main package that
+        # re-exports it: cmd_serve resolves ``serve`` from its own globals, so
+        # patching the re-export would not bite.
+        with patch.object(misc_mod, "serve") as mock_serve:
             main_mod.cmd_serve(Config(), State())
         mock_serve.assert_called_once()
