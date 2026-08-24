@@ -11,7 +11,7 @@ from steam_backlog_enforcer.scanning import (
     detect_tampering,
 )
 
-PKG = "steam_backlog_enforcer.scanning"
+PKG = "steam_backlog_enforcer._scanning_tampering"
 
 
 def _entry(

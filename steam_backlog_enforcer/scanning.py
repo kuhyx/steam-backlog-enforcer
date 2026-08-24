@@ -2,19 +2,34 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
 )
+from steam_backlog_enforcer._scanning_assign import (
+    _NO_CONF_MSG,
+    _assign_chosen_game,
+    _pick_next_game_sequential,
+    _prompt_user_pick,
+)
+from steam_backlog_enforcer._scanning_candidates import (
+    _collect_qualified_candidates,
+    _collect_top_candidates,
+    _pick_next_shortest_candidate,
+    _pick_playable_candidate,
+    _sort_key,
+)
 from steam_backlog_enforcer._scanning_confidence import (
     _apply_cached_confidence_to_candidates,
-    _candidate_passes_hltb_confidence,
     _report_poll_confidence,
+)
+from steam_backlog_enforcer._scanning_tampering import (
+    _check_game_tampering,
+    detect_tampering,
 )
 from steam_backlog_enforcer.config import (
     Config,
@@ -27,25 +42,28 @@ from steam_backlog_enforcer.enforcer import (
 )
 from steam_backlog_enforcer.game_install import (
     _echo,
-    install_game,
-    is_game_installed,
-    uninstall_other_games,
 )
 from steam_backlog_enforcer.hltb import (
     fetch_hltb_times_cached,
-)
-from steam_backlog_enforcer.protondb import (
-    ProtonDBRating,
-    fetch_protondb_ratings,
 )
 from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+# These helpers moved to the _scanning_* leaf modules, but callers and tests
+# have always imported them from here. mypy's --no-implicit-reexport needs
+# them listed explicitly.
+__all__ = [
+    "_check_game_tampering",
+    "_collect_top_candidates",
+    "_pick_next_shortest_candidate",
+    "_pick_playable_candidate",
+    "detect_tampering",
+]
+
 logger = logging.getLogger(__name__)
 
-_TAMPER_CHECK_LIMIT = 3
 
 # ──────────────────────────────────────────────────────────────
 # Scanning & game selection
@@ -125,182 +143,6 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
 
 
 # How many candidates to check per ProtonDB batch.
-_PROTONDB_BATCH_SIZE = 20
-
-
-def _pick_playable_candidate(
-    candidates: list[GameInfo],
-) -> GameInfo | None:
-    """Return the first candidate with an acceptable ProtonDB rating.
-
-    Checks candidates in batches (sorted by HLTB hours, shortest first).
-    Games rated silver-or-worse, or gold-trending-down, are skipped.
-    """
-    offset = 0
-    while offset < len(candidates):
-        batch = candidates[offset : offset + _PROTONDB_BATCH_SIZE]
-        app_ids = [g.app_id for g in batch]
-        ratings = fetch_protondb_ratings(app_ids)
-
-        for game in batch:
-            rating = ratings.get(game.app_id, ProtonDBRating(app_id=game.app_id))
-            if rating.is_playable:
-                if offset > 0 or game is not batch[0]:
-                    _echo(
-                        f"  Skipped {offset + batch.index(game)} game(s) "
-                        f"with poor Linux compatibility"
-                    )
-                return game
-            logger.info(
-                "Skipping %s (AppID=%d): ProtonDB %s (trending %s)",
-                game.name,
-                game.app_id,
-                rating.tier,
-                rating.trending_tier,
-            )
-
-        offset += _PROTONDB_BATCH_SIZE
-
-    return None
-
-
-_PICK_LIST_SIZE = 10
-
-_NO_CONF_MSG = (
-    "\nNo assignable games found "
-    "(HLTB confidence thresholds: comp_100 polls>=3, "
-    "count_comp>=15, sum>=18)."
-)
-
-
-def _sort_key(g: GameInfo) -> tuple[int, float]:
-    """Sort by known HLTB time (shortest first), then unknown games."""
-    if g.completionist_hours > 0:
-        return (0, g.completionist_hours)
-    return (1, g.name.lower().encode().hex().__hash__())
-
-
-def _collect_qualified_candidates(
-    candidates: list[GameInfo],
-) -> tuple[list[GameInfo], int, int]:
-    """Collect up to _PICK_LIST_SIZE playable, HLTB-confident candidates."""
-    qualified: list[GameInfo] = []
-    confidence_skipped = 0
-    linux_skipped = 0
-    for game in candidates:
-        if len(qualified) >= _PICK_LIST_SIZE:
-            break
-        if not _candidate_passes_hltb_confidence(game):
-            confidence_skipped += 1
-            continue
-        playable = _pick_playable_candidate([game])
-        if playable is not None:
-            qualified.append(playable)
-        else:
-            linux_skipped += 1
-    return qualified, confidence_skipped, linux_skipped
-
-
-def _prompt_user_pick(qualified: list[GameInfo]) -> int:
-    """Present numbered list, return 0-based index of user's choice."""
-    for i, g in enumerate(qualified, 1):
-        hours_str = (
-            f" (~{g.completionist_hours:.1f}h)" if g.completionist_hours > 0 else ""
-        )
-        _echo(f"  {i}. {g.name} (AppID={g.app_id}){hours_str}")
-    while True:
-        raw = input("Select game number: ")
-        try:
-            idx = int(raw)
-        except ValueError:
-            _echo(f"Invalid input: {raw!r}")
-            continue
-        if idx < 1 or idx > len(qualified):
-            _echo(f"Out of range: {idx}")
-            continue
-        return idx - 1
-
-
-def _assign_chosen_game(
-    chosen: GameInfo,
-    games: list[GameInfo],
-    state: State,
-    config: Config,
-) -> None:
-    """Save assignment, announce it, and handle install/uninstall."""
-    state.current_app_id = chosen.app_id
-    state.current_game_name = chosen.name
-    if not state.enforcement_started_at:
-        state.enforcement_started_at = datetime.now(timezone.utc).isoformat()
-    state.save()
-    hours_str = (
-        f" (~{chosen.completionist_hours:.1f}h leisure+dlc)"
-        if chosen.completionist_hours > 0
-        else ""
-    )
-    _echo(f"\n>>> ASSIGNED: {chosen.name} (AppID={chosen.app_id}){hours_str}")
-    _echo(
-        f"    Progress: {chosen.unlocked_achievements}/{chosen.total_achievements}"
-        f" ({chosen.completion_pct:.1f}%)"
-    )
-    _report_poll_confidence(chosen, games, state)
-    if config.uninstall_other_games:
-        count = uninstall_other_games(chosen.app_id)
-        if count:
-            _echo(f"\n  Uninstalled {count} non-assigned games")
-    if not is_game_installed(chosen.app_id):
-        _echo(f"\n  Auto-installing {chosen.name}...")
-        install_game(
-            chosen.app_id, chosen.name, config.steam_id, use_steam_protocol=True
-        )
-
-
-def _pick_next_game_sequential(
-    games: list[GameInfo],
-    state: State,
-    config: Config,
-    on_select: Callable[[GameInfo], bool],
-) -> None:
-    """Pick the next-shortest playable game, asking the user per candidate.
-
-    ``on_select`` is called with each prospective pick. Returning ``True``
-    accepts the assignment; returning ``False`` records a 7-day skip on
-    ``state`` for that game and the next candidate is evaluated.
-    """
-    while True:
-        skip = set(state.finished_app_ids) | state.active_skipped_ids()
-        candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
-        if not candidates:
-            _echo(_NO_CONF_MSG)
-            state.current_app_id = None
-            state.current_game_name = ""
-            state.save()
-            return
-
-        candidates.sort(key=_sort_key)
-        _apply_cached_confidence_to_candidates(candidates)
-        chosen, confidence_skipped, linux_skipped = _pick_next_shortest_candidate(
-            candidates
-        )
-        if chosen is None:
-            _echo(
-                _NO_CONF_MSG
-                if confidence_skipped > 0 and linux_skipped == 0
-                else "\nNo playable games left (all have poor ProtonDB ratings)!"
-            )
-            state.current_app_id = None
-            state.current_game_name = ""
-            state.save()
-            return
-
-        if not on_select(chosen):
-            state.skip_for_days(chosen.app_id, 7)
-            state.save()
-            _echo(f"\n  Skipped {chosen.name} for 7 days; picking next...")
-            continue
-
-        _assign_chosen_game(chosen, games, state, config)
-        return
 
 
 def pick_next_game(
@@ -356,63 +198,6 @@ def pick_next_game(
     _assign_chosen_game(qualified[idx], games, state, config)
 
 
-def _pick_next_shortest_candidate(
-    candidates: list[GameInfo],
-) -> tuple[GameInfo | None, int, int]:
-    """Pick next game by checking confidence one candidate at a time.
-
-    The list must be pre-sorted by desired priority (shortest first).
-    """
-    confidence_skipped = 0
-    linux_skipped = 0
-    for game in candidates:
-        if not _candidate_passes_hltb_confidence(game):
-            confidence_skipped += 1
-            continue
-
-        # Reuse existing ProtonDB compatibility gate for one candidate.
-        playable = _pick_playable_candidate([game])
-        if playable is not None:
-            if linux_skipped > 0:
-                _echo(
-                    f"  Skipped {linux_skipped} game(s) with poor Linux compatibility"
-                )
-            return playable, confidence_skipped, linux_skipped
-        linux_skipped += 1
-
-    if linux_skipped > 0:
-        _echo(f"  Skipped {linux_skipped} game(s) with poor Linux compatibility")
-    return None, confidence_skipped, linux_skipped
-
-
-def _collect_top_candidates(
-    candidates: list[GameInfo],
-    n: int = 3,
-) -> tuple[list[GameInfo], int, int]:
-    """Collect up to n candidates that pass the Linux compatibility gate.
-
-    Args:
-        candidates: Pre-sorted list of candidate games.
-        n: Maximum number of qualified games to collect.
-
-    Returns:
-        Tuple of (qualified_list, conf_skipped, linux_skipped).
-    """
-    qualified: list[GameInfo] = []
-    linux_skipped = 0
-    for game in candidates:
-        if len(qualified) >= n:
-            break
-        playable = _pick_playable_candidate([game])
-        if playable is not None:
-            qualified.append(playable)
-        else:
-            linux_skipped += 1
-    if linux_skipped > 0:
-        _echo(f"  Skipped {linux_skipped} game(s) with poor Linux compatibility")
-    return qualified, 0, linux_skipped
-
-
 # ──────────────────────────────────────────────────────────────
 # Checking & tampering detection
 # ──────────────────────────────────────────────────────────────
@@ -461,61 +246,3 @@ def do_check(config: Config, state: State) -> None:
 
     # Tampering detection on snapshot.
     detect_tampering(config, state)
-
-
-def _check_game_tampering(
-    client: SteamAPIClient,
-    entry: dict[str, Any],
-    state: State,
-) -> tuple[str, int, int] | None:
-    """Check if a single game has unexpected achievement progress.
-
-    Args:
-        client: Steam API client.
-        entry: Snapshot entry for the game.
-        state: Current enforcer state.
-
-    Returns:
-        Tuple of (name, app_id, diff) if tampering detected, else None.
-    """
-    app_id = entry["app_id"]
-    if app_id == state.current_app_id:
-        return None
-    if entry["unlocked_achievements"] >= entry["total_achievements"]:
-        return None
-    if entry.get("playtime_minutes", 0) <= 0:
-        return None
-    game = client.refresh_single_game(
-        app_id, entry["name"], entry.get("playtime_minutes", 0)
-    )
-    if game and game.unlocked_achievements > entry["unlocked_achievements"]:
-        diff = game.unlocked_achievements - entry["unlocked_achievements"]
-        return (entry["name"], app_id, diff)
-    return None
-
-
-def detect_tampering(config: Config, state: State) -> None:
-    """Check if achievements were unlocked on non-assigned games."""
-    old_snapshot = load_snapshot()
-    if old_snapshot is None:
-        return
-
-    client = SteamAPIClient(config.steam_api_key, config.steam_id)
-
-    # Quick check: only re-fetch a few random non-assigned games.
-    suspicious: list[tuple[str, int, int]] = []
-    for entry in old_snapshot:
-        result = _check_game_tampering(client, entry, state)
-        if result:
-            suspicious.append(result)
-        if len(suspicious) >= _TAMPER_CHECK_LIMIT:
-            break
-
-    if suspicious:
-        _echo("\n  TAMPERING DETECTED:")
-        for name, app_id, diff in suspicious:
-            _echo(f"    {name} (AppID={app_id}): +{diff} new achievements!")
-        send_notification(
-            "Tampering Detected!",
-            f"Achievements unlocked on {len(suspicious)} non-assigned games!",
-        )

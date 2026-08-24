@@ -41,17 +41,17 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("steam_backlog_enforcer.scanning._echo"),
             patch("steam_backlog_enforcer._scanning_confidence._echo"),
             patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer._scanning_assign.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="1"),
@@ -76,16 +76,16 @@ class TestPickNextGame:
         state = State(finished_app_ids=[1])
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("steam_backlog_enforcer.scanning._echo"),
             patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_installed",
                 return_value=True,
             ),
             patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer._scanning_assign.uninstall_other_games",
                 return_value=0,
             ),
             patch("builtins.input", return_value="1"),
@@ -100,7 +100,7 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 return_value=None,
             ),
             patch("steam_backlog_enforcer.scanning._echo"),
@@ -115,17 +115,17 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("steam_backlog_enforcer.scanning._echo"),
             patch("steam_backlog_enforcer._scanning_confidence._echo"),
             patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer._scanning_assign.uninstall_other_games",
                 return_value=2,
             ),
             patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_installed",
                 return_value=True,
             ),
             patch("builtins.input", return_value="1"),
@@ -140,16 +140,18 @@ class TestPickNextGame:
         state = State()
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch("steam_backlog_enforcer.scanning._echo"),
             patch("steam_backlog_enforcer._scanning_confidence._echo"),
             patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_installed",
                 return_value=False,
             ),
-            patch("steam_backlog_enforcer.scanning.install_game") as mock_install,
+            patch(
+                "steam_backlog_enforcer._scanning_assign.install_game"
+            ) as mock_install,
             patch("builtins.input", return_value="1"),
         ):
             pick_next_game([g1], state, config)

@@ -12,7 +12,7 @@ from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.protondb import ProtonDBRating
 from steam_backlog_enforcer.steam_api import GameInfo
 
-_PKG = "steam_backlog_enforcer._stats"
+_PKG = "steam_backlog_enforcer._stats_gathering"
 
 
 def _game(

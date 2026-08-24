@@ -38,7 +38,7 @@ class TestCollectTopCandidates:
         """Returns at most n qualified candidates."""
         games = [_game(app_id=i, name=f"G{i}", hours=float(i)) for i in range(1, 6)]
         with patch(
-            "steam_backlog_enforcer.scanning._pick_playable_candidate",
+            "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
             side_effect=lambda c: c[0] if c else None,
         ):
             qualified, conf_skip, linux_skip = _collect_top_candidates(games, n=3)
@@ -53,10 +53,10 @@ class TestCollectTopCandidates:
         g2 = _game(app_id=2, name="Good", hours=2.0)
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: None if c[0].app_id == 1 else c[0],
             ),
-            patch("steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer._scanning_candidates._echo"),
         ):
             qualified, conf_skip, linux_skip = _collect_top_candidates([g1, g2], n=10)
         assert [g.app_id for g in qualified] == [2]
@@ -75,10 +75,10 @@ class TestCollectTopCandidates:
         g = _game(app_id=1, name="Good", hours=1.0)
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
-            patch("steam_backlog_enforcer.scanning._echo") as mock_echo,
+            patch("steam_backlog_enforcer._scanning_candidates._echo") as mock_echo,
         ):
             _collect_top_candidates([g], n=10)
         mock_echo.assert_not_called()

@@ -38,25 +38,25 @@ class TestPickNextGameSequential:
         stack = contextlib.ExitStack()
         stack.enter_context(
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             )
         )
         stack.enter_context(
             patch(
-                "steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer._scanning_assign._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             )
         )
         stack.enter_context(
             patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_installed",
                 return_value=True,
             )
         )
         stack.enter_context(
             patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
+                "steam_backlog_enforcer._scanning_assign.uninstall_other_games",
                 return_value=0,
             )
         )
@@ -113,11 +113,11 @@ class TestPickNextGameSequential:
         echoed: list[str] = []
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 return_value=None,
             ),
             patch(
-                "steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer._scanning_assign._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch("steam_backlog_enforcer.config._atomic_write"),
@@ -136,11 +136,11 @@ class TestPickNextGameSequential:
         echoed: list[str] = []
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=lambda c: c[0] if c else None,
             ),
             patch(
-                "steam_backlog_enforcer.scanning._echo",
+                "steam_backlog_enforcer._scanning_assign._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(

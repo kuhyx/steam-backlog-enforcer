@@ -115,10 +115,10 @@ class TestConfidenceHelpers:
 
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 side_effect=[None, good],
             ),
-            patch("steam_backlog_enforcer.scanning._echo") as mock_echo,
+            patch("steam_backlog_enforcer._scanning_candidates._echo") as mock_echo,
         ):
             picked, skipped_low_conf, skipped_linux = _pick_next_shortest_candidate(
                 [bad, good],

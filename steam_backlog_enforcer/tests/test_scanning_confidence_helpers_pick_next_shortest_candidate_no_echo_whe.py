@@ -41,10 +41,10 @@ class TestConfidenceHelpersGroup2:
         good = _game(app_id=51, name="Good", hours=2.0)
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 return_value=good,
             ),
-            patch("steam_backlog_enforcer.scanning._echo") as mock_echo,
+            patch("steam_backlog_enforcer._scanning_candidates._echo") as mock_echo,
         ):
             picked, _skipped_low_conf, skipped_linux = _pick_next_shortest_candidate(
                 [good],
@@ -62,7 +62,7 @@ class TestConfidenceHelpersGroup2:
             patch(
                 "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence"
             ),
-            patch("steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer._scanning_candidates._echo"),
         ):
             picked, skipped_low_conf, skipped_linux = _pick_next_shortest_candidate(
                 [low_conf],
@@ -76,10 +76,10 @@ class TestConfidenceHelpersGroup2:
         g1 = _game(app_id=10, name="Borked", hours=1.0)
         with (
             patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 return_value=None,
             ),
-            patch("steam_backlog_enforcer.scanning._echo") as mock_echo,
+            patch("steam_backlog_enforcer._scanning_candidates._echo") as mock_echo,
         ):
             picked, _skipped_low_conf, skipped_linux = _pick_next_shortest_candidate(
                 [g1],
@@ -100,7 +100,7 @@ class TestConfidenceHelpersGroup2:
                 "steam_backlog_enforcer.scanning.SteamAPIClient",
                 return_value=mock_client,
             ),
-            patch("steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer._scanning_candidates._echo"),
             patch(
                 "steam_backlog_enforcer.scanning.send_notification",
             ),
@@ -127,7 +127,7 @@ class TestConfidenceHelpersGroup2:
                 "steam_backlog_enforcer.scanning.SteamAPIClient",
                 return_value=mock_client,
             ),
-            patch("steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer._scanning_candidates._echo"),
             patch(
                 "steam_backlog_enforcer.scanning.send_notification",
             ),
@@ -150,7 +150,7 @@ class TestConfidenceHelpersGroup2:
                 "steam_backlog_enforcer.scanning.SteamAPIClient",
                 return_value=mock_client,
             ),
-            patch("steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer._scanning_candidates._echo"),
             patch("steam_backlog_enforcer.scanning.detect_tampering"),
         ):
             state = State(current_app_id=440, current_game_name="TF2")

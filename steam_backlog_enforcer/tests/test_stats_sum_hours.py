@@ -16,7 +16,9 @@ from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.protondb import ProtonDBRating
 from steam_backlog_enforcer.steam_api import GameInfo
 
-_PKG = "steam_backlog_enforcer._stats"
+_PKG = "steam_backlog_enforcer._stats_display"
+# _print_scenario was not moved: it still lives in _stats.
+_PKG_STATS = "steam_backlog_enforcer._stats"
 
 
 def _game(
@@ -118,14 +120,18 @@ class TestPrintScenario:
     def test_no_data_prints_no_data_message(self) -> None:
         """Test no data prints no data message."""
         echoed: list[str] = []
-        with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
+        with patch(
+            f"{_PKG_STATS}._echo", side_effect=lambda *a, **_: echoed.append(a[0])
+        ):
             _print_scenario("2. RUSH", 0.0, 0, 5)
         assert any("No data available" in s for s in echoed)
 
     def test_with_data_no_missing(self) -> None:
         """Test with data no missing."""
         echoed: list[str] = []
-        with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
+        with patch(
+            f"{_PKG_STATS}._echo", side_effect=lambda *a, **_: echoed.append(a[0])
+        ):
             _print_scenario("2. RUSH", 100.0, 0, 5)
         assert any("Total:" in s for s in echoed)
         assert not any("had no data" in s for s in echoed)
@@ -133,7 +139,9 @@ class TestPrintScenario:
     def test_with_data_and_missing(self) -> None:
         """Test with data and missing."""
         echoed: list[str] = []
-        with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
+        with patch(
+            f"{_PKG_STATS}._echo", side_effect=lambda *a, **_: echoed.append(a[0])
+        ):
             _print_scenario("2. RUSH", 100.0, 2, 5)
         assert any("had no data" in s for s in echoed)
 

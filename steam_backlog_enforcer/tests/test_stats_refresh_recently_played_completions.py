@@ -8,7 +8,7 @@ from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.protondb import ProtonDBRating
 from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIError
 
-_PKG = "steam_backlog_enforcer._stats"
+_PKG = "steam_backlog_enforcer._stats_gathering"
 
 
 def _game(

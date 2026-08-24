@@ -154,7 +154,7 @@ class TestPickPlayableCandidate:
         game = _game(app_id=440, name="TF2")
         with (
             patch(
-                "steam_backlog_enforcer.scanning.fetch_protondb_ratings",
+                "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
                 return_value={
                     440: ProtonDBRating(app_id=440, tier="gold"),
                 },
@@ -171,7 +171,7 @@ class TestPickPlayableCandidate:
         good = _game(app_id=2, name="Good")
         with (
             patch(
-                "steam_backlog_enforcer.scanning.fetch_protondb_ratings",
+                "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
                 return_value={
                     1: ProtonDBRating(app_id=1, tier="borked"),
                     2: ProtonDBRating(app_id=2, tier="platinum"),
@@ -188,7 +188,7 @@ class TestPickPlayableCandidate:
         game = _game(app_id=1, name="Bad")
         with (
             patch(
-                "steam_backlog_enforcer.scanning.fetch_protondb_ratings",
+                "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
                 return_value={
                     1: ProtonDBRating(app_id=1, tier="borked"),
                 },
@@ -206,7 +206,7 @@ class TestPickPlayableCandidate:
         game = _game(app_id=440, name="TF2")
         with (
             patch(
-                "steam_backlog_enforcer.scanning.fetch_protondb_ratings",
+                "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
                 return_value={
                     440: ProtonDBRating(app_id=440, tier="platinum"),
                 },
