@@ -118,10 +118,12 @@ class TestReblockHosts:
             encoding="utf-8",
         )
         with (
-            patch(f"{PKG}.HOSTS_FILE", hosts_file),
-            patch(f"{PKG}._disable_hosts_protection"),
-            patch(f"{PKG}._enable_hosts_protection"),
-            patch(f"{PKG}._sudo_write_hosts") as mock_write,
+            patch("steam_backlog_enforcer._hosts_protection.HOSTS_FILE", hosts_file),
+            patch("steam_backlog_enforcer._hosts_protection._disable_hosts_protection"),
+            patch("steam_backlog_enforcer._hosts_protection._enable_hosts_protection"),
+            patch(
+                "steam_backlog_enforcer._hosts_protection._sudo_write_hosts"
+            ) as mock_write,
         ):
             result = _reblock_hosts()
         assert result is True
@@ -134,17 +136,22 @@ class TestReblockHosts:
         hosts_file = tmp_path / "hosts"
         hosts_file.write_text("127.0.0.1 localhost\n", encoding="utf-8")
         with (
-            patch(f"{PKG}.HOSTS_FILE", hosts_file),
-            patch(f"{PKG}._disable_hosts_protection"),
-            patch(f"{PKG}._enable_hosts_protection"),
-            patch(f"{PKG}._sudo_write_hosts") as mock_write,
+            patch("steam_backlog_enforcer._hosts_protection.HOSTS_FILE", hosts_file),
+            patch("steam_backlog_enforcer._hosts_protection._disable_hosts_protection"),
+            patch("steam_backlog_enforcer._hosts_protection._enable_hosts_protection"),
+            patch(
+                "steam_backlog_enforcer._hosts_protection._sudo_write_hosts"
+            ) as mock_write,
         ):
             result = _reblock_hosts()
         assert result is True
         mock_write.assert_not_called()
 
     def test_os_error(self) -> None:
-        with patch(f"{PKG}._disable_hosts_protection", side_effect=OSError):
+        with patch(
+            "steam_backlog_enforcer._hosts_protection._disable_hosts_protection",
+            side_effect=OSError,
+        ):
             result = _reblock_hosts()
         assert result is False
 

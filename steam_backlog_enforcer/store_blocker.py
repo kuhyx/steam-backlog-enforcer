@@ -11,13 +11,23 @@ blocks via iptables.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from pathlib import Path
 import shutil
-import socket
 import subprocess
 
+from steam_backlog_enforcer._hosts_protection import (
+    _disable_hosts_protection,
+    _enable_hosts_protection,
+    _reblock_hosts,
+    _sudo_write_hosts,
+)
+from steam_backlog_enforcer._store_iptables import (
+    _block_store_iptables,
+    _is_iptables_blocked,
+    _unblock_store_iptables,
+    flush_dns_cache,
+)
 from steam_backlog_enforcer.config import (
     BLOCKED_DOMAINS,
     HOSTS_FILE,
@@ -51,17 +61,6 @@ _TEE = shutil.which("tee") or "/usr/bin/tee"
 
 # IP address used in /etc/hosts for blocking domains.
 _HOSTS_REDIRECT_IP = ".".join(["0"] * 4)
-
-
-def _sudo_write_hosts(content: str) -> None:
-    """Write *content* to /etc/hosts via ``sudo tee``."""
-    subprocess.run(
-        [_SUDO, _TEE, str(HOSTS_FILE)],
-        input=content.encode(),
-        stdout=subprocess.DEVNULL,
-        timeout=10,
-        check=True,
-    )
 
 
 def is_store_blocked() -> bool:
@@ -150,87 +149,6 @@ def _block_via_hosts_install() -> bool:
         return False
 
 
-def _is_iptables_blocked() -> bool:
-    """Check if our iptables chain exists and has rules."""
-    try:
-        result = subprocess.run(
-            [_SUDO, _IPTABLES, "-L", IPTABLES_CHAIN, "-n"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    else:
-        return result.returncode == 0 and "DROP" in result.stdout
-
-
-def _block_store_iptables() -> bool:
-    """Block Steam Store domains using iptables (IP-based)."""
-    try:
-        # Create chain if it doesn't exist.
-        subprocess.run(
-            [_SUDO, _IPTABLES, "-N", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        # Flush existing rules in our chain.
-        subprocess.run(
-            [_SUDO, _IPTABLES, "-F", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=True,
-        )
-
-        # Resolve domains and block their IPs.
-        blocked_ips: set[str] = set()
-        for domain in BLOCKED_DOMAINS:
-            with contextlib.suppress(socket.gaierror):
-                ips = socket.getaddrinfo(domain, 443, socket.AF_INET)
-                for _, _, _, _, addr in ips:
-                    blocked_ips.add(addr[0])
-
-        for ip in blocked_ips:
-            subprocess.run(
-                [
-                    _SUDO,
-                    _IPTABLES,
-                    "-A",
-                    IPTABLES_CHAIN,
-                    "-d",
-                    ip,
-                    "-j",
-                    "DROP",
-                ],
-                capture_output=True,
-                timeout=5,
-                check=True,
-            )
-
-        # Hook our chain into OUTPUT if not already there.
-        result = subprocess.run(
-            [_SUDO, _IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        if result.returncode != 0:
-            subprocess.run(
-                [_SUDO, _IPTABLES, "-I", "OUTPUT", "-j", IPTABLES_CHAIN],
-                capture_output=True,
-                timeout=5,
-                check=True,
-            )
-    except (OSError, subprocess.SubprocessError):
-        logger.exception("Failed to block store via iptables")
-        return False
-    else:
-        logger.info("Steam Store blocked via iptables (%d IPs).", len(blocked_ips))
-        return True
-
-
 def unblock_store() -> bool:
     """Remove Steam Store blocks from both iptables and /etc/hosts."""
     ipt_ok = _unblock_store_iptables()
@@ -243,52 +161,6 @@ def unblock_store() -> bool:
         logger.warning("Failed to remove /etc/hosts entries.")
 
     return ipt_ok or hosts_ok
-
-
-def _unblock_store_iptables() -> bool:
-    """Remove iptables-based block."""
-    try:
-        subprocess.run(
-            [_SUDO, _IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [_SUDO, _IPTABLES, "-F", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [_SUDO, _IPTABLES, "-X", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        logger.exception("Failed to unblock iptables")
-        return False
-    else:
-        logger.info("Steam Store unblocked from iptables.")
-        return True
-
-
-def flush_dns_cache() -> None:
-    """Flush the system DNS cache."""
-    commands = [
-        ["systemd-resolve", "--flush-caches"],
-        ["resolvectl", "flush-caches"],
-        ["nscd", "--invalidate=hosts"],
-    ]
-    for cmd in commands:
-        with contextlib.suppress(FileNotFoundError, OSError):
-            subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=5,
-                check=False,
-            )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -305,32 +177,6 @@ def flush_dns_cache() -> None:
 # changing content - it would silently undo our own edit. "sync" instead
 # adopts the just-written content as the new canonical.
 # ──────────────────────────────────────────────────────────────
-
-
-def _disable_hosts_protection() -> None:
-    """Temporarily unlock /etc/hosts so its content can be edited.
-
-    Guard-lib: stop watcher, collapse bind mount, chattr -i.
-    """
-    subprocess.run(
-        [_SUDO, _GUARDCTL, "file-guard", "pacman-unlock", "hosts"],
-        capture_output=True,
-        timeout=10,
-        check=False,
-    )
-
-
-def _enable_hosts_protection() -> None:
-    """Re-lock /etc/hosts, adopting its current content as the new canonical.
-
-    Guard-lib: chattr +i, reapply bind mount, restart watcher.
-    """
-    subprocess.run(
-        [_SUDO, _GUARDCTL, "file-guard", "sync", "hosts"],
-        capture_output=True,
-        timeout=10,
-        check=False,
-    )
 
 
 def _unblock_hosts() -> bool:
@@ -359,37 +205,6 @@ def _unblock_hosts() -> bool:
         if changed:
             _sudo_write_hosts("".join(new_lines))
             logger.info("Commented out Steam Store entries in /etc/hosts.")
-
-        _enable_hosts_protection()
-    except OSError:
-        logger.exception("Failed to modify /etc/hosts")
-        return False
-    else:
-        return True
-
-
-def _reblock_hosts() -> bool:
-    """Uncomment Steam Store entries in /etc/hosts."""
-    try:
-        _disable_hosts_protection()
-        content = HOSTS_FILE.read_text(encoding="utf-8")
-        new_lines = []
-        changed = False
-        for line in content.splitlines(keepends=True):
-            stripped = line.strip()
-            if stripped.startswith("# ") and any(
-                d in stripped for d in BLOCKED_DOMAINS
-            ):
-                # Remove the '# ' prefix.
-                uncommented = line.replace("# ", "", 1)
-                new_lines.append(uncommented)
-                changed = True
-            else:
-                new_lines.append(line)
-
-        if changed:
-            _sudo_write_hosts("".join(new_lines))
-            logger.info("Re-enabled Steam Store entries in /etc/hosts.")
 
         _enable_hosts_protection()
     except OSError:
