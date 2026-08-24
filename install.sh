@@ -33,7 +33,22 @@ else
 fi
 
 # Install systemd service (system-level, runs as root).
-read -rp "Install systemd enforce service? [y/N] " ans
+#
+# Non-interactive callers (install_core_system.sh, CI, `vm run`) have no stdin,
+# where a bare `read` fails and -- under `set -e` -- aborts this whole installer
+# with exit 1 after the Python deps are already in place. That made the module
+# permanently un-installable from the documented install path. Default to "no"
+# when there is no terminal, and let STEAM_ENFORCER_INSTALL_SERVICE=y opt in.
+ans="${STEAM_ENFORCER_INSTALL_SERVICE:-}"
+if [[ -z $ans ]]; then
+    if [[ -t 0 ]]; then
+        read -rp "Install systemd enforce service? [y/N] " ans
+    else
+        ans="n"
+        echo "No terminal: skipping the systemd enforce service."
+        echo "(Install it later with: sudo STEAM_ENFORCER_INSTALL_SERVICE=y bash install.sh)"
+    fi
+fi
 if [[ "${ans,,}" == "y" ]]; then
     if [[ $EUID -ne 0 ]]; then
         echo "Error: systemd service install needs root. Re-run with sudo."
