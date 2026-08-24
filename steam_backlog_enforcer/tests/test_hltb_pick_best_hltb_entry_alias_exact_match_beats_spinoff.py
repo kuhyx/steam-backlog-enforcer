@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from steam_backlog_enforcer._hltb_search import (
-    _pick_best_hltb_entry,
-)
+from steam_backlog_enforcer._hltb_search_api import _pick_best_hltb_entry
 
 
 class TestPickBestHltbEntryGroup2:

@@ -8,9 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 from typing_extensions import Self
 
-from steam_backlog_enforcer._hltb_detail import (
-    _fetch_leisure_times,
-)
+from steam_backlog_enforcer._hltb_detail import _fetch_leisure_times
 from steam_backlog_enforcer._hltb_types import (
     _SAVE_INTERVAL,
     HLTBResult,

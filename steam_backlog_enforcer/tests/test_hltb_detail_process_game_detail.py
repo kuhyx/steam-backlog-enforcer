@@ -10,10 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 from typing_extensions import Self
 
-from steam_backlog_enforcer._hltb_detail import (
-    _fetch_detail_one,
-    _process_game_detail,
-)
+from steam_backlog_enforcer._hltb_comp_extract import _fetch_detail_one
+from steam_backlog_enforcer._hltb_detail import _process_game_detail
 
 
 class _FakeTextResponse:

@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 
-from steam_backlog_enforcer._hltb_search import (
-    _AuthInfo,
-    _build_search_payload,
-)
+from steam_backlog_enforcer._hltb_search import _AuthInfo
+from steam_backlog_enforcer._hltb_search_api import _build_search_payload
 
 
 class TestBuildSearchPayload:

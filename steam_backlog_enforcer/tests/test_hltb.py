@@ -9,11 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 
-from steam_backlog_enforcer._hltb_search import (
-    _AuthInfo,
-    _get_hltb_search_url,
-    _similarity,
-)
+from steam_backlog_enforcer._hltb_matching import _similarity
+from steam_backlog_enforcer._hltb_search import _AuthInfo
+from steam_backlog_enforcer._hltb_search_api import _get_hltb_search_url
 from steam_backlog_enforcer.hltb import (
     _get_auth_info,
     load_hltb_cache,
@@ -96,7 +94,7 @@ class TestGetHltbSearchUrl:
         """Test discovers url."""
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/abc"
-        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search_api.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.return_value = mock_info
             mock_html.BASE_URL = "https://howlongtobeat.com"
             url = _get_hltb_search_url()
@@ -104,7 +102,7 @@ class TestGetHltbSearchUrl:
 
     def test_fallback_url(self) -> None:
         """Test fallback url."""
-        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search_api.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.return_value = None
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"
@@ -113,7 +111,7 @@ class TestGetHltbSearchUrl:
         """Test first returns none second returns info."""
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/xyz"
-        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search_api.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.side_effect = [None, mock_info]
             mock_html.BASE_URL = "https://howlongtobeat.com"
             url = _get_hltb_search_url()
@@ -121,7 +119,7 @@ class TestGetHltbSearchUrl:
 
     def test_exception_fallback(self) -> None:
         """Test exception fallback."""
-        with patch("steam_backlog_enforcer._hltb_search.HTMLRequests") as mock_html:
+        with patch("steam_backlog_enforcer._hltb_search_api.HTMLRequests") as mock_html:
             mock_html.send_website_request_getcode.side_effect = RuntimeError
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"

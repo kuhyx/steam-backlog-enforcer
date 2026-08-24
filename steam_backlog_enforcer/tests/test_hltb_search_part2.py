@@ -9,13 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from typing_extensions import Self
 
-from steam_backlog_enforcer._hltb_detail import (
-    _parse_game_page,
-)
-from steam_backlog_enforcer._hltb_search import (
-    _fetch_batch,
-    _pick_best_hltb_entry,
-)
+from steam_backlog_enforcer._hltb_page_parse import _parse_game_page
+from steam_backlog_enforcer._hltb_search import _fetch_batch
+from steam_backlog_enforcer._hltb_search_api import _pick_best_hltb_entry
 from steam_backlog_enforcer._hltb_types import (
     HLTBResult,
     _AuthInfo,

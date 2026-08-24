@@ -9,13 +9,15 @@ from unittest.mock import AsyncMock, patch
 import aiohttp
 from typing_extensions import Self
 
+from steam_backlog_enforcer._hltb_comp_extract import _extract_dlc_relationships
 from steam_backlog_enforcer._hltb_detail import (
-    _apply_dlc_leisure_overrides,
-    _as_positive_int,
     _collect_dlc_relationships,
     _extract_base_leisure_hours,
-    _extract_dlc_relationships,
     _fetch_dlc_leisure_hours,
+)
+from steam_backlog_enforcer._hltb_page_parse import (
+    _apply_dlc_leisure_overrides,
+    _as_positive_int,
 )
 from steam_backlog_enforcer._hltb_types import (
     HLTBResult,
