@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from steam_backlog_enforcer._actions import MANUAL_GRACE_DAYS
 from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
 from steam_backlog_enforcer._total_block import TotalBlockStatus
 from steam_backlog_enforcer.config import State
@@ -107,15 +106,13 @@ def locked_state(
     )
 
 
-IN_GRACE = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-PAST_GRACE = (
-    datetime.now(timezone.utc) - timedelta(days=MANUAL_GRACE_DAYS + 1)
-).isoformat()
+RECENT_PICK = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+OLD_PICK = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
 
 VALID_REASON = "I need this game installed for a work presentation this week."
 
 
-def abandonable_state(app_id: int = 100, started_at: str = IN_GRACE) -> State:
+def abandonable_state(app_id: int = 100, started_at: str = RECENT_PICK) -> State:
     """Build a State whose single manual pick is still abandonable.
 
     Args:
@@ -139,8 +136,8 @@ def two_pick_state() -> State:
     """
     state = State(
         manual_picks=[
-            {"app_id": 100, "game_name": "TestGame", "started_at": IN_GRACE},
-            {"app_id": 200, "game_name": "SecondGame", "started_at": IN_GRACE},
+            {"app_id": 100, "game_name": "TestGame", "started_at": RECENT_PICK},
+            {"app_id": 200, "game_name": "SecondGame", "started_at": RECENT_PICK},
         ],
     )
     state.current_app_id = 200

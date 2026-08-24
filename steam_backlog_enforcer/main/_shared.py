@@ -12,11 +12,8 @@ import sys
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import (
-    MANUAL_GRACE_DAYS as _MANUAL_GRACE_DAYS,
-)
-from steam_backlog_enforcer._actions import (
     active_manual_picks,
-    manual_pick_grace_remaining,
+    manual_pick_age_days,
 )
 from steam_backlog_enforcer._actions import (
     is_manual_pick_locked as _is_manual_pick_locked,
@@ -140,11 +137,11 @@ def _describe_pick(state: State, pick: dict[str, object]) -> bool:
         except ValueError:
             pass
 
-    grace_left = manual_pick_grace_remaining(state, int(str(app_id)))
-    if grace_left is not None and grace_left > 0:
+    age_days = manual_pick_age_days(state, int(str(app_id)))
+    if age_days is not None:
         _echo(
             f"    Undo:         abandon-pick {app_id}"
-            f"  ({grace_left:.1f} of {_MANUAL_GRACE_DAYS} grace day(s) left)"
+            f"  (picked {age_days:.1f} day(s) ago)"
         )
         return True
     return False

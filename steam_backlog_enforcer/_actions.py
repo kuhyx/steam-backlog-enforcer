@@ -27,11 +27,6 @@ from steam_backlog_enforcer._allowed_games import (
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import State
 
-# Mistake-correction window: for this many days after a manual pick the user
-# may still back out via ``abandon-pick``. Deliberately short — it exists to
-# undo a wrong pick, not to serve as an escape hatch from the lock.
-MANUAL_GRACE_DAYS = 4
-
 # How long an abandoned pick stays out of the auto-assignment pool, so that
 # ``scan`` does not immediately hand back the game the user just rejected.
 ABANDON_COOLDOWN_DAYS = 30
@@ -157,8 +152,7 @@ def apply_manual_pick(
 _MOVED_TO_MANUAL_PICK_LIFECYCLE = frozenset(
     {
         "abandon_manual_pick",
-        "can_abandon_manual_pick",
-        "manual_pick_grace_remaining",
+        "manual_pick_age_days",
         "status_payload",
     }
 )

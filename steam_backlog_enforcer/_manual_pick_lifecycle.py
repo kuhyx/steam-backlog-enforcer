@@ -1,4 +1,4 @@
-"""Grace periods, abandonment and the status payload for manual picks.
+"""Abandonment and the status payload for manual picks.
 
 Split out of :mod:`steam_backlog_enforcer._actions` to keep both files
 under the 250-line cap.
@@ -6,7 +6,7 @@ under the 250-line cap.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._actions import (
@@ -34,30 +34,25 @@ __all__ = [
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import State
 
-# Mistake-correction window: for this many days after a manual pick the user
-# may still back out via ``abandon-pick``. Deliberately short — it exists to
-# undo a wrong pick, not to serve as an escape hatch from the lock.
-MANUAL_GRACE_DAYS = 4
-
 # How long an abandoned pick stays out of the auto-assignment pool, so that
 # ``scan`` does not immediately hand back the game the user just rejected.
 ABANDON_COOLDOWN_DAYS = 30
 
 
-def manual_pick_grace_remaining(state: State, app_id: int) -> float | None:
-    """Return days left in *app_id*'s grace window, or ``None``.
+def manual_pick_age_days(state: State, app_id: int) -> float | None:
+    """Return how many days ago *app_id* was picked, or ``None``.
 
-    ``None`` means "no grace window applies": *app_id* is not an active manual
-    pick, or its timestamp is missing/malformed. A value <= 0 means the window
-    has closed.
+    Informational only — picks can be abandoned at any age. ``None`` means the
+    question does not apply: *app_id* is not an active manual pick, or its
+    timestamp is missing/malformed.
 
     Args:
         state: The loaded enforcer state.
         app_id: The manually-picked app id to measure.
 
     Returns:
-        Fractional days remaining before the pick can no longer be abandoned,
-        or ``None`` when the question does not apply.
+        Fractional days elapsed since the pick was made, or ``None`` when the
+        question does not apply.
     """
     pick = find_manual_pick(state, app_id)
     if pick is None or not pick.get("started_at"):
@@ -66,26 +61,13 @@ def manual_pick_grace_remaining(state: State, app_id: int) -> float | None:
         started = datetime.fromisoformat(pick["started_at"])
     except ValueError:
         return None
-    deadline = started + timedelta(days=MANUAL_GRACE_DAYS)
-    return (deadline - datetime.now(timezone.utc)).total_seconds() / 86400
-
-
-def can_abandon_manual_pick(state: State, app_id: int) -> bool:
-    """Return ``True`` if *app_id* is still inside its grace window.
-
-    Args:
-        state: The loaded enforcer state.
-        app_id: The manually-picked app id to check.
-
-    Returns:
-        Whether ``abandon_manual_pick`` would be accepted right now.
-    """
-    remaining = manual_pick_grace_remaining(state, app_id)
-    return remaining is not None and remaining > 0
+    return (datetime.now(timezone.utc) - started).total_seconds() / 86400
 
 
 def abandon_manual_pick(state: State, app_id: int) -> bool:
-    """Drop one manual pick and persist ``state``, if still inside its grace window.
+    """Drop one manual pick and persist ``state``.
+
+    A pick may be abandoned at any time, however long ago it was made.
 
     Only the named pick is dropped: any other active pick keeps its own lock
     and deadline. The abandoned app id goes onto the existing skip cooldown so
@@ -98,11 +80,10 @@ def abandon_manual_pick(state: State, app_id: int) -> bool:
         app_id: The manually-picked app id to back out of.
 
     Returns:
-        ``True`` if the pick was abandoned, ``False`` if its grace window has
-        closed (or it is not an active pick), in which case ``state`` is
-        untouched.
+        ``True`` if the pick was abandoned, ``False`` if it is not an active
+        pick, in which case ``state`` is untouched.
     """
-    if not can_abandon_manual_pick(state, app_id):
+    if find_manual_pick(state, app_id) is None:
         return False
 
     state.skip_for_days(app_id, ABANDON_COOLDOWN_DAYS)
@@ -159,7 +140,7 @@ def status_payload(state: State) -> dict[str, Any]:
         "manual_picks": [
             {
                 **pick,
-                "grace_days_left": manual_pick_grace_remaining(state, pick["app_id"]),
+                "age_days": manual_pick_age_days(state, pick["app_id"]),
             }
             for pick in active_manual_picks(state)
         ],

@@ -79,12 +79,15 @@ class TestAbandonPickGate:
         assert out["ok"] is False
         assert "not one of the active manual picks" in out["reason"]
 
-    def test_expired_grace(self) -> None:
-        state = self._state(days_ago=mcp_actions.MANUAL_GRACE_DAYS + 1)
-        with patch.object(mcp_query.State, "load", return_value=state):
-            out = mcp_actions.abandon_pick(440)
-        assert out["ok"] is False
-        assert "grace period has expired" in out["reason"]
+    def test_old_pick_is_still_abandonable(self) -> None:
+        # Past the deleted 4-day grace window, inside the 14-day lock.
+        state = self._state(days_ago=8)
+        with (
+            patch.object(mcp_query.State, "load", return_value=state),
+            patch.object(mcp_actions, "abandon_manual_pick", return_value=True),
+        ):
+            out = mcp_actions.abandon_pick(440, confirm=True)
+        assert out["ok"] is True
 
     def test_preview_does_not_mutate(self) -> None:
         with (
@@ -94,7 +97,7 @@ class TestAbandonPickGate:
             out = mcp_actions.abandon_pick(440)
         assert out["preview"] is True
         assert out["game_name"] == "TF2"
-        assert out["grace_days_left"] > 0
+        assert out["age_days"] > 0
         amp.assert_not_called()
 
     def test_confirm_applies(self) -> None:

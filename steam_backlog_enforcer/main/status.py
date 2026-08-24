@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import (
     active_manual_picks,
-    manual_pick_grace_remaining,
+    manual_pick_age_days,
 )
 from steam_backlog_enforcer._total_block import get_total_block_status
 from steam_backlog_enforcer.config import load_snapshot
@@ -57,13 +57,9 @@ def cmd_status(_config: Config, state: State) -> None:
     if picks:
         _echo(f"\nManual picks ({len(picks)}):")
         for pick in picks:
-            grace = manual_pick_grace_remaining(state, pick["app_id"])
-            undo = (
-                f" — undoable for {grace:.1f} more day(s)"
-                if grace is not None and grace > 0
-                else ""
-            )
-            _echo(f"  {pick['game_name']} (AppID={pick['app_id']}){undo}")
+            age = manual_pick_age_days(state, pick["app_id"])
+            since = f" — picked {age:.1f} day(s) ago" if age is not None else ""
+            _echo(f"  {pick['game_name']} (AppID={pick['app_id']}){since}")
         _echo("\n[MANUAL PICK LOCK is active — most commands are blocked]")
 
 

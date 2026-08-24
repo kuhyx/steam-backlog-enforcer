@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from steam_backlog_enforcer._actions import MANUAL_GRACE_DAYS
 from steam_backlog_enforcer._total_block import TotalBlockStatus
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import (
@@ -104,14 +103,11 @@ class TestCmdStatusLockHint:
 # cmd_abandon_pick (grace period escape hatch)
 # ──────────────────────────────────────────────────────────────
 
-# Inside the 4-day grace window / already past it.
-_IN_GRACE = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-_PAST_GRACE = (
-    datetime.now(timezone.utc) - timedelta(days=MANUAL_GRACE_DAYS + 1)
-).isoformat()
+# A pick made yesterday / one made over a week ago. Both are abandonable.
+_RECENT_PICK = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
 
 
-def _abandonable_state(app_id: int = 100, started_at: str = _IN_GRACE) -> State:
+def _abandonable_state(app_id: int = 100, started_at: str = _RECENT_PICK) -> State:
     state = locked_state(app_id=app_id, started_at=started_at)
     state.current_app_id = app_id
     state.current_game_name = state.manual_pick_game_name

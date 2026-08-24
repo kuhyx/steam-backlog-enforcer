@@ -1,4 +1,4 @@
-"""``abandon-pick``: back out of a manual pick inside its grace window."""
+"""``abandon-pick``: back out of a manual pick."""
 
 from __future__ import annotations
 
@@ -9,14 +9,9 @@ from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS as _ABANDON_COOLDOWN_DAYS,
 )
 from steam_backlog_enforcer._actions import (
-    MANUAL_GRACE_DAYS as _MANUAL_GRACE_DAYS,
-)
-from steam_backlog_enforcer._actions import (
     abandon_manual_pick,
     active_manual_picks,
-    can_abandon_manual_pick,
     find_manual_pick,
-    manual_pick_grace_remaining,
 )
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -30,7 +25,7 @@ if TYPE_CHECKING:
 _ABANDON_PICK_USAGE = (
     "Usage: abandon-pick <app_id>\n"
     "  app_id : the manually-picked game you want to back out of.\n\n"
-    f"Only works within {_MANUAL_GRACE_DAYS} days of the pick."
+    "A pick can be abandoned at any time, however long ago it was made."
 )
 
 
@@ -74,7 +69,7 @@ def _abandon_pick_target(state: State, args: list[str]) -> int | None:
 
 
 def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
-    """Back out of a manual pick while still inside the grace period.
+    """Back out of a manual pick, whatever its age.
 
     Args:
         _config: Enforcer configuration (unused, kept for dispatch symmetry).
@@ -87,22 +82,6 @@ def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
 
     pick = find_manual_pick(state, app_id)
     game_name = str(pick["game_name"]) if pick else ""
-
-    if not can_abandon_manual_pick(state, app_id):
-        # ``remaining`` is negative once the window has closed, so its
-        # magnitude is how long ago that happened.
-        remaining = manual_pick_grace_remaining(state, app_id)
-        elapsed = (
-            f"{abs(remaining):.1f} day(s) ago"
-            if remaining is not None
-            else "at an unknown time"
-        )
-        _echo(
-            f"\nGrace period EXPIRED for {game_name} (AppID={app_id}).\n"
-            f"The {_MANUAL_GRACE_DAYS}-day window closed {elapsed}.\n"
-            "Finish the game (100% achievements) or wait out the lock."
-        )
-        sys.exit(1)
 
     others = [p for p in active_manual_picks(state) if p["app_id"] != app_id]
     _echo(f"\nAbandoning manual pick: {game_name} (AppID={app_id})")
@@ -124,10 +103,7 @@ def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
         _echo("Aborted.")
         return
 
-    if not abandon_manual_pick(state, app_id):
-        # Should be unreachable: the grace check above already passed.
-        _echo("Error: the grace period closed before the pick could be abandoned.")
-        sys.exit(1)
+    abandon_manual_pick(state, app_id)
 
     _echo(f"\nManual pick abandoned: {game_name}")
 

@@ -66,12 +66,18 @@ class TestAbandonManualPick:
         abandon_manual_pick(self._state(), 440)
         assert State.load().manual_picks == []
 
-    def test_refuses_after_grace_and_leaves_state_untouched(self) -> None:
-        """Test refuses after grace and leaves state untouched."""
-        state = self._state(
-            picks=[_pick(days_ago=_actions.MANUAL_GRACE_DAYS + 1)],
-        )
-        assert abandon_manual_pick(state, 440) is False
+    def test_abandons_a_pick_well_past_the_old_grace_window(self) -> None:
+        """Test abandons a pick well past the old grace window."""
+        # 8 days: long past the deleted 4-day grace window, still inside the
+        # 14-day lock, so the pick is active and must remain abandonable.
+        state = self._state(picks=[_pick(days_ago=8)])
+        assert abandon_manual_pick(state, 440) is True
+        assert state.manual_picks == []
+
+    def test_refuses_unknown_app_id_and_leaves_state_untouched(self) -> None:
+        """Test refuses unknown app id and leaves state untouched."""
+        state = self._state()
+        assert abandon_manual_pick(state, 999) is False
         assert [p["app_id"] for p in state.manual_picks] == [440]
         assert state.current_app_id == 440
         assert state.skipped_until == {}

@@ -16,8 +16,8 @@ from steam_backlog_enforcer.main import (
     main,
 )
 from steam_backlog_enforcer.tests._main_helpers import (
-    IN_GRACE,
-    PAST_GRACE,
+    OLD_PICK,
+    RECENT_PICK,
     abandonable_state,
     locked_state,
     two_pick_state,
@@ -50,23 +50,29 @@ class TestCmdAbandonPick:
             str(c) for c in mock_echo.call_args_list
         )
 
-    def test_expired_grace_exits_without_mutating(self) -> None:
-        state = abandonable_state(started_at=PAST_GRACE)
+    def test_old_pick_can_still_be_abandoned(self) -> None:
+        """A pick has no grace window: however old, it can be abandoned."""
+        state = abandonable_state(started_at=OLD_PICK)
         with (
-            patch(f"{PKG}._echo") as mock_echo,
-            patch.object(State, "save") as mock_save,
-            pytest.raises(SystemExit) as exc,
+            patch(f"{PKG}._echo"),
+            patch(f"{PKG}.input", return_value="YES"),
+            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch.object(State, "save"),
         ):
             cmd_abandon_pick(Config(), state, ["100"])
-        assert exc.value.code == 1
-        assert "EXPIRED" in " ".join(str(c) for c in mock_echo.call_args_list)
-        mock_save.assert_not_called()
-        assert [p["app_id"] for p in state.manual_picks] == [100]
+        assert state.manual_picks == []
 
-    def test_expired_grace_with_bad_timestamp_still_exits(self) -> None:
+    def test_bad_timestamp_pick_can_still_be_abandoned(self) -> None:
+        """An unparsable started_at does not block abandoning."""
         state = abandonable_state(started_at="not-a-date")
-        with patch(f"{PKG}._echo"), pytest.raises(SystemExit):
+        with (
+            patch(f"{PKG}._echo"),
+            patch(f"{PKG}.input", return_value="YES"),
+            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch.object(State, "save"),
+        ):
             cmd_abandon_pick(Config(), state, ["100"])
+        assert state.manual_picks == []
 
     def test_aborted_when_not_yes(self) -> None:
         state = abandonable_state()
@@ -121,22 +127,6 @@ class TestCmdAbandonPick:
             cmd_abandon_pick(Config(), state, ["100"])
         assert "Warning" in " ".join(str(c) for c in mock_echo.call_args_list)
 
-    def test_race_between_check_and_apply_exits(self) -> None:
-        # The grace check passes, then the state-only core refuses: defensive
-        # branch that must exit rather than report a false success.
-        state = abandonable_state()
-        with (
-            patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
-            patch(f"{PKG}.abandon_manual_pick", return_value=False),
-            pytest.raises(SystemExit) as exc,
-        ):
-            cmd_abandon_pick(Config(), state, ["100"])
-        assert exc.value.code == 1
-        assert "grace period closed" in " ".join(
-            str(c) for c in mock_echo.call_args_list
-        )
-
 
 class TestAbandonPickLockInteraction:
     def test_abandon_pick_is_exempt_from_the_lock(self) -> None:
@@ -160,20 +150,20 @@ class TestAbandonPickLockInteraction:
             main()
         mock_cmd.assert_called_once()
 
-    def test_lock_message_advertises_abandon_within_grace(self) -> None:
-        state = abandonable_state(started_at=IN_GRACE)
+    def test_lock_message_advertises_abandon(self) -> None:
+        state = abandonable_state(started_at=RECENT_PICK)
         with patch("steam_backlog_enforcer.main._shared._echo") as mock_echo:
             _show_manual_pick_lock_message(state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "abandon-pick 100" in output
-        assert "grace day(s) left" in output
+        assert "day(s) ago" in output
 
-    def test_lock_message_hides_abandon_after_grace(self) -> None:
-        state = abandonable_state(started_at=PAST_GRACE)
+    def test_lock_message_advertises_abandon_for_old_picks_too(self) -> None:
+        state = abandonable_state(started_at=OLD_PICK)
         with patch("steam_backlog_enforcer.main._shared._echo") as mock_echo:
             _show_manual_pick_lock_message(state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "abandon-pick" not in output
+        assert "abandon-pick 100" in output
 
 
 # ──────────────────────────────────────────────────────────────
@@ -228,12 +218,13 @@ class TestAbandonOneOfTwoPicks:
             cmd_status(Config(), two_pick_state())
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "Manual picks (2)" in output
-        assert "undoable for" in output
+        assert "picked" in output
+        assert "day(s) ago" in output
 
-    def test_status_omits_undo_after_grace(self) -> None:
+    def test_status_shows_age_for_old_picks(self) -> None:
         state = two_pick_state()
-        state.manual_picks[0]["started_at"] = PAST_GRACE
-        state.manual_picks[1]["started_at"] = PAST_GRACE
+        state.manual_picks[0]["started_at"] = OLD_PICK
+        state.manual_picks[1]["started_at"] = OLD_PICK
         with (
             patch(
                 "steam_backlog_enforcer.main.status.is_store_blocked",
@@ -246,4 +237,6 @@ class TestAbandonOneOfTwoPicks:
             patch("steam_backlog_enforcer.main.status._echo") as mock_echo,
         ):
             cmd_status(Config(), state)
-        assert "undoable for" not in " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "picked 8.0 day(s) ago" in " ".join(
+            str(c) for c in mock_echo.call_args_list
+        )

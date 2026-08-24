@@ -13,7 +13,6 @@ import logging
 import sys
 from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer._actions import MANUAL_GRACE_DAYS as _MANUAL_GRACE_DAYS
 from steam_backlog_enforcer._allowed_games import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
@@ -84,7 +83,6 @@ logger = logging.getLogger(__name__)
 # before it became a package, and the test-suite reaches for them by name.
 __all__ = [
     "COMMANDS",
-    "_MANUAL_GRACE_DAYS",
     "_MANUAL_LOCK_DAYS",
     "_MANUAL_LOCK_EXEMPT_COMMANDS",
     "_TOTAL_BLOCK_EXEMPT_COMMANDS",
@@ -145,9 +143,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
 _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
     "add-exception": "Request 24h-locked whitelist exception (use --reason)",
     "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
-    "abandon-pick": (
-        f"Undo a manual pick within {_MANUAL_GRACE_DAYS} days (needs app_id)"
-    ),
+    "abandon-pick": "Undo a manual pick at any time (needs app_id)",
     "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
     "enforce": "Run enforcer: block, uninstall, kill, hide (--demo for a 60s budget)",
     "gaming-unblock": "Force-release playtime bind mounts (root; recovery hatch)",

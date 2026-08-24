@@ -6,12 +6,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from steam_backlog_enforcer import _actions, _allowed_games
+from steam_backlog_enforcer import _allowed_games
 from steam_backlog_enforcer._actions import (
     apply_manual_pick,
-    can_abandon_manual_pick,
     is_manual_pick_locked,
-    manual_pick_grace_remaining,
+    manual_pick_age_days,
 )
 from steam_backlog_enforcer.config import State
 
@@ -151,22 +150,22 @@ class TestApplyManualPick:
         assert apply_manual_pick(state, 620, "Portal 2") is not None
 
 
-class TestManualPickGraceRemaining:
-    """Tests for Manual Pick Grace Remaining."""
+class TestManualPickAgeDays:
+    """Tests for Manual Pick Age Days."""
 
     def test_no_pick_returns_none(self) -> None:
         """Test no pick returns none."""
-        assert manual_pick_grace_remaining(State(), 440) is None
+        assert manual_pick_age_days(State(), 440) is None
 
     def test_unknown_app_id_returns_none(self) -> None:
         """Test unknown app id returns none."""
         state = State(manual_picks=[_pick(440)])
-        assert manual_pick_grace_remaining(state, 999) is None
+        assert manual_pick_age_days(state, 999) is None
 
     def test_missing_timestamp_returns_none(self) -> None:
         """Test missing timestamp returns none."""
         state = State(manual_picks=[{"app_id": 440, "game_name": "TF2"}])
-        assert manual_pick_grace_remaining(state, 440) is None
+        assert manual_pick_age_days(state, 440) is None
 
     def test_malformed_timestamp_returns_none(self) -> None:
         """Test malformed timestamp returns none."""
@@ -175,36 +174,18 @@ class TestManualPickGraceRemaining:
                 {"app_id": 440, "game_name": "TF2", "started_at": "not-a-date"}
             ]
         )
-        assert manual_pick_grace_remaining(state, 440) is None
+        assert manual_pick_age_days(state, 440) is None
 
-    def test_fresh_pick_has_almost_the_full_window(self) -> None:
-        """Test fresh pick has almost the full window."""
+    def test_fresh_pick_is_almost_zero_days_old(self) -> None:
+        """Test fresh pick is almost zero days old."""
         state = State(manual_picks=[_pick(days_ago=0)])
-        remaining = manual_pick_grace_remaining(state, 440)
-        assert remaining is not None
-        assert remaining == pytest.approx(_actions.MANUAL_GRACE_DAYS, abs=0.01)
+        age = manual_pick_age_days(state, 440)
+        assert age is not None
+        assert age == pytest.approx(0.0, abs=0.01)
 
-    def test_expired_window_is_negative(self) -> None:
-        """Test expired window is negative."""
-        state = State(manual_picks=[_pick(days_ago=_actions.MANUAL_GRACE_DAYS + 1)])
-        remaining = manual_pick_grace_remaining(state, 440)
-        assert remaining is not None
-        assert remaining == pytest.approx(-1.0, abs=0.01)
-
-
-class TestCanAbandonManualPick:
-    """Tests for Can Abandon Manual Pick."""
-
-    def test_inside_window(self) -> None:
-        """Test inside window."""
-        state = State(manual_picks=[_pick(days_ago=_actions.MANUAL_GRACE_DAYS - 1)])
-        assert can_abandon_manual_pick(state, 440) is True
-
-    def test_outside_window(self) -> None:
-        """Test outside window."""
-        state = State(manual_picks=[_pick(days_ago=_actions.MANUAL_GRACE_DAYS + 1)])
-        assert can_abandon_manual_pick(state, 440) is False
-
-    def test_no_pick(self) -> None:
-        """Test no pick."""
-        assert can_abandon_manual_pick(State(), 440) is False
+    def test_old_pick_reports_its_age(self) -> None:
+        """Test old pick reports its age."""
+        state = State(manual_picks=[_pick(days_ago=8)])
+        age = manual_pick_age_days(state, 440)
+        assert age is not None
+        assert age == pytest.approx(8.0, abs=0.01)

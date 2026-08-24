@@ -6,9 +6,6 @@ import sys
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import (
-    MANUAL_GRACE_DAYS as _MANUAL_GRACE_DAYS,
-)
-from steam_backlog_enforcer._actions import (
     active_manual_picks,
     allowed_app_ids,
     allowed_games,
@@ -109,8 +106,8 @@ def _report_pick_slots(config: Config, state: State) -> list[dict[str, object]]:
     if manual_pick_slots_left(state, config.max_manual_picks) == 0:
         _echo(
             f"\nError: you already have {config.max_manual_picks} manual pick(s)."
-            f"\nFinish one, or undo one with 'abandon-pick <app_id>' while it is"
-            f"\nstill inside its {_MANUAL_GRACE_DAYS}-day grace window."
+            f"\nFinish one, or undo one with 'abandon-pick <app_id>' — a pick"
+            f"\ncan be abandoned at any time."
         )
         sys.exit(1)
 
@@ -190,8 +187,7 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         f"\n    you reach 100% achievements on every pick"
         f"\n  - Leave only these commands usable:"
         f"\n    {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
-        f"\n  - Stay undoable via 'abandon-pick {app_id}' for the first"
-        f"\n    {_MANUAL_GRACE_DAYS} days"
+        f"\n  - Stay undoable at any time via 'abandon-pick {app_id}'"
     )
     _echo()
     confirm = input(

@@ -11,13 +11,11 @@ from typing import Any
 
 from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS,
-    MANUAL_GRACE_DAYS,
     abandon_manual_pick,
     active_manual_picks,
     apply_manual_pick,
-    can_abandon_manual_pick,
     find_manual_pick,
-    manual_pick_grace_remaining,
+    manual_pick_age_days,
 )
 from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
 from steam_backlog_enforcer._mcp_server import (
@@ -84,11 +82,11 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
 
 @mcp.tool()
 def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
-    """Undo a manual pick inside its grace window (gated write).
+    """Undo a manual pick (gated write).
 
     With ``confirm=False`` (the default) this performs **no** mutation and
-    returns a preview. Only works within ``MANUAL_GRACE_DAYS`` days of the
-    pick. Like ``pick_manual``, this mutates **state only** — the CLI's
+    returns a preview. A pick can be abandoned at any time, however long ago
+    it was made. Like ``pick_manual``, this mutates **state only** — the CLI's
     ``abandon-pick`` additionally uninstalls the abandoned game.
 
     Args:
@@ -110,15 +108,7 @@ def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             ),
         }
 
-    remaining = manual_pick_grace_remaining(state, app_id)
-    if not can_abandon_manual_pick(state, app_id):
-        return {
-            "ok": False,
-            "reason": (
-                f"The {MANUAL_GRACE_DAYS}-day grace period has expired; "
-                "the pick can no longer be abandoned."
-            ),
-        }
+    age = manual_pick_age_days(state, app_id)
 
     game_name = str(pick["game_name"])
     if not confirm:
@@ -128,7 +118,7 @@ def abandon_pick(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             "action": "abandon_pick",
             "app_id": app_id,
             "game_name": game_name,
-            "grace_days_left": remaining,
+            "age_days": age,
             "effect": (
                 "Releases the manual pick lock, clears the assignment, and "
                 f"keeps the game out of auto-assignment for "
