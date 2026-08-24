@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import pwd
 
 
 def desktop_runtime_dir(uid: int) -> str:
@@ -70,3 +71,50 @@ def desktop_env_args(user: str, uid: int) -> list[str]:
         f"DBUS_SESSION_BUS_ADDRESS={dbus_addr}",
         f"XDG_RUNTIME_DIR={runtime_dir}",
     ]
+
+
+def desktop_uid(user: str | None) -> int:
+    """Resolve *user* to a uid, defaulting to the usual first desktop uid."""
+    if user:
+        try:
+            return pwd.getpwnam(user).pw_uid
+        except KeyError:
+            pass
+    return 1000
+
+
+def resolve_desktop_user() -> str | None:
+    """Resolve which desktop user owns the Steam/X11 session.
+
+    Prefers the explicit STEAM_ENFORCER_DESKTOP_USER (set by the systemd
+    unit, which has no SUDO_USER/USER of its own since it is started
+    directly by systemd rather than via `sudo`), then falls back to
+    SUDO_USER/USER for interactive `sudo` invocations.
+    """
+    return (
+        os.environ.get("STEAM_ENFORCER_DESKTOP_USER")
+        or os.environ.get("SUDO_USER")
+        or os.environ.get("USER")
+    )
+
+
+def desktop_user_cmd(cmd: list[str], user: str | None) -> list[str]:
+    """Wrap *cmd* so it runs as *user* when the caller is root.
+
+    Returns *cmd* unchanged when already unprivileged or when no desktop user
+    resolves; otherwise prefixes ``sudo -u <user> env <session vars>``.
+
+    This is argv construction only — deliberately no ``subprocess`` call, so
+    every spawn site stays in a module covered by the test suite's
+    ``_no_subprocess`` guard.
+    """
+    if os.geteuid() == 0 and user and user != "root":
+        return [
+            "sudo",
+            "-u",
+            user,
+            "env",
+            *desktop_env_args(user, desktop_uid(user)),
+            *cmd,
+        ]
+    return cmd

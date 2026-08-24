@@ -5,21 +5,16 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from steam_backlog_enforcer._desktop_env import (
     desktop_env_args,
-    desktop_runtime_dir,
-    desktop_session_ready,
 )
-from steam_backlog_enforcer.library_hider import (
-    DesktopSessionNotReadyError,
-    _desktop_uid,
-    _run_as_user,
-    ensure_steam_debug_port,
-)
+from steam_backlog_enforcer._desktop_env import desktop_uid as _desktop_uid
+from steam_backlog_enforcer._steam_process import _run_as_user
 
 PKG = "steam_backlog_enforcer.library_hider"
+DESKTOP_ENV_PKG = "steam_backlog_enforcer._desktop_env"
+STEAM_LAUNCH_PKG = "steam_backlog_enforcer._steam_launch"
+STEAM_PROCESS_PKG = "steam_backlog_enforcer._steam_process"
 ENV_PKG = "steam_backlog_enforcer._desktop_env"
 
 
@@ -120,9 +115,9 @@ class TestRunAsUserUsesSharedBuilder:
         mock_pw = MagicMock()
         mock_pw.pw_uid = 1000
         with (
-            patch(f"{PKG}.os.geteuid", return_value=0),
-            patch(f"{PKG}.pwd.getpwnam", return_value=mock_pw),
-            patch(f"{PKG}.subprocess.Popen") as mock_popen,
+            patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=0),
+            patch(f"{DESKTOP_ENV_PKG}.pwd.getpwnam", return_value=mock_pw),
+            patch(f"{STEAM_PROCESS_PKG}.subprocess.Popen") as mock_popen,
         ):
             _run_as_user(["steam"], "bob")
         cmd = mock_popen.call_args[0][0]
@@ -133,9 +128,9 @@ class TestRunAsUserUsesSharedBuilder:
     def test_unknown_user_falls_back_to_uid_1000(self) -> None:
         """An unresolvable user still yields a usable runtime dir."""
         with (
-            patch(f"{PKG}.os.geteuid", return_value=0),
-            patch(f"{PKG}.pwd.getpwnam", side_effect=KeyError),
-            patch(f"{PKG}.subprocess.Popen") as mock_popen,
+            patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=0),
+            patch(f"{DESKTOP_ENV_PKG}.pwd.getpwnam", side_effect=KeyError),
+            patch(f"{STEAM_PROCESS_PKG}.subprocess.Popen") as mock_popen,
         ):
             _run_as_user(["steam"], "ghost")
         cmd = mock_popen.call_args[0][0]
@@ -148,88 +143,12 @@ class TestDesktopUid:
     def test_resolves_known_user(self) -> None:
         mock_pw = MagicMock()
         mock_pw.pw_uid = 1234
-        with patch(f"{PKG}.pwd.getpwnam", return_value=mock_pw):
+        with patch(f"{DESKTOP_ENV_PKG}.pwd.getpwnam", return_value=mock_pw):
             assert _desktop_uid("bob") == 1234
 
     def test_unknown_user_falls_back(self) -> None:
-        with patch(f"{PKG}.pwd.getpwnam", side_effect=KeyError):
+        with patch(f"{DESKTOP_ENV_PKG}.pwd.getpwnam", side_effect=KeyError):
             assert _desktop_uid("ghost") == 1000
 
     def test_no_user_falls_back(self) -> None:
         assert _desktop_uid(None) == 1000
-
-
-class TestDesktopSessionReady:
-    """Tests for desktop_session_ready."""
-
-    def test_ready_when_runtime_dir_exists(self) -> None:
-        with patch(f"{ENV_PKG}.Path.is_dir", return_value=True):
-            assert desktop_session_ready(1000) is True
-
-    def test_not_ready_when_runtime_dir_missing(self) -> None:
-        with patch(f"{ENV_PKG}.Path.is_dir", return_value=False):
-            assert desktop_session_ready(1000) is False
-
-    def test_runtime_dir_path(self) -> None:
-        assert desktop_runtime_dir(1000) == "/run/user/1000"
-
-
-class TestLaunchDefersUntilSessionReady:
-    """The enforcer must not launch Steam into a session that does not exist.
-
-    Regression guard for the boot race: the enforcer is a system service
-    ordered only after the network, and on a measured boot it started 54ms
-    before user-runtime-dir@1000. A Steam launched in that window comes up
-    with a runtime dir that is not there, silently falls back to winealsa,
-    and stays audio-broken until something restarts it.
-    """
-
-    def test_defers_when_runtime_dir_missing(self) -> None:
-        with (
-            patch(f"{PKG}._steam_has_debug_port", return_value=False),
-            patch(f"{PKG}.steam_is_installed", return_value=True),
-            patch(f"{PKG}.os.geteuid", return_value=0),
-            patch(f"{PKG}._resolve_desktop_user", return_value="bob"),
-            patch(f"{PKG}._desktop_uid", return_value=1000),
-            patch(f"{PKG}.desktop_session_ready", return_value=False),
-            patch(f"{PKG}._shutdown_steam") as mock_shutdown,
-            patch(f"{PKG}._launch_steam_with_debug") as mock_launch,
-            pytest.raises(DesktopSessionNotReadyError),
-        ):
-            ensure_steam_debug_port()
-
-        # Neither bounce a working Steam nor start a broken one.
-        mock_launch.assert_not_called()
-        mock_shutdown.assert_not_called()
-
-    def test_launches_when_runtime_dir_present(self) -> None:
-        with (
-            patch(f"{PKG}._steam_has_debug_port", return_value=False),
-            patch(f"{PKG}.steam_is_installed", return_value=True),
-            patch(f"{PKG}.os.geteuid", return_value=0),
-            patch(f"{PKG}._resolve_desktop_user", return_value="bob"),
-            patch(f"{PKG}._desktop_uid", return_value=1000),
-            patch(f"{PKG}.desktop_session_ready", return_value=True),
-            patch(f"{PKG}._is_steam_running", return_value=False),
-            patch(f"{PKG}._launch_steam_with_debug") as mock_launch,
-            patch(f"{PKG}._wait_for_cdp_ready", return_value=True),
-            patch(f"{PKG}._wait_for_collections_ready", return_value=True),
-        ):
-            ensure_steam_debug_port()
-        mock_launch.assert_called_once()
-
-    def test_non_root_does_not_gate(self) -> None:
-        """Run interactively, the ambient session is already the user's."""
-        with (
-            patch(f"{PKG}._steam_has_debug_port", return_value=False),
-            patch(f"{PKG}.steam_is_installed", return_value=True),
-            patch(f"{PKG}.os.geteuid", return_value=1000),
-            patch(f"{PKG}._resolve_desktop_user", return_value="bob"),
-            patch(f"{PKG}.desktop_session_ready", return_value=False),
-            patch(f"{PKG}._is_steam_running", return_value=False),
-            patch(f"{PKG}._launch_steam_with_debug") as mock_launch,
-            patch(f"{PKG}._wait_for_cdp_ready", return_value=True),
-            patch(f"{PKG}._wait_for_collections_ready", return_value=True),
-        ):
-            ensure_steam_debug_port()
-        mock_launch.assert_called_once()

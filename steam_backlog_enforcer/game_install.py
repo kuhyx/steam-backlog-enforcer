@@ -2,30 +2,61 @@
 
 from __future__ import annotations
 
-import contextlib
-import difflib
 import logging
 import os
-from pathlib import Path
-import pwd
-import re
 import shutil
 import subprocess
-import sys
-import time
 
-from steam_backlog_enforcer._allowed_games import allowed_games
 from steam_backlog_enforcer._desktop_env import (
-    desktop_env_args,
-    desktop_runtime_dir,
     desktop_session_ready,
+    desktop_uid,
+    desktop_user_cmd,
 )
-from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
-from steam_backlog_enforcer._whitelist import get_approved_exception_ids
-from steam_backlog_enforcer.config import State
-from steam_backlog_enforcer.library_hider import steam_is_installed
+from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._steam_client import (
+    _ensure_steam_running,
+    _get_real_user,
+    _get_uid_gid_for_user,
+    is_game_installed,
+)
+from steam_backlog_enforcer._steam_state import (
+    STEAMAPPS_PATH,
+    steam_library_ready,
+)
+from steam_backlog_enforcer.game_uninstall import (
+    get_installed_games,
+    is_protected_app,
+    uninstall_game,
+    uninstall_other_games,
+)
 
 logger = logging.getLogger(__name__)
+
+# Re-exported for callers that predate the split of this module: many modules
+# still do `from ...game_install import _echo`. __all__ is what keeps the
+# linter from deleting these as unused -- they exist purely to be re-exported.
+__all__ = [
+    "_echo",
+    "get_installed_games",
+    "install_game",
+    "is_game_installed",
+    "is_protected_app",
+    "uninstall_game",
+    "uninstall_other_games",
+]
+
+# Latches the "no Steam library" warning so a 3s enforce loop logs it once
+# rather than once per game per pass.
+_LIBRARY_WARNED: set[str] = set()
+
+_UNINSTALL_EXPORTS = frozenset(
+    {
+        "get_installed_games",
+        "is_protected_app",
+        "uninstall_game",
+        "uninstall_other_games",
+    }
+)
 
 # Folder-name safety net for _remove_game_dirs. Independent of the app-id
 # gating callers already do (uninstall_other_games skips allowed app ids) --
@@ -33,161 +64,6 @@ logger = logging.getLogger(__name__)
 # when its name has been written inconsistently (e.g. "KingdomComeDeliverance2"
 # vs "Kingdom Come: Deliverance II" vs a typo'd variant), which is exactly the
 # kind of multi-name confusion that caused real data loss once already.
-_NAME_FUZZY_MATCH_THRESHOLD = 0.82
-
-_NUMBER_WORDS = {
-    "one": "1",
-    "two": "2",
-    "three": "3",
-    "four": "4",
-    "five": "5",
-    "six": "6",
-    "seven": "7",
-    "eight": "8",
-    "nine": "9",
-    "ten": "10",
-}
-
-_ROMAN_NUMERALS = {
-    "i": "1",
-    "ii": "2",
-    "iii": "3",
-    "iv": "4",
-    "v": "5",
-    "vi": "6",
-    "vii": "7",
-    "viii": "8",
-    "ix": "9",
-    "x": "10",
-}
-
-
-def _normalize_game_name(name: str) -> str:
-    """Canonicalize a game/folder name for fuzzy comparison.
-
-    Splits into alphanumeric words, maps spelled-out numbers ("two") and
-    roman numerals ("II") to digits, then joins with no separators. Makes
-    "Kingdom Come: Deliverance II", "KingdomComeDeliverance2", and "kingdom
-    come deliverance two" all normalize to the same string.
-    """
-    words = re.findall(r"[A-Za-z0-9]+", name.lower())
-    mapped = [_NUMBER_WORDS.get(w) or _ROMAN_NUMERALS.get(w) or w for w in words]
-    return "".join(mapped)
-
-
-def _protected_name_stems() -> list[str]:
-    """Every name of every currently-allowed game, for the deletion safety net.
-
-    Returns [] (protects nothing extra beyond exact matches already checked
-    by callers) if state can't be loaded -- this is a best-effort safety net,
-    not a hard dependency.
-    """
-    try:
-        return [name for _, name in allowed_games(State.load()) if name]
-    except Exception:
-        logger.exception("Could not load allowed games for the deletion safety net")
-        return []
-
-
-def _is_protected_name(candidate: str) -> bool:
-    """True if *candidate* plausibly names one of the currently-allowed games.
-
-    Errs toward over-matching on purpose: a false positive here just skips a
-    deletion that can be done manually; a false negative deletes real files.
-    """
-    normalized_candidate = _normalize_game_name(candidate)
-    if not normalized_candidate:
-        return False
-    for protected in _protected_name_stems():
-        normalized_protected = _normalize_game_name(protected)
-        if not normalized_protected:
-            continue
-        if normalized_candidate == normalized_protected:
-            return True
-        ratio = difflib.SequenceMatcher(
-            None, normalized_candidate, normalized_protected
-        ).ratio()
-        if ratio >= _NAME_FUZZY_MATCH_THRESHOLD:
-            return True
-    return False
-
-
-# Real Steam directory — used as a safety check to block destructive
-# operations that leak through during testing.
-_REAL_STEAMAPPS = Path("~/.local/share/Steam/steamapps").expanduser()
-
-
-def _assert_not_real_steam(path: Path) -> None:
-    """Raise if *path* is inside the real Steam directory during tests.
-
-    Defence-in-depth guard: when running under pytest, even if test
-    fixtures fail to redirect ``STEAMAPPS_PATH``, destructive
-    operations (uninstall, rmtree, unlink) will refuse to touch
-    real files. In production runs this is a no-op.
-    """
-    if "PYTEST_CURRENT_TEST" not in os.environ:
-        return  # production run — real Steam paths are expected
-    try:
-        path.resolve().relative_to(_REAL_STEAMAPPS.resolve())
-    except ValueError:
-        return  # path is NOT under real Steam — safe to proceed
-    if STEAMAPPS_PATH.resolve() == _REAL_STEAMAPPS.resolve():
-        msg = (
-            f"SAFETY: refusing destructive operation on real Steam path "
-            f"{path!s} — STEAMAPPS_PATH was not redirected by test fixtures"
-        )
-        raise RuntimeError(msg)
-
-
-def _echo(msg: str = "", *, end: str = "\n", flush: bool = False) -> None:
-    """Write user-facing CLI output to stdout.
-
-    Args:
-        msg: Text to output.
-        end: String appended after the message.
-        flush: Whether to flush stdout immediately.
-    """
-    sys.stdout.write(msg + end)
-    if flush:
-        sys.stdout.flush()
-
-
-# Steam infrastructure app IDs that should NEVER be uninstalled.
-PROTECTED_APP_IDS = {
-    # Steam runtimes and tooling (never uninstall these)
-    228980,  # Steamworks Common Redistributables
-    1070560,  # Steam Linux Runtime 1.0 (scout)
-    1391110,  # Steam Linux Runtime 2.0 (soldier)
-    1628350,  # Steam Linux Runtime 3.0 (sniper)
-    4183110,  # Steam Linux Runtime 4.0
-    4185400,  # Steam Linux Runtime 4.0 - Arm64
-    961940,  # Steam Linux Runtime (legacy)
-    4690330,  # Legacy Steam Runtime
-    613220,  # Steam 360 Video Player
-    250820,  # SteamVR
-    1007,  # Steamworks SDK Redist
-    # Proton versions (never uninstall these)
-    858280,  # Proton 3.7 (Beta)
-    930400,  # Proton 3.16 (Beta)
-    1054830,  # Proton 4.2
-    1113280,  # Proton 4.11
-    1245040,  # Proton 5.0
-    1420170,  # Proton 5.13
-    1580130,  # Proton 6.3
-    1887720,  # Proton 7.0
-    2230260,  # Proton 7.0 (alt)
-    2348590,  # Proton 8.0
-    2805730,  # Proton 9.0
-    3201940,  # Proton 9.0 (alt)
-    3658110,  # Proton 10.0
-    4628710,  # Proton 11.0
-    4628740,  # Proton 11.0 (ARM64)
-    2180100,  # Proton Hotfix
-    1493710,  # Proton Experimental
-    1161040,  # Proton BattlEye Runtime
-    1007020,  # Proton EasyAntiCheat Runtime
-    1826330,  # Proton EasyAntiCheat Runtime
-}
 
 
 def _trigger_steam_install(app_id: int, label: str) -> bool:
@@ -196,9 +72,17 @@ def _trigger_steam_install(app_id: int, label: str) -> bool:
     Returns True if the URI handler was invoked successfully.
     """
     xdg_open = shutil.which("xdg-open") or "/usr/bin/xdg-open"
+    real_user = _get_real_user()
+
+    # Without the drop this opens steam://install as root, and Steam answers
+    # with a "Cannot run as root user" modal on the user's display.
+    if os.geteuid() == 0 and not desktop_session_ready(desktop_uid(real_user)):
+        logger.debug("Deferring Steam install for %s: no desktop session.", label)
+        return False
+
     try:
         subprocess.run(
-            [xdg_open, f"steam://install/{app_id}"],
+            desktop_user_cmd([xdg_open, f"steam://install/{app_id}"], real_user),
             capture_output=True,
             timeout=15,
             check=False,
@@ -213,92 +97,6 @@ def _trigger_steam_install(app_id: int, label: str) -> bool:
 # ──────────────────────────────────────────────────────────────
 # Game install management
 # ──────────────────────────────────────────────────────────────
-
-
-def _get_real_user() -> str | None:
-    """Get the real (non-root) user when running under sudo."""
-    return os.environ.get("SUDO_USER") or os.environ.get("USER")
-
-
-def _get_uid_gid_for_user(username: str) -> tuple[int, int]:
-    """Get (uid, gid) for a username."""
-    try:
-        pw = pwd.getpwnam(username)
-    except KeyError:
-        return 1000, 1000
-    else:
-        return pw.pw_uid, pw.pw_gid
-
-
-def is_game_installed(app_id: int) -> bool:
-    """Check if a game is installed by looking for its appmanifest.
-
-    A manifest with StateFlags != 4 (FullyInstalled) means the game is
-    still downloading or queued, which still counts as "install triggered".
-    """
-    manifest = STEAMAPPS_PATH / f"appmanifest_{app_id}.acf"
-    return manifest.exists()
-
-
-def _ensure_steam_running() -> None:
-    """Start the Steam client if it is not already running.
-
-    Does nothing if Steam is not installed - there is no client to start, and
-    trying anyway only sleeps 15s waiting on a process that died on exec.
-    """
-    if not steam_is_installed():
-        logger.info("Steam is not installed — skipping client start.")
-        return
-
-    # Check if any steam process is running (main client, not just helpers).
-    try:
-        result = subprocess.run(
-            ["/usr/bin/pgrep", "-f", "steam.sh"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            logger.debug("Steam client already running")
-            return
-    except FileNotFoundError:
-        pass
-
-    real_user = _get_real_user()
-    logger.info("Starting Steam client...")
-
-    try:
-        if os.geteuid() == 0 and real_user and real_user != "root":
-            uid, _ = _get_uid_gid_for_user(real_user)
-            # Defer rather than launch a Steam that would come up without a
-            # runtime dir, and so without working audio, for the session.
-            if not desktop_session_ready(uid):
-                logger.info(
-                    "Deferring Steam start: %s does not exist yet.",
-                    desktop_runtime_dir(uid),
-                )
-                return
-            cmd = [
-                "sudo",
-                "-u",
-                real_user,
-                "env",
-                *desktop_env_args(real_user, uid),
-                "steam",
-                "-silent",
-            ]
-        else:
-            cmd = ["steam", "-silent"]
-
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        # Give Steam time to initialize and start scanning manifests.
-        time.sleep(15)
-    except FileNotFoundError:
-        logger.exception("Steam executable not found")
 
 
 def install_game(
@@ -335,6 +133,23 @@ def install_game(
     if is_game_installed(app_id):
         logger.info("Game already installed: %s", label)
         return True
+
+    # No library means no install can succeed — neither the steam:// handler
+    # nor the appmanifest write below. Without this the enforce loop retried
+    # every allowed game every pass (measured: 1656 times in 30 minutes).
+    if not steam_library_ready():
+        if "missing" not in _LIBRARY_WARNED:
+            logger.warning(
+                "Steam library not initialised (%s missing) — skipping installs "
+                "until Steam has been signed in to at least once.",
+                STEAMAPPS_PATH,
+            )
+            _LIBRARY_WARNED.add("missing")
+        else:
+            logger.debug("Skipping install of %s: no Steam library.", label)
+        return False
+
+    _LIBRARY_WARNED.discard("missing")
 
     if use_steam_protocol:
         _ensure_steam_running()
@@ -401,153 +216,3 @@ def install_game(
     _ensure_steam_running()
 
     return True
-
-
-# ──────────────────────────────────────────────────────────────
-# Game uninstall management
-# ──────────────────────────────────────────────────────────────
-
-
-def get_installed_games() -> list[tuple[int, str]]:
-    """Parse appmanifest files to find installed games.
-
-    Returns: list of (app_id, game_name) tuples.
-    """
-    installed: list[tuple[int, str]] = []
-
-    for manifest_file in STEAMAPPS_PATH.glob("appmanifest_*.acf"):
-        with contextlib.suppress(OSError):
-            content = manifest_file.read_text(encoding="utf-8")
-            app_id_match = re.search(r'"appid"\s+"(\d+)"', content)
-            name_match = re.search(r'"name"\s+"([^"]+)"', content)
-            if app_id_match:
-                app_id = int(app_id_match.group(1))
-                name = name_match.group(1) if name_match else f"Unknown ({app_id})"
-                installed.append((app_id, name))
-
-    installed.sort(key=lambda x: x[1].lower())
-    return installed
-
-
-def _read_install_dir(manifest: Path) -> Path | None:
-    """Read installdir from a game's appmanifest file."""
-    if not manifest.exists():
-        return None
-    try:
-        content = manifest.read_text(encoding="utf-8")
-        match = re.search(r'"installdir"\s+"([^"]+)"', content)
-        if match:
-            return STEAMAPPS_PATH / "common" / match.group(1)
-    except OSError:
-        pass
-    return None
-
-
-def _remove_manifest(manifest: Path, game_name: str, app_id: int) -> bool:
-    """Remove a game manifest file.
-
-    Args:
-        manifest: Path to the appmanifest file.
-        game_name: Human-readable game name for logging.
-        app_id: Steam application ID.
-    """
-    _assert_not_real_steam(manifest)
-    try:
-        if manifest.exists():
-            manifest.unlink()
-            logger.info(
-                "Removed manifest for %s (AppID=%d)", game_name or app_id, app_id
-            )
-    except OSError:
-        logger.exception("Failed to remove manifest for AppID=%d", app_id)
-        return False
-    return True
-
-
-def _remove_game_dirs(install_dir: Path | None, app_id: int) -> bool:
-    """Remove game installation directory and cache directories.
-
-    Args:
-        install_dir: Path to the game's install directory, or None.
-        app_id: Steam application ID.
-    """
-    success = True
-    if install_dir and install_dir.is_dir():
-        _assert_not_real_steam(install_dir)
-        if _is_protected_name(install_dir.name):
-            logger.warning(
-                "Refusing to remove %s: name matches an allowed game", install_dir
-            )
-            return False
-        try:
-            shutil.rmtree(install_dir)
-            logger.info("Removed game files: %s", install_dir)
-        except OSError:
-            logger.exception("Failed to remove game dir %s", install_dir)
-            success = False
-
-    for subdir in ("shadercache", "compatdata"):
-        cache_path = STEAMAPPS_PATH / subdir / str(app_id)
-        if cache_path.is_dir():
-            _assert_not_real_steam(cache_path)
-            with contextlib.suppress(OSError):
-                shutil.rmtree(cache_path)
-                logger.debug("Removed %s/%d", subdir, app_id)
-
-    return success
-
-
-def uninstall_game(app_id: int, game_name: str = "") -> bool:
-    """Uninstall a single game by removing its manifest and game files.
-
-    Uses direct file removal instead of ``steam://uninstall`` URI to avoid
-    GUI popups and to work when Steam is not running.
-    """
-    manifest = STEAMAPPS_PATH / f"appmanifest_{app_id}.acf"
-    install_dir = _read_install_dir(manifest)
-    success = _remove_manifest(manifest, game_name, app_id)
-    if not _remove_game_dirs(install_dir, app_id):
-        success = False
-    return success
-
-
-def uninstall_other_games(allowed_app_ids: set[int]) -> int:
-    """Uninstall all installed games except the allowed ones and protected IDs.
-
-    Args:
-        allowed_app_ids: Every app id that must survive — the assignment plus
-            any concurrent manual picks. Empty means "keep nothing".
-
-    Returns: number of games uninstalled.
-    """
-    installed = get_installed_games()
-    count = 0
-
-    for app_id, name in installed:
-        if app_id in allowed_app_ids:
-            logger.info("KEEPING allowed game: %s (AppID=%d)", name, app_id)
-            continue
-        if is_protected_app(app_id):
-            logger.debug("Skipping protected: %s (AppID=%d)", name, app_id)
-            continue
-
-        logger.info("UNINSTALLING: %s (AppID=%d)", name, app_id)
-        if uninstall_game(app_id, name):
-            count += 1
-
-    return count
-
-
-def is_protected_app(app_id: int) -> bool:
-    """Return True if *app_id* must never be uninstalled.
-
-    Combines the hardcoded Steam infrastructure set with any app IDs that
-    have been approved via the time-locked exception mechanism.
-
-    Args:
-        app_id: Steam application ID to check.
-
-    Returns:
-        True if the app should be left alone by the enforcer.
-    """
-    return app_id in PROTECTED_APP_IDS or app_id in get_approved_exception_ids()

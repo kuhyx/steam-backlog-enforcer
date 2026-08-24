@@ -8,10 +8,49 @@ Steam library location.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import re
 
 STEAMAPPS_PATH = Path("~/.local/share/Steam/steamapps").expanduser()
+
+# The real library path, captured before any test fixture redirects
+# STEAMAPPS_PATH, so destructive helpers can refuse to touch it.
+_REAL_STEAMAPPS = Path("~/.local/share/Steam/steamapps").expanduser()
+
+
+def _assert_not_real_steam(path: Path) -> None:
+    """Raise if *path* is inside the real Steam directory during tests.
+
+    Defence-in-depth guard: when running under pytest, even if test
+    fixtures fail to redirect ``STEAMAPPS_PATH``, destructive
+    operations (uninstall, rmtree, unlink) will refuse to touch
+    real files. In production runs this is a no-op.
+    """
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return  # production run — real Steam paths are expected
+    try:
+        path.resolve().relative_to(_REAL_STEAMAPPS.resolve())
+    except ValueError:
+        return  # path is NOT under real Steam — safe to proceed
+    if STEAMAPPS_PATH.resolve() == _REAL_STEAMAPPS.resolve():
+        msg = (
+            f"SAFETY: refusing destructive operation on real Steam path "
+            f"{path!s} — STEAMAPPS_PATH was not redirected by test fixtures"
+        )
+        raise RuntimeError(msg)
+
+
+def steam_library_ready() -> bool:
+    """Return True if Steam has an initialised library directory.
+
+    When ``steamapps`` does not exist Steam has never completed first-run
+    setup, so an install cannot succeed by any route: the ``steam://`` handler
+    has nowhere to install to, and writing an appmanifest raises
+    FileNotFoundError. Callers use this to skip provably-futile work rather
+    than retrying it on every enforce pass.
+    """
+    return STEAMAPPS_PATH.is_dir()
 
 
 def _manifest_transfer_active(manifest: Path) -> bool:

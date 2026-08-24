@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer.game_install import (
+from steam_backlog_enforcer.game_install import install_game
+from steam_backlog_enforcer.game_uninstall import (
     _read_install_dir,
     _remove_manifest,
     get_installed_games,
-    install_game,
 )
 
 if TYPE_CHECKING:
@@ -158,26 +158,26 @@ class TestGetInstalledGames:
     def test_parses_manifests(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"appid"\t\t"440"\n"name"\t\t"Team Fortress 2"\n')
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = get_installed_games()
             assert result == [(440, "Team Fortress 2")]
 
     def test_no_name(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"appid"\t\t"440"\n')
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = get_installed_games()
             assert result == [(440, "Unknown (440)")]
 
     def test_empty_dir(self, tmp_path: Path) -> None:
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = get_installed_games()
             assert result == []
 
     def test_no_appid_match(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"name"\t\t"NoAppId"\n')
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = get_installed_games()
             assert result == []
 
@@ -188,14 +188,14 @@ class TestReadInstallDir:
     def test_reads_dir(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"installdir"\t\t"Team Fortress 2"\n')
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _read_install_dir(manifest)
             assert result == tmp_path / "common" / "Team Fortress 2"
 
     def test_no_match(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"appid"\t\t"440"\n')
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             assert _read_install_dir(manifest) is None
 
     def test_missing_file(self, tmp_path: Path) -> None:

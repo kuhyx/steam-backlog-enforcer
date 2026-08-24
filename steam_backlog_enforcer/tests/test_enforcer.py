@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -191,5 +192,47 @@ class TestSendNotification:
         with patch(
             "steam_backlog_enforcer.enforcer.subprocess.run",
             side_effect=OSError,
+        ):
+            send_notification("Title", "Body")  # Should not raise
+
+
+class TestSendNotificationPrivilegeDrop:
+    """As root, notifications must be delivered into the user's session bus.
+
+    A bare root ``notify-send`` has no DBUS_SESSION_BUS_ADDRESS and silently
+    reached nobody, for every caller of send_notification.
+    """
+
+    _PKG = "steam_backlog_enforcer.enforcer"
+    _ENV = "steam_backlog_enforcer._desktop_env"
+
+    def test_root_drops_to_desktop_user(self) -> None:
+        with (
+            patch(f"{self._ENV}.os.geteuid", return_value=0),
+            patch(f"{self._ENV}.desktop_uid", return_value=1000),
+            patch(f"{self._PKG}.resolve_desktop_user", return_value="kuhy"),
+            patch(f"{self._PKG}.subprocess.run") as mock_run,
+        ):
+            send_notification("Title", "Body")
+
+        argv = mock_run.call_args[0][0]
+        assert argv[:4] == ["sudo", "-u", "kuhy", "env"]
+        assert "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus" in argv
+
+    def test_non_root_does_not_wrap(self) -> None:
+        with (
+            patch(f"{self._ENV}.os.geteuid", return_value=1000),
+            patch(f"{self._PKG}.resolve_desktop_user", return_value="kuhy"),
+            patch(f"{self._PKG}.subprocess.run") as mock_run,
+        ):
+            send_notification("Title", "Body")
+
+        assert mock_run.call_args[0][0][0] != "sudo"
+
+    def test_handles_timeout(self) -> None:
+        """sudo can block where a bare notify-send would not."""
+        with patch(
+            f"{self._PKG}.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("cmd", 5),
         ):
             send_notification("Title", "Body")  # Should not raise

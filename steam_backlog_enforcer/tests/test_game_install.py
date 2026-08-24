@@ -8,22 +8,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer.game_install import (
-    _assert_not_real_steam,
-    _echo,
-    _ensure_steam_running,
+from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._steam_client import (
     _get_real_user,
     _get_uid_gid_for_user,
-    _trigger_steam_install,
     is_game_installed,
+)
+from steam_backlog_enforcer._steam_state import _assert_not_real_steam
+from steam_backlog_enforcer.game_install import (
+    _trigger_steam_install,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 
 PKG = "steam_backlog_enforcer.game_install"
+ECHO_PKG = "steam_backlog_enforcer._echo"
+STEAM_CLIENT_PKG = "steam_backlog_enforcer._steam_client"
 
 
 class TestAssertNotRealSteam:
@@ -40,8 +42,8 @@ class TestAssertNotRealSteam:
         fake_manifest = real / "appmanifest_440.acf"
         fake_manifest.touch()
         with (
-            patch(f"{PKG}._REAL_STEAMAPPS", real),
-            patch(f"{PKG}.STEAMAPPS_PATH", real),
+            patch("steam_backlog_enforcer._steam_state._REAL_STEAMAPPS", real),
+            patch("steam_backlog_enforcer._steam_state.STEAMAPPS_PATH", real),
             pytest.raises(RuntimeError, match="SAFETY"),
         ):
             _assert_not_real_steam(fake_manifest)
@@ -55,8 +57,8 @@ class TestAssertNotRealSteam:
         redirected = tmp_path / "fake_steam"
         redirected.mkdir()
         with (
-            patch(f"{PKG}._REAL_STEAMAPPS", real),
-            patch(f"{PKG}.STEAMAPPS_PATH", redirected),
+            patch("steam_backlog_enforcer._steam_state._REAL_STEAMAPPS", real),
+            patch("steam_backlog_enforcer._steam_state.STEAMAPPS_PATH", redirected),
         ):
             _assert_not_real_steam(fake_manifest)
 
@@ -69,8 +71,8 @@ class TestAssertNotRealSteam:
         env = {k: v for k, v in os.environ.items() if k != "PYTEST_CURRENT_TEST"}
         with (
             patch.dict(os.environ, env, clear=True),
-            patch(f"{PKG}._REAL_STEAMAPPS", real),
-            patch(f"{PKG}.STEAMAPPS_PATH", real),
+            patch("steam_backlog_enforcer._steam_state._REAL_STEAMAPPS", real),
+            patch("steam_backlog_enforcer._steam_state.STEAMAPPS_PATH", real),
         ):
             _assert_not_real_steam(fake_manifest)
 
@@ -154,14 +156,14 @@ class TestGetUidGid:
         mock_pw.pw_uid = 1001
         mock_pw.pw_gid = 1001
         with patch(
-            "steam_backlog_enforcer.game_install.pwd.getpwnam",
+            "steam_backlog_enforcer._steam_client.pwd.getpwnam",
             return_value=mock_pw,
         ):
             assert _get_uid_gid_for_user("alice") == (1001, 1001)
 
     def test_unknown_user(self) -> None:
         with patch(
-            "steam_backlog_enforcer.game_install.pwd.getpwnam",
+            "steam_backlog_enforcer._steam_client.pwd.getpwnam",
             side_effect=KeyError,
         ):
             assert _get_uid_gid_for_user("nobody") == (1000, 1000)
@@ -173,174 +175,55 @@ class TestIsGameInstalled:
     def test_installed(self, tmp_path: Path) -> None:
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.touch()
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer._steam_client.STEAMAPPS_PATH", tmp_path):
             assert is_game_installed(440) is True
 
     def test_not_installed(self, tmp_path: Path) -> None:
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer._steam_client.STEAMAPPS_PATH", tmp_path):
             assert is_game_installed(440) is False
 
 
-class TestEnsureSteamRunning:
-    """Tests for _ensure_steam_running."""
+class TestTriggerSteamInstallPrivilegeDrop:
+    """Regression tests: never invoke the steam:// handler as root.
 
-    @pytest.fixture(autouse=True)
-    def _steam_present(self) -> Iterator[None]:
-        """Pretend Steam is installed for every test in this class.
+    A bare root ``xdg-open steam://install/...`` makes Steam answer with a
+    "Cannot run as root user" modal on the user's display.
+    """
 
-        Without it the function returns before any launch, which on a test
-        machine without Steam would make the launch assertions vacuous. The
-        absent case is covered by test_skips_when_steam_absent.
-        """
-        with patch(f"{PKG}.steam_is_installed", return_value=True):
-            yield
+    _PKG = "steam_backlog_enforcer.game_install"
 
-    def test_skips_when_steam_absent(self) -> None:
-        """With Steam uninstalled, do not try to launch a missing client.
-
-        Regression guard: this path used to exec a dead launcher wrapper and
-        then sleep 15s, leaving a zombie named "steam" behind each time.
-        """
+    def test_root_drops_to_desktop_user(self) -> None:
         with (
-            patch(f"{PKG}.steam_is_installed", return_value=False),
-            patch(f"{PKG}.subprocess.Popen") as mock_popen,
-            patch(f"{PKG}.time.sleep") as mock_sleep,
+            patch(f"{self._PKG}.os.geteuid", return_value=0),
+            patch(f"{self._PKG}._get_real_user", return_value="kuhy"),
+            patch(f"{self._PKG}.desktop_session_ready", return_value=True),
+            patch(f"{self._PKG}.desktop_uid", return_value=1000),
+            patch(f"{self._PKG}.subprocess.run") as mock_run,
         ):
-            _ensure_steam_running()
+            assert _trigger_steam_install(440, "TF2") is True
 
-        mock_popen.assert_not_called()
-        mock_sleep.assert_not_called()
+        argv = mock_run.call_args[0][0]
+        assert argv[:4] == ["sudo", "-u", "kuhy", "env"]
+        assert argv[-1] == "steam://install/440"
 
-    def test_already_running(self) -> None:
-        mock_result = MagicMock(returncode=0)
-        with patch(
-            "steam_backlog_enforcer.game_install.subprocess.run",
-            return_value=mock_result,
-        ):
-            _ensure_steam_running()
-
-    def test_not_running_starts_as_non_root(self) -> None:
-        mock_result = MagicMock(returncode=1)
+    def test_non_root_does_not_wrap(self) -> None:
         with (
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.run",
-                return_value=mock_result,
-            ),
-            patch("steam_backlog_enforcer.game_install.subprocess.Popen") as mock_popen,
-            patch(
-                "steam_backlog_enforcer.game_install.os.geteuid",
-                return_value=1000,
-            ),
-            patch("steam_backlog_enforcer.game_install.time.sleep"),
+            patch(f"{self._PKG}.os.geteuid", return_value=1000),
+            patch(f"{self._PKG}._get_real_user", return_value="kuhy"),
+            patch(f"{self._PKG}.subprocess.run") as mock_run,
         ):
-            _ensure_steam_running()
-            mock_popen.assert_called_once()
+            assert _trigger_steam_install(440, "TF2") is True
 
-    def test_not_running_starts_as_root(self) -> None:
-        mock_result = MagicMock(returncode=1)
-        mock_pw = MagicMock()
-        mock_pw.pw_uid = 1000
-        mock_pw.pw_gid = 1000
+        assert mock_run.call_args[0][0][0] != "sudo"
+
+    def test_defers_when_session_not_ready(self) -> None:
+        """No runtime dir means a Steam launched now loses audio all session."""
         with (
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.run",
-                return_value=mock_result,
-            ),
-            patch("steam_backlog_enforcer.game_install.subprocess.Popen") as mock_popen,
-            patch(
-                "steam_backlog_enforcer.game_install.os.geteuid",
-                return_value=0,
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install._get_real_user",
-                return_value="alice",
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install._get_uid_gid_for_user",
-                return_value=(1000, 1000),
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install.desktop_session_ready",
-                return_value=True,
-            ),
-            patch("steam_backlog_enforcer.game_install.time.sleep"),
+            patch(f"{self._PKG}.os.geteuid", return_value=0),
+            patch(f"{self._PKG}._get_real_user", return_value="kuhy"),
+            patch(f"{self._PKG}.desktop_session_ready", return_value=False),
+            patch(f"{self._PKG}.subprocess.run") as mock_run,
         ):
-            _ensure_steam_running()
-            mock_popen.assert_called_once()
+            assert _trigger_steam_install(440, "TF2") is False
 
-        # Assert the env vector, not just that a launch happened: dropping
-        # XDG_RUNTIME_DIR here is silent, and cost a Proton game its audio
-        # backend (winepulse -> winealsa) and a crash on startup.
-        cmd = mock_popen.call_args[0][0]
-        assert cmd[:4] == ["sudo", "-u", "alice", "env"]
-        assert "XDG_RUNTIME_DIR=/run/user/1000" in cmd
-
-    def test_defers_when_runtime_dir_missing(self) -> None:
-        """Do not start Steam before the desktop session's runtime dir exists.
-
-        Launching in that window yields a Steam whose Wine children cannot
-        find PulseAudio, and it stays that way for the whole session. The
-        enforce loop retries every 3s, so deferring is nearly free.
-        """
-        mock_result = MagicMock(returncode=1)
-        with (
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.run",
-                return_value=mock_result,
-            ),
-            patch("steam_backlog_enforcer.game_install.subprocess.Popen") as mock_popen,
-            patch(
-                "steam_backlog_enforcer.game_install.os.geteuid",
-                return_value=0,
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install._get_real_user",
-                return_value="alice",
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install._get_uid_gid_for_user",
-                return_value=(1000, 1000),
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install.desktop_session_ready",
-                return_value=False,
-            ),
-            patch("steam_backlog_enforcer.game_install.time.sleep") as mock_sleep,
-        ):
-            _ensure_steam_running()
-
-        mock_popen.assert_not_called()
-        mock_sleep.assert_not_called()
-
-    def test_pgrep_not_found(self) -> None:
-        with (
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.run",
-                side_effect=FileNotFoundError,
-            ),
-            patch("steam_backlog_enforcer.game_install.subprocess.Popen"),
-            patch(
-                "steam_backlog_enforcer.game_install.os.geteuid",
-                return_value=1000,
-            ),
-            patch("steam_backlog_enforcer.game_install.time.sleep"),
-        ):
-            _ensure_steam_running()
-
-    def test_steam_executable_not_found(self) -> None:
-        mock_result = MagicMock(returncode=1)
-        with (
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.run",
-                return_value=mock_result,
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install.subprocess.Popen",
-                side_effect=FileNotFoundError,
-            ),
-            patch(
-                "steam_backlog_enforcer.game_install.os.geteuid",
-                return_value=1000,
-            ),
-        ):
-            _ensure_steam_running()
+        mock_run.assert_not_called()

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from steam_backlog_enforcer._enforce_loop import _enforce_loop_iteration, do_enforce
+from steam_backlog_enforcer._enforce_loop import (
+    _enforce_loop_iteration,
+    do_enforce,
+)
 from steam_backlog_enforcer.config import Config, State
 
 PKG = "steam_backlog_enforcer._enforce_loop"
+ENFORCE_STEPS_PKG = "steam_backlog_enforcer._enforce_steps"
 
 
 class TestEnforceLoopIterationTotalBlock:
@@ -21,7 +25,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.enforce_total_block_tick") as mock_tick,
             patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
             patch(f"{PKG}._guard_installed_games") as mock_guard,
-            patch(f"{PKG}.is_game_installed") as mock_installed,
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
         ):
             _enforce_loop_iteration(config, state)
         mock_tick.assert_called_once()
@@ -36,7 +40,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.total_block_needs_cleanup", return_value=False),
             patch(f"{PKG}.enforce_total_block_tick") as mock_tick,
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_loop_iteration(config, state)
         mock_tick.assert_not_called()
@@ -48,7 +52,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.total_block_needs_cleanup", return_value=True),
             patch(f"{PKG}.end_total_block_cleanup") as mock_cleanup,
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_loop_iteration(config, state)
         mock_cleanup.assert_called_once()
@@ -60,7 +64,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.total_block_needs_cleanup", return_value=False),
             patch(f"{PKG}.end_total_block_cleanup") as mock_cleanup,
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_loop_iteration(config, state)
         mock_cleanup.assert_not_called()

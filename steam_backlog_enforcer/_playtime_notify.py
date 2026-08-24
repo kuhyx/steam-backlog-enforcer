@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 
-from steam_backlog_enforcer.library_hider import _resolve_desktop_user, _run_as_user
+from steam_backlog_enforcer._steam_launch import _resolve_desktop_user
+from steam_backlog_enforcer._steam_process import _run_as_user
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +21,9 @@ _MINUTES_PER_HOUR = 60
 def notify_desktop_user(title: str, body: str) -> None:
     """Send a desktop notification into the real user's session.
 
-    ``enforcer.send_notification`` runs ``notify-send`` as root with no
-    ``DBUS_SESSION_BUS_ADDRESS``, which cannot reach the user's session bus from
-    a system service. This routes through the same ``sudo -u <user> env ...``
-    mechanism that ``library_hider`` uses to launch Steam.
+    ``enforcer.send_notification`` now drops privileges too, so this differs
+    only in delivery: it is fire-and-forget (``Popen``) where that one waits up
+    to 5s, which matters on the playtime-cutoff path.
 
     Args:
         title: Notification title.

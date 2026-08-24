@@ -5,10 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer.game_install import (
-    _is_protected_name,
-    _normalize_game_name,
-    _protected_name_stems,
+from steam_backlog_enforcer.game_uninstall import (
     _remove_game_dirs,
     uninstall_game,
     uninstall_other_games,
@@ -18,6 +15,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 PKG = "steam_backlog_enforcer.game_install"
+GAME_NAMES_PKG = "steam_backlog_enforcer._game_names"
+GAME_UNINSTALL_PKG = "steam_backlog_enforcer.game_uninstall"
 
 
 class TestRemoveGameDirs:
@@ -27,19 +26,19 @@ class TestRemoveGameDirs:
         install_dir = tmp_path / "common" / "MyGame"
         install_dir.mkdir(parents=True)
         (install_dir / "game.exe").touch()
-        with patch(f"{PKG}.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _remove_game_dirs(install_dir, 440)
         assert result is True
         assert not install_dir.exists()
 
     def test_install_dir_none(self, tmp_path: Path) -> None:
-        with patch(f"{PKG}.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _remove_game_dirs(None, 440)
         assert result is True
 
     def test_install_dir_not_exists(self, tmp_path: Path) -> None:
         missing = tmp_path / "common" / "Missing"
-        with patch(f"{PKG}.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _remove_game_dirs(missing, 440)
         assert result is True
 
@@ -47,7 +46,7 @@ class TestRemoveGameDirs:
         install_dir = tmp_path / "common" / "MyGame"
         install_dir.mkdir(parents=True)
         with (
-            patch(f"{PKG}.STEAMAPPS_PATH", tmp_path),
+            patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path),
             patch(f"{PKG}.shutil.rmtree", side_effect=OSError("perm")),
         ):
             result = _remove_game_dirs(install_dir, 440)
@@ -56,7 +55,7 @@ class TestRemoveGameDirs:
     def test_removes_cache_dirs(self, tmp_path: Path) -> None:
         for subdir in ("shadercache", "compatdata"):
             (tmp_path / subdir / "440").mkdir(parents=True)
-        with patch(f"{PKG}.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _remove_game_dirs(None, 440)
         assert result is True
         assert not (tmp_path / "shadercache" / "440").exists()
@@ -73,7 +72,7 @@ class TestRemoveGameDirs:
             raise OSError(msg)
 
         with (
-            patch(f"{PKG}.STEAMAPPS_PATH", tmp_path),
+            patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path),
             patch(f"{PKG}.shutil.rmtree", side_effect=fake_rmtree),
         ):
             result = _remove_game_dirs(None, 440)
@@ -88,7 +87,7 @@ class TestUninstallGame:
         manifest.write_text('"installdir"\t\t"TF2"\n', encoding="utf-8")
         install_dir = tmp_path / "common" / "TF2"
         install_dir.mkdir(parents=True)
-        with patch(f"{PKG}.STEAMAPPS_PATH", tmp_path):
+        with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = uninstall_game(440, "TF2")
         assert result is True
 
@@ -97,19 +96,19 @@ class TestUninstallGame:
         mock_manifest.exists.return_value = True
         mock_manifest.unlink.side_effect = OSError
         with (
-            patch(f"{PKG}.STEAMAPPS_PATH", MagicMock()),
-            patch(f"{PKG}._read_install_dir", return_value=None),
-            patch(f"{PKG}._remove_manifest", return_value=False),
-            patch(f"{PKG}._remove_game_dirs", return_value=True),
+            patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", MagicMock()),
+            patch(f"{GAME_UNINSTALL_PKG}._read_install_dir", return_value=None),
+            patch(f"{GAME_UNINSTALL_PKG}._remove_manifest", return_value=False),
+            patch(f"{GAME_UNINSTALL_PKG}._remove_game_dirs", return_value=True),
         ):
             result = uninstall_game(440, "TF2")
         assert result is False
 
     def test_game_dirs_removal_fails(self) -> None:
         with (
-            patch(f"{PKG}._read_install_dir", return_value=None),
-            patch(f"{PKG}._remove_manifest", return_value=True),
-            patch(f"{PKG}._remove_game_dirs", return_value=False),
+            patch(f"{GAME_UNINSTALL_PKG}._read_install_dir", return_value=None),
+            patch(f"{GAME_UNINSTALL_PKG}._remove_manifest", return_value=True),
+            patch(f"{GAME_UNINSTALL_PKG}._remove_game_dirs", return_value=False),
         ):
             result = uninstall_game(440, "TF2")
         assert result is False
@@ -121,10 +120,12 @@ class TestUninstallOtherGames:
     def test_keeps_allowed(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GAME_UNINSTALL_PKG}.get_installed_games",
                 return_value=[(440, "TF2"), (730, "CS")],
             ),
-            patch(f"{PKG}.uninstall_game", return_value=True) as mock_uninstall,
+            patch(
+                f"{GAME_UNINSTALL_PKG}.uninstall_game", return_value=True
+            ) as mock_uninstall,
         ):
             count = uninstall_other_games({440})
         assert count == 1
@@ -133,10 +134,10 @@ class TestUninstallOtherGames:
     def test_skips_protected(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GAME_UNINSTALL_PKG}.get_installed_games",
                 return_value=[(228980, "Redist")],
             ),
-            patch(f"{PKG}.uninstall_game") as mock_uninstall,
+            patch(f"{GAME_UNINSTALL_PKG}.uninstall_game") as mock_uninstall,
         ):
             count = uninstall_other_games(set())
         assert count == 0
@@ -145,10 +146,10 @@ class TestUninstallOtherGames:
     def test_uninstall_fails(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GAME_UNINSTALL_PKG}.get_installed_games",
                 return_value=[(999, "GameX")],
             ),
-            patch(f"{PKG}.uninstall_game", return_value=False),
+            patch(f"{GAME_UNINSTALL_PKG}.uninstall_game", return_value=False),
         ):
             count = uninstall_other_games(set())
         assert count == 0
@@ -156,100 +157,11 @@ class TestUninstallOtherGames:
     def test_all_allowed_or_protected(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GAME_UNINSTALL_PKG}.get_installed_games",
                 return_value=[(440, "TF2"), (228980, "Redist")],
             ),
-            patch(f"{PKG}.uninstall_game") as mock_uninstall,
+            patch(f"{GAME_UNINSTALL_PKG}.uninstall_game") as mock_uninstall,
         ):
             count = uninstall_other_games({440})
         assert count == 0
         mock_uninstall.assert_not_called()
-
-
-class TestNormalizeGameName:
-    """Tests for _normalize_game_name."""
-
-    def test_lowercases_and_strips_punctuation(self) -> None:
-        assert (
-            _normalize_game_name("Kingdom Come: Deliverance II")
-            == "kingdomcomedeliverance2"
-        )
-
-    def test_matches_no_space_variant(self) -> None:
-        assert _normalize_game_name("KingdomComeDeliverance2") == _normalize_game_name(
-            "Kingdom Come: Deliverance II"
-        )
-
-    def test_spelled_out_number_matches_digit(self) -> None:
-        assert _normalize_game_name("Portal Two") == _normalize_game_name("Portal 2")
-
-
-class TestProtectedNameStems:
-    """Tests for _protected_name_stems."""
-
-    def test_returns_allowed_game_names(self) -> None:
-        with (
-            patch("steam_backlog_enforcer.config.State.load", return_value=MagicMock()),
-            patch(
-                f"{PKG}.allowed_games",
-                return_value=[(1771300, "Kingdom Come: Deliverance II"), (440, "")],
-            ),
-        ):
-            stems = _protected_name_stems()
-        assert stems == ["Kingdom Come: Deliverance II"]
-
-    def test_returns_empty_list_when_state_cannot_load(self) -> None:
-        with patch(
-            "steam_backlog_enforcer.config.State.load", side_effect=RuntimeError("boom")
-        ):
-            stems = _protected_name_stems()
-        assert stems == []
-
-
-class TestIsProtectedName:
-    """Tests for _is_protected_name."""
-
-    def test_blank_candidate_is_not_protected(self) -> None:
-        assert _is_protected_name("   ") is False
-
-    def test_matches_exact_normalized_name(self) -> None:
-        with patch(
-            f"{PKG}._protected_name_stems",
-            return_value=["Kingdom Come: Deliverance II"],
-        ):
-            assert _is_protected_name("KingdomComeDeliverance2") is True
-
-    def test_matches_typo_via_fuzzy_ratio(self) -> None:
-        with patch(
-            f"{PKG}._protected_name_stems",
-            return_value=["Kingdom Come: Deliverance II"],
-        ):
-            assert _is_protected_name("Kingdom Come Delievarnce 2") is True
-
-    def test_no_match_for_unrelated_name(self) -> None:
-        with patch(
-            f"{PKG}._protected_name_stems",
-            return_value=["Kingdom Come: Deliverance II"],
-        ):
-            assert _is_protected_name("Cogmind") is False
-
-    def test_skips_blank_protected_name(self) -> None:
-        with patch(f"{PKG}._protected_name_stems", return_value=["", "Cogmind"]):
-            assert _is_protected_name("Cogmind") is True
-
-
-class TestRemoveGameDirsProtectedName:
-    """Tests for the _is_protected_name safety net inside _remove_game_dirs."""
-
-    def test_refuses_to_remove_protected_name(self, tmp_path: Path) -> None:
-        install_dir = tmp_path / "common" / "Kingdom Come: Deliverance II"
-        install_dir.mkdir(parents=True)
-        (install_dir / "game.exe").touch()
-        with (
-            patch(f"{PKG}.STEAMAPPS_PATH", tmp_path),
-            patch(f"{PKG}._is_protected_name", return_value=True),
-        ):
-            result = _remove_game_dirs(install_dir, 1771300)
-        assert result is False
-        assert install_dir.exists()
-        assert (install_dir / "game.exe").exists()

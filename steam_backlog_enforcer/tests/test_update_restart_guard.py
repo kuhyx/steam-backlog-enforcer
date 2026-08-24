@@ -12,21 +12,18 @@ from unittest.mock import patch
 
 import pytest
 
+from steam_backlog_enforcer._steam_errors import SteamUpdateInProgressError
+from steam_backlog_enforcer._steam_launch import ensure_steam_debug_port, restart_steam
 from steam_backlog_enforcer._steam_state import (
     _manifest_transfer_active,
     steam_update_in_progress,
-)
-from steam_backlog_enforcer.library_hider import (
-    SteamUpdateInProgressError,
-    ensure_steam_debug_port,
-    restart_steam,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 SS = "steam_backlog_enforcer._steam_state"
-LH = "steam_backlog_enforcer.library_hider"
+LH = "steam_backlog_enforcer._steam_launch"
 
 
 def _manifest(*, to_download: int, downloaded: int, to_stage: int, staged: int) -> str:

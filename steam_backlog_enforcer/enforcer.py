@@ -9,9 +9,11 @@ import shutil
 import signal
 import subprocess
 
-from steam_backlog_enforcer.game_install import (
-    is_protected_app,
+from steam_backlog_enforcer._desktop_env import (
+    desktop_user_cmd,
+    resolve_desktop_user,
 )
+from steam_backlog_enforcer.game_uninstall import is_protected_app
 
 logger = logging.getLogger(__name__)
 
@@ -149,14 +151,28 @@ def kill_process(pid: int, app_id: int) -> None:
 
 
 def send_notification(title: str, body: str) -> None:
-    """Send a desktop notification."""
+    """Send a desktop notification into the real user's session.
+
+    The enforcer runs as root under systemd, where a bare ``notify-send`` has
+    no DBUS_SESSION_BUS_ADDRESS and so cannot reach the user's session bus —
+    it failed silently for every caller. Dropping to the desktop user supplies
+    the session variables it needs.
+    """
     _notify_send = shutil.which("notify-send") or "/usr/bin/notify-send"
+    cmd = desktop_user_cmd(
+        [_notify_send, title, body, "--icon=dialog-warning"],
+        resolve_desktop_user(),
+    )
     try:
         subprocess.run(
-            [_notify_send, title, body, "--icon=dialog-warning"],
+            cmd,
             capture_output=True,
             timeout=5,
             check=False,
         )
     except (FileNotFoundError, OSError):
         logger.debug("notify-send not available.")
+    except subprocess.TimeoutExpired:
+        # sudo can block where a bare notify-send would not; a dropped
+        # notification is better than an exception escaping the enforce loop.
+        logger.debug("notify-send timed out.")

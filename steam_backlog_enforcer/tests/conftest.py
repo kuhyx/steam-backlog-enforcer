@@ -164,8 +164,8 @@ def _no_real_sleep() -> Iterator[None]:
     """
     noop = MagicMock()
     with (
-        patch("steam_backlog_enforcer.game_install.time.sleep", noop),
-        patch("steam_backlog_enforcer.library_hider.time.sleep", noop),
+        patch("steam_backlog_enforcer._steam_client.time.sleep", noop),
+        patch("steam_backlog_enforcer._steam_launch.time.sleep", noop),
         patch("steam_backlog_enforcer.steam_api.time.sleep", noop),
         patch("steam_backlog_enforcer._enforce_loop.time.sleep", noop),
     ):

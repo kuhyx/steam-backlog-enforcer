@@ -59,12 +59,28 @@ def _block_real_subprocesses() -> Iterator[None]:
             "steam_backlog_enforcer._total_block_iptables.subprocess.run",
             noop_run,
         ),
+        # library_hider no longer spawns: its launch/process code lives in
+        # _steam_launch / _steam_process, and _steam_client starts the client.
+        # Every module that can spawn must be patched here, or a test could
+        # fire a real `sudo -u kuhy steam`.
         patch(
-            "steam_backlog_enforcer.library_hider.subprocess.run",
+            "steam_backlog_enforcer._steam_launch.subprocess.run",
             noop_run,
         ),
         patch(
-            "steam_backlog_enforcer.library_hider.subprocess.Popen",
+            "steam_backlog_enforcer._steam_launch.subprocess.Popen",
+            noop_popen,
+        ),
+        patch(
+            "steam_backlog_enforcer._steam_process.subprocess.Popen",
+            noop_popen,
+        ),
+        patch(
+            "steam_backlog_enforcer._steam_client.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "steam_backlog_enforcer._steam_client.subprocess.Popen",
             noop_popen,
         ),
         # The single most important patch in this file. _playtime_block._run
