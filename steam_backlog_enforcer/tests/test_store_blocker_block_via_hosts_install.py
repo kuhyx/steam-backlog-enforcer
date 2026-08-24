@@ -171,11 +171,11 @@ class TestBlockStoreIptables:
         mock_result = MagicMock(returncode=0)
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer._store_iptables.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
+                "steam_backlog_enforcer._store_iptables.socket.getaddrinfo",
                 return_value=[
                     (None, None, None, None, ("1.2.3.4", 443)),
                 ],
@@ -186,7 +186,7 @@ class TestBlockStoreIptables:
     def test_os_error(self) -> None:
         """Test os error."""
         with patch(
-            "steam_backlog_enforcer.store_blocker.subprocess.run",
+            "steam_backlog_enforcer._store_iptables.subprocess.run",
             side_effect=OSError,
         ):
             assert _block_store_iptables() is False
@@ -198,11 +198,11 @@ class TestBlockStoreIptables:
         mock_result = MagicMock(returncode=0)
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer._store_iptables.subprocess.run",
                 return_value=mock_result,
             ),
             patch(
-                "steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
+                "steam_backlog_enforcer._store_iptables.socket.getaddrinfo",
                 side_effect=socket.gaierror,
             ),
         ):
@@ -228,11 +228,11 @@ class TestBlockStoreIptables:
 
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.subprocess.run",
+                "steam_backlog_enforcer._store_iptables.subprocess.run",
                 side_effect=side_effect,
             ),
             patch(
-                "steam_backlog_enforcer.store_blocker.socket.getaddrinfo",
+                "steam_backlog_enforcer._store_iptables.socket.getaddrinfo",
                 side_effect=__import__("socket").gaierror,
             ),
         ):
