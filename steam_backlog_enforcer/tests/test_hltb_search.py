@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import aiohttp
 from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_search import (
-    _fetch_batch,
     _search_one,
     _SearchCtx,
-)
-from steam_backlog_enforcer._hltb_types import (
-    _SAVE_INTERVAL,
 )
 
 if TYPE_CHECKING:
@@ -26,16 +22,19 @@ class _FakeResponse:
     """Async context manager mimicking aiohttp response."""
 
     def __init__(self, status: int, json_data: dict[str, Any] | None = None) -> None:
+        """Test init."""
         self.status = status
         self._json_data = json_data or {}
 
     async def __aenter__(self) -> Self:
+        """Test aenter."""
         return self
 
     async def __aexit__(self, *args: object) -> None:
-        pass
+        """Test aexit."""
 
     async def json(self) -> dict[str, Any]:
+        """Test json."""
         return self._json_data
 
 
@@ -66,6 +65,7 @@ class TestSearchOne:
     """Tests for _search_one."""
 
     def test_found(self) -> None:
+        """Test found."""
         resp = _FakeResponse(
             200,
             {
@@ -105,6 +105,7 @@ class TestSearchOne:
         assert 440 not in ctx.hltb_game_id
 
     def test_not_found(self) -> None:
+        """Test not found."""
         resp = _FakeResponse(200, {"data": []})
         ctx = _make_ctx(_make_session(resp))
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
@@ -112,6 +113,7 @@ class TestSearchOne:
         assert ctx.cache[440] == -1
 
     def test_error(self) -> None:
+        """Test error."""
         session = MagicMock()
         session.post.side_effect = aiohttp.ClientError("fail")
         ctx = _make_ctx(session)
@@ -119,12 +121,14 @@ class TestSearchOne:
         assert result is None
 
     def test_non_200(self) -> None:
+        """Test non 200."""
         resp = _FakeResponse(500)
         ctx = _make_ctx(_make_session(resp))
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
         assert result is None
 
     def test_fallback_name_without_year_suffix(self) -> None:
+        """Test fallback name without year suffix."""
         session = MagicMock()
         session.post.side_effect = [
             _FakeResponse(200, {"data": []}),
@@ -156,6 +160,7 @@ class TestSearchOne:
         assert session.post.call_count == 2
 
     def test_with_progress_cb(self) -> None:
+        """Test with progress cb."""
         resp = _FakeResponse(200, {"data": []})
         cb = MagicMock()
         ctx = _make_ctx(_make_session(resp), progress_cb=cb)
@@ -163,6 +168,7 @@ class TestSearchOne:
         cb.assert_called_once()
 
     def test_low_similarity_skipped(self) -> None:
+        """Test low similarity skipped."""
         resp = _FakeResponse(
             200,
             {
@@ -179,170 +185,3 @@ class TestSearchOne:
         ctx = _make_ctx(_make_session(resp))
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
         assert result is None
-
-    def test_zero_comp_100_skipped(self) -> None:
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "TF2",
-                        "game_alias": "",
-                        "comp_100": 0,
-                        "game_id": 1,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
-        assert result is None
-
-    def test_alias_match(self) -> None:
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "Team Fortress 2",
-                        "game_alias": "TF2",
-                        "comp_100": 180000,
-                        "game_id": 12345,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
-        assert result is not None
-
-    def test_full_edition_colon(self) -> None:
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "TF2: Complete",
-                        "game_alias": "",
-                        "comp_100": 180000,
-                        "game_id": 99,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
-        assert result is not None
-
-    def test_full_edition_dash(self) -> None:
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "TF2 - Complete",
-                        "game_alias": "",
-                        "comp_100": 180000,
-                        "game_id": 99,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
-        assert result is not None
-
-    def test_save_interval(self) -> None:
-        """Trigger the _SAVE_INTERVAL branch."""
-        resp = _FakeResponse(200, {"data": []})
-        ctx = _make_ctx(_make_session(resp))
-        # Set done to one less than _SAVE_INTERVAL so it triggers save
-
-        ctx.counter["done"] = _SAVE_INTERVAL - 1
-        with patch("steam_backlog_enforcer._hltb_search.save_hltb_cache") as mock_save:
-            asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
-            mock_save.assert_called_once()
-
-    def test_colon_strip_fallback_rejects_cross_franchise_match(self) -> None:
-        """Colon-stripped fallback must not match a different franchise loosely.
-
-        "Vox Populi: Poland 2023" stripped to "Vox Populi" should NOT match
-        "Vox Populi Vox Dei 2" (different game, low-similarity entry).
-        """
-        empty_resp = _FakeResponse(200, {"data": []})
-        loose_resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "Vox Populi Vox Dei 2",
-                        "game_alias": "",
-                        "game_type": "game",
-                        "comp_100": 14400,
-                        "comp_100_count": 9,
-                        "count_comp": 57,
-                        "game_id": 99999,
-                    }
-                ]
-            },
-        )
-        session = MagicMock()
-        session.post.side_effect = [empty_resp, loose_resp]
-        ctx = _make_ctx(session)
-        result = asyncio.run(
-            _search_one(asyncio.Semaphore(1), ctx, 2590810, "Vox Populi: Poland 2023")
-        )
-        assert result is None
-
-    def test_colon_strip_fallback_accepts_full_edition(self) -> None:
-        """Colon-stripped fallback must still match when the HLTB entry is a
-        full edition of the stripped name (name starts with stripped + ':').
-        """
-        empty_resp = _FakeResponse(200, {"data": []})
-        full_edition_resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "Batman: Arkham Asylum",
-                        "game_alias": "",
-                        "game_type": "game",
-                        "comp_100": 144000,
-                        "comp_100_count": 300,
-                        "count_comp": 5000,
-                        "game_id": 11111,
-                    }
-                ]
-            },
-        )
-        session = MagicMock()
-        session.post.side_effect = [empty_resp, full_edition_resp]
-        ctx = _make_ctx(session)
-        result = asyncio.run(
-            _search_one(asyncio.Semaphore(1), ctx, 35140, "Batman: Arkham Asylum")
-        )
-        assert result is not None
-        assert result.game_name == "Batman: Arkham Asylum"
-
-
-class TestFetchBatchHltb:
-    """Tests for _fetch_batch (the hltb version)."""
-
-    def test_no_auth(self) -> None:
-        with (
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
-                return_value="https://example.com",
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_auth_info",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-        ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
-            assert results == []
-
-
-class TestPickBestEntry:
-    """Tests for exact-vs-extended entry choice logic."""

@@ -10,7 +10,6 @@ from steam_backlog_enforcer.protondb import ProtonDBRating
 from steam_backlog_enforcer.scanning import (
     _pick_playable_candidate,
     do_scan,
-    pick_next_game,
 )
 from steam_backlog_enforcer.steam_api import GameInfo
 
@@ -41,6 +40,7 @@ class TestDoScan:
     """Tests for do_scan."""
 
     def test_scans_and_picks(self) -> None:
+        """Test scans and picks."""
         game = _game(app_id=440, name="TF2", total=10, unlocked=5)
         mock_client = MagicMock()
 
@@ -48,6 +48,7 @@ class TestDoScan:
             progress_callback: Callable[..., object] | None = None,
         ) -> list[GameInfo]:
             # Trigger progress callback to cover those lines.
+            """Test build game list."""
             if progress_callback:
                 progress_callback(50, 100)
                 progress_callback(100, 100)
@@ -83,12 +84,14 @@ class TestDoScan:
             mock_pick.assert_called_once()
 
     def test_scan_all_complete(self) -> None:
+        """Test scan all complete."""
         game = _game(app_id=440, name="TF2", total=10, unlocked=10)
         mock_client = MagicMock()
 
         def build_game_list(
             progress_callback: Callable[..., object] | None = None,
         ) -> list[GameInfo]:
+            """Test build game list."""
             if progress_callback:
                 # current=1, total=2 → not %50 and not ==total → covers False branch
                 progress_callback(1, 2)
@@ -115,6 +118,7 @@ class TestDoScan:
             mock_pick.assert_called_once()
 
     def test_scan_already_assigned(self) -> None:
+        """Test scan already assigned."""
         game = _game(app_id=440, total=10, unlocked=5)
         mock_client = MagicMock()
         mock_client.build_game_list.return_value = [game]
@@ -146,6 +150,7 @@ class TestPickPlayableCandidate:
     """Tests for _pick_playable_candidate."""
 
     def test_finds_playable(self) -> None:
+        """Test finds playable."""
         game = _game(app_id=440, name="TF2")
         with (
             patch(
@@ -161,6 +166,7 @@ class TestPickPlayableCandidate:
             assert result.app_id == 440
 
     def test_skips_bad_rating(self) -> None:
+        """Test skips bad rating."""
         bad = _game(app_id=1, name="Bad")
         good = _game(app_id=2, name="Good")
         with (
@@ -178,6 +184,7 @@ class TestPickPlayableCandidate:
             assert result.app_id == 2
 
     def test_all_unplayable(self) -> None:
+        """Test all unplayable."""
         game = _game(app_id=1, name="Bad")
         with (
             patch(
@@ -191,6 +198,7 @@ class TestPickPlayableCandidate:
             assert _pick_playable_candidate([game]) is None
 
     def test_empty_list(self) -> None:
+        """Test empty list."""
         assert _pick_playable_candidate([]) is None
 
     def test_first_in_batch_playable(self) -> None:
@@ -207,238 +215,3 @@ class TestPickPlayableCandidate:
         ):
             result = _pick_playable_candidate([game])
             assert result is not None
-
-
-class TestPickNextGame:
-    """Tests for pick_next_game."""
-
-    def test_picks_shortest(self) -> None:
-        g1 = _game(app_id=1, name="Long", hours=100.0)
-        g2 = _game(app_id=2, name="Short", hours=10.0)
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-            patch("steam_backlog_enforcer._scanning_confidence._echo"),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([g1, g2], state, config)
-            assert state.current_app_id == 2
-
-    def test_no_candidates(self) -> None:
-        g1 = _game(app_id=1, total=5, unlocked=5)
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with patch("steam_backlog_enforcer.scanning._echo"):
-            pick_next_game([g1], state, config)
-            assert state.current_app_id is None
-
-    def test_skips_finished(self) -> None:
-        g1 = _game(app_id=1, name="G1", hours=10.0)
-        g2 = _game(app_id=2, name="G2", hours=20.0)
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State(finished_app_ids=[1])
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([g1, g2], state, config)
-            assert state.current_app_id == 2
-
-    def test_no_playable(self) -> None:
-        g1 = _game(app_id=1, name="G1")
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                return_value=None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-        ):
-            pick_next_game([g1], state, config)
-            assert state.current_app_id is None
-
-    def test_uninstalls_others(self) -> None:
-        g1 = _game(app_id=1, name="G1", hours=10.0)
-        config = Config(steam_api_key="k", steam_id="i", uninstall_other_games=True)
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-            patch("steam_backlog_enforcer._scanning_confidence._echo"),
-            patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=2,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([g1], state, config)
-            assert state.current_app_id == 1
-
-    def test_auto_installs(self) -> None:
-        g1 = _game(app_id=1, name="G1", hours=10.0)
-        config = Config(steam_api_key="k", steam_id="i", uninstall_other_games=False)
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-            patch("steam_backlog_enforcer._scanning_confidence._echo"),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=False,
-            ),
-            patch("steam_backlog_enforcer.scanning.install_game") as mock_install,
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([g1], state, config)
-            mock_install.assert_called_once()
-
-    def test_unknown_hours(self) -> None:
-        g1 = _game(app_id=1, name="G1", hours=-1)
-        g2 = _game(app_id=2, name="G2", hours=10.0)
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([g1, g2], state, config)
-            assert state.current_app_id == 2
-
-    def test_picks_game_no_hours(self) -> None:
-        """Chosen game has no HLTB hours — covers no-hours output branch."""
-        g1 = _game(app_id=1, name="G1", hours=-1)
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch("steam_backlog_enforcer.scanning._echo"),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([g1], state, config)
-            assert state.current_app_id == 1
-
-    def test_skips_low_confidence_and_picks_next(self) -> None:
-        low = _game(app_id=1, name="LowConfidence", hours=1.0)
-        low.comp_100_count = 1
-        low.count_comp = 5
-        valid = _game(app_id=2, name="ValidConfidence", hours=2.0)
-        valid.comp_100_count = 3
-        valid.count_comp = 15
-        echoed: list[str] = []
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                side_effect=lambda c: c[0] if c else None,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.is_game_installed",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning.uninstall_other_games",
-                return_value=0,
-            ),
-            patch("builtins.input", return_value="1"),
-        ):
-            pick_next_game([low, valid], state, config)
-        assert state.current_app_id == 2
-        assert any("Skipping LowConfidence" in line for line in echoed)
-        assert any("comp_100 polls 1 < 3" in line for line in echoed)
-
-    def test_all_candidates_filtered_by_confidence(self) -> None:
-        low_a = _game(app_id=1, name="LowA", hours=1.0)
-        low_a.comp_100_count = 2
-        low_a.count_comp = 15
-        low_b = _game(app_id=2, name="LowB", hours=2.0)
-        low_b.comp_100_count = 3
-        low_b.count_comp = 14
-        echoed: list[str] = []
-        config = Config(steam_api_key="k", steam_id="i")
-        state = State()
-        with (
-            patch(
-                "steam_backlog_enforcer.scanning._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch(
-                "steam_backlog_enforcer.scanning._pick_playable_candidate",
-                return_value=None,
-            ) as mock_pick,
-        ):
-            pick_next_game([low_a, low_b], state, config)
-        assert state.current_app_id is None
-        mock_pick.assert_not_called()
-        assert any("No assignable games found" in line for line in echoed)

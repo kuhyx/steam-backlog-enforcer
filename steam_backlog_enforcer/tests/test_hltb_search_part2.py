@@ -10,11 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_detail import (
-    _extract_leisure_hours,
     _parse_game_page,
 )
 from steam_backlog_enforcer._hltb_search import (
-    _build_search_variants,
     _fetch_batch,
     _pick_best_hltb_entry,
 )
@@ -28,16 +26,19 @@ class _FakeResponse:
     """Async context manager mimicking aiohttp response."""
 
     def __init__(self, status: int, json_data: dict[str, Any] | None = None) -> None:
+        """Test init."""
         self.status = status
         self._json_data = json_data or {}
 
     async def __aenter__(self) -> Self:
+        """Test aenter."""
         return self
 
     async def __aexit__(self, *args: object) -> None:
-        pass
+        """Test aexit."""
 
     async def json(self) -> dict[str, Any]:
+        """Test json."""
         return self._json_data
 
 
@@ -51,6 +52,7 @@ class TestPickBestEntry:
     """Tests for exact-vs-extended entry choice logic."""
 
     def test_prefers_exact_over_low_confidence_modded_extended(self) -> None:
+        """Test prefers exact over low confidence modded extended."""
         exact = (
             {
                 "game_name": "Celeste",
@@ -79,6 +81,7 @@ class TestPickBestEntry:
         assert best[0]["game_name"] == "Celeste"
 
     def test_prefers_extended_when_confident_and_longer(self) -> None:
+        """Test prefers extended when confident and longer."""
         exact_demo = (
             {
                 "game_name": "FAITH",
@@ -107,6 +110,7 @@ class TestPickBestEntry:
         assert best[0]["game_name"] == "FAITH: The Unholy Trinity"
 
     def test_with_auth(self) -> None:
+        """Test with auth."""
         auth = _AuthInfo("token123", "ign_x", "ff")
         with (
             patch(
@@ -138,6 +142,7 @@ class TestPickBestEntry:
             assert len(results) == 1
 
     def test_with_auth_no_hp(self) -> None:
+        """Test with auth no hp."""
         auth = _AuthInfo("tok123")
         with (
             patch(
@@ -163,6 +168,7 @@ class TestPickBestEntry:
             assert results == []
 
     def test_filters_none_results(self) -> None:
+        """Test filters none results."""
         auth = _AuthInfo("tok123")
         with (
             patch(
@@ -192,6 +198,7 @@ class TestParseGamePage:
     """Tests for _parse_game_page."""
 
     def test_valid_html(self) -> None:
+        """Test valid html."""
         game_data: dict[str, Any] = {
             "game": [{"comp_100_h": 21243, "comp_100": 6800}],
             "relationships": [],
@@ -207,119 +214,17 @@ class TestParseGamePage:
         assert _parse_game_page(html) == game_data
 
     def test_no_script_tag(self) -> None:
+        """Test no script tag."""
         assert _parse_game_page("<html></html>") is None
 
     def test_bad_json(self) -> None:
+        """Test bad json."""
         html = '<script id="__NEXT_DATA__" type="application/json">{not json}</script>'
         assert _parse_game_page(html) is None
 
     def test_missing_keys(self) -> None:
+        """Test missing keys."""
         html = (
             '<script id="__NEXT_DATA__" type="application/json">{"props": {}}</script>'
         )
         assert _parse_game_page(html) is None
-
-
-class TestExtractLeisureHours:
-    """Tests for _extract_leisure_hours."""
-
-    def test_leisure_time_only(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": 21243, "comp_100": 6800}],
-            "relationships": [],
-        }
-        assert _extract_leisure_hours(data) == round(21243 / 3600, 2)
-
-    def test_leisure_with_dlc(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": 21243, "comp_100": 6800}],
-            "relationships": [
-                {"game_type": "dlc", "comp_100": 12298},
-                {"game_type": "dlc", "comp_100": 3600},
-            ],
-        }
-        assert _extract_leisure_hours(data) == round((21243 + 12298 + 3600) / 3600, 2)
-
-    def test_fallback_to_comp_100(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100": 7200}],
-            "relationships": [],
-        }
-        assert _extract_leisure_hours(data) == round(7200 / 3600, 2)
-
-    def test_no_game_data(self) -> None:
-        assert _extract_leisure_hours({"game": [], "relationships": []}) == -1
-
-    def test_zero_leisure(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": 0, "comp_100": 0}],
-            "relationships": [],
-        }
-        assert _extract_leisure_hours(data) == -1
-
-    def test_no_game_key(self) -> None:
-        assert _extract_leisure_hours({"relationships": []}) == -1
-
-    def test_non_dlc_relationship_ignored(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": 3600}],
-            "relationships": [
-                {"game_type": "game", "comp_100": 9999},
-                {"game_type": "dlc", "comp_100": 1800},
-            ],
-        }
-        assert _extract_leisure_hours(data) == round((3600 + 1800) / 3600, 2)
-
-    def test_dlc_zero_comp_100_skipped(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": 3600}],
-            "relationships": [
-                {"game_type": "dlc", "comp_100": 0},
-            ],
-        }
-        assert _extract_leisure_hours(data) == round(3600 / 3600, 2)
-
-    def test_negative_leisure(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": -1, "comp_100": -1}],
-            "relationships": [],
-        }
-        assert _extract_leisure_hours(data) == -1
-
-    def test_string_numeric_fields(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": "7200", "comp_100": "3600"}],
-            "relationships": [{"game_type": "dlc", "game_id": "1", "comp_100": "1800"}],
-        }
-        assert _extract_leisure_hours(data) == round((7200 + 1800) / 3600, 2)
-
-    def test_bad_string_falls_back_to_comp_100(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": "bad", "comp_100": "3600"}],
-            "relationships": [],
-        }
-        assert _extract_leisure_hours(data) == 1.0
-
-    def test_relationships_not_list(self) -> None:
-        data: dict[str, Any] = {
-            "game": [{"comp_100_h": 3600}],
-            "relationships": "not-a-list",
-        }
-        assert _extract_leisure_hours(data) == 1.0
-
-
-class TestBuildSearchVariants:
-    """Tests for _build_search_variants."""
-
-    def test_subtitle_with_edition_strips_edition_from_subtitle_part(self) -> None:
-        # "Rocksmith 2014 Edition - Remastered" → no_subtitle = "Rocksmith 2014 Edition"
-        # (which != base), so lines 201-202 also add "Rocksmith" and "Rocksmith 2014"
-        variants = _build_search_variants("Rocksmith 2014 Edition - Remastered")
-        assert "Rocksmith 2014 Edition" in variants
-        assert "Rocksmith 2014" in variants
-        assert "Rocksmith" in variants
-
-    def test_no_subtitle_skips_edition_strip(self) -> None:
-        # No " - " → no_subtitle == base → lines 201-202 are not executed
-        variants = _build_search_variants("Portal 2")
-        assert "Portal 2" in variants

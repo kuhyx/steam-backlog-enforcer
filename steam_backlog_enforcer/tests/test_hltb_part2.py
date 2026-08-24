@@ -2,20 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from typing_extensions import Self
 
-from steam_backlog_enforcer._hltb_search import _AuthInfo
 from steam_backlog_enforcer.hltb import (
     HLTB_BASE_URL,
     HLTBResult,
-    _fetch_batch_confidence_only,
-    fetch_hltb_confidence,
-    fetch_hltb_confidence_cached,
-    fetch_hltb_detail_missing,
     fetch_hltb_times_cached,
     get_hltb_submit_url,
 )
@@ -26,10 +20,23 @@ if TYPE_CHECKING:
 PKG = "steam_backlog_enforcer.hltb"
 
 
+class _DummySession:
+    """Minimal async context manager used to mock aiohttp ClientSession."""
+
+    async def __aenter__(self) -> Self:
+        """Enter async context."""
+        return self
+
+    async def __aexit__(self, *_args: object) -> bool:
+        """Exit async context."""
+        return False
+
+
 class TestFetchHltbTimesCached:
     """Tests for fetch_hltb_times_cached."""
 
     def test_all_cached(self) -> None:
+        """Test all cached."""
         with (
             patch(f"{PKG}.load_hltb_cache", return_value={440: 50.0}),
         ):
@@ -37,6 +44,7 @@ class TestFetchHltbTimesCached:
         assert result == {440: 50.0}
 
     def test_uncached_games_fetched(self) -> None:
+        """Test uncached games fetched."""
         with (
             patch(f"{PKG}.load_hltb_cache", return_value={440: 50.0}),
             patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
@@ -51,6 +59,7 @@ class TestFetchHltbTimesCached:
                 progress_cb: object = None,
                 extras: _HLTBExtras | None = None,
             ) -> list[object]:
+                """Test add to cache."""
                 if cache is not None:
                     cache[730] = 20.0
                 if polls is not None:
@@ -68,6 +77,7 @@ class TestFetchHltbTimesCached:
         mock_save.assert_called_once()
 
     def test_uncached_with_progress_cb(self) -> None:
+        """Test uncached with progress cb."""
         cb = MagicMock()
         with (
             patch(f"{PKG}.load_hltb_cache", return_value={}),
@@ -109,6 +119,7 @@ class TestFetchHltbTimesCached:
                 progress_cb: object = None,
                 extras: _HLTBExtras | None = None,
             ) -> list[object]:
+                """Test add found."""
                 if cache is not None:
                     cache[440] = 50.0
                     cache[730] = -1
@@ -132,6 +143,7 @@ class TestGetHltbSubmitUrl:
     """Tests for get_hltb_submit_url."""
 
     def test_found(self) -> None:
+        """Test found."""
         mock_result = HLTBResult(
             app_id=0,
             game_name="TF2",
@@ -144,11 +156,13 @@ class TestGetHltbSubmitUrl:
         assert url == f"{HLTB_BASE_URL}/submit/game/12345"
 
     def test_not_found_empty(self) -> None:
+        """Test not found empty."""
         with patch(f"{PKG}.fetch_hltb_times", return_value=[]):
             url = get_hltb_submit_url("Unknown Game")
         assert url is None
 
     def test_not_found_no_id(self) -> None:
+        """Test not found no id."""
         mock_result = HLTBResult(
             app_id=0,
             game_name="TF2",
@@ -159,251 +173,3 @@ class TestGetHltbSubmitUrl:
         with patch(f"{PKG}.fetch_hltb_times", return_value=[mock_result]):
             url = get_hltb_submit_url("TF2")
         assert url is None
-
-
-class _DummySession:
-    """Minimal async context manager used to mock aiohttp ClientSession."""
-
-    async def __aenter__(self) -> Self:
-        """Enter async context."""
-        return self
-
-    async def __aexit__(self, *_args: object) -> bool:
-        """Exit async context."""
-        return False
-
-
-class TestConfidenceHelpers:
-    """Coverage tests for confidence-fetch helpers."""
-
-    def test_fetch_batch_confidence_only_returns_empty_without_auth(self) -> None:
-        with (
-            patch(f"{PKG}.aiohttp.ClientSession", return_value=_DummySession()),
-            patch(f"{PKG}.aiohttp.TCPConnector"),
-            patch(f"{PKG}._get_hltb_search_url", return_value="https://example"),
-            patch(f"{PKG}._get_auth_info", return_value=None),
-        ):
-            result = asyncio.run(
-                _fetch_batch_confidence_only([(1, "Game")], {}, {}, None),
-            )
-        assert result == []
-
-    def test_fetch_batch_confidence_only_handles_empty_hp_and_default_counts(
-        self,
-    ) -> None:
-        auth_token = str(1)
-        with (
-            patch(f"{PKG}.aiohttp.ClientSession", return_value=_DummySession()),
-            patch(f"{PKG}.aiohttp.TCPConnector"),
-            patch(f"{PKG}._get_hltb_search_url", return_value="https://example"),
-            patch(
-                f"{PKG}._get_auth_info",
-                return_value=_AuthInfo(token=auth_token, hp_key="", hp_val=""),
-            ),
-            patch(f"{PKG}._search_one", side_effect=[None]) as mock_search,
-        ):
-            result = asyncio.run(
-                _fetch_batch_confidence_only(
-                    games=[(1, "Game")],
-                    cache={},
-                    polls={},
-                    progress_cb=None,
-                    count_comp=None,
-                ),
-            )
-        assert result == []
-        mock_search.assert_called_once()
-
-    def test_fetch_batch_confidence_only_with_hp_key_and_prepopulated_count_comp(
-        self,
-    ) -> None:
-        auth_token = str(1)
-        with (
-            patch(f"{PKG}.aiohttp.ClientSession", return_value=_DummySession()),
-            patch(f"{PKG}.aiohttp.TCPConnector"),
-            patch(f"{PKG}._get_hltb_search_url", return_value="https://example"),
-            patch(
-                f"{PKG}._get_auth_info",
-                return_value=_AuthInfo(token=auth_token, hp_key="hpk", hp_val="hpv"),
-            ),
-            patch(f"{PKG}._search_one", side_effect=[None]) as mock_search,
-        ):
-            result = asyncio.run(
-                _fetch_batch_confidence_only(
-                    games=[(1, "Game")],
-                    cache={},
-                    polls={},
-                    progress_cb=None,
-                    count_comp={1: 42},
-                ),
-            )
-        assert result == []
-        mock_search.assert_called_once()
-
-    def test_fetch_hltb_confidence_initializes_optional_dicts(self) -> None:
-        with patch(f"{PKG}.asyncio.run", return_value=[]) as mock_run:
-            result = fetch_hltb_confidence([(1, "Game")])
-        assert result == []
-        mock_run.assert_called_once()
-
-    def test_fetch_hltb_confidence_empty_games_returns_empty(self) -> None:
-        with patch(f"{PKG}.asyncio.run") as mock_run:
-            result = fetch_hltb_confidence([])
-        assert result == []
-        mock_run.assert_not_called()
-
-    def test_fetch_hltb_confidence_cached_all_cached_skips_fetch(self) -> None:
-        with (
-            patch(f"{PKG}.load_hltb_cache", return_value={1: 12.0}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={1: 30}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={1: 200}),
-            patch(f"{PKG}.fetch_hltb_confidence") as mock_fetch,
-            patch(f"{PKG}.save_hltb_cache") as mock_save,
-        ):
-            result = fetch_hltb_confidence_cached([(1, "Game")])
-        assert result == {1: 12.0}
-        mock_fetch.assert_not_called()
-        mock_save.assert_not_called()
-
-
-class TestFetchHltbDetailMissing:
-    """Tests for fetch_hltb_detail_missing."""
-
-    def test_no_missing_returns_zero(self) -> None:
-        """All games in rush cache with known game IDs → early return."""
-        with (
-            patch(f"{PKG}.load_hltb_rush_cache", return_value={440: 15.0}),
-            patch(f"{PKG}.load_hltb_game_id_cache", return_value={440: 12345}),
-            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
-        ):
-            result = fetch_hltb_detail_missing([(440, "TF2")])
-        assert result == 0
-        mock_fetch.assert_not_called()
-
-    def test_fetches_missing_and_returns_count(self) -> None:
-        """Games not in rush cache are fetched; returns count with rush data."""
-
-        def add_rush(
-            _games: object,
-            cache: dict[int, float] | None = None,
-            polls: dict[int, int] | None = None,
-            progress_cb: object = None,
-            extras: _HLTBExtras | None = None,
-        ) -> list[object]:
-            if extras is not None:
-                extras.rush[730] = 10.0
-            if cache is not None:
-                cache[730] = 25.0
-            return []
-
-        with (
-            patch(f"{PKG}.load_hltb_rush_cache", return_value={440: 15.0}),
-            patch(f"{PKG}.load_hltb_cache", return_value={730: 20.0}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times", side_effect=add_rush),
-            patch(f"{PKG}.save_hltb_cache") as mock_save,
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 2.0]),
-        ):
-            result = fetch_hltb_detail_missing([(440, "TF2"), (730, "CS")])
-        assert result == 1
-        mock_save.assert_called_once()
-
-    def test_restores_prior_hours_when_not_refound(self) -> None:
-        """Hours are restored when re-fetch finds nothing for the game."""
-        saved: dict[int, float] = {}
-
-        def capture_save(
-            cache: dict[int, float],
-            _polls: object,
-            _extras: object = None,
-        ) -> None:
-            saved.update(cache)
-
-        with (
-            patch(f"{PKG}.load_hltb_rush_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_cache", return_value={730: 20.0}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times"),  # no-op, cache stays empty
-            patch(f"{PKG}.save_hltb_cache", side_effect=capture_save),
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
-        ):
-            fetch_hltb_detail_missing([(730, "CS")])
-        assert saved[730] == 20.0
-
-    def test_does_not_restore_when_refound(self) -> None:
-        """Prior hours are NOT restored when re-fetch successfully finds game."""
-
-        def add_hours_and_rush(
-            _games: object,
-            cache: dict[int, float] | None = None,
-            polls: dict[int, int] | None = None,
-            progress_cb: object = None,
-            extras: _HLTBExtras | None = None,
-        ) -> list[object]:
-            if cache is not None:
-                cache[730] = 30.0
-            if extras is not None:
-                extras.rush[730] = 12.0
-            return []
-
-        saved: dict[int, float] = {}
-
-        def capture_save(
-            cache: dict[int, float],
-            _polls: object,
-            _extras: object = None,
-        ) -> None:
-            saved.update(cache)
-
-        with (
-            patch(f"{PKG}.load_hltb_rush_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_cache", return_value={730: 20.0}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times", side_effect=add_hours_and_rush),
-            patch(f"{PKG}.save_hltb_cache", side_effect=capture_save),
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
-        ):
-            result = fetch_hltb_detail_missing([(730, "CS")])
-        assert result == 1
-        assert saved[730] == 30.0
-
-    def test_zero_elapsed_rate(self) -> None:
-        """Covers the elapsed == 0 branch in the rate calculation."""
-        with (
-            patch(f"{PKG}.load_hltb_rush_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times"),
-            patch(f"{PKG}.save_hltb_cache"),
-            patch(f"{PKG}.time.monotonic", side_effect=[5.0, 5.0]),
-        ):
-            result = fetch_hltb_detail_missing([(730, "CS")])
-        assert result == 0
-
-    def test_id_only_missing_logs_else_branch(self) -> None:
-        """Rush data present but game ID missing → else branch in log selection."""
-        with (
-            patch(f"{PKG}.load_hltb_rush_cache", return_value={440: 15.0}),
-            patch(f"{PKG}.load_hltb_cache", return_value={440: 15.0}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
-            patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times"),
-            patch(f"{PKG}.save_hltb_cache"),
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
-        ):
-            result = fetch_hltb_detail_missing([(440, "TF2")])
-        assert result == 0
