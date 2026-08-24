@@ -13,7 +13,7 @@ enforced by a gate that fails the commit, not by a note anyone can ignore.
 Why: a file that cannot be read in one piece forces re-reads and partial edits,
 which is the single largest avoidable cost in an LLM-assisted workflow. Aim by
 churn, not size alone — refactoring pays where code is read and changed often
-(Fowler, *refactoring economic benefit*).
+(Fowler, _refactoring economic benefit_).
 
 ## Scope in this repo
 
@@ -21,6 +21,7 @@ churn, not size alone — refactoring pays where code is read and changed often
 - **1,877 lines** sit in violation; longest file is **765 lines**.
 
 Exempt (do NOT split these):
+
 - generated files — `*.g.dart`, `*.freezed.dart`, `*.gr.dart`, `**/l10n/generated/**`,
   anything with a `GENERATED` header
 - markup — `.html`, `.css`, `.scss`
@@ -32,12 +33,12 @@ Exempt (do NOT split these):
 ROI = lines x commits in the last year. Work top-down; a long file nobody edits
 has near-zero payoff and should not be first.
 
-| lines | commits/yr | kind | file |
-|------:|-----------:|:-----|:-----|
-| 765 | 3 | code | `tests/test_recognize.py` |
-| 473 | 3 | code | `steam_installer/recognize.py` |
-| 311 | 3 | code | `steam_installer/cli.py` |
-| 328 | 1 | code | `tests/test_cli.py` |
+| lines | commits/yr | kind | file                           |
+| ----: | ---------: | :--- | :----------------------------- |
+|   765 |          3 | code | `tests/test_recognize.py`      |
+|   473 |          3 | code | `steam_installer/recognize.py` |
+|   311 |          3 | code | `steam_installer/cli.py`       |
+|   328 |          1 | code | `tests/test_cli.py`            |
 
 ## How to split
 
@@ -81,3 +82,5 @@ A refactor without a gate silently regrows. Before this task is done:
 
 Run the repo's own suite, then run the program itself and confirm the
 behaviour is unchanged. Testing is the last step, never the first.
+
+REMOVE ME AFTER FINISH
