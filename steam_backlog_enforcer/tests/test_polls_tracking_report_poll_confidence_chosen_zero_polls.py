@@ -12,6 +12,7 @@ _TYPES = "steam_backlog_enforcer._hltb_types"
 _CMD = "steam_backlog_enforcer._cmd_done"
 _SCAN = "steam_backlog_enforcer.scanning"
 _SCANCONF = "steam_backlog_enforcer._scanning_confidence"
+_POLLS = "steam_backlog_enforcer._polls_reporting"
 
 
 def _state(finished: list[int], current: int | None = None) -> State:
@@ -45,11 +46,11 @@ class TestScanningPollsIntegrationGroup2:
         )
         with (
             patch(
-                f"{_SCANCONF}._backfill_polls_for_finished",
+                f"{_POLLS}._backfill_polls_for_finished",
                 return_value={1: 0, 2: 5},
             ),
             patch(
-                f"{_SCANCONF}._echo",
+                f"{_POLLS}._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
         ):

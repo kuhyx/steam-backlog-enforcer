@@ -35,7 +35,7 @@ class TestSteamAPIClient:
         # Fill up the rate limit window
         client._request_times = [__import__("time").time()] * client._max_rps
         with patch(
-            "steam_backlog_enforcer.steam_api.time.sleep",
+            "steam_backlog_enforcer._steam_api_client.time.sleep",
         ) as mock_sleep:
             # Next call should trigger sleep then succeed
             client._rate_limit()

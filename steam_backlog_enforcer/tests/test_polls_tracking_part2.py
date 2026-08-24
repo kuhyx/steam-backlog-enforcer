@@ -17,6 +17,7 @@ _TYPES = "steam_backlog_enforcer._hltb_types"
 _CMD = "steam_backlog_enforcer._cmd_done"
 _SCAN = "steam_backlog_enforcer.scanning"
 _SCANCONF = "steam_backlog_enforcer._scanning_confidence"
+_POLLS = "steam_backlog_enforcer._polls_reporting"
 
 
 def _state(finished: list[int], current: int | None = None) -> State:
@@ -81,11 +82,11 @@ class TestScanningPollsIntegration:
         ]
         with (
             patch(
-                f"{_SCANCONF}._backfill_polls_for_finished",
+                f"{_POLLS}._backfill_polls_for_finished",
                 return_value={1: 1, 2: 5},
             ),
             patch(
-                f"{_SCANCONF}._echo",
+                f"{_POLLS}._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
         ):
@@ -105,9 +106,12 @@ class TestScanningPollsIntegration:
             comp_100_count=4,
         )
         with (
-            patch(f"{_SCANCONF}._backfill_polls_for_finished", return_value={1: 4}),
             patch(
-                f"{_SCANCONF}._echo",
+                f"{_POLLS}._backfill_polls_for_finished",
+                return_value={1: 4},
+            ),
+            patch(
+                f"{_POLLS}._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
         ):
@@ -155,7 +159,10 @@ class TestScanningPollsIntegration:
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
-            patch(f"{_SCANCONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(
+                f"{_POLLS}.fetch_hltb_confidence_cached",
+                side_effect=fake_fetch,
+            ),
         ):
             result = _scanning_confidence._backfill_polls_for_finished(
                 _state([2]),
@@ -189,7 +196,10 @@ class TestScanningPollsIntegration:
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
-            patch(f"{_SCANCONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(
+                f"{_POLLS}.fetch_hltb_confidence_cached",
+                side_effect=fake_fetch,
+            ),
         ):
             _scanning_confidence._backfill_polls_for_finished(
                 _state([2]),

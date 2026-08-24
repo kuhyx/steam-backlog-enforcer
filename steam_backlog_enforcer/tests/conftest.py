@@ -166,7 +166,7 @@ def _no_real_sleep() -> Iterator[None]:
     with (
         patch("steam_backlog_enforcer._steam_client.time.sleep", noop),
         patch("steam_backlog_enforcer._steam_launch.time.sleep", noop),
-        patch("steam_backlog_enforcer.steam_api.time.sleep", noop),
+        patch("steam_backlog_enforcer._steam_api_client.time.sleep", noop),
         patch("steam_backlog_enforcer._enforce_loop.time.sleep", noop),
     ):
         yield
