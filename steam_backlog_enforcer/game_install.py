@@ -130,6 +130,11 @@ def install_game(
     """
     label = game_name or f"AppID={app_id}"
 
+    # Re-arm the one-shot warning before any early return, so a library that
+    # comes back (Steam finally signed in) is reported again if it vanishes.
+    if steam_library_ready():
+        _LIBRARY_WARNED.discard("missing")
+
     if is_game_installed(app_id):
         logger.info("Game already installed: %s", label)
         return True
@@ -148,8 +153,6 @@ def install_game(
         else:
             logger.debug("Skipping install of %s: no Steam library.", label)
         return False
-
-    _LIBRARY_WARNED.discard("missing")
 
     if use_steam_protocol:
         _ensure_steam_running()

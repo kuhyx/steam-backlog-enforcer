@@ -5,6 +5,7 @@ Split from test_game_install_part3.py to keep both files under the 250-line cap.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +13,8 @@ from steam_backlog_enforcer.game_install import install_game
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 
 class TestInstallGameLibraryGuard:
@@ -84,3 +87,44 @@ class TestReinstallMissingAllowedGuard:
             _reinstall_missing_allowed(MagicMock(), MagicMock())
 
         mock_install.assert_called_once()
+
+
+class TestLibraryWarningLatch:
+    """The "no library" warning must fire once, not once per game per pass.
+
+    At the observed 3s cadence an unlatched warning replaces a traceback storm
+    with a log storm, which is the same bug in a different costume.
+    """
+
+    _PKG = "steam_backlog_enforcer.game_install"
+
+    def test_warns_once_then_debugs(self, caplog: pytest.LogCaptureFixture) -> None:
+        from steam_backlog_enforcer.game_install import _LIBRARY_WARNED
+
+        _LIBRARY_WARNED.discard("missing")
+        with (
+            patch(f"{self._PKG}.steam_library_ready", return_value=False),
+            caplog.at_level(
+                logging.DEBUG, logger="steam_backlog_enforcer.game_install"
+            ),
+        ):
+            for _ in range(3):
+                install_game(440, "TF2", "steam123")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        debugs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert len(warnings) == 1
+        assert len(debugs) == 2
+
+    def test_latch_resets_when_library_returns(self) -> None:
+        """Signing in to Steam must re-arm the warning for a later outage."""
+        from steam_backlog_enforcer.game_install import _LIBRARY_WARNED
+
+        _LIBRARY_WARNED.add("missing")
+        with (
+            patch(f"{self._PKG}.steam_library_ready", return_value=True),
+            patch(f"{self._PKG}.is_game_installed", return_value=True),
+        ):
+            install_game(440, "TF2", "steam123")
+
+        assert "missing" not in _LIBRARY_WARNED
