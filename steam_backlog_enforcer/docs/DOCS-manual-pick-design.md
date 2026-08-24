@@ -18,13 +18,13 @@ Logic should be as follows:
 test the functionality with 489830 (The Elder Scrolls V: Skyrim Special Edition)
 as always first write full functionality confirm that it works alone and with the user and only AFTER that write tests and coverage and fix issues
 
-## Grace period (added 2026-07-19)
+## Abandoning a pick (added 2026-07-19, grace window removed 2026-08-24)
 
 A manual pick can be a mistake, and with no way out the user is stuck for the
-full 2 weeks. There is now a short mistake-correction window:
+full 2 weeks. A pick is never irreversible:
 
-- `MANUAL_GRACE_DAYS = 4` — for 4 days after the pick, `abandon-pick <app_id>`
-  backs out of it. Outside that window the command refuses and exits 1.
+- `abandon-pick <app_id>` backs out of a pick at any time, however long ago
+  it was made. There is no grace window.
 - The app_id must be passed explicitly and must match the active pick, so an
   abandon cannot be triggered by muscle memory.
 - `abandon-pick` is in `_MANUAL_LOCK_EXEMPT_COMMANDS` — otherwise the
@@ -36,12 +36,12 @@ full 2 weeks. There is now a short mistake-correction window:
   `apply_manual_pick` rule, so the MCP `abandon_pick` tool can reuse it. Both
   MCP tools stay gated behind `confirm=True`.
 
-The lock-active message advertises `abandon-pick` only while the window is
-still open, and the `pick-manual` warning mentions it up front.
+The lock-active message advertises `abandon-pick` for every active pick, and
+the `pick-manual` warning mentions it up front.
 
 ## Concurrent manual picks (added 2026-07-19)
 
-`Config.max_manual_picks` (default 3) is how many games may be locked in at
+`Config.max_manual_picks` (default 2) is how many games may be locked in at
 once. All active picks stay installed, visible and un-killed; the lock
 releases only when every pick is finished or past its own 14-day deadline.
 

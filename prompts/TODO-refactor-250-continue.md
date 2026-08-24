@@ -180,3 +180,5 @@ Long jobs (`scripts/ci_mirror.sh`, full-suite runs) go in the background with
 Run the enforcer entry point, show the output, and confirm with the user.
 **Do NOT restart the systemd unit or Steam** — a real total-block/manual-pick
 lock may be active on this machine; ask first.
+
+REMOVE ME AFTER FINISH

@@ -133,3 +133,5 @@ something the name does not.
 4. Every suppression you added is listed in the final report with its
    justification. If you could not reach 10.00 without a suppression the user
    would not accept, say so and report the real number instead.
+
+REMOVE ME AFTER FINISH

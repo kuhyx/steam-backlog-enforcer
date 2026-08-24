@@ -192,3 +192,13 @@ repos:
         entry: bash -c 'printf "%s\0" "$@" | xargs -0 -n 40 shellcheck --severity=warning' --
         language: system
         types: [shell]
+
+      # Four markdown namespaces (README / CLAUDE* / DOCS* / TODO*), plus the
+      # rule that a TODO carries "REMOVE ME AFTER FINISH" and nothing else may.
+      # Shared gate in ~/utils owns the namespaces and the exemption list, so
+      # one repo's idea of a valid name cannot drift from every other repo's.
+      - id: md-naming
+        name: markdown naming convention
+        entry: scripts/check_md_naming.sh
+        language: system
+        files: \.(md|markdown)$

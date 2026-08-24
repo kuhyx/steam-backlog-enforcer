@@ -94,3 +94,5 @@ A refactor without a gate silently regrows. Before this task is done:
 ## Verify
 
 Run the suite, then run the enforcer entry point. Do NOT restart the systemd unit or Steam while a game is running — ask first.
+
+REMOVE ME AFTER FINISH
