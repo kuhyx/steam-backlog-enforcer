@@ -13,7 +13,9 @@ from steam_backlog_enforcer._web_dataset import (
 from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import GameInfo
 
-_PKG = "steam_backlog_enforcer._web_dataset"
+_PKG = "steam_backlog_enforcer._web_games"
+# build_web_dataset itself did not move.
+_DATASET_PKG = "steam_backlog_enforcer._web_dataset"
 
 
 def _gi(**over: object) -> GameInfo:
@@ -74,7 +76,7 @@ class TestDatasetToPayload:
     def test_serializes_to_dict(self) -> None:
         """Test serializes to dict."""
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=None),
+            patch(f"{_DATASET_PKG}.load_snapshot", return_value=None),
             patch(f"{_PKG}._read_raw_cache", return_value={}),
             patch(f"{_PKG}._load_cache", return_value={}),
         ):

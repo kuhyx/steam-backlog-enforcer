@@ -19,7 +19,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _PKG = "steam_backlog_enforcer._web_server"
-_DATA_PKG = "steam_backlog_enforcer._web_dataset"
+_DATA_PKG = "steam_backlog_enforcer._web_games"
+# build_web_dataset itself did not move.
+_DATASET_PKG = "steam_backlog_enforcer._web_dataset"
 
 
 @contextmanager
@@ -68,7 +70,7 @@ class TestDatasetEndpoint:
 
     def test_dataset_ok(self) -> None:
         with (
-            patch(f"{_DATA_PKG}.load_snapshot", return_value=None),
+            patch(f"{_DATASET_PKG}.load_snapshot", return_value=None),
             patch(f"{_DATA_PKG}._read_raw_cache", return_value={}),
             patch(f"{_DATA_PKG}._load_cache", return_value={}),
             _running() as port,

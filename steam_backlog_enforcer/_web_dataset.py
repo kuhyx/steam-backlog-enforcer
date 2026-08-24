@@ -14,7 +14,29 @@ default thresholds and a parity summary are included so the UI can show
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+# The dataclasses live in the _web_models leaf so the helper modules can share
+# them, and the pace/game helpers in their own modules; all are re-exported
+# here because callers have always imported them from _web_dataset.
+__all__ = [
+    "HOURS_PER_DAY_PRESETS",
+    "DefaultSummary",
+    "PaceVsHLTB",
+    "WebDataset",
+    "WebDefaults",
+    "WebGame",
+    "WebStateInfo",
+    "_build_games",
+    "_default_qualifying",
+    "_default_summary",
+    "_has_any_time",
+    "_passes_default_confidence",
+    "_sum_positive",
+    "_worst_hours",
+    "compute_pace_vs_hltb",
+    "count_complete_since_start",
+]
+
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -25,220 +47,30 @@ from steam_backlog_enforcer._scanning_confidence import (
     _MIN_CONFIDENCE_SUM,
     _MIN_COUNT_COMP,
 )
+from steam_backlog_enforcer._web_games import (
+    _build_games,
+    _default_qualifying,
+    _default_summary,
+    _has_any_time,
+    _passes_default_confidence,
+    _sum_positive,
+    _worst_hours,
+)
+from steam_backlog_enforcer._web_models import (
+    HOURS_PER_DAY_PRESETS,
+    DefaultSummary,
+    PaceVsHLTB,
+    WebDataset,
+    WebDefaults,
+    WebGame,
+    WebStateInfo,
+)
+from steam_backlog_enforcer._web_pace import compute_pace_vs_hltb
 from steam_backlog_enforcer.config import State, load_snapshot
 from steam_backlog_enforcer.protondb import (
     MIN_PLAYABLE_TIER,
-    ProtonDBRating,
-    _load_cache,
-    _rating_from_cache,
 )
 from steam_backlog_enforcer.steam_api import GameInfo
-
-# Mirrors ``_stats._HOURS_PER_DAY_PRESETS`` but mutable/JSON-friendly.
-HOURS_PER_DAY_PRESETS = [2.0, 4.0, 6.0, 8.0]
-
-
-@dataclass
-class WebGame:
-    """One incomplete candidate game, with raw filterable fields.
-
-    Hour fields use ``-1`` to mean "no data" (matching the cache convention),
-    so the client can choose to include or exclude unknown-length games.
-    """
-
-    app_id: int
-    name: str
-    completion_pct: float
-    playtime_minutes: int
-    rush_hours: float
-    leisure_hours: float
-    worst_hours: float
-    count_comp: int
-    comp_100_count: int
-    hltb_game_id: int
-    protondb_tier: str
-    protondb_trending_tier: str
-    protondb_score: float
-
-
-@dataclass
-class WebStateInfo:
-    """Pace inputs and current-assignment metadata for the UI."""
-
-    current_app_id: int | None
-    current_game_name: str
-    games_done: int
-    games_done_since_start: int
-    days_elapsed: int
-    enforcement_started_at: str
-    pace_games_per_day: float
-
-
-@dataclass
-class WebDefaults:
-    """The CLI's hardcoded filter thresholds, surfaced as editable defaults."""
-
-    min_comp_100_polls: int
-    min_count_comp: int
-    min_confidence_sum: int
-    min_playable_tier: str
-    hours_per_day_presets: list[float]
-
-
-@dataclass
-class DefaultSummary:
-    """Totals the CLI ``stats`` command would print at default thresholds.
-
-    Used as a parity oracle: the client's own default-filtered totals must
-    reproduce these numbers.
-    """
-
-    qualifying: int
-    rush_total: float
-    leisure_total: float
-    worst_total: float
-
-
-@dataclass
-class PaceVsHLTB:
-    """Player pace calibrated against HLTB rush/leisure averages.
-
-    Derived from completed games that have HLTB detail data.  All ratio /
-    interpolation fields use ``-1`` to mean "insufficient data", matching the
-    cache convention used elsewhere.
-
-    Fields:
-        calibration_count: number of completed games used for calibration.
-        ratio_vs_rush: actual_hours / rush_hours across calibration games.
-        ratio_vs_leisure: actual_hours / leisure_hours (-1 if no leisure data).
-        interpolation_t: position between rush (0.0) and leisure (1.0) speed.
-            Negative means faster than rush; >1 means slower than leisure.
-            -1 means insufficient data.
-        player_style: human-readable style label.
-    """
-
-    calibration_count: int
-    ratio_vs_rush: float
-    ratio_vs_leisure: float
-    interpolation_t: float
-    player_style: str
-
-
-@dataclass
-class WebDataset:
-    """Full payload served to the browser."""
-
-    games: list[WebGame]
-    state: WebStateInfo
-    defaults: WebDefaults
-    default_summary: DefaultSummary
-    pace_vs_hltb: PaceVsHLTB | None
-    generated_at: str = field(default="")
-
-
-def _worst_hours(game: GameInfo, cache_hours: float, leisure: float) -> float:
-    """Replicate ``_stats`` worst-case selection exactly.
-
-    worst = max of snapshot completionist hours, the HLTB hours-cache value,
-    and the leisure-100% time — considering only positive values.
-    """
-    snap_hours = game.completionist_hours if game.completionist_hours > 0 else -1
-    candidates = [v for v in (snap_hours, cache_hours, leisure) if v > 0]
-    return max(candidates) if candidates else -1.0
-
-
-def _passes_default_confidence(game: WebGame) -> bool:
-    """True if the game clears all three CLI HLTB-confidence thresholds."""
-    if game.comp_100_count < _MIN_COMP_100_POLLS:
-        return False
-    if game.count_comp < _MIN_COUNT_COMP:
-        return False
-    return game.comp_100_count + game.count_comp >= _MIN_CONFIDENCE_SUM
-
-
-def _has_any_time(game: WebGame) -> bool:
-    """True if the game has at least one positive time estimate."""
-    return game.worst_hours > 0 or game.rush_hours > 0 or game.leisure_hours > 0
-
-
-def _build_games(games: list[GameInfo], exclude: set[int]) -> list[WebGame]:
-    """Project incomplete, non-excluded games into compact rows (no network)."""
-    raw = _read_raw_cache()
-    protondb_cache = _load_cache()
-
-    rows: list[WebGame] = []
-    for game in games:
-        if game.is_complete or game.app_id in exclude:
-            continue
-
-        entry = raw.get(game.app_id, {})
-        rush = float(entry.get("rush_hours", -1))
-        leisure = float(entry.get("leisure_100h", -1))
-        cache_hours = float(entry.get("hours", -1))
-        count_comp = int(entry.get("count_comp", 0))
-        comp_100_count = int(entry.get("polls", 0))
-        hltb_game_id = int(entry.get("hltb_game_id", 0))
-
-        rating: ProtonDBRating = (
-            _rating_from_cache(game.app_id, protondb_cache[str(game.app_id)])
-            if str(game.app_id) in protondb_cache
-            else ProtonDBRating(app_id=game.app_id)
-        )
-
-        rows.append(
-            WebGame(
-                app_id=game.app_id,
-                name=game.name,
-                completion_pct=round(game.completion_pct, 1),
-                playtime_minutes=game.playtime_minutes,
-                rush_hours=rush,
-                leisure_hours=leisure,
-                worst_hours=_worst_hours(game, cache_hours, leisure),
-                count_comp=count_comp,
-                comp_100_count=comp_100_count,
-                hltb_game_id=hltb_game_id,
-                protondb_tier=rating.tier,
-                protondb_trending_tier=rating.trending_tier,
-                protondb_score=rating.score,
-            )
-        )
-    return rows
-
-
-def _default_qualifying(rows: list[WebGame]) -> list[WebGame]:
-    """Apply the exact CLI default filters (confidence + ProtonDB + has-data)."""
-    qualifying: list[WebGame] = []
-    for game in rows:
-        if not _passes_default_confidence(game):
-            continue
-        rating = ProtonDBRating(
-            app_id=game.app_id,
-            tier=game.protondb_tier,
-            trending_tier=game.protondb_trending_tier,
-        )
-        if not rating.is_playable:
-            continue
-        if not _has_any_time(game):
-            continue
-        qualifying.append(game)
-    return qualifying
-
-
-def _sum_positive(rows: list[WebGame], attr: str) -> float:
-    """Sum a positive-only hour attribute across rows (matches ``_sum_hours``)."""
-    total = sum(getattr(g, attr) for g in rows if getattr(g, attr) > 0)
-    return round(total, 1)
-
-
-def _default_summary(rows: list[WebGame]) -> DefaultSummary:
-    """Compute the CLI parity totals at default thresholds."""
-    qualifying = _default_qualifying(rows)
-    return DefaultSummary(
-        qualifying=len(qualifying),
-        rush_total=_sum_positive(qualifying, "rush_hours"),
-        leisure_total=_sum_positive(qualifying, "leisure_hours"),
-        worst_total=_sum_positive(qualifying, "worst_hours"),
-    )
 
 
 def count_complete_since_start(games: list[GameInfo], started_at: str) -> int:
@@ -294,96 +126,6 @@ def _state_info(
         days_elapsed=days_elapsed,
         enforcement_started_at=state.enforcement_started_at,
         pace_games_per_day=pace,
-    )
-
-
-def _collect_calibration_pairs(
-    raw_games: list[GameInfo],
-    raw_cache: dict[int, dict[str, Any]],
-) -> tuple[list[tuple[float, float]], list[tuple[float, float, float]]]:
-    """Separate complete games into rush-only and rush+leisure sample sets."""
-    rush_pairs: list[tuple[float, float]] = []
-    both_pairs: list[tuple[float, float, float]] = []
-    for game in raw_games:
-        if not game.is_complete or game.playtime_minutes <= 0:
-            continue
-        entry = raw_cache.get(game.app_id, {})
-        rush = float(entry.get("rush_hours", -1))
-        leisure = float(entry.get("leisure_100h", -1))
-        actual = game.playtime_minutes / 60.0
-        if rush > 0:
-            rush_pairs.append((actual, rush))
-        if rush > 0 and leisure > 0:
-            both_pairs.append((actual, rush, leisure))
-    return rush_pairs, both_pairs
-
-
-def _interpolate_from_both(
-    both_pairs: list[tuple[float, float, float]],
-) -> tuple[float, float]:
-    """Return (ratio_vs_leisure, interpolation_t) from (actual, rush, leisure) triples.
-
-    Returns -1.0 for interpolation_t when leisure <= rush (degenerate data).
-    """
-    sum_actual = sum(p[0] for p in both_pairs)
-    sum_rush = sum(p[1] for p in both_pairs)
-    sum_leisure = sum(p[2] for p in both_pairs)
-    ratio_vs_leisure = round(sum_actual / sum_leisure, 3)
-    if sum_leisure > sum_rush:
-        t = round((sum_actual - sum_rush) / (sum_leisure - sum_rush), 3)
-    else:
-        t = -1.0
-    return ratio_vs_leisure, t
-
-
-def _classify_player_style(interpolation_t: float, ratio_vs_rush: float) -> str:
-    """Map calibration metrics to a player-style label."""
-    if interpolation_t != -1.0:
-        if interpolation_t < 0:
-            return "faster_than_rush"
-        if interpolation_t <= 1.0:
-            return "rush_to_leisure"
-        return "slower_than_leisure"
-    return "faster_than_rush" if ratio_vs_rush < 1.0 else "unknown"
-
-
-def compute_pace_vs_hltb(
-    raw_games: list[GameInfo],
-    raw_cache: dict[int, dict[str, Any]],
-) -> PaceVsHLTB | None:
-    """Compute player pace relative to HLTB rush/leisure averages.
-
-    Uses completed games (100 % achievements, positive playtime) as calibration
-    samples.  Steam playtime includes idle time, so ratios > 1 are expected for
-    most players.
-
-    Args:
-        raw_games: All games from the snapshot (completed + incomplete).
-        raw_cache: The full HLTB cache (from ``_read_raw_cache()``).
-
-    Returns:
-        A ``PaceVsHLTB`` when at least one completed game has rush data,
-        ``None`` when there is no calibration data at all.
-    """
-    rush_pairs, both_pairs = _collect_calibration_pairs(raw_games, raw_cache)
-    if not rush_pairs:
-        return None
-
-    ratio_vs_rush = round(
-        sum(p[0] for p in rush_pairs) / sum(p[1] for p in rush_pairs), 3
-    )
-    if both_pairs:
-        ratio_vs_leisure, interpolation_t = _interpolate_from_both(both_pairs)
-    else:
-        ratio_vs_leisure = -1.0
-        interpolation_t = -1.0
-
-    return PaceVsHLTB(
-        calibration_count=len(rush_pairs),
-        ratio_vs_rush=ratio_vs_rush,
-        ratio_vs_leisure=ratio_vs_leisure,
-        interpolation_t=interpolation_t,
-        player_style=_classify_player_style(interpolation_t, ratio_vs_rush),
     )
 
 

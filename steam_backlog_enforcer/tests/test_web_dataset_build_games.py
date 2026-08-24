@@ -14,7 +14,9 @@ from steam_backlog_enforcer._web_dataset import (
 from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import GameInfo
 
-_PKG = "steam_backlog_enforcer._web_dataset"
+_PKG = "steam_backlog_enforcer._web_games"
+# build_web_dataset itself did not move.
+_DATASET_PKG = "steam_backlog_enforcer._web_dataset"
 
 
 def _gi(**over: object) -> GameInfo:
@@ -139,7 +141,7 @@ class TestBuildWebDataset:
     def test_no_snapshot_returns_empty_games(self) -> None:
         """Test no snapshot returns empty games."""
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=None),
+            patch(f"{_DATASET_PKG}.load_snapshot", return_value=None),
             patch(f"{_PKG}._read_raw_cache", return_value={}),
             patch(f"{_PKG}._load_cache", return_value={}),
         ):
@@ -165,7 +167,7 @@ class TestBuildWebDataset:
         }
         proton = {str(a): {"tier": "gold", "trending_tier": "gold"} for a in (1, 2)}
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(f"{_DATASET_PKG}.load_snapshot", return_value=snapshot),
             patch(f"{_PKG}._read_raw_cache", return_value=raw),
             patch(f"{_PKG}._load_cache", return_value=proton),
         ):
@@ -200,7 +202,7 @@ class TestBuildWebDataset:
         }
         proton = {"1": {"tier": "gold", "trending_tier": "gold"}}
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(f"{_DATASET_PKG}.load_snapshot", return_value=snapshot),
             patch(f"{_PKG}._read_raw_cache", return_value=raw),
             patch(f"{_PKG}._load_cache", return_value=proton),
         ):
