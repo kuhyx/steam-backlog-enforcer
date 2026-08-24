@@ -14,7 +14,7 @@ from steam_backlog_enforcer.hltb import (
 if TYPE_CHECKING:
     from steam_backlog_enforcer._hltb_types import _HLTBExtras
 
-PKG = "steam_backlog_enforcer.hltb"
+PKG = "steam_backlog_enforcer._hltb_confidence"
 
 
 class _DummySession:

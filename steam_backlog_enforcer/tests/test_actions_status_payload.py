@@ -37,7 +37,7 @@ class TestStatusPayload:
     ) -> object:
         """Test patch leaves."""
         return patch.multiple(
-            "steam_backlog_enforcer._actions",
+            "steam_backlog_enforcer._manual_pick_lifecycle",
             get_total_block_status=lambda: total_block,
             get_installed_games=lambda: installed,
             is_store_blocked=lambda: store_blocked,

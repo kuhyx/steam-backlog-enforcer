@@ -66,7 +66,7 @@ class TestAppendAuditLog:
         """Test audit log written."""
         log_file = tmp_path / "audit.log"
         with patch(
-            "steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            "steam_backlog_enforcer._whitelist_locking.EXCEPTION_AUDIT_LOG",
             log_file,
         ):
             _append_audit_log(440, "some reason", "REQUESTED")
@@ -79,7 +79,7 @@ class TestAppendAuditLog:
         """Test audit log appends."""
         log_file = tmp_path / "audit.log"
         with patch(
-            "steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            "steam_backlog_enforcer._whitelist_locking.EXCEPTION_AUDIT_LOG",
             log_file,
         ):
             _append_audit_log(440, "first", "REQUESTED")

@@ -15,6 +15,7 @@ from steam_backlog_enforcer.hltb import (
 )
 
 PKG = "steam_backlog_enforcer.hltb"
+_CONF = "steam_backlog_enforcer._hltb_confidence"
 
 
 class _DummySession:
@@ -116,11 +117,11 @@ class TestConfidenceHelpers:
     def test_fetch_hltb_confidence_cached_all_cached_skips_fetch(self) -> None:
         """Test fetch hltb confidence cached all cached skips fetch."""
         with (
-            patch(f"{PKG}.load_hltb_cache", return_value={1: 12.0}),
-            patch(f"{PKG}.load_hltb_polls_cache", return_value={1: 30}),
-            patch(f"{PKG}.load_hltb_count_comp_cache", return_value={1: 200}),
-            patch(f"{PKG}.fetch_hltb_confidence") as mock_fetch,
-            patch(f"{PKG}.save_hltb_cache") as mock_save,
+            patch(f"{_CONF}.load_hltb_cache", return_value={1: 12.0}),
+            patch(f"{_CONF}.load_hltb_polls_cache", return_value={1: 30}),
+            patch(f"{_CONF}.load_hltb_count_comp_cache", return_value={1: 200}),
+            patch(f"{_CONF}.fetch_hltb_confidence") as mock_fetch,
+            patch(f"{_CONF}.save_hltb_cache") as mock_save,
         ):
             result = fetch_hltb_confidence_cached([(1, "Game")])
         assert result == {1: 12.0}

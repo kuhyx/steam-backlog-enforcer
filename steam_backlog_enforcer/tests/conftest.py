@@ -135,13 +135,21 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
                 tmp_path / "fake_home" / ".config" / "CSDSteamBuild",
             ),
         ),
-        # Whitelist exception files (_whitelist module-level constants)
+        # Derived from CONFIG_DIR at import time, so it captures the REAL path
+        # before this fixture redirects CONFIG_DIR. Without it the suite
+        # rewrites the user's owned-games cache.
         patch(
-            "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._owned_apps_cache._OWNED_IDS_CACHE_FILE",
+            fake_config / "owned_app_ids_cache.json",
+        ),
+        # Whitelist exception files (module-level constants; these live in
+        # _whitelist_locking, which is where the code that reads them is)
+        patch(
+            "steam_backlog_enforcer._whitelist_locking.APPROVED_EXCEPTIONS_FILE",
             fake_config / "approved_exceptions.json",
         ),
         patch(
-            "steam_backlog_enforcer._whitelist.EXCEPTION_AUDIT_LOG",
+            "steam_backlog_enforcer._whitelist_locking.EXCEPTION_AUDIT_LOG",
             fake_config / "exception_audit.log",
         ),
         # _enforce_loop imports CONFIG_FILE directly; patch the local binding so

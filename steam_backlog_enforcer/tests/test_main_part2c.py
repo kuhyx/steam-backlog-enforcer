@@ -11,7 +11,10 @@ from steam_backlog_enforcer._cmd_done import (
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.steam_api import GameInfo
 
-CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done"
+CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done_finalize"
+# _refresh_uncached_shortlist_hours stayed in _cmd_done, so its
+# fetch_hltb_times_cached resolves there, not in the finalize module.
+_CMD_DONE = "steam_backlog_enforcer._cmd_done"
 PKG = "steam_backlog_enforcer.main"
 
 
@@ -59,7 +62,7 @@ class TestFinalizeCompletionRetries:
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={2: 20.05}),
             patch(
-                f"{CMD_DONE_PKG}.fetch_hltb_times_cached",
+                f"{_CMD_DONE}.fetch_hltb_times_cached",
                 return_value={3: 18.81},
             ) as mock_fetch_hltb,
             patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=capture_pick),

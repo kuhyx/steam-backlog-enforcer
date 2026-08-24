@@ -9,7 +9,7 @@ from steam_backlog_enforcer.main import (
 from steam_backlog_enforcer.steam_api import GameInfo
 
 PKG = "steam_backlog_enforcer.main"
-CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done"
+CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done_finalize"
 
 
 class TestCmdDone:

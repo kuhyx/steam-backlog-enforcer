@@ -164,7 +164,7 @@ class TestTrySetImmutable:
             # A fresh tmp file is already mutable, so without this the call
             # would (correctly) short-circuit before reaching chattr.
             patch(
-                "steam_backlog_enforcer._whitelist._immutable_flag_is",
+                "steam_backlog_enforcer._whitelist_locking._immutable_flag_is",
                 return_value=False,
             ),
             patch("subprocess.run") as mock_run,
@@ -181,7 +181,7 @@ class TestTrySetImmutable:
         target.write_text("data", encoding="utf-8")
         with (
             patch(
-                "steam_backlog_enforcer._whitelist._immutable_flag_is",
+                "steam_backlog_enforcer._whitelist_locking._immutable_flag_is",
                 return_value=True,
             ),
             patch("shutil.which") as mock_which,

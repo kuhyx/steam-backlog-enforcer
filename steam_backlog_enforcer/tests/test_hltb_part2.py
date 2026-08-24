@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from steam_backlog_enforcer._hltb_types import _HLTBExtras
 
 PKG = "steam_backlog_enforcer.hltb"
+_CACHED = "steam_backlog_enforcer._hltb_cached"
+_CONF = "steam_backlog_enforcer._hltb_confidence"
 
 
 class _DummySession:
@@ -38,7 +40,7 @@ class TestFetchHltbTimesCached:
     def test_all_cached(self) -> None:
         """Test all cached."""
         with (
-            patch(f"{PKG}.load_hltb_cache", return_value={440: 50.0}),
+            patch(f"{_CACHED}.load_hltb_cache", return_value={440: 50.0}),
         ):
             result = fetch_hltb_times_cached([(440, "TF2")])
         assert result == {440: 50.0}
@@ -46,10 +48,10 @@ class TestFetchHltbTimesCached:
     def test_uncached_games_fetched(self) -> None:
         """Test uncached games fetched."""
         with (
-            patch(f"{PKG}.load_hltb_cache", return_value={440: 50.0}),
-            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
-            patch(f"{PKG}.save_hltb_cache") as mock_save,
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 2.0]),
+            patch(f"{_CACHED}.load_hltb_cache", return_value={440: 50.0}),
+            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{_CACHED}.save_hltb_cache") as mock_save,
+            patch(f"{_CACHED}.time.monotonic", side_effect=[0.0, 2.0]),
         ):
             # fetch_hltb_times modifies cache in-place
             def add_to_cache(
@@ -80,10 +82,10 @@ class TestFetchHltbTimesCached:
         """Test uncached with progress cb."""
         cb = MagicMock()
         with (
-            patch(f"{PKG}.load_hltb_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
-            patch(f"{PKG}.save_hltb_cache"),
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
+            patch(f"{_CACHED}.load_hltb_cache", return_value={}),
+            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{_CACHED}.save_hltb_cache"),
+            patch(f"{_CACHED}.time.monotonic", side_effect=[0.0, 1.0]),
         ):
             mock_fetch.return_value = []
             result = fetch_hltb_times_cached(
@@ -95,10 +97,10 @@ class TestFetchHltbTimesCached:
     def test_uncached_zero_elapsed(self) -> None:
         """Covers the elapsed == 0 branch for rate calculation."""
         with (
-            patch(f"{PKG}.load_hltb_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
-            patch(f"{PKG}.save_hltb_cache"),
-            patch(f"{PKG}.time.monotonic", side_effect=[5.0, 5.0]),
+            patch(f"{_CACHED}.load_hltb_cache", return_value={}),
+            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{_CACHED}.save_hltb_cache"),
+            patch(f"{_CACHED}.time.monotonic", side_effect=[5.0, 5.0]),
         ):
             mock_fetch.return_value = []
             fetch_hltb_times_cached([(440, "TF2")])
@@ -106,10 +108,10 @@ class TestFetchHltbTimesCached:
     def test_found_count(self) -> None:
         """Covers the found count in logging."""
         with (
-            patch(f"{PKG}.load_hltb_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
-            patch(f"{PKG}.save_hltb_cache"),
-            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 3.0]),
+            patch(f"{_CACHED}.load_hltb_cache", return_value={}),
+            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{_CACHED}.save_hltb_cache"),
+            patch(f"{_CACHED}.time.monotonic", side_effect=[0.0, 3.0]),
         ):
 
             def add_found(
@@ -151,13 +153,13 @@ class TestGetHltbSubmitUrl:
             similarity=1.0,
             hltb_game_id=12345,
         )
-        with patch(f"{PKG}.fetch_hltb_times", return_value=[mock_result]):
+        with patch(f"{_CONF}.fetch_hltb_times", return_value=[mock_result]):
             url = get_hltb_submit_url("TF2")
         assert url == f"{HLTB_BASE_URL}/submit/game/12345"
 
     def test_not_found_empty(self) -> None:
         """Test not found empty."""
-        with patch(f"{PKG}.fetch_hltb_times", return_value=[]):
+        with patch(f"{_CONF}.fetch_hltb_times", return_value=[]):
             url = get_hltb_submit_url("Unknown Game")
         assert url is None
 
@@ -170,6 +172,6 @@ class TestGetHltbSubmitUrl:
             similarity=1.0,
             hltb_game_id=0,
         )
-        with patch(f"{PKG}.fetch_hltb_times", return_value=[mock_result]):
+        with patch(f"{_CONF}.fetch_hltb_times", return_value=[mock_result]):
             url = get_hltb_submit_url("TF2")
         assert url is None

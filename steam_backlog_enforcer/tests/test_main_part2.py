@@ -10,7 +10,7 @@ from steam_backlog_enforcer._cmd_done import (
 )
 from steam_backlog_enforcer.config import Config, State
 
-CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done"
+CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done_finalize"
 PKG = "steam_backlog_enforcer.main"
 
 

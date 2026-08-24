@@ -148,7 +148,7 @@ class TestLockAndUnlock:
 
         with (
             patch(
-                "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+                "steam_backlog_enforcer._whitelist_locking.APPROVED_EXCEPTIONS_FILE",
                 approved,
             ),
             patch("shutil.which", return_value="/usr/bin/chattr"),
@@ -168,7 +168,7 @@ class TestLockAndUnlock:
             # Pretend the file really is immutable; a fresh tmp file is not,
             # and unlocking an already-mutable file is now a no-op.
             patch(
-                "steam_backlog_enforcer._whitelist._immutable_flag_is",
+                "steam_backlog_enforcer._whitelist_locking._immutable_flag_is",
                 return_value=False,
             ),
             patch("subprocess.run") as mock_run,
@@ -198,7 +198,7 @@ class TestPersistence:
         bad = tmp_path / "approved.json"
         bad.write_text("{{broken", encoding="utf-8")
         with patch(
-            "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist_locking.APPROVED_EXCEPTIONS_FILE",
             bad,
         ):
             assert _load_approved() == []
@@ -208,7 +208,7 @@ class TestPersistence:
         bad = tmp_path / "approved.json"
         bad.write_text('"just a string"', encoding="utf-8")
         with patch(
-            "steam_backlog_enforcer._whitelist.APPROVED_EXCEPTIONS_FILE",
+            "steam_backlog_enforcer._whitelist_locking.APPROVED_EXCEPTIONS_FILE",
             bad,
         ):
             assert _load_approved() == []
