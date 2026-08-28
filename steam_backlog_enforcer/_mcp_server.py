@@ -29,7 +29,7 @@ import logging
 import sys
 from typing import TYPE_CHECKING
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 from steam_backlog_enforcer.config import load_snapshot
 
@@ -45,7 +45,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("steam-backlog-enforcer")
+mcp = MCPServer("steam-backlog-enforcer")
 
 _DEFAULT_LIST_LIMIT = 50
 

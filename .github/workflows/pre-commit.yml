@@ -11,6 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Hooks here delegate to the shared gates in kuhyx/utils. Without this
+      # checkout they exit 1 with "shared gate not found at
+      # /home/runner/utils/..." -- green locally, red on every runner.
+      - name: Check out the shared gates
+        uses: actions/checkout@v4
+        with:
+          repository: kuhyx/utils
+          path: .utils
+      - name: Point the delegates at that checkout
+        run: echo "UTILS_ROOT=$GITHUB_WORKSPACE/.utils" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

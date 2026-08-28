@@ -123,7 +123,12 @@ repos:
           - --rcfile=pyproject.toml
           - --fail-under=8.0
           - --jobs=4
+        # pylint resolves imports in its OWN isolated env, so anything the
+        # package imports has to be listed here or it reports import-error and
+        # drags the score under --fail-under. `mcp` is a real runtime import
+        # (steam_backlog_enforcer._mcp_server).
         additional_dependencies:
+          - mcp==2.1.1
           - pytest
           - requests
 
@@ -179,7 +184,9 @@ repos:
     hooks:
       - id: codespell
         args:
-          - --skip=*.json,*.lock,.git,__pycache__,.venv
+          # pnpm-lock.yaml is integrity hashes, not prose: `vEw` in a
+          # sha512 read as a misspelling of "view".
+          - --skip=*.json,*.lock,*-lock.yaml,.git,__pycache__,.venv,node_modules
           - --ignore-words-list=als,ans,ect,nd,som,sur,te,nam,numer,lew,sie,wil,postion,clen,ther,folow,derrive,ony,tje,noe,theses,crate,doubleclick,wile,tabel,pary,blok,bloc,proces,serwer,parametr,adres,hart,dout,metod,tekst,synonim,grup,mosty,lokal,skalar,milion,nowe,tre,hel,alph
 
   # ===========================================================================
@@ -202,3 +209,25 @@ repos:
         entry: scripts/check_md_naming.sh
         language: system
         files: \.(md|markdown)$
+
+      # Every dependency on its ecosystem's newest STABLE release, exact-pinned
+      # so the question is mechanically answerable at all.
+      #
+      # `files:` is what keeps this cheap: a commit touching only source makes
+      # ZERO network requests, and manifest commits mostly hit a 6h disk cache.
+      #
+      # Runs WITHOUT --strict on purpose. Offline it degrades to the cached
+      # answer and passes with a loud banner; `--no-verify` is banned here, so
+      # a hook that hard-failed on a flaky connection would leave no way to
+      # commit at all. CI, always online, is the strict authority.
+      - id: dependency-freshness
+        name: dependencies on newest stable
+        entry: scripts/check_dependency_freshness.sh
+        language: system
+        pass_filenames: true
+        files: >-
+          (pubspec\.(yaml|lock)|pyproject\.toml|requirements.*\.txt|uv\.lock
+          |package\.json|package-lock\.json|pnpm-lock\.yaml
+          |Cargo\.(toml|lock)|go\.(mod|sum)
+          |\.fvmrc|\.nvmrc|\.python-version
+          |\.github/workflows/.*\.ya?ml)$
