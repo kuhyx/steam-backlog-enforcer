@@ -24,7 +24,7 @@ jobs:
         run: echo "UTILS_ROOT=$GITHUB_WORKSPACE/.utils" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.14.7"
+          python-version: "3.x"
       - name: Install dependencies
         run: pip install -r requirements.txt
       - uses: pre-commit/action@v3.0.1
