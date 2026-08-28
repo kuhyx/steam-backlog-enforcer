@@ -2,7 +2,7 @@
 name = "steam-game-installer"
 version = "0.1.0"
 description = "Fast Steam game installs: depotdownloader for speed, steamcmd for recognition."
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = []
 
 [project.scripts]

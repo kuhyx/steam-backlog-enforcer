@@ -177,6 +177,47 @@ def test_clean_steamcmd_run_short_circuits(steam, monkeypatch):
     assert called == []
 
 
+def test_a_complete_install_after_a_failed_steamcmd_is_not_credited_to_it(
+    steam, monkeypatch, capsys
+):
+    """A valid manifest does not mean steamcmd is why it is valid.
+
+    steamcmd can fail to even log in while the install was already complete on
+    arrival. Reporting that as "finished cleanly" credits a step that did
+    nothing and hides a real authentication failure, so the non-zero exit has
+    to say so out loud.
+    """
+    library, _ = steam
+    _stub_download(monkeypatch)
+
+    def fake_validate(appid, username, logger):
+        (library.steamapps / "appmanifest_1771300.acf").write_text(
+            vdf.dumps(
+                "AppState",
+                {
+                    "StateFlags": "4",
+                    "installdir": "KingdomComeDeliverance2",
+                    "InstalledDepots": {"1771303": {"manifest": "1"}},
+                    "BytesToDownload": "1",
+                    "BytesDownloaded": "1",
+                },
+            )
+        )
+        return recognize.ValidateResult(True, False, 5)
+
+    monkeypatch.setattr(cli.recognize, "run_steamcmd_validate", fake_validate)
+    called = []
+    monkeypatch.setattr(
+        cli.recognize, "finish_manifest_manually", lambda **kw: called.append(1)
+    )
+
+    assert cli.main(ARGV) == 0
+    out = capsys.readouterr().out
+    assert "steamcmd exited 5" in out
+    assert "finished cleanly" not in out
+    assert called == []
+
+
 def test_user_declining_confirmation_aborts(steam, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *a: "n")
     called = []
