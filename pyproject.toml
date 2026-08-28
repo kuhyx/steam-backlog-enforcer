@@ -2,7 +2,9 @@
 name = "steam-backlog-enforcer"
 version = "1.0.0"
 description = "Enforce your Steam backlog: one game at a time, tracked with HowLongToBeat data"
-requires-python = ">=3.10"
+# 3.11 floor: websockets 17 (and its successors) drop 3.10, and this repo
+# tracks newest stable rather than the oldest interpreter still alive.
+requires-python = ">=3.11"
 dependencies = [
     "requests==2.34.2",
     "howlongtobeatpy==1.0.23",
