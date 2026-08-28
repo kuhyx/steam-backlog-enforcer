@@ -17,6 +17,7 @@ from steam_backlog_enforcer._enforce_steps import (
 # from here, so splitting it into _owned_apps_cache stays invisible to them.
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
 from steam_backlog_enforcer._playtime import playtime_tick
+from steam_backlog_enforcer._playtime_session import PlaytimeSession, new_session
 from steam_backlog_enforcer._steam_launch import steam_is_installed
 from steam_backlog_enforcer._total_block import (
     end_total_block_cleanup,
@@ -103,6 +104,7 @@ def _enforce_loop_iteration(
     config: Config,
     state: State,
     *,
+    session: PlaytimeSession,
     demo: bool = False,
 ) -> None:
     """Perform one iteration of the enforcement loop.
@@ -110,13 +112,14 @@ def _enforce_loop_iteration(
     Args:
         config: Enforcer configuration.
         state: Current enforcer state.
+        session: Cross-tick engagement and logging state.
         demo: Run the gaming budget on a 60-second demo budget.
     """
     # Daily gaming budget runs FIRST and unconditionally. Every guard below
     # returns early in situations where gaming time is still being spent (total
     # block active, Steam absent, nothing assigned) and where a 06:00 release
     # still has to happen — gating this on any of them would strand the block.
-    playtime_tick(config, interval=ENFORCE_INTERVAL, demo=demo)
+    playtime_tick(config, interval=ENFORCE_INTERVAL, session=session, demo=demo)
 
     # Total block takes priority over the assigned-game enforcement below -
     # while active, don't fight ourselves (e.g. installing the assigned
@@ -204,6 +207,9 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
     _echo(f"  Enforce loop: ACTIVE (every {ENFORCE_INTERVAL}s)")
     _echo("  Guarding: processes + installs + store")
     _echo("  Press Ctrl+C to stop.\n")
+    # One session for the whole daemon: the engagement backdate needs to see
+    # the previous tick's verdict, so it cannot be rebuilt per iteration.
+    session = new_session()
     try:
         while True:
             # Reload state from disk so CLI changes (e.g. new game
@@ -219,7 +225,7 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
             state.current_game_name = fresh.current_game_name
             state.finished_app_ids = fresh.finished_app_ids
 
-            _enforce_loop_iteration(config, state, demo=demo)
+            _enforce_loop_iteration(config, state, session=session, demo=demo)
             time.sleep(ENFORCE_INTERVAL)
     except KeyboardInterrupt:
         _echo("\nEnforcer stopped.")

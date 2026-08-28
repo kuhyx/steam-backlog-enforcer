@@ -30,6 +30,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, timezone
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._playtime_block import (
@@ -57,6 +58,7 @@ from steam_backlog_enforcer._playtime_state import (
 from steam_backlog_enforcer._total_block import is_total_block_active
 
 if TYPE_CHECKING:
+    from steam_backlog_enforcer._playtime_session import PlaytimeSession
     from steam_backlog_enforcer.config import Config
 
 logger = logging.getLogger(__name__)
@@ -66,16 +68,27 @@ _SECONDS_PER_MINUTE = 60
 _MINUTES_PER_HOUR = 60
 
 
-def playtime_tick(config: Config, *, interval: float, demo: bool = False) -> None:
+def playtime_tick(
+    config: Config,
+    *,
+    interval: float,
+    session: PlaytimeSession,
+    demo: bool = False,
+) -> None:
     """Account for this tick's gaming time and enforce the daily budget.
 
     Called first in every enforce-loop iteration, before any other guard, so
     that time is still counted (and a 06:00 release still happens) in the
     situations where the rest of the loop early-returns.
 
+    Time only accrues while the user is actually engaged: a resident game
+    process behind a locked screen, an unfocused window or five minutes of
+    silence is not play. See :mod:`_playtime_engagement`.
+
     Args:
         config: Loaded user configuration.
         interval: Nominal seconds between enforce-loop ticks.
+        session: Cross-tick engagement and logging state.
         demo: Whether this is a short-budget demo run.
     """
     now = datetime.now(timezone.utc).astimezone()
@@ -90,13 +103,20 @@ def playtime_tick(config: Config, *, interval: float, demo: bool = False) -> Non
         save_state(state, demo=demo)
         return
 
+    pids = qualifying_pids(rules)
+    monotonic = time.monotonic()
+    verdict = session.tracker.assess(rules, qualifying=pids, now_monotonic=monotonic)
+
     state = accumulate(
         state,
         now=now,
-        qualifying=qualifying_pids(rules),
+        qualifying=pids if verdict.engaged else set(),
         interval=interval,
     )
-    save_state(_policy(state, rules, now=now), demo=demo)
+    state = session.tracker.backdate(state, verdict, rules=rules)
+    state = _policy(state, rules, now=now)
+    session.journal.observe(verdict, state, rules=rules, now_monotonic=monotonic)
+    save_state(state, demo=demo)
 
 
 def _state_or_recover(rules: PlaytimeRules, *, now: datetime) -> PlaytimeState:

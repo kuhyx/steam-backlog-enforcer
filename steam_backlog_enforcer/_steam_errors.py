@@ -38,3 +38,15 @@ class DesktopSessionNotReadyError(SteamUnavailableError):
     that way for the whole session — the Kingdom Come: Deliverance II startup
     crash. Waiting a pass costs 3s; getting it wrong costs a reboot.
     """
+
+
+class GameInProgressError(SteamUnavailableError):
+    """Raised to defer a Steam restart while a game is actually being played.
+
+    Subclasses :class:`SteamUnavailableError` so existing callers already
+    degrade gracefully (skip this pass, retry next loop). Bouncing Steam to
+    open the CDP port takes every running game down with it, losing unsaved
+    progress — observed on 2026-08-28, when restarting the daemon to deploy an
+    unrelated change killed a live session. Library hiding can wait; a player's
+    afternoon cannot be given back.
+    """

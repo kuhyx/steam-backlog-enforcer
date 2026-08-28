@@ -201,3 +201,24 @@ def total_block_paths(tmp_path: Path) -> Iterator[Paths]:
         patch(f"{PURGE}._STEAM_REMNANT_PATHS", built.remnant_paths),
     ):
         yield built
+
+
+# ──────────────────────────────────────────────────────────────
+# Live process-table isolation
+#
+# The Steam-restart guard asks whether a game is running by scanning
+# /proc for SteamAppId. Unpatched, that reads the *developer's* real
+# process table: running the suite while playing a game made three
+# restart tests fail on 2026-08-28. Tests that care about the guard
+# patch this themselves.
+# ──────────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _no_live_games() -> Iterator[None]:
+    """Report no running games unless a test says otherwise."""
+    with patch(
+        "steam_backlog_enforcer._steam_restart_guard.get_running_steam_game_pids",
+        return_value={},
+    ):
+        yield

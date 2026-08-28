@@ -11,6 +11,7 @@ from steam_backlog_enforcer._enforce_loop import (
     _enforce_loop_iteration,
 )
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._fake_session import fake_session
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -48,7 +49,7 @@ class TestEnforceLoopIteration:
             patch(f"{PKG}._echo"),
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
 
     def test_no_kill(self) -> None:
         config = Config(
@@ -60,7 +61,7 @@ class TestEnforceLoopIteration:
             patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
             mock_enforce.assert_not_called()
 
     def test_guards_installed(self) -> None:
@@ -74,7 +75,7 @@ class TestEnforceLoopIteration:
             patch(f"{PKG}._echo"),
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
 
     def test_guard_removes_zero(self) -> None:
         config = Config(
@@ -86,7 +87,7 @@ class TestEnforceLoopIteration:
             patch(f"{PKG}._guard_installed_games", return_value=0),
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
 
     def test_skips_when_steam_absent(self) -> None:
         """With Steam uninstalled the iteration must do nothing.
@@ -106,7 +107,7 @@ class TestEnforceLoopIteration:
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
             patch(f"{ENFORCE_STEPS_PKG}.install_game") as mock_install,
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
 
         mock_enforce.assert_not_called()
         mock_guard.assert_not_called()
@@ -123,7 +124,7 @@ class TestEnforceLoopIteration:
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=False),
             patch(f"{ENFORCE_STEPS_PKG}.install_game") as mock_install,
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
             mock_install.assert_called_once()
 
     def test_no_app_id_skip_reinstall(self) -> None:
@@ -137,7 +138,7 @@ class TestEnforceLoopIteration:
             patch(f"{PKG}._guard_installed_games") as mock_guard,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
             mock_enforce.assert_not_called()
             mock_guard.assert_not_called()
             mock_installed.assert_not_called()

@@ -9,6 +9,7 @@ from steam_backlog_enforcer._enforce_loop import (
     do_enforce,
 )
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._fake_session import fake_session
 
 PKG = "steam_backlog_enforcer._enforce_loop"
 ENFORCE_STEPS_PKG = "steam_backlog_enforcer._enforce_steps"
@@ -27,7 +28,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}._guard_installed_games") as mock_guard,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
         mock_tick.assert_called_once()
         mock_enforce.assert_not_called()
         mock_guard.assert_not_called()
@@ -42,7 +43,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.enforce_total_block_tick") as mock_tick,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
         mock_tick.assert_not_called()
 
     def test_expired_lock_triggers_cleanup_once(self) -> None:
@@ -54,7 +55,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.end_total_block_cleanup") as mock_cleanup,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
         mock_cleanup.assert_called_once()
 
     def test_no_lock_no_cleanup_call(self) -> None:
@@ -66,7 +67,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.end_total_block_cleanup") as mock_cleanup,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
         mock_cleanup.assert_not_called()
 
 
@@ -145,7 +146,7 @@ class TestPlaytimeIsEnforcedFirst:
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}.enforce_total_block_tick"),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
         mock_playtime.assert_called_once()
 
     def test_receives_the_loop_interval(self) -> None:
@@ -156,7 +157,7 @@ class TestPlaytimeIsEnforcedFirst:
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}.enforce_total_block_tick"),
         ):
-            _enforce_loop_iteration(config, state)
+            _enforce_loop_iteration(config, state, session=fake_session())
         assert mock_playtime.call_args.kwargs["interval"] == 3
         assert mock_playtime.call_args.kwargs["demo"] is False
 
@@ -168,7 +169,7 @@ class TestPlaytimeIsEnforcedFirst:
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}.enforce_total_block_tick"),
         ):
-            _enforce_loop_iteration(config, state, demo=True)
+            _enforce_loop_iteration(config, state, session=fake_session(), demo=True)
         assert mock_playtime.call_args.kwargs["demo"] is True
 
     def test_do_enforce_plumbs_demo_into_the_iteration(self) -> None:

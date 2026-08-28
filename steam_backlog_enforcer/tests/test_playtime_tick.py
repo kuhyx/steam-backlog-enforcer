@@ -6,9 +6,7 @@ from datetime import (
     timedelta,
     timezone,
 )
-from unittest.mock import (
-    patch,
-)
+from unittest.mock import patch
 
 import pytest
 
@@ -24,6 +22,7 @@ from steam_backlog_enforcer._playtime_state import (
     save_state,
 )
 from steam_backlog_enforcer.config import Config
+from steam_backlog_enforcer.tests._fake_session import fake_session
 
 PKG = "steam_backlog_enforcer._playtime"
 LOCAL = timezone(timedelta(hours=2))
@@ -164,7 +163,7 @@ class TestPlaytimeTick:
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
-            playtime_tick(Config(), interval=3.0)
+            playtime_tick(Config(), interval=3.0, session=fake_session())
         assert load_state(demo=False).seconds == 3.0
 
     def test_total_block_releases_and_stops_accruing(self, quiet_tick: dict) -> None:
@@ -181,7 +180,7 @@ class TestPlaytimeTick:
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
-            playtime_tick(Config(), interval=3.0)
+            playtime_tick(Config(), interval=3.0, session=fake_session())
         quiet_tick["reconcile"].assert_called_once_with(should_block=False)
         assert load_state(demo=False).seconds == 5.0
 
@@ -200,7 +199,7 @@ class TestPlaytimeTick:
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
-            playtime_tick(Config(), interval=3.0)
+            playtime_tick(Config(), interval=3.0, session=fake_session())
         stored = load_state(demo=False)
         assert stored.day_key == TODAY
         assert stored.seconds == 0.0
@@ -222,7 +221,7 @@ class TestPlaytimeTick:
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
-            playtime_tick(Config(), interval=3.0, demo=True)
+            playtime_tick(Config(), interval=3.0, session=fake_session(), demo=True)
         stored = load_state(demo=True)
         assert stored.is_blocked() is True
         quiet_tick["request_steam_shutdown"].assert_called_once()
@@ -234,7 +233,7 @@ class TestPlaytimeTick:
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
-            playtime_tick(Config(), interval=3.0, demo=True)
+            playtime_tick(Config(), interval=3.0, session=fake_session(), demo=True)
         assert load_state(demo=True) is not None
         assert load_state(demo=False) is None
 
@@ -244,7 +243,7 @@ class TestPlaytimeTick:
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
-            playtime_tick(Config(), interval=3.0)
+            playtime_tick(Config(), interval=3.0, session=fake_session())
         stored = load_state(demo=False)
         assert stored is not None
         assert stored.day_key == TODAY

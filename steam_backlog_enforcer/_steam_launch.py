@@ -28,9 +28,12 @@ from steam_backlog_enforcer._desktop_env import (
 from steam_backlog_enforcer._steam_errors import (
     DesktopSessionNotReadyError,
     SteamUnavailableError,
-    SteamUpdateInProgressError,
 )
 from steam_backlog_enforcer._steam_process import _run_as_user
+from steam_backlog_enforcer._steam_restart_guard import (
+    assert_safe_to_restart,
+    game_is_running,
+)
 from steam_backlog_enforcer._steam_state import steam_update_in_progress
 
 logger = logging.getLogger(__name__)
@@ -193,18 +196,7 @@ def ensure_steam_debug_port() -> None:
 
     logger.info("Steam CDP port not available — (re)starting Steam...")
     if _is_steam_running():
-        # Never bounce a running Steam while a game update is downloading or
-        # committing: the shutdown suspends it and can leave a partially
-        # written install (the root cause of the AoE2 launch crash). Defer and
-        # retry on the next enforce pass.
-        if steam_update_in_progress():
-            msg = (
-                "Deferring Steam restart: a game update is in progress. "
-                "Restarting now would interrupt and can corrupt it; will "
-                "retry once the update settles."
-            )
-            logger.info(msg)
-            raise SteamUpdateInProgressError(msg)
+        assert_safe_to_restart()
         _shutdown_steam()
 
     _launch_steam_with_debug()
@@ -228,9 +220,17 @@ def ensure_steam_debug_port() -> None:
 def restart_steam() -> None:
     """Gracefully restart the Steam client with CEF debugging enabled.
 
-    Skips the restart if a game update is downloading or committing, so the
-    update is not interrupted (interrupting it can corrupt the install).
+    Skips the restart while a game is running (the restart would kill it) or
+    while a game update is downloading or committing (interrupting it can
+    corrupt the install).
     """
+    if game_is_running():
+        logger.warning(
+            "Skipping Steam restart — a game is running; restarting now "
+            "would kill it and lose unsaved progress.",
+        )
+        return
+
     if steam_update_in_progress():
         logger.warning(
             "Skipping Steam restart — a game update is in progress; "

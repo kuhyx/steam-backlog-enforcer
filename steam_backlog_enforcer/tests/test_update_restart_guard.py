@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 SS = "steam_backlog_enforcer._steam_state"
 LH = "steam_backlog_enforcer._steam_launch"
+# ensure_steam_debug_port defers through the shared restart guard, which
+# imports steam_update_in_progress into its own namespace.
+GUARD = "steam_backlog_enforcer._steam_restart_guard"
 
 
 def _manifest(*, to_download: int, downloaded: int, to_stage: int, staged: int) -> str:
@@ -106,7 +109,7 @@ class TestEnsureSteamDebugPortDefersUpdate:
             patch(f"{LH}.steam_is_installed", return_value=True),
             patch(f"{LH}._steam_has_debug_port", return_value=False),
             patch(f"{LH}._is_steam_running", return_value=True),
-            patch(f"{LH}.steam_update_in_progress", return_value=True),
+            patch(f"{GUARD}.steam_update_in_progress", return_value=True),
             patch(f"{LH}._shutdown_steam") as shutdown,
             patch(f"{LH}._launch_steam_with_debug") as launch,
         ):
@@ -117,6 +120,18 @@ class TestEnsureSteamDebugPortDefersUpdate:
 
 
 class TestRestartSteamGuard:
+    def test_skips_while_a_game_is_running(self) -> None:
+        # The interactive restart path has the same teeth as the daemon's:
+        # bouncing Steam kills the game and any unsaved progress with it.
+        with (
+            patch(f"{LH}.game_is_running", return_value=True),
+            patch(f"{LH}._shutdown_steam") as shutdown,
+            patch(f"{LH}._launch_steam_with_debug") as launch,
+        ):
+            restart_steam()
+            shutdown.assert_not_called()
+            launch.assert_not_called()
+
     def test_skips_when_update_in_progress(self) -> None:
         with (
             patch(f"{LH}.steam_update_in_progress", return_value=True),
