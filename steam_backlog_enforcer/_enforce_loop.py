@@ -209,7 +209,7 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
     _echo("  Press Ctrl+C to stop.\n")
     # One session for the whole daemon: the engagement backdate needs to see
     # the previous tick's verdict, so it cannot be rebuilt per iteration.
-    session = new_session()
+    session = new_session(demo=demo)
     try:
         while True:
             # Reload state from disk so CLI changes (e.g. new game

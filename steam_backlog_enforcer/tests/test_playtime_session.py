@@ -5,7 +5,11 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from steam_backlog_enforcer._playtime_engagement import EngagementTracker
-from steam_backlog_enforcer._playtime_log import TickJournal
+from steam_backlog_enforcer._playtime_log import (
+    BUDGET_DEMO_LOG_FILE,
+    BUDGET_LOG_FILE,
+    TickJournal,
+)
 from steam_backlog_enforcer._playtime_session import new_session
 
 PS = "steam_backlog_enforcer._playtime_session"
@@ -31,3 +35,13 @@ class TestNewSession:
         ):
             session = new_session()
         assert "/run/user/1000/" in str(session.tracker._holder_path)
+
+    def test_demo_journals_away_from_the_production_trail(self) -> None:
+        with (
+            patch(f"{PS}.resolve_desktop_user", return_value="kuhy"),
+            patch(f"{PS}.desktop_uid", return_value=1000),
+        ):
+            live = new_session()
+            demo = new_session(demo=True)
+        assert demo.journal._log._path == BUDGET_DEMO_LOG_FILE
+        assert live.journal._log._path == BUDGET_LOG_FILE

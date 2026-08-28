@@ -21,11 +21,14 @@ from steam_backlog_enforcer._engagement_types import (
     EngagementVerdict,
 )
 from steam_backlog_enforcer._playtime_log import (
+    BUDGET_DEMO_LOG_FILE,
+    BUDGET_LOG_FILE,
     EVENT_DETECTOR_FAILURE,
     EVENT_HEARTBEAT,
     EVENT_VERDICT_CHANGE,
     BudgetLog,
     TickJournal,
+    budget_log_path,
 )
 from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 
@@ -50,6 +53,18 @@ def _records(path: Path) -> list[dict]:
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
+class TestBudgetLogPath:
+    def test_production_run_journals_to_the_real_trail(self) -> None:
+        assert budget_log_path(demo=False) == BUDGET_LOG_FILE
+
+    def test_demo_run_cannot_reach_the_production_trail(self) -> None:
+        # A demo bills against a 60-second budget. Letting those records land
+        # in the production log makes the log unusable for the one job it has:
+        # reconstructing what the real budget actually did.
+        assert budget_log_path(demo=True) == BUDGET_DEMO_LOG_FILE
+        assert budget_log_path(demo=True) != BUDGET_LOG_FILE
 
 
 class TestBudgetLog:

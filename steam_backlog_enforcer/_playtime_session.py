@@ -19,7 +19,11 @@ from typing import TYPE_CHECKING, Protocol
 
 from steam_backlog_enforcer._desktop_env import desktop_uid, resolve_desktop_user
 from steam_backlog_enforcer._playtime_engagement import EngagementTracker
-from steam_backlog_enforcer._playtime_log import BudgetLog, TickJournal
+from steam_backlog_enforcer._playtime_log import (
+    BudgetLog,
+    TickJournal,
+    budget_log_path,
+)
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer._engagement_types import EngagementVerdict
@@ -70,8 +74,13 @@ class PlaytimeSession:
     journal: TickRecorder
 
 
-def new_session() -> PlaytimeSession:
+def new_session(*, demo: bool = False) -> PlaytimeSession:
     """Build the session the enforce loop threads through every tick.
+
+    Args:
+        demo: Whether this is a short-budget demo run. Demo runs journal to
+            their own file, so they cannot plant records in the production
+            audit trail.
 
     Returns:
         A session bound to the desktop user's X display and runtime dir.
@@ -79,5 +88,5 @@ def new_session() -> PlaytimeSession:
     uid = desktop_uid(resolve_desktop_user())
     return PlaytimeSession(
         tracker=EngagementTracker(uid=uid),
-        journal=TickJournal(BudgetLog()),
+        journal=TickJournal(BudgetLog(path=budget_log_path(demo=demo))),
     )

@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 BUDGET_LOG_FILE: Final = Path("/var/log/steam-backlog-enforcer/budget.jsonl")
+BUDGET_DEMO_LOG_FILE: Final = Path("/var/log/steam-backlog-enforcer/budget-demo.jsonl")
 
 _MAX_BYTES: Final = 5 * 1024 * 1024
 _BACKUP_COUNT: Final = 5
@@ -47,14 +48,38 @@ EVENT_DETECTOR_FAILURE: Final = "detector_failure"
 EVENT_MANUAL_ADJUSTMENT: Final = "manual_adjustment"
 
 
+def budget_log_path(*, demo: bool) -> Path:
+    """Return the audit log for a demo or production run.
+
+    Demo runs get their own file for the same reason they get their own state
+    file: this log is the record used to reconstruct real incidents, and a run
+    that carries no enforcement weight must not be able to plant records in it
+    that describe a budget nobody was ever charged. A 60-second demo billing
+    700 seconds is indistinguishable, after the fact, from the production
+    daemon having done something inexplicable.
+
+    Args:
+        demo: Whether this is a demo run.
+
+    Returns:
+        The destination JSONL file.
+    """
+    return BUDGET_DEMO_LOG_FILE if demo else BUDGET_LOG_FILE
+
+
 class BudgetLog:
     """Append-only JSONL sink, rotated by size."""
 
-    def __init__(self, *, path: Path = BUDGET_LOG_FILE) -> None:
+    def __init__(self, *, path: Path) -> None:
         """Prepare a sink; the file is opened on first write.
 
+        *path* is required on purpose. It used to default to the production
+        log, so a throwaway probe run as root — ``BudgetLog()`` in a scratch
+        script — wrote invented records straight into the trail this module
+        exists to keep trustworthy. Naming the destination is now unavoidable.
+
         Args:
-            path: Destination JSONL file.
+            path: Destination JSONL file, from :func:`budget_log_path`.
         """
         self._path = path
         self._sink: logging.Logger | None = None
