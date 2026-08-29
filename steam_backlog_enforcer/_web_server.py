@@ -19,6 +19,7 @@ import mimetypes
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from steam_backlog_enforcer._budget_view import build_budget_snapshot
 from steam_backlog_enforcer._web_dataset import build_web_dataset, dataset_to_payload
 from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.game_install import _echo
@@ -31,6 +32,7 @@ WEB_DIST = (Path(__file__).resolve().parent.parent / "web" / "dist").resolve()
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 _API_DATASET = "/api/dataset"
+_API_BUDGET = "/api/budget"
 
 # Content types that are text but not under the ``text/`` prefix.
 _EXTRA_TEXT_TYPES = frozenset(
@@ -47,12 +49,27 @@ class _Handler(BaseHTTPRequestHandler):
         logger.debug("%s - %s", self.address_string(), fmt % args)
 
     def do_GET(self) -> None:
-        """Dispatch a GET to the dataset API or to a static file."""
-        path = urlsplit(self.path).path
-        if path == _API_DATASET:
+        """Dispatch a GET to one of the APIs or to a static file."""
+        split = urlsplit(self.path)
+        if split.path == _API_DATASET:
             self._serve_dataset()
+        elif split.path == _API_BUDGET:
+            # ``?demo=1`` reads the demo run's state and log, which is how the
+            # 60-second demo can be watched hitting its cutoff in the browser
+            # without spending a real day's budget to see it.
+            self._serve_budget(demo="demo=1" in split.query)
         else:
-            self._serve_static(path)
+            self._serve_static(split.path)
+
+    def _serve_budget(self, *, demo: bool) -> None:
+        """Build and send the gaming-budget snapshot as JSON."""
+        try:
+            body = json.dumps(build_budget_snapshot(demo=demo)).encode("utf-8")
+        except (OSError, ValueError, KeyError):
+            logger.exception("Failed to build budget snapshot")
+            self._send(HTTPStatus.INTERNAL_SERVER_ERROR, b"budget error", "text/plain")
+            return
+        self._send(HTTPStatus.OK, body, "application/json")
 
     def _serve_dataset(self) -> None:
         """Build and send the projected dataset as JSON."""

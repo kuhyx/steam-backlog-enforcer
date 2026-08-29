@@ -65,6 +65,39 @@ def _make_dist(
     return dist
 
 
+class TestBudgetEndpoint:
+    """Tests for the /api/budget route."""
+
+    def test_budget_ok(self) -> None:
+        with (
+            patch(f"{_PKG}.build_budget_snapshot", return_value={"ok": True}) as build,
+            _running() as port,
+        ):
+            status, body, ctype = _get(port, "/api/budget")
+        assert status == 200
+        assert "application/json" in ctype
+        assert json.loads(body) == {"ok": True}
+        # Production by default, and nothing to do with the dataset projection.
+        assert build.call_args.kwargs == {"demo": False}
+
+    def test_demo_query_reads_the_demo_run(self) -> None:
+        with (
+            patch(f"{_PKG}.build_budget_snapshot", return_value={"ok": True}) as build,
+            _running() as port,
+        ):
+            _get(port, "/api/budget?demo=1")
+        assert build.call_args.kwargs == {"demo": True}
+
+    def test_budget_error(self) -> None:
+        with (
+            patch(f"{_PKG}.build_budget_snapshot", side_effect=OSError("boom")),
+            _running() as port,
+        ):
+            status, body, _ = _get(port, "/api/budget")
+        assert status == 500
+        assert body == b"budget error"
+
+
 class TestDatasetEndpoint:
     """Tests for the /api/dataset route."""
 

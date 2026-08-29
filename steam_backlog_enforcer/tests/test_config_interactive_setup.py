@@ -7,9 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer.config import (
-    interactive_setup,
-)
+from steam_backlog_enforcer._config_setup import interactive_setup
 
 if TYPE_CHECKING:
     from pathlib import Path

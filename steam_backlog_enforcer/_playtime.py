@@ -101,6 +101,7 @@ def playtime_tick(
         # way, and stop accruing against a budget nobody can spend.
         reconcile(should_block=False)
         save_state(state, demo=demo)
+        session.history.observe(state, demo=demo)
         return
 
     pids = qualifying_pids(rules)
@@ -117,6 +118,7 @@ def playtime_tick(
     state = _policy(state, rules, now=now)
     session.journal.observe(verdict, state, rules=rules, now_monotonic=monotonic)
     save_state(state, demo=demo)
+    session.history.observe(state, demo=demo)
 
 
 def _state_or_recover(rules: PlaytimeRules, *, now: datetime) -> PlaytimeState:

@@ -533,3 +533,113 @@ td.proton {
   border-radius: var(--radius-sm);
   vertical-align: middle;
 }
+
+/* --- Tabs ---------------------------------------------------------------
+   Same shape as .segmented/.seg, but page-level rather than inside a panel. */
+.tabs {
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4) 0;
+}
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+}
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* --- Gaming budget ------------------------------------------------------ */
+.budget {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.budget-today,
+.budget-live,
+.budget-rules {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+}
+.budget-hero {
+  font-size: 40px;
+  line-height: 1.1;
+  margin: var(--sp-2) 0;
+  color: var(--muted);
+}
+.budget-hero strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.budget-meter {
+  height: 10px;
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.budget-meter-fill {
+  height: 100%;
+  background: var(--accent);
+}
+.budget-meter--warn .budget-meter-fill {
+  background: var(--warn);
+}
+.budget-meter--blocked .budget-meter-fill {
+  background: var(--danger);
+}
+.budget-badge {
+  display: inline-block;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+.budget-badge--blocked {
+  background: var(--danger);
+  color: var(--on-fill);
+}
+.budget-verdict {
+  font-weight: 600;
+  color: var(--muted);
+}
+.budget-verdict--engaged {
+  color: var(--accent-2);
+}
+.budget-verdict--paused {
+  color: var(--warn);
+}
+.budget-rules-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  font-size: 14px;
+}
+.budget-rules-list dt {
+  color: var(--muted);
+}
+.budget-rules-list dd {
+  margin: 0;
+}
+.chart-svg .bar {
+  fill: var(--accent);
+}
+.chart-svg .bar.over {
+  fill: var(--danger);
+}
+.chart-svg .budget-line {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}

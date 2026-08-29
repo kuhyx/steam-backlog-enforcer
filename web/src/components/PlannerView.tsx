@@ -1,0 +1,127 @@
+import { useEffect, useMemo, useState } from 'react'
+import { fetchDataset } from '../api'
+import { applyFilters } from '../estimate'
+import type { Filters, WebDataset, WebDefaults } from '../types'
+import { FilterPanel } from './FilterPanel'
+import { GameTable } from './GameTable'
+import { SummaryCards } from './SummaryCards'
+import { TimelineChart } from './TimelineChart'
+
+function defaultFilters(d: WebDefaults): Filters {
+  return {
+    minCountComp: d.min_count_comp,
+    minComp100: d.min_comp_100_polls,
+    minConfidenceSum: d.min_confidence_sum,
+    protonMode: 'playable',
+    protonMinTier: d.min_playable_tier,
+    protonTreatMissingAsPass: true,
+    dailyHours: 4,
+    basis: 'leisure',
+    maxHoursPerGame: 0,
+    playtimeMode: 'all',
+    includeNoData: false,
+    fallbackHours: 20,
+    excluded: new Set<number>(),
+    search: '',
+    targetDate: '',
+  }
+}
+
+/** The backlog-completion planner: the app's original single screen. */
+export function PlannerView() {
+  const [dataset, setDataset] = useState<WebDataset | null>(null)
+  const [filters, setFilters] = useState<Filters | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchDataset()
+      .then((d) => {
+        setDataset(d)
+        setFilters(defaultFilters(d.defaults))
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const result = useMemo(
+    () => (dataset && filters ? applyFilters(dataset, filters) : null),
+    [dataset, filters],
+  )
+
+  if (error) {
+    return (
+      <div className="status">
+        <p className="error">Could not load data: {error}</p>
+        <p className="hint">
+          Is the backend running? Start it with <code>./run.sh serve</code>.
+        </p>
+      </div>
+    )
+  }
+
+  if (!dataset || !filters || !result) {
+    return (
+      <div className="status">
+        <p className="hint">Loading your backlog…</p>
+      </div>
+    )
+  }
+
+  const update = (patch: Partial<Filters>) => setFilters({ ...filters, ...patch })
+
+  const toggleExclude = (appId: number) => {
+    const next = new Set(filters.excluded)
+    if (next.has(appId)) next.delete(appId)
+    else next.add(appId)
+    setFilters({ ...filters, excluded: next })
+  }
+
+  const tableRows = result.rows.filter((r) => r.passesFilters)
+
+  return (
+    <>
+      <header className="app-head">
+        <div>
+          <h1>Backlog Completion Planner</h1>
+          <p className="sub">
+            {dataset.state.current_game_name && (
+              <>
+                Currently playing <strong>{dataset.state.current_game_name}</strong>{' '}
+                ·{' '}
+              </>
+            )}
+            {dataset.state.games_done_since_start} games finished since{' '}
+            {dataset.state.enforcement_started_at.slice(0, 10) || '—'} ·{' '}
+            {dataset.games.length} candidates
+          </p>
+        </div>
+      </header>
+
+      <div className="layout">
+        <FilterPanel
+          filters={filters}
+          defaults={dataset.defaults}
+          update={update}
+          onReset={() => setFilters(defaultFilters(dataset.defaults))}
+        />
+
+        <main className="content">
+          <SummaryCards
+            result={result}
+            filters={filters}
+            state={dataset.state}
+            presets={dataset.defaults.hours_per_day_presets}
+            defaultQualifying={dataset.default_summary.qualifying}
+            paceVsHltb={dataset.pace_vs_hltb}
+          />
+          <TimelineChart result={result} filters={filters} state={dataset.state} />
+          <GameTable
+            rows={tableRows}
+            search={filters.search}
+            onSearch={(s) => update({ search: s })}
+            onToggleExclude={toggleExclude}
+          />
+        </main>
+      </div>
+    </>
+  )
+}

@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { makeDataset, makeGame, makeState } from './test/factories'
+import { makeBudget, makeDataset, makeGame, makeState } from './test/factories'
 
 describe('App', () => {
   beforeEach(() => {
@@ -92,5 +92,39 @@ describe('App', () => {
     // Reset restores the full scope (covers the reset handler).
     await user.click(screen.getByRole('button', { name: /Reset to CLI defaults/i }))
     expect(document.querySelector('.big')?.textContent).toBe('2')
+  })
+
+  it('switches to the budget tab and back', async () => {
+    const ds = makeDataset([makeGame({ app_id: 1, name: 'Alpha' })])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(
+          url.startsWith('/api/budget')
+            ? { ok: true, json: async () => makeBudget() }
+            : { ok: true, json: async () => ds },
+        ),
+      ),
+    )
+    const user = userEvent.setup()
+    render(<App />)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Backlog Completion Planner' }),
+      ).toBeInTheDocument(),
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Gaming budget' }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('table')).toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: 'Backlog planner' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Backlog Completion Planner' }),
+      ).toBeInTheDocument(),
+    )
   })
 })

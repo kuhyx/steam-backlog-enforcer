@@ -4,26 +4,28 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from steam_backlog_enforcer import _budget_view as budget_view
 from steam_backlog_enforcer import _mcp
 from steam_backlog_enforcer import _mcp_gaming_time as mcp_gaming_time
 from steam_backlog_enforcer import _mcp_server as mcp_server
+from steam_backlog_enforcer._playtime_state import PlaytimeState
 
 
 class TestGetGamingTime:
     def test_reports_unrecorded_state(self) -> None:
         with (
-            patch.object(mcp_gaming_time, "load_state", return_value=None),
-            patch.object(mcp_gaming_time, "mounted_targets", return_value=set()),
+            patch.object(budget_view, "load_state", return_value=None),
+            patch.object(budget_view, "mounted_targets", return_value=set()),
         ):
             out = mcp_gaming_time.get_gaming_time()
         assert out["recorded"] is False
         assert out["budget_seconds"] == 8 * 3600
 
     def test_reports_usage(self) -> None:
-        stored = mcp_gaming_time.PlaytimeState(day_key="2026-07-27", seconds=100.0)
+        stored = PlaytimeState(day_key="2026-07-27", seconds=100.0)
         with (
-            patch.object(mcp_gaming_time, "load_state", return_value=stored),
-            patch.object(mcp_gaming_time, "mounted_targets", return_value=set()),
+            patch.object(budget_view, "load_state", return_value=stored),
+            patch.object(budget_view, "mounted_targets", return_value=set()),
         ):
             out = mcp_gaming_time.get_gaming_time()
         assert out["recorded"] is True
@@ -33,20 +35,20 @@ class TestGetGamingTime:
         assert out["blocked"] is False
 
     def test_remaining_never_goes_negative(self) -> None:
-        stored = mcp_gaming_time.PlaytimeState(day_key="d", seconds=10**9)
+        stored = PlaytimeState(day_key="d", seconds=10**9)
         with (
-            patch.object(mcp_gaming_time, "load_state", return_value=stored),
-            patch.object(mcp_gaming_time, "mounted_targets", return_value=set()),
+            patch.object(budget_view, "load_state", return_value=stored),
+            patch.object(budget_view, "mounted_targets", return_value=set()),
         ):
             out = mcp_gaming_time.get_gaming_time()
         assert out["seconds_remaining"] == 0.0
 
     def test_lists_masked_launchers(self) -> None:
-        stored = mcp_gaming_time.PlaytimeState(day_key="d", seconds=1.0, blocked_at=2.0)
+        stored = PlaytimeState(day_key="d", seconds=1.0, blocked_at=2.0)
         with (
-            patch.object(mcp_gaming_time, "load_state", return_value=stored),
+            patch.object(budget_view, "load_state", return_value=stored),
             patch.object(
-                mcp_gaming_time, "mounted_targets", return_value={"/usr/bin/steam"}
+                budget_view, "mounted_targets", return_value={"/usr/bin/steam"}
             ),
         ):
             out = mcp_gaming_time.get_gaming_time()
@@ -56,8 +58,8 @@ class TestGetGamingTime:
     def test_leaks_no_secret(self) -> None:
         """No Config secret may cross the MCP boundary."""
         with (
-            patch.object(mcp_gaming_time, "load_state", return_value=None),
-            patch.object(mcp_gaming_time, "mounted_targets", return_value=set()),
+            patch.object(budget_view, "load_state", return_value=None),
+            patch.object(budget_view, "mounted_targets", return_value=set()),
         ):
             out = mcp_gaming_time.get_gaming_time()
         assert "steam_api_key" not in out

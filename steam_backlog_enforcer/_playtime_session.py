@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from steam_backlog_enforcer._desktop_env import desktop_uid, resolve_desktop_user
 from steam_backlog_enforcer._playtime_engagement import EngagementTracker
+from steam_backlog_enforcer._playtime_history import HistoryWriter
 from steam_backlog_enforcer._playtime_log import (
     BudgetLog,
     TickJournal,
@@ -66,12 +67,20 @@ class TickRecorder(Protocol):
         """Record this tick if it is worth recording."""
 
 
+class HistoryRecorder(Protocol):
+    """What the budget tick needs from the per-day history writer."""
+
+    def observe(self, state: PlaytimeState, *, demo: bool) -> None:
+        """Record today's running total if it has moved far enough."""
+
+
 @dataclass(frozen=True)
 class PlaytimeSession:
     """Per-daemon engagement and logging state."""
 
     tracker: EngagementSource
     journal: TickRecorder
+    history: HistoryRecorder
 
 
 def new_session(*, demo: bool = False) -> PlaytimeSession:
@@ -89,4 +98,5 @@ def new_session(*, demo: bool = False) -> PlaytimeSession:
     return PlaytimeSession(
         tracker=EngagementTracker(uid=uid),
         journal=TickJournal(BudgetLog(path=budget_log_path(demo=demo))),
+        history=HistoryWriter(),
     )

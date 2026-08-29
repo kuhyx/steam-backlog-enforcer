@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   daysUntil,
+  fmtAgo,
+  fmtDuration,
   fmtEta,
   fmtHours,
   fmtHoursPrecise,
@@ -64,5 +66,26 @@ describe('daysUntil', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-29T12:00:00'))
     expect(daysUntil('2026-06-08')).toBe(10)
+  })
+})
+
+describe('fmtDuration', () => {
+  it('formats hours, minutes and seconds', () => {
+    expect(fmtDuration(26846)) .toBe('7h 27m')
+    expect(fmtDuration(2640)).toBe('44m')
+    expect(fmtDuration(38)).toBe('38s')
+    expect(fmtDuration(-5)).toBe('0s')
+  })
+})
+
+describe('fmtAgo', () => {
+  const now = new Date('2026-08-28T21:00:00Z')
+  it('describes recent and older readings', () => {
+    expect(fmtAgo('2026-08-28T20:56:00Z', now)).toBe('4m ago')
+    expect(fmtAgo('2026-08-28T20:59:55Z', now)).toBe('just now')
+  })
+  it('handles a missing or unparsable timestamp', () => {
+    expect(fmtAgo('', now)).toBe('unknown')
+    expect(fmtAgo('not a date', now)).toBe('unknown')
   })
 })

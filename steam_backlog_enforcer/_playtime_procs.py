@@ -91,6 +91,25 @@ def _match_cmdline(entry: Path, names: frozenset[str]) -> str | None:
     return second if second in names else None
 
 
+def process_name(pid: int) -> str | None:
+    """Return *pid*'s program name, or ``None`` if it is no longer running.
+
+    Existence is the point as much as the name: callers resolve PIDs recorded
+    earlier, and a PID that has since been recycled would otherwise be reported
+    under whatever process now holds the number.
+
+    Args:
+        pid: Process id to look up.
+
+    Returns:
+        The contents of ``/proc/<pid>/comm``, or ``None``.
+    """
+    try:
+        return (_PROC / str(pid) / "comm").read_text(encoding="utf-8").strip() or None
+    except (OSError, ValueError):
+        return None
+
+
 def qualifying_pids(rules: PlaytimeRules) -> set[int]:
     """Return PIDs whose runtime counts against the daily budget.
 

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from steam_backlog_enforcer import _playtime_log as log_mod
 from steam_backlog_enforcer._playtime_engagement import EngagementTracker
 from steam_backlog_enforcer._playtime_log import (
-    BUDGET_DEMO_LOG_FILE,
-    BUDGET_LOG_FILE,
     TickJournal,
 )
 from steam_backlog_enforcer._playtime_session import new_session
@@ -43,5 +42,5 @@ class TestNewSession:
         ):
             live = new_session()
             demo = new_session(demo=True)
-        assert demo.journal._log._path == BUDGET_DEMO_LOG_FILE
-        assert live.journal._log._path == BUDGET_LOG_FILE
+        assert demo.journal._log._path == log_mod.BUDGET_DEMO_LOG_FILE
+        assert live.journal._log._path == log_mod.BUDGET_LOG_FILE

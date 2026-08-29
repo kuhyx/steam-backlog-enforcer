@@ -96,3 +96,72 @@ export interface Filters {
   // Target-date planner ('' = disabled), ISO yyyy-mm-dd.
   targetDate: string
 }
+
+/** Why the budget state file could or could not be read. */
+export type BudgetStateStatus = 'ok' | 'missing' | 'denied' | 'corrupt'
+
+export interface BudgetToday {
+  gaming_day: string
+  day_starts_at: string
+  seconds_used: number
+  budget_seconds: number
+  seconds_remaining: number
+  /** 0..1, already clamped by the backend. */
+  fraction_used: number
+  blocked: boolean
+  /** Epoch seconds; 0 means the cutoff has not engaged. */
+  blocked_at: number
+  /** Seconds-remaining at which the next warning fires; null when none left. */
+  next_warning_seconds: number | null
+  warned_seconds: number[]
+}
+
+export interface BudgetProcess {
+  pid: number
+  name: string
+}
+
+export interface BudgetSession {
+  available: boolean
+  /** ISO-8601 timestamp the daemon recorded; may be minutes old. */
+  observed_at: string
+  state: string
+  reason: string
+  causes: string[]
+  idle_seconds: number | null
+  screen_held: boolean | null
+  game_name: string
+  qualifying_count: number
+  processes: BudgetProcess[]
+}
+
+export interface BudgetHistoryDay {
+  day: string
+  seconds: number
+}
+
+export interface BudgetRules {
+  budget_seconds: number
+  enforcement: boolean
+  counts_launchers: boolean
+  engagement_gate: boolean
+  idle_grace_seconds: number
+  require_game_focus: boolean
+  warn_at: number[]
+  demo: boolean
+  masked_launchers: string[]
+}
+
+export interface BudgetSnapshot {
+  ok: boolean
+  readable: boolean
+  state_status: BudgetStateStatus
+  /** Human sentence explaining a non-ok status; null when readable. */
+  error: string | null
+  today: BudgetToday | null
+  session: BudgetSession
+  history: BudgetHistoryDay[]
+  rules: BudgetRules
+}
+
+export type TabId = 'planner' | 'budget'

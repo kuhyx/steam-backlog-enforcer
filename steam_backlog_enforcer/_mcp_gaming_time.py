@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import os
 from typing import Any
 
+from steam_backlog_enforcer._budget_view import build_budget_snapshot
 from steam_backlog_enforcer._mcp_server import (
     logger,
     mcp,
@@ -18,12 +19,9 @@ from steam_backlog_enforcer._mcp_server import (
 from steam_backlog_enforcer._playtime import (
     PlaytimeState,
     gaming_day_key,
-    load_state,
-    rules_for,
     save_state,
 )
-from steam_backlog_enforcer._playtime_block import mounted_targets, release_block
-from steam_backlog_enforcer.config import Config
+from steam_backlog_enforcer._playtime_block import release_block
 
 
 @mcp.tool()
@@ -34,31 +32,34 @@ def get_gaming_time() -> dict[str, Any]:
     midnight still counts against the day it began in. Reads on-disk state and
     the live mount table only — no network, no Steam API key, no config secrets.
     """
-    config = Config.load()
-    rules = rules_for(config, demo=False)
-    stored = load_state(demo=False)
-    masked = sorted(str(path) for path in mounted_targets())
+    snapshot = build_budget_snapshot(demo=False)
+    rules = snapshot["rules"]
+    today = snapshot["today"]
+    masked = rules["masked_launchers"]
 
-    if stored is None:
+    if today is None:
         return {
             "ok": True,
             "recorded": False,
-            "budget_seconds": rules.budget_seconds,
-            "enforcement": rules.enforcement,
+            "state_status": snapshot["state_status"],
+            "budget_seconds": rules["budget_seconds"],
+            "enforcement": rules["enforcement"],
             "masked_launchers": masked,
         }
 
     return {
         "ok": True,
         "recorded": True,
-        "gaming_day": stored.day_key,
-        "day_starts_at": "06:00 local",
-        "seconds_used": round(stored.seconds, 1),
-        "budget_seconds": rules.budget_seconds,
-        "seconds_remaining": round(max(0.0, rules.budget_seconds - stored.seconds), 1),
-        "blocked": stored.is_blocked(),
-        "enforcement": rules.enforcement,
-        "counts_launchers": rules.count_launchers,
+        "state_status": snapshot["state_status"],
+        "gaming_day": today["gaming_day"],
+        "day_starts_at": today["day_starts_at"],
+        "seconds_used": today["seconds_used"],
+        "budget_seconds": today["budget_seconds"],
+        "seconds_remaining": today["seconds_remaining"],
+        "next_warning_seconds": today["next_warning_seconds"],
+        "blocked": today["blocked"],
+        "enforcement": rules["enforcement"],
+        "counts_launchers": rules["counts_launchers"],
         "masked_launchers": masked,
     }
 

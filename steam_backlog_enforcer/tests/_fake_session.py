@@ -111,6 +111,23 @@ class StubJournal:
         self.observed.append(verdict)
 
 
+class StubHistory:
+    """A per-day history writer that records in memory instead of on disk."""
+
+    def __init__(self) -> None:
+        self.recorded: list[tuple[str, float]] = []
+
+    def observe(self, state: PlaytimeState, *, demo: bool) -> None:
+        """Remember the day and total.
+
+        Args:
+            state: This tick's state.
+            demo: Ignored; the real writer skips demo runs.
+        """
+        del demo
+        self.recorded.append((state.day_key, state.seconds))
+
+
 def fake_session(*, engaged: bool = True) -> PlaytimeSession:
     """Build a session that never touches X, /proc/locks or the log file.
 
@@ -120,4 +137,8 @@ def fake_session(*, engaged: bool = True) -> PlaytimeSession:
     Returns:
         The session.
     """
-    return PlaytimeSession(tracker=StubTracker(engaged=engaged), journal=StubJournal())
+    return PlaytimeSession(
+        tracker=StubTracker(engaged=engaged),
+        journal=StubJournal(),
+        history=StubHistory(),
+    )

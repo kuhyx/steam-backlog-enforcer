@@ -42,3 +42,23 @@ export function daysUntil(isoDateStr: string): number {
   const ms = target.getTime() - today.getTime()
   return Math.ceil(ms / (1000 * 60 * 60 * 24))
 }
+
+/** Format a second count as "7h 27m" (or "44m" / "38s" when short). */
+export function fmtDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m`
+  return `${total}s`
+}
+
+/** Describe how long ago an ISO-8601 timestamp was, e.g. "4m ago". */
+export function fmtAgo(iso: string, now: Date = new Date()): string {
+  if (!iso) return 'unknown'
+  const then = new Date(iso)
+  const seconds = (now.getTime() - then.getTime()) / 1000
+  if (Number.isNaN(seconds)) return 'unknown'
+  if (seconds < 10) return 'just now'
+  return `${fmtDuration(seconds)} ago`
+}

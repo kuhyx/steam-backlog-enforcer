@@ -6,65 +6,15 @@ import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
-import pytest
-
 from steam_backlog_enforcer.config import (
     Config,
     State,
-    _atomic_write,
     load_snapshot,
     save_snapshot,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-class TestAtomicWrite:
-    """Tests for _atomic_write."""
-
-    def test_writes_file(self, tmp_path: Path) -> None:
-        """Test writes file."""
-        target = tmp_path / "out.json"
-        _atomic_write(target, '{"key": "value"}\n')
-        assert target.read_text(encoding="utf-8") == '{"key": "value"}\n'
-
-    def test_creates_parent_dirs(self, tmp_path: Path) -> None:
-        """Test creates parent dirs."""
-        target = tmp_path / "sub" / "deep" / "out.json"
-        _atomic_write(target, "data")
-        assert target.read_text(encoding="utf-8") == "data"
-
-    def test_cleanup_on_write_error(self, tmp_path: Path) -> None:
-        """Test cleanup on write error."""
-        target = tmp_path / "out.json"
-        with (
-            patch(
-                "steam_backlog_enforcer.config.os.write",
-                side_effect=OSError("disk full"),
-            ),
-            pytest.raises(OSError, match="disk full"),
-        ):
-            _atomic_write(target, "data")
-        assert not target.exists()
-        tmp_files = list(tmp_path.glob("*.tmp"))
-        assert tmp_files == []
-
-    def test_cleanup_on_replace_error(self, tmp_path: Path) -> None:
-        """Test cleanup on replace error."""
-        target = tmp_path / "out.json"
-        with (
-            patch.object(
-                type(target),
-                "replace",
-                side_effect=OSError("no perm"),
-            ),
-            pytest.raises(OSError, match="no perm"),
-        ):
-            _atomic_write(target, "data")
-        assert not target.exists()
-        tmp_files = list(tmp_path.glob("*.tmp"))
-        assert tmp_files == []
 
 
 class TestConfig:

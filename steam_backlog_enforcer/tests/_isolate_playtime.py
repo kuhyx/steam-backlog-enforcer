@@ -49,6 +49,23 @@ def _isolate_playtime(tmp_path: Path) -> Iterator[None]:
             "steam_backlog_enforcer._playtime_state.PLAYTIME_DEMO_STATE_FILE",
             fake_config / "playtime_demo_state.json",
         ),
+        # Per-day history. Derived from CONFIG_DIR at import time, so patching
+        # CONFIG_DIR alone does not redirect it.
+        patch(
+            "steam_backlog_enforcer._playtime_history.HISTORY_FILE",
+            fake_config / "playtime_history.json",
+        ),
+        # The audit log lives under /var/log, outside CONFIG_DIR entirely, and
+        # is the record used to reconstruct real incidents — a test must never
+        # append to it, nor read the host's.
+        patch(
+            "steam_backlog_enforcer._playtime_log.BUDGET_LOG_FILE",
+            tmp_path / "budget.jsonl",
+        ),
+        patch(
+            "steam_backlog_enforcer._playtime_log.BUDGET_DEMO_LOG_FILE",
+            tmp_path / "budget-demo.jsonl",
+        ),
         patch("steam_backlog_enforcer._playtime_procs._PROC", fake_proc),
         patch("steam_backlog_enforcer._playtime_kill._PROC", fake_proc),
         # Never let a test chattr +i a file inside tmp_path — pytest could

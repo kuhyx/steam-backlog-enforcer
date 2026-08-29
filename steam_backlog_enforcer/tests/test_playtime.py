@@ -87,6 +87,12 @@ class TestSaveLoadRoundTrip:
         loaded = load_state(demo=False)
         assert loaded == original
 
+    def test_written_world_readable(self) -> None:
+        # The daemon runs as root and mkstemp would leave this 0600, which made
+        # every unprivileged reader see "no state recorded yet".
+        save_state(PlaytimeState(day_key="d", seconds=1.0), demo=False)
+        assert state_path(demo=False).stat().st_mode & 0o777 == 0o644
+
     def test_demo_and_production_are_independent(self) -> None:
         save_state(PlaytimeState(day_key="prod", seconds=10.0), demo=False)
         save_state(PlaytimeState(day_key="demo", seconds=20.0), demo=True)

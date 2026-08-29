@@ -11,6 +11,7 @@ from steam_backlog_enforcer._playtime_notify import (
 from steam_backlog_enforcer._playtime_procs import (
     _match_cmdline,
     get_pids_by_cmdline_names,
+    process_name,
     qualifying_pids,
 )
 from steam_backlog_enforcer._playtime_state import (
@@ -181,3 +182,25 @@ class TestHumanise:
 
     def test_thirty_minutes(self) -> None:
         assert _humanise(1800) == "30 minutes"
+
+
+class TestProcessName:
+    """Tests for resolving a PID to its program name."""
+
+    def _comm(self, tmp_path: Path, pid: int, name: str) -> None:
+        entry = tmp_path / "playtime_proc" / str(pid)
+        entry.mkdir(parents=True, exist_ok=True)
+        (entry / "comm").write_text(name, encoding="utf-8")
+
+    def test_reads_comm(self, tmp_path: Path) -> None:
+        self._comm(tmp_path, 42, "hollow_knight\n")
+        assert process_name(42) == "hollow_knight"
+
+    def test_missing_pid_is_none(self) -> None:
+        # A PID recorded earlier may have exited, and the number may since have
+        # been recycled — "gone" is the only safe answer.
+        assert process_name(999999) is None
+
+    def test_empty_comm_is_none(self, tmp_path: Path) -> None:
+        self._comm(tmp_path, 43, "\n")
+        assert process_name(43) is None

@@ -1,7 +1,17 @@
 // Shared test factories. Lives under src/test/ which is excluded from the
 // app build and from coverage.
 
-import type { Filters, PaceVsHLTB, WebDataset, WebGame, WebStateInfo } from '../types'
+import type {
+  BudgetRules,
+  BudgetSession,
+  BudgetSnapshot,
+  BudgetToday,
+  Filters,
+  PaceVsHLTB,
+  WebDataset,
+  WebGame,
+  WebStateInfo,
+} from '../types'
 
 export function makeGame(over: Partial<WebGame> = {}): WebGame {
   return {
@@ -88,6 +98,67 @@ export function makeDataset(
     },
     pace_vs_hltb: null,
     generated_at: '2026-05-29T00:00:00+00:00',
+    ...over,
+  }
+}
+
+export function makeBudgetToday(over: Partial<BudgetToday> = {}): BudgetToday {
+  return {
+    gaming_day: '2026-08-28',
+    day_starts_at: '06:00 local',
+    seconds_used: 3600,
+    budget_seconds: 28800,
+    seconds_remaining: 25200,
+    fraction_used: 0.125,
+    blocked: false,
+    blocked_at: 0,
+    next_warning_seconds: 3600,
+    warned_seconds: [],
+    ...over,
+  }
+}
+
+export function makeBudgetSession(over: Partial<BudgetSession> = {}): BudgetSession {
+  return {
+    available: true,
+    observed_at: new Date().toISOString(),
+    state: 'engaged',
+    reason: 'engaged',
+    causes: [],
+    idle_seconds: 2,
+    screen_held: false,
+    game_name: 'Hollow Knight',
+    qualifying_count: 3,
+    processes: [{ pid: 42, name: 'hollow_knight' }],
+    ...over,
+  }
+}
+
+export function makeBudgetRules(over: Partial<BudgetRules> = {}): BudgetRules {
+  return {
+    budget_seconds: 28800,
+    enforcement: true,
+    counts_launchers: true,
+    engagement_gate: true,
+    idle_grace_seconds: 300,
+    require_game_focus: true,
+    warn_at: [3600, 1800, 600, 300],
+    demo: false,
+    masked_launchers: [],
+    ...over,
+  }
+}
+
+export function makeBudget(over: Partial<BudgetSnapshot> = {}): BudgetSnapshot {
+  return {
+    ok: true,
+    readable: true,
+    state_status: 'ok',
+    error: null,
+    today: makeBudgetToday(),
+    session: makeBudgetSession(),
+    history: [{ day: '2026-08-28', seconds: 3600 }],
+    rules: makeBudgetRules(),
     ...over,
   }
 }

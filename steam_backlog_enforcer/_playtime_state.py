@@ -28,6 +28,15 @@ PLAYTIME_DEMO_STATE_FILE = CONFIG_DIR / "playtime_demo_state.json"
 
 _SCHEMA_VERSION = 1
 
+# The daemon runs as root, and ``mkstemp`` would leave this at 0600 — which
+# silently broke every unprivileged reader: ``load_state`` swallows the
+# resulting ``PermissionError`` and reports "no state recorded yet", so both the
+# MCP ``get_gaming_time`` tool and the web UI showed an empty budget while the
+# file on disk held a live count. World-*readable* costs nothing here: the file
+# holds no secrets, and root ownership plus the immutable flag are what stop it
+# being rewritten.
+STATE_MODE = 0o644
+
 # The gaming day starts here, local time. 05:59 belongs to the previous day.
 _DAY_BOUNDARY_HOURS = 6
 
@@ -197,6 +206,6 @@ def save_state(state: PlaytimeState, *, demo: bool) -> None:
     path = state_path(demo=demo)
     if not demo:
         unlock_for_write(path)
-    _atomic_write(path, json.dumps(state.__dict__, indent=2) + "\n")
+    _atomic_write(path, json.dumps(state.__dict__, indent=2) + "\n", mode=STATE_MODE)
     if not demo:
         _try_set_immutable(path, immutable=True)

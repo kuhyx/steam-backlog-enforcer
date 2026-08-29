@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer._playtime import (
-    _policy,
     _state_or_recover,
     playtime_tick,
 )
@@ -87,71 +86,6 @@ class TestStateOrRecover:
         assert out.is_blocked() is True
 
 
-class TestPolicyBelowBudget:
-    def test_releases_and_warns(self) -> None:
-        state = PlaytimeState(day_key=TODAY, seconds=8 * 3600 - 3600)
-        with (
-            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
-            ) as mock_notify,
-        ):
-            out = _policy(state, _rules(), now=NOW)
-        mock_rec.assert_called_once_with(should_block=False)
-        mock_notify.assert_called_once()
-        assert out.warned_seconds == [3600]
-
-    def test_no_warning_when_far_from_budget(self) -> None:
-        state = PlaytimeState(day_key=TODAY, seconds=0.0)
-        with (
-            patch("steam_backlog_enforcer._playtime.reconcile"),
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
-            ) as mock_notify,
-        ):
-            out = _policy(state, _rules(), now=NOW)
-        mock_notify.assert_not_called()
-        assert out.warned_seconds == []
-
-
-class TestPolicyAtOrOverBudget:
-    def test_engages_the_cutoff_when_not_yet_blocked(self) -> None:
-        state = PlaytimeState(day_key=TODAY, seconds=10**6)
-        with (
-            patch("steam_backlog_enforcer._playtime._begin_cutoff") as mock_begin,
-            patch("steam_backlog_enforcer._playtime._sustain_block") as mock_sustain,
-        ):
-            _policy(state, _rules(), now=NOW)
-        mock_begin.assert_called_once()
-        mock_sustain.assert_not_called()
-
-    def test_sustains_the_block_once_engaged(self) -> None:
-        state = PlaytimeState(day_key=TODAY, seconds=10**6, blocked_at=1.0)
-        with (
-            patch("steam_backlog_enforcer._playtime._begin_cutoff") as mock_begin,
-            patch("steam_backlog_enforcer._playtime._sustain_block") as mock_sustain,
-        ):
-            _policy(state, _rules(), now=NOW)
-        mock_begin.assert_not_called()
-        mock_sustain.assert_called_once()
-
-
-class TestPolicyEnforcementDisabled:
-    def test_releases_but_does_not_block(self) -> None:
-        """Disabling must never come to mean 'blocked forever'."""
-        state = PlaytimeState(day_key=TODAY, seconds=10**6)
-        with (
-            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.request_steam_shutdown"
-            ) as mock_shutdown,
-        ):
-            out = _policy(state, _rules(playtime_enforcement=False), now=NOW)
-        mock_rec.assert_called_once_with(should_block=False)
-        mock_shutdown.assert_not_called()
-        assert out.is_blocked() is False
-
-
 class TestPlaytimeTick:
     def test_accumulates_while_a_game_runs(self, quiet_tick: dict) -> None:
         save_state(
@@ -165,6 +99,40 @@ class TestPlaytimeTick:
             mock_dt.now.return_value = NOW
             playtime_tick(Config(), interval=3.0, session=fake_session())
         assert load_state(demo=False).seconds == 3.0
+
+    def test_records_the_day_in_the_history(self, quiet_tick: dict) -> None:
+        del quiet_tick
+        save_state(
+            PlaytimeState(day_key=TODAY, last_tick_at=NOW.timestamp() - 3.0),
+            demo=False,
+        )
+        session = fake_session()
+        with (
+            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.datetime") as mock_dt,
+        ):
+            mock_dt.now.return_value = NOW
+            playtime_tick(Config(), interval=3.0, session=session)
+        assert session.history.recorded == [(TODAY, 3.0)]
+
+    def test_records_the_day_even_under_a_total_block(self, quiet_tick: dict) -> None:
+        """The counter still needs a history point while the block is up."""
+        del quiet_tick
+        save_state(
+            PlaytimeState(
+                day_key=TODAY, seconds=5.0, last_tick_at=NOW.timestamp() - 3.0
+            ),
+            demo=False,
+        )
+        session = fake_session()
+        with (
+            patch(f"{PKG}.is_total_block_active", return_value=True),
+            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.datetime") as mock_dt,
+        ):
+            mock_dt.now.return_value = NOW
+            playtime_tick(Config(), interval=3.0, session=session)
+        assert session.history.recorded == [(TODAY, 5.0)]
 
     def test_total_block_releases_and_stops_accruing(self, quiet_tick: dict) -> None:
         """Our mounts would make the total block's `pacman -R steam` fail."""

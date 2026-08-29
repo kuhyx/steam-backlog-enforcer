@@ -9,7 +9,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import sys
 import tempfile
 from typing import Any
 
@@ -33,13 +32,26 @@ HOSTS_FILE = Path("/etc/hosts")
 logger = logging.getLogger(__name__)
 
 
-def _atomic_write(path: Path, data: str) -> None:
-    """Write data to a file atomically via a temporary file + rename."""
+def _atomic_write(path: Path, data: str, *, mode: int | None = None) -> None:
+    """Write data to a file atomically via a temporary file + rename.
+
+    Args:
+        path: Destination file.
+        data: Text to write.
+        mode: Permission bits for the result. ``None`` keeps ``mkstemp``'s
+            0600, which is what files holding secrets (``config.json`` carries
+            ``steam_api_key``) must stay at. Callers whose file has to be
+            readable by an unprivileged reader pass it explicitly; it is set on
+            the temporary file so the mode lands with the rename rather than
+            leaving a window where the destination exists at 0600.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     tmp_path = Path(tmp)
     try:
         os.write(fd, data.encode("utf-8"))
+        if mode is not None:
+            os.fchmod(fd, mode)
         os.close(fd)
         tmp_path.replace(path)
     except BaseException:
@@ -232,19 +244,3 @@ def load_snapshot() -> list[dict[str, Any]] | None:
         )
         return result
     return None
-
-
-def interactive_setup() -> Config:
-    """Run first-time interactive setup."""
-    api_key = input("Enter your Steam Web API key: ").strip()
-    if not api_key:
-        sys.exit(1)
-
-    steam_id = input("Enter your Steam64 ID: ").strip()
-    if not steam_id:
-        sys.exit(1)
-
-    config = Config(steam_api_key=api_key, steam_id=steam_id)
-    config.save()
-    CONFIG_FILE.chmod(0o600)
-    return config

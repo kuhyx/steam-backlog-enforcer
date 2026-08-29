@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._config_setup import interactive_setup
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer._web_server import serve
@@ -16,7 +17,6 @@ from steam_backlog_enforcer._whitelist import (
     add_pending_exception,
     validate_reason,
 )
-from steam_backlog_enforcer.config import interactive_setup
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.library_hider import restart_steam, unhide_all_games
 from steam_backlog_enforcer.store_blocker import block_store, unblock_store
