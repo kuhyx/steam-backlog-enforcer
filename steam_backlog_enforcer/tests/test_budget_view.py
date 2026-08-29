@@ -178,7 +178,16 @@ class TestBuildBudgetSnapshot:
             return_value=[HistoryDay(day="2026-08-27", seconds=1.5)],
         ):
             snapshot = self._snapshot()
-        assert snapshot["history"] == [{"day": "2026-08-27", "seconds": 1.5}]
+        # A day with a total but no breakdown is entirely unattributed: the
+        # residual is computed here, never stored.
+        assert snapshot["history"] == [
+            {
+                "day": "2026-08-27",
+                "seconds": 1.5,
+                "segments": [{"key": "unattributed", "seconds": 1.5}],
+            }
+        ]
+        assert snapshot["legend"] == [{"key": "unattributed", "label": "Unattributed"}]
 
     def test_demo_runs_serve_no_history(self) -> None:
         """Production days must not be plotted against the 60-second budget."""

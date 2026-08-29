@@ -95,6 +95,19 @@ class Config:
     True is the safer default: under-counting is the failure mode that quietly
     defeats the budget entirely.
     """
+    counted_processes: list[dict[str, Any]] | None = None
+    """Non-Steam games that count against the budget, beyond the launcher set.
+
+    Each entry is ``{"id": ..., "label": ..., "names": [...]}``. ``None`` means
+    "use the built-in defaults" (osu!lazer); an explicit ``[]`` means "none",
+    which is why this is not simply an empty list. Parsed and validated by
+    :mod:`steam_backlog_enforcer._counted_procs` — the field exists here only so
+    that ``save()`` round-trips a hand-edited list instead of dropping it.
+
+    Deliberately separate from ``LAUNCHER_PROCESS_NAMES``: that frozenset is
+    also the total-block kill list, so adding a game there has side effects
+    this list does not.
+    """
     playtime_enforcement: bool = True
     """Master switch for the daily gaming budget.
 
@@ -230,21 +243,3 @@ class State:
         self.manual_pick_app_id = None
         self.manual_pick_game_name = ""
         self.manual_pick_started_at = ""
-
-
-def save_snapshot(data: list[dict[str, Any]]) -> None:
-    """Save an achievement snapshot to disk."""
-    _atomic_write(
-        SNAPSHOT_FILE,
-        json.dumps(data, indent=2) + "\n",
-    )
-
-
-def load_snapshot() -> list[dict[str, Any]] | None:
-    """Load the cached achievement snapshot, or None if absent."""
-    if SNAPSHOT_FILE.exists():
-        result: list[dict[str, Any]] = json.loads(
-            SNAPSHOT_FILE.read_text(encoding="utf-8")
-        )
-        return result
-    return None

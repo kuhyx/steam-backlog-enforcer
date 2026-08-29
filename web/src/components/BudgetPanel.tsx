@@ -40,10 +40,14 @@ export function BudgetPanel({ demo }: Props) {
           <p className="error">{data.error ?? 'Budget state unavailable.'}</p>
         </section>
       ) : (
-        <BudgetTodayCard today={data.today} maskedCount={data.rules.masked_launchers.length} />
+        <BudgetTodayCard today={data.today} legend={data.legend} maskedCount={data.rules.masked_launchers.length} />
       )}
       <BudgetLiveCard session={data.session} />
-      <BudgetHistoryChart days={data.history} budgetSeconds={data.rules.budget_seconds} />
+      <BudgetHistoryChart
+        days={data.history}
+        legend={data.legend}
+        budgetSeconds={data.rules.budget_seconds}
+      />
       <BudgetRulesCard rules={data.rules} />
     </main>
   )

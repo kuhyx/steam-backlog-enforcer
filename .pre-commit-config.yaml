@@ -187,7 +187,8 @@ repos:
           # pnpm-lock.yaml is integrity hashes, not prose: `vEw` in a
           # sha512 read as a misspelling of "view".
           - --skip=*.json,*.lock,*-lock.yaml,.git,__pycache__,.venv,node_modules
-          - --ignore-words-list=als,ans,ect,nd,som,sur,te,nam,numer,lew,sie,wil,postion,clen,ther,folow,derrive,ony,tje,noe,theses,crate,doubleclick,wile,tabel,pary,blok,bloc,proces,serwer,parametr,adres,hart,dout,metod,tekst,synonim,grup,mosty,lokal,skalar,milion,nowe,tre,hel,alph
+          # `lazer` is osu!lazer's own name, not a misspelling of laser.
+          - --ignore-words-list=lazer,als,ans,ect,nd,som,sur,te,nam,numer,lew,sie,wil,postion,clen,ther,folow,derrive,ony,tje,noe,theses,crate,doubleclick,wile,tabel,pary,blok,bloc,proces,serwer,parametr,adres,hart,dout,metod,tekst,synonim,grup,mosty,lokal,skalar,milion,nowe,tre,hel,alph
 
   # ===========================================================================
   # SHELLCHECK - Shell script linting

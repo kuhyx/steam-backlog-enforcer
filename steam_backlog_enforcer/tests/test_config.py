@@ -7,12 +7,8 @@ import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
-from steam_backlog_enforcer.config import (
-    Config,
-    State,
-    load_snapshot,
-    save_snapshot,
-)
+from steam_backlog_enforcer._snapshot import load_snapshot, save_snapshot
+from steam_backlog_enforcer.config import Config, State
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -14,6 +14,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Final
 
+from steam_backlog_enforcer._budget_games import (
+    billing_label,
+    history_view,
+    today_games,
+)
 from steam_backlog_enforcer._budget_log_tail import last_verdict
 from steam_backlog_enforcer._playtime_block import mounted_targets
 from steam_backlog_enforcer._playtime_history import load_history
@@ -126,6 +131,7 @@ def build_today(state: PlaytimeState, rules: PlaytimeRules) -> dict[str, Any]:
         "blocked_at": state.blocked_at,
         "next_warning_seconds": next_warning(state, rules),
         "warned_seconds": list(state.warned_seconds),
+        "games": today_games(state),
     }
 
 
@@ -172,6 +178,12 @@ def build_budget_snapshot(*, demo: bool = False) -> dict[str, Any]:
     # implying an empty day.
     status = access if access != READABLE else (READABLE if stored else CORRUPT)
     session = last_verdict(demo=demo)
+    # Demo runs have no history by design — HistoryWriter skips them, for the
+    # same reason they get their own state file and log. Serving the production
+    # days here would plot real 8-hour days against the demo's 60-second budget
+    # line, painting every one of them over-budget. `today.games` is still
+    # emitted: the demo's own breakdown is real.
+    history, legend = ([], []) if demo else history_view(load_history(_HISTORY_DAYS))
 
     return {
         "ok": True,
@@ -180,6 +192,9 @@ def build_budget_snapshot(*, demo: bool = False) -> dict[str, Any]:
         "error": _STATUS_MESSAGES.get(status),
         "today": build_today(stored, rules) if stored is not None else None,
         "session": {
+            # What the budget is actually charging — a different question from
+            # the backlog assignment reported as "game_name" below.
+            "billing_label": billing_label(stored.last_credited_key if stored else ""),
             "available": session.available,
             "observed_at": session.observed_at,
             "state": session.state,
@@ -201,11 +216,7 @@ def build_budget_snapshot(*, demo: bool = False) -> dict[str, Any]:
         # the same reason they get their own state file and log. Serving the
         # production days here would plot real 8-hour days against the demo's
         # 60-second budget line, painting every one of them over-budget.
-        "history": []
-        if demo
-        else [
-            {"day": day.day, "seconds": round(day.seconds, 1)}
-            for day in load_history(_HISTORY_DAYS)
-        ],
+        "history": history,
+        "legend": legend,
         "rules": build_rules(rules),
     }

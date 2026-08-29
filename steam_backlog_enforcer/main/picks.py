@@ -21,7 +21,7 @@ from steam_backlog_enforcer._pick_completion import (
     report_completion,
     warn_stale_assignment,
 )
-from steam_backlog_enforcer.config import load_snapshot
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,

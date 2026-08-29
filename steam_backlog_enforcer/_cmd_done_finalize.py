@@ -7,6 +7,7 @@ under the 250-line cap.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._cmd_done import (
@@ -17,7 +18,7 @@ from steam_backlog_enforcer._cmd_done import (
 )
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._pick_completion import mark_finished
-from steam_backlog_enforcer.config import Config, State, load_snapshot
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     send_notification,
@@ -35,6 +36,9 @@ from steam_backlog_enforcer.hltb import (
 from steam_backlog_enforcer.library_hider import try_hide_other_games
 from steam_backlog_enforcer.scanning import pick_next_game
 from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
+
+if TYPE_CHECKING:
+    from steam_backlog_enforcer.config import Config, State
 
 _REASSIGN_REFRESH_LIMIT = 50
 _SKIP_DAYS = 7

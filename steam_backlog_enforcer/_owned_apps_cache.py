@@ -13,12 +13,8 @@ import logging
 import time
 from typing import Any
 
-from steam_backlog_enforcer.config import (
-    CONFIG_DIR,
-    Config,
-    _atomic_write,
-    load_snapshot,
-)
+from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer.config import CONFIG_DIR, Config, _atomic_write
 from steam_backlog_enforcer.steam_api import SteamAPIClient
 
 logger = logging.getLogger(__name__)

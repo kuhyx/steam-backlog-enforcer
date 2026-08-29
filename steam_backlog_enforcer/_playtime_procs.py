@@ -11,6 +11,12 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._counted_procs import key_by_name, load_counted_processes
+from steam_backlog_enforcer._playtime_kill import (
+    _INIT_PID,
+    _MAX_PROCESS_TREE_DEPTH,
+    _read_ppid,
+)
 from steam_backlog_enforcer._total_block_launchers import LAUNCHER_PROCESS_NAMES
 from steam_backlog_enforcer.enforcer import (
     get_pids_by_process_names,
@@ -110,21 +116,99 @@ def process_name(pid: int) -> str | None:
         return None
 
 
-def qualifying_pids(rules: PlaytimeRules) -> set[int]:
-    """Return PIDs whose runtime counts against the daily budget.
+def _merge_named(found: dict[int, str], keys: dict[str, str]) -> None:
+    """Add name-matched PIDs to *found* without displacing existing keys.
+
+    ``setdefault`` is the point: a Steam game already attributed by its
+    ``SteamAppId`` must keep that key even if its ``comm`` also happens to match
+    a launcher name.
+
+    A scanner can only return names it was asked for, so an unmapped name is
+    unreachable in production — it is skipped rather than raising, because the
+    alternative is a ``KeyError`` inside the enforce loop.
+
+    Args:
+        found: Accumulating PID-to-key mapping, mutated in place.
+        keys: Program basename to attribution key.
+    """
+    names = frozenset(keys)
+    for source in (get_pids_by_process_names(names), get_pids_by_cmdline_names(names)):
+        for pid, name in source.items():
+            key = keys.get(name)
+            if key is not None:
+                found.setdefault(pid, key)
+
+
+def qualifying_pids(rules: PlaytimeRules) -> dict[int, str]:
+    """Return PIDs whose runtime counts against the daily budget, with owners.
 
     Steam games are identified by the ``SteamAppId`` environment variable, using
     the same ``!= 0`` predicate ``enforcer.enforce_allowed_game`` uses to exclude
     the Steam client tree — browsing the store is not gaming.
 
+    The value is an attribution key (``app:<id>``, ``launcher:<name>`` or
+    ``proc:<id>``) so that the budget can record *which* game it billed. The
+    app id was previously destructured and dropped on the first line here, one
+    step before accumulation.
+
+    ``counted_processes`` is deliberately *not* gated on ``count_launchers``:
+    that switch covers the sixteen hardcoded launchers, and turning it off must
+    not silently stop billing a game the user explicitly listed.
+
     Args:
         rules: Policy for this tick.
 
     Returns:
-        The set of qualifying PIDs.
+        Mapping of qualifying PID to its attribution key.
     """
-    pids = {pid for pid, app_id in get_running_steam_game_pids().items() if app_id != 0}
+    found: dict[int, str] = {
+        pid: f"app:{app_id}"
+        for pid, app_id in get_running_steam_game_pids().items()
+        if app_id != 0
+    }
     if rules.count_launchers:
-        pids |= set(get_pids_by_process_names(LAUNCHER_PROCESS_NAMES))
-        pids |= set(get_pids_by_cmdline_names(LAUNCHER_PROCESS_NAMES))
-    return pids
+        _merge_named(
+            found, {name: f"launcher:{name}" for name in LAUNCHER_PROCESS_NAMES}
+        )
+
+    counted = key_by_name(load_counted_processes())
+    if counted:
+        _merge_named(found, counted)
+    return found
+
+
+def attributed_key(qualifying: dict[int, str], focus_pid: int | None) -> str:
+    """Return the single attribution key this tick should be credited to.
+
+    The focused window decides it, walking ancestry the same way
+    ``_engagement_probes.focus_qualifies`` does — a Proton game's window belongs
+    to a child of the process carrying ``SteamAppId``.
+
+    Falling back to "the only game running" keeps attribution working when the
+    focus probe is unavailable (no X, or a toolkit that omits ``_NET_WM_PID``).
+    With two games running and no focus signal there is no honest answer, so it
+    returns ``""``: the tick still bills, and the gap shows up as Unattributed
+    rather than being charged to a guess.
+
+    Args:
+        qualifying: Mapping of qualifying PID to attribution key.
+        focus_pid: PID owning the focused window, or ``None``.
+
+    Returns:
+        The attribution key, or ``""`` if none can be determined.
+    """
+    if focus_pid is not None:
+        pid = focus_pid
+        for _ in range(_MAX_PROCESS_TREE_DEPTH):
+            key = qualifying.get(pid)
+            if key is not None:
+                return key
+            if pid <= _INIT_PID:
+                break
+            parent = _read_ppid(pid)
+            if parent is None:
+                break
+            pid = parent
+
+    distinct = set(qualifying.values())
+    return distinct.pop() if len(distinct) == 1 else ""

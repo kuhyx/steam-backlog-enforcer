@@ -114,6 +114,9 @@ export function makeBudgetToday(over: Partial<BudgetToday> = {}): BudgetToday {
     blocked_at: 0,
     next_warning_seconds: 3600,
     warned_seconds: [],
+    games: [
+      { key: 'app:367520', label: 'Hollow Knight', seconds: 3600, fraction: 1 },
+    ],
     ...over,
   }
 }
@@ -128,6 +131,7 @@ export function makeBudgetSession(over: Partial<BudgetSession> = {}): BudgetSess
     idle_seconds: 2,
     screen_held: false,
     game_name: 'Hollow Knight',
+    billing_label: 'Hollow Knight',
     qualifying_count: 3,
     processes: [{ pid: 42, name: 'hollow_knight' }],
     ...over,
@@ -157,7 +161,14 @@ export function makeBudget(over: Partial<BudgetSnapshot> = {}): BudgetSnapshot {
     error: null,
     today: makeBudgetToday(),
     session: makeBudgetSession(),
-    history: [{ day: '2026-08-28', seconds: 3600 }],
+    history: [
+      {
+        day: '2026-08-28',
+        seconds: 3600,
+        segments: [{ key: 'app:367520', seconds: 3600 }],
+      },
+    ],
+    legend: [{ key: 'app:367520', label: 'Hollow Knight' }],
     rules: makeBudgetRules(),
     ...over,
   }

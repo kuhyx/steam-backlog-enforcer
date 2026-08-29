@@ -14,6 +14,13 @@
   --on-fill: #211d1b;
   --accent-bg: rgba(184, 134, 46, 0.12);
   --accent-border: rgba(184, 134, 46, 0.4);
+  --cat-1: #c57293;
+  --cat-2: #398fc0;
+  --cat-3: #c85a32;
+  --cat-4: #228736;
+  --cat-5: #8d58bb;
+  --cat-6: #686d2c;
+  --cat-none: #5d5551;
   --radius-sm: 8px;
   --radius-md: 12px;
   --sp-1: 4px;
@@ -632,14 +639,114 @@ td.proton {
 .budget-rules-list dd {
   margin: 0;
 }
-.chart-svg .bar {
-  fill: var(--accent);
+.chart-svg .seg.cat-1 {
+  fill: var(--cat-1);
 }
-.chart-svg .bar.over {
-  fill: var(--danger);
+.chart-svg .seg.cat-2 {
+  fill: var(--cat-2);
+}
+.chart-svg .seg.cat-3 {
+  fill: var(--cat-3);
+}
+.chart-svg .seg.cat-4 {
+  fill: var(--cat-4);
+}
+.chart-svg .seg.cat-5 {
+  fill: var(--cat-5);
+}
+.chart-svg .seg.cat-6 {
+  fill: var(--cat-6);
+}
+.chart-svg .seg.other {
+  fill: var(--muted);
+}
+.chart-svg .seg.unattributed {
+  fill: var(--cat-none);
 }
 .chart-svg .budget-line {
   stroke: var(--muted);
   stroke-width: 1;
   stroke-dasharray: 4 4;
+}
+
+/* --- Per-game breakdown: legend, swatches, today's list --- */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--cat-none);
+  flex: none;
+}
+.swatch.cat-1 {
+  background: var(--cat-1);
+}
+.swatch.cat-2 {
+  background: var(--cat-2);
+}
+.swatch.cat-3 {
+  background: var(--cat-3);
+}
+.swatch.cat-4 {
+  background: var(--cat-4);
+}
+.swatch.cat-5 {
+  background: var(--cat-5);
+}
+.swatch.cat-6 {
+  background: var(--cat-6);
+}
+.swatch.other {
+  background: var(--muted);
+}
+.swatch.unattributed {
+  background: var(--cat-none);
+}
+.budget-subhead {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: 0.95rem;
+  color: var(--heading);
+}
+.budget-games {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-1);
+}
+.budget-games li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.budget-game-name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.budget-game-time {
+  font-family: var(--mono);
+  color: var(--text);
+}
+.budget-game-share {
+  color: var(--muted);
+  min-width: 3ch;
+  text-align: right;
 }

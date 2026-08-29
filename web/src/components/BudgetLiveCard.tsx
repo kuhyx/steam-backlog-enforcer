@@ -49,6 +49,16 @@ export function BudgetLiveCard({ session }: Props) {
           {session.qualifying_count} qualifying processes
         </p>
       )}
+      {session.billing_label && (
+        <p className="hint">
+          {/* The assignment above is what the enforcer told you to play; this
+              is what the budget charged. A counted non-Steam game is never the
+              assignment, so the two legitimately differ. The key is the *last*
+              one credited, so it must not claim to be live while paused. */}
+          {session.state === 'engaged' ? 'Billing to ' : 'Last billed to '}
+          <strong>{session.billing_label}</strong>
+        </p>
+      )}
       {session.causes.length > 0 && (
         <p className="hint">Paused because {describe(session.causes, CAUSE_LABELS).join(', ')}.</p>
       )}

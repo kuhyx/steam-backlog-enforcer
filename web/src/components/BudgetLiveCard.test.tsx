@@ -7,7 +7,10 @@ describe('BudgetLiveCard', () => {
   it('reports an engaged session with its game', () => {
     render(<BudgetLiveCard session={makeBudgetSession()} />)
     expect(screen.getByText(/Billing — you are playing/)).toBeInTheDocument()
-    expect(screen.getByText('Hollow Knight')).toBeInTheDocument()
+    expect(screen.getByText(/Assigned game/)).toBeInTheDocument()
+    // Engaged, so the credited game is described in the present tense.
+    expect(screen.getByText(/Billing to/)).toBeInTheDocument()
+    expect(screen.getAllByText('Hollow Knight')).toHaveLength(2)
     expect(screen.getByText(/3 qualifying processes/)).toBeInTheDocument()
     expect(screen.getByText(/Idle 2s/)).toBeInTheDocument()
     expect(screen.getByText(/Screen held: no/)).toBeInTheDocument()
@@ -59,7 +62,9 @@ describe('BudgetLiveCard', () => {
   })
 
   it('handles a qualifying session with no assigned game name', () => {
-    render(<BudgetLiveCard session={makeBudgetSession({ game_name: '' })} />)
+    render(
+      <BudgetLiveCard session={makeBudgetSession({ game_name: '', billing_label: '' })} />,
+    )
     expect(screen.getByText(/3 qualifying processes/)).toBeInTheDocument()
     expect(screen.queryByText('Hollow Knight')).toBeNull()
   })

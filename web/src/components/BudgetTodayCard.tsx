@@ -1,8 +1,10 @@
+import { seriesClass } from '../budgetSeries'
 import { fmtDuration } from '../format'
-import type { BudgetToday } from '../types'
+import type { BudgetLegendEntry, BudgetToday } from '../types'
 
 interface Props {
   today: BudgetToday
+  legend: BudgetLegendEntry[]
   maskedCount: number
 }
 
@@ -18,7 +20,12 @@ function meterState(today: BudgetToday): string {
   return today.warned_seconds.length > 0 ? 'warn' : 'ok'
 }
 
-export function BudgetTodayCard({ today, maskedCount }: Props) {
+export function BudgetTodayCard({ today, legend, maskedCount }: Props) {
+  // Colour by the chart's legend position so a game reads the same in both
+  // places; today can hold games the capped 14-day legend left out, and those
+  // fall back to their own row order.
+  const indexFor = new Map(legend.map((e, i) => [e.key, i]))
+
   return (
     <section className="budget-today">
       <h2>Today</h2>
@@ -55,6 +62,26 @@ export function BudgetTodayCard({ today, maskedCount }: Props) {
           `Next warning at ${fmtDuration(today.next_warning_seconds)} remaining.`
         )}
       </p>
+      {today.games.length > 0 && (
+        <>
+          <h3 className="budget-subhead">Today by game</h3>
+          <ul className="budget-games">
+            {today.games.map((game, i) => (
+              <li key={game.key}>
+                <span
+                  className={`swatch ${seriesClass(game.key, indexFor.get(game.key) ?? i)}`}
+                  aria-hidden="true"
+                />
+                <span className="budget-game-name">{game.label}</span>
+                <span className="budget-game-time">{fmtDuration(game.seconds)}</span>
+                <span className="budget-game-share">
+                  {Math.round(game.fraction * 100)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   )
 }

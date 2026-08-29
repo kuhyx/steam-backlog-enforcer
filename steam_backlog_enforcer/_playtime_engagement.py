@@ -156,9 +156,17 @@ class EngagementTracker:
             return state
 
         refunded = max(0.0, state.seconds - rules.idle_grace_seconds)
+        amount = state.seconds - refunded
         logger.info(
             "Idle for %.0fs; refunding the %.0fs grace period.",
             verdict.idle_seconds or 0.0,
-            state.seconds - refunded,
+            amount,
         )
-        return replace(state, seconds=refunded)
+        # The refund must come off the same key it was billed to, or the
+        # per-game parts drift above the whole on every walk-away — which is
+        # many times a day, and would render as segments overflowing the bar.
+        per_game = dict(state.per_game)
+        key = state.last_credited_key
+        if key and key in per_game:
+            per_game[key] = max(0.0, per_game[key] - amount)
+        return replace(state, seconds=refunded, per_game=per_game)

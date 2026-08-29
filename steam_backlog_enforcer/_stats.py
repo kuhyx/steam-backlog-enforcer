@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._hltb_types import (
     _read_raw_cache,
 )
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._stats_display import (
     _format_completion_date,
     _print_pace_scenario,
@@ -26,7 +27,6 @@ from steam_backlog_enforcer._web_dataset import (
     compute_pace_vs_hltb,
     count_complete_since_start,
 )
-from steam_backlog_enforcer.config import load_snapshot
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.steam_api import (
     GameInfo,

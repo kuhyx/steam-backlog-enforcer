@@ -93,7 +93,7 @@ class TestPlaytimeTick:
             demo=False,
         )
         with (
-            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.qualifying_pids", return_value={7: "app:440"}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
@@ -108,7 +108,7 @@ class TestPlaytimeTick:
         )
         session = fake_session()
         with (
-            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.qualifying_pids", return_value={7: "app:440"}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
@@ -127,7 +127,7 @@ class TestPlaytimeTick:
         session = fake_session()
         with (
             patch(f"{PKG}.is_total_block_active", return_value=True),
-            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.qualifying_pids", return_value={7: "app:440"}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
@@ -144,7 +144,7 @@ class TestPlaytimeTick:
         )
         with (
             patch(f"{PKG}.is_total_block_active", return_value=True),
-            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.qualifying_pids", return_value={7: "app:440"}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
@@ -163,7 +163,7 @@ class TestPlaytimeTick:
             demo=False,
         )
         with (
-            patch(f"{PKG}.qualifying_pids", return_value=set()),
+            patch(f"{PKG}.qualifying_pids", return_value={}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
@@ -182,7 +182,7 @@ class TestPlaytimeTick:
             demo=True,
         )
         with (
-            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.qualifying_pids", return_value={7: "app:440"}),
             patch(
                 "steam_backlog_enforcer._playtime_cutoff._kill_set", return_value={7}
             ),
@@ -197,7 +197,7 @@ class TestPlaytimeTick:
     def test_demo_uses_a_separate_state_file(self, quiet_tick: dict) -> None:
         """A demo run must never consume the real day's budget."""
         with (
-            patch(f"{PKG}.qualifying_pids", return_value={7}),
+            patch(f"{PKG}.qualifying_pids", return_value={7: "app:440"}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW
@@ -207,7 +207,7 @@ class TestPlaytimeTick:
 
     def test_first_tick_writes_state(self, quiet_tick: dict) -> None:
         with (
-            patch(f"{PKG}.qualifying_pids", return_value=set()),
+            patch(f"{PKG}.qualifying_pids", return_value={}),
             patch(f"{PKG}.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = NOW

@@ -15,6 +15,7 @@ from pathlib import Path
 import shutil
 import signal
 
+from steam_backlog_enforcer._counted_procs import kill_target_names
 from steam_backlog_enforcer._playtime_run import _run
 from steam_backlog_enforcer._total_block_launchers import (
     LAUNCHER_PROCESS_NAMES,
@@ -28,6 +29,9 @@ _PROC = Path("/proc")
 
 _STAT_PPID_INDEX = 1
 _MAX_PROCESS_TREE_DEPTH = 32
+
+# Walking past pid 1 is walking off the top of the process tree.
+_INIT_PID = 1
 
 
 def request_steam_shutdown() -> None:
@@ -50,7 +54,7 @@ def steam_and_launcher_pids() -> set[int]:
     Returns:
         The launcher and client PIDs.
     """
-    names = STEAM_CLIENT_PROCESS_NAMES | LAUNCHER_PROCESS_NAMES
+    names = STEAM_CLIENT_PROCESS_NAMES | LAUNCHER_PROCESS_NAMES | kill_target_names()
     return set(get_pids_by_process_names(names))
 
 

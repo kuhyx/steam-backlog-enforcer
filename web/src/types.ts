@@ -114,6 +114,19 @@ export interface BudgetToday {
   /** Seconds-remaining at which the next warning fires; null when none left. */
   next_warning_seconds: number | null
   warned_seconds: number[]
+  /** Every game billed today, largest first, remainder last. Uncapped. */
+  games: BudgetGameSlice[]
+}
+
+/** One game's share of a day's billed time. */
+export interface BudgetGameSlice {
+  /** Stable attribution key: `app:<id>`, `proc:<id>`, `launcher:<name>`,
+   * or the computed `unattributed`/`other` sentinels. */
+  key: string
+  label: string
+  seconds: number
+  /** 0..1 of the day's billed total. */
+  fraction: number
 }
 
 export interface BudgetProcess {
@@ -131,6 +144,9 @@ export interface BudgetSession {
   idle_seconds: number | null
   screen_held: boolean | null
   game_name: string
+  /** Game the budget is actually charging; differs from `game_name`, which
+   * is the backlog assignment. Empty when nothing has billed yet. */
+  billing_label: string
   qualifying_count: number
   processes: BudgetProcess[]
 }
@@ -138,6 +154,20 @@ export interface BudgetSession {
 export interface BudgetHistoryDay {
   day: string
   seconds: number
+  /** Stacked bands, already ordered to match `BudgetSnapshot.legend` and
+   * already capped at six games plus `other`/`unattributed` by the backend. */
+  segments: BudgetHistorySegment[]
+}
+
+export interface BudgetHistorySegment {
+  key: string
+  seconds: number
+}
+
+/** Render order and labels for the stacked bands, shared by every day. */
+export interface BudgetLegendEntry {
+  key: string
+  label: string
 }
 
 export interface BudgetRules {
@@ -161,6 +191,7 @@ export interface BudgetSnapshot {
   today: BudgetToday | null
   session: BudgetSession
   history: BudgetHistoryDay[]
+  legend: BudgetLegendEntry[]
   rules: BudgetRules
 }
 

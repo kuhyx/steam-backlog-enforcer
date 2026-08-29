@@ -128,6 +128,47 @@ class TestBackdate:
         state = tracker.backdate(state, _idle_paused(), rules=RULES)
         assert state.seconds == 700.0
 
+    def test_debits_the_refund_from_the_credited_game(self) -> None:
+        """Otherwise the parts drift above the whole on every walk-away.
+
+        This edge fires many times a day, so leaving `per_game` untouched would
+        make stacked segments overflow their bar within minutes.
+        """
+        tracker = _tracker()
+        state = PlaytimeState(
+            day_key="2026-08-28",
+            seconds=1000.0,
+            per_game={"app:440": 1000.0},
+            last_credited_key="app:440",
+        )
+        state = tracker.backdate(state, _engaged(), rules=RULES)
+        state = tracker.backdate(state, _idle_paused(), rules=RULES)
+        assert state.seconds == 700.0
+        assert state.per_game == {"app:440": 700.0}
+        assert sum(state.per_game.values()) <= state.seconds
+
+    def test_a_refund_larger_than_the_key_holds_floors_at_zero(self) -> None:
+        tracker = _tracker()
+        state = PlaytimeState(
+            day_key="2026-08-28",
+            seconds=1000.0,
+            per_game={"app:440": 100.0},
+            last_credited_key="app:440",
+        )
+        state = tracker.backdate(state, _engaged(), rules=RULES)
+        state = tracker.backdate(state, _idle_paused(), rules=RULES)
+        assert state.per_game == {"app:440": 0.0}
+
+    def test_an_unattributed_refund_leaves_the_breakdown_alone(self) -> None:
+        """Nothing was credited, so there is nothing to take back."""
+        tracker = _tracker()
+        state = PlaytimeState(
+            day_key="2026-08-28", seconds=1000.0, per_game={"app:440": 100.0}
+        )
+        state = tracker.backdate(state, _engaged(), rules=RULES)
+        state = tracker.backdate(state, _idle_paused(), rules=RULES)
+        assert state.per_game == {"app:440": 100.0}
+
     def test_never_refunds_below_zero(self) -> None:
         tracker = _tracker()
         state = tracker.backdate(self._state(seconds=10.0), _engaged(), rules=RULES)

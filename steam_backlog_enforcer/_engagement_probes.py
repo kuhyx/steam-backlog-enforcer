@@ -24,7 +24,11 @@ from steam_backlog_enforcer._engagement_types import (
     PROBE_SCREEN_HELD,
     CauseTally,
 )
-from steam_backlog_enforcer._playtime_kill import _MAX_PROCESS_TREE_DEPTH, _read_ppid
+from steam_backlog_enforcer._playtime_kill import (
+    _INIT_PID,
+    _MAX_PROCESS_TREE_DEPTH,
+    _read_ppid,
+)
 from steam_backlog_enforcer._screen_hold import ScreenHoldError, screen_hold
 from steam_backlog_enforcer._x_focus import focused_pid
 from steam_backlog_enforcer._x_probe import XProbeError
@@ -37,8 +41,6 @@ if TYPE_CHECKING:
     from steam_backlog_enforcer._x_probe import XProbe
 
 logger = logging.getLogger(__name__)
-
-_INIT_PID = 1
 
 
 def assess_screen(

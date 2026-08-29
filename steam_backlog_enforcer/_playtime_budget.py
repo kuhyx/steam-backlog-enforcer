@@ -29,6 +29,7 @@ def accumulate(
     now: datetime,
     qualifying: set[int],
     interval: float,
+    credited_key: str = "",
 ) -> PlaytimeState:
     """Add this tick's elapsed gaming time to *state*.
 
@@ -44,6 +45,11 @@ def accumulate(
         now: Timezone-aware local timestamp for this tick.
         qualifying: PIDs currently counting against the budget.
         interval: Nominal seconds between ticks.
+        credited_key: Attribution key to charge, or ``""`` when the tick cannot
+            be pinned to one game. An unattributable tick still bills
+            ``seconds``; the shortfall is rendered as Unattributed rather than
+            charged to a guess, which is why ``per_game`` only ever sums to at
+            most ``seconds``.
 
     Returns:
         The updated state.
@@ -57,7 +63,16 @@ def accumulate(
         return replace(state, last_tick_at=stamp)
 
     credited = min(delta, interval * _DELTA_CLAMP_FACTOR)
-    return replace(state, last_tick_at=stamp, seconds=state.seconds + credited)
+    per_game = dict(state.per_game)
+    if credited_key:
+        per_game[credited_key] = per_game.get(credited_key, 0.0) + credited
+    return replace(
+        state,
+        last_tick_at=stamp,
+        seconds=state.seconds + credited,
+        per_game=per_game,
+        last_credited_key=credited_key or state.last_credited_key,
+    )
 
 
 def roll_over(state: PlaytimeState, *, day_key: str) -> PlaytimeState:

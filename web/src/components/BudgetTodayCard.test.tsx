@@ -5,7 +5,7 @@ import { BudgetTodayCard } from './BudgetTodayCard'
 
 describe('BudgetTodayCard', () => {
   it('shows remaining time, usage and the next warning', () => {
-    render(<BudgetTodayCard today={makeBudgetToday()} maskedCount={0} />)
+    render(<BudgetTodayCard today={makeBudgetToday()} legend={[]} maskedCount={0} />)
     expect(screen.getByText('7h 0m')).toBeInTheDocument()
     expect(screen.getByText(/1h 0m of 8h 0m used/)).toBeInTheDocument()
     expect(screen.getByText(/Next warning at 1h 0m remaining/)).toBeInTheDocument()
@@ -16,6 +16,8 @@ describe('BudgetTodayCard', () => {
     render(
       <BudgetTodayCard
         today={makeBudgetToday({ seconds_remaining: 900, warned_seconds: [3600, 1800] })}
+        legend={[]}
+
         maskedCount={0}
       />,
     )
@@ -29,6 +31,8 @@ describe('BudgetTodayCard', () => {
           next_warning_seconds: null,
           warned_seconds: [3600, 1800, 600, 300],
         })}
+        legend={[]}
+
         maskedCount={0}
       />,
     )
@@ -47,13 +51,13 @@ describe('BudgetTodayCard', () => {
     })
 
   it('shows the cutoff badge when blocked', () => {
-    render(<BudgetTodayCard today={blockedToday()} maskedCount={2} />)
+    render(<BudgetTodayCard today={blockedToday()} legend={[]} maskedCount={2} />)
     expect(screen.getByText(/Cutoff engaged — launchers are masked/)).toBeInTheDocument()
     expect(document.querySelector('.budget-meter--blocked')).not.toBeNull()
   })
 
   it('does not claim a mask that is not in place', () => {
-    render(<BudgetTodayCard today={blockedToday()} maskedCount={0} />)
+    render(<BudgetTodayCard today={blockedToday()} legend={[]} maskedCount={0} />)
     expect(
       screen.getByText(/Cutoff engaged — launchers are not currently masked/),
     ).toBeInTheDocument()

@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from mcp.server import MCPServer
 
-from steam_backlog_enforcer.config import load_snapshot
+from steam_backlog_enforcer._snapshot import load_snapshot
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.steam_api import GameInfo

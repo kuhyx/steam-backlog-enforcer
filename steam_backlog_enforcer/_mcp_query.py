@@ -17,8 +17,9 @@ from steam_backlog_enforcer._mcp_server import (
     _backlog_sort_key,
     mcp,
 )
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._web_dataset import build_web_dataset, dataset_to_payload
-from steam_backlog_enforcer.config import State, load_snapshot
+from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import GameInfo
 
 

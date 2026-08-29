@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._allowed_games import allowed_games
-from steam_backlog_enforcer.config import load_snapshot
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.enforcer import send_notification
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.steam_api import SteamAPIClient

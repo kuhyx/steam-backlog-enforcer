@@ -7,7 +7,7 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Any
 
-from steam_backlog_enforcer.config import State, load_snapshot
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.game_install import (
     _echo,
 )
@@ -20,6 +20,7 @@ from steam_backlog_enforcer.hltb import (
 )
 
 if TYPE_CHECKING:
+    from steam_backlog_enforcer.config import State
     from steam_backlog_enforcer.steam_api import GameInfo
 
 _REASSIGN_REFRESH_LIMIT = 50

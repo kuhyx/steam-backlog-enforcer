@@ -7,8 +7,10 @@ five 5 MB files — so a busy fortnight can push a day out of the window entirel
 Neither is a series you can plot.
 
 So this module keeps one small file whose only job is the history: a
-``day_key -> seconds`` mapping, trimmed to the last month, written world-readable
-so an unprivileged reader (the web UI) can plot it.
+``day_key -> {seconds, games}`` mapping, trimmed to the last month, written
+world-readable so an unprivileged reader (the web UI) can plot it. Schema 1
+stored a bare seconds float per day and is still read: those days simply carry
+no per-game breakdown, which the payload renders as Unattributed.
 
 Writes are throttled rather than tied to roll-over. Upserting today's figure on a
 cadence means the outgoing day is already recorded to within ``_FLUSH_DELTA``
@@ -22,11 +24,16 @@ failure and must never take down the enforcer.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import logging
 from typing import TYPE_CHECKING, Final
 
+from steam_backlog_enforcer._attribution_labels import labels_for
+from steam_backlog_enforcer._playtime_history_parse import (
+    HistoryDay,
+    _parse_day,
+    _parse_labels,
+)
 from steam_backlog_enforcer._playtime_state import STATE_MODE
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
@@ -35,9 +42,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["HISTORY_FILE", "HistoryDay", "HistoryWriter", "load_history", "record_day"]
+
 HISTORY_FILE: Final = CONFIG_DIR / "playtime_history.json"
 
 _SCHEMA_VERSION: Final = 1
+
+# Day values are polymorphic rather than versioned: a bare float is the
+# original `day -> seconds` form, an object carries the per-game breakdown.
+# The reader must handle both either way, so a version bump would add a
+# branch that distinguishes nothing.
 
 # Days retained. Comfortably more than the fortnight the UI plots, so a chart
 # that later grows a longer window has data waiting for it.
@@ -49,18 +63,8 @@ _MAX_DAYS: Final = 30
 _FLUSH_DELTA: Final = 60.0
 
 
-@dataclass(frozen=True)
-class HistoryDay:
-    """One gaming day's total, as plotted."""
-
-    day: str
-    """Gaming day, ``YYYY-MM-DD``, 06:00-shifted."""
-    seconds: float
-    """Qualifying seconds billed during ``day``."""
-
-
-def _read_days() -> dict[str, float]:
-    """Return the stored ``day -> seconds`` mapping, or empty if unusable.
+def _read_file() -> tuple[dict[str, HistoryDay], dict[str, str]]:
+    """Return the stored days and label map, or empties if unusable.
 
     Unlike the state file this one is neither root-owned nor immutable, and it
     lives in a user-owned directory — so an unprivileged process can replace it
@@ -68,29 +72,34 @@ def _read_days() -> dict[str, float]:
     field is therefore checked rather than trusted.
 
     Returns:
-        The mapping, or ``{}`` when the file is missing, unreadable, corrupt or
-        of an unknown schema.
+        The ``day -> HistoryDay`` mapping and the ``key -> label`` mapping, both
+        empty when the file is missing, unreadable, corrupt or of an unknown
+        schema.
     """
     try:
         raw = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {}
+        return {}, {}
     except OSError, ValueError:
         logger.warning(
             "Playtime history at %s is unreadable; starting over.", HISTORY_FILE
         )
-        return {}
+        return {}, {}
     if not isinstance(raw, dict) or raw.get("schema_version") != _SCHEMA_VERSION:
         logger.warning("Playtime history at %s has an unknown schema.", HISTORY_FILE)
-        return {}
+        return {}, {}
+
     days = raw.get("days")
     if not isinstance(days, dict):
-        return {}
-    return {
-        key: float(value)
+        return {}, {}
+    parsed = {
+        key: entry
         for key, value in days.items()
-        if isinstance(key, str) and isinstance(value, (int, float))
+        if isinstance(key, str)
+        for entry in [_parse_day(key, value)]
+        if entry is not None
     }
+    return parsed, _parse_labels(raw.get("labels"))
 
 
 def load_history(limit: int = 14) -> list[HistoryDay]:
@@ -102,25 +111,50 @@ def load_history(limit: int = 14) -> list[HistoryDay]:
     Returns:
         Recorded days in ascending date order, at most *limit* of them.
     """
-    days = _read_days()
+    days, _ = _read_file()
     ordered = sorted(days.items())[-limit:] if limit > 0 else []
-    return [HistoryDay(day=day, seconds=seconds) for day, seconds in ordered]
+    return [entry for _, entry in ordered]
 
 
-def record_day(day_key: str, seconds: float) -> None:
-    """Upsert one day's total and trim the file to ``_MAX_DAYS``.
+def load_labels() -> dict[str, str]:
+    """Return the stored ``key -> label`` mapping.
+
+    Returns:
+        Labels recorded alongside the history.
+    """
+    return _read_file()[1]
+
+
+def record_day(day_key: str, seconds: float, games: dict[str, float]) -> None:
+    """Upsert one day's total and breakdown, trimming to ``_MAX_DAYS``.
+
+    Labels are merged rather than replaced so a game that stops being played
+    keeps its name for as long as its days remain in the window.
 
     Args:
         day_key: Gaming day to record.
         seconds: Total billed for that day so far.
+        games: Attribution key to seconds for that day.
     """
-    days = _read_days()
-    days[day_key] = seconds
+    days, labels = _read_file()
+    days[day_key] = HistoryDay(day=day_key, seconds=seconds, games=dict(games))
     trimmed = dict(sorted(days.items())[-_MAX_DAYS:])
+    labels.update(labels_for(games))
+    payload = {
+        "schema_version": _SCHEMA_VERSION,
+        "days": {
+            day: {"seconds": entry.seconds, "games": entry.games}
+            for day, entry in trimmed.items()
+        },
+        "labels": {
+            key: label
+            for key, label in labels.items()
+            if any(key in entry.games for entry in trimmed.values())
+        },
+    }
     _atomic_write(
         HISTORY_FILE,
-        json.dumps({"schema_version": _SCHEMA_VERSION, "days": trimmed}, indent=2)
-        + "\n",
+        json.dumps(payload, indent=2) + "\n",
         mode=STATE_MODE,
     )
 
@@ -153,7 +187,7 @@ class HistoryWriter:
         if previous is not None and abs(state.seconds - previous) < _FLUSH_DELTA:
             return
         try:
-            record_day(state.day_key, state.seconds)
+            record_day(state.day_key, state.seconds, state.per_game)
         except OSError as exc:
             # A history point is cosmetic; the enforcer keeps enforcing.
             logger.warning("Could not record playtime history: %s", exc)

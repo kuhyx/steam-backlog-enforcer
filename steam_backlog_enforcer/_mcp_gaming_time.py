@@ -61,6 +61,9 @@ def get_gaming_time() -> dict[str, Any]:
         "enforcement": rules["enforcement"],
         "counts_launchers": rules["counts_launchers"],
         "masked_launchers": masked,
+        # Which games make up seconds_used, largest first, with whatever the
+        # focus probe could not attribute as a trailing "unattributed" slice.
+        "games": today["games"],
     }
 
 

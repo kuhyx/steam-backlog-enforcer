@@ -9,8 +9,8 @@ from steam_backlog_enforcer._actions import (
     manual_pick_age_days,
 )
 from steam_backlog_enforcer._pick_completion import report_completion
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._total_block import get_total_block_status
-from steam_backlog_enforcer.config import load_snapshot
 from steam_backlog_enforcer.game_install import (
     _echo,
     get_installed_games,

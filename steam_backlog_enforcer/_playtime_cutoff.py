@@ -122,4 +122,4 @@ def _kill_set(rules: PlaytimeRules) -> set[int]:
     Returns:
         PIDs to signal.
     """
-    return qualifying_pids(rules) | steam_and_launcher_pids()
+    return set(qualifying_pids(rules)) | steam_and_launcher_pids()

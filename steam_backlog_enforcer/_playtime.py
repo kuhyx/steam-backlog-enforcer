@@ -46,7 +46,7 @@ from steam_backlog_enforcer._playtime_cutoff import (
     _sustain_block,
     _warn,
 )
-from steam_backlog_enforcer._playtime_procs import qualifying_pids
+from steam_backlog_enforcer._playtime_procs import attributed_key, qualifying_pids
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeRules,
     PlaytimeState,
@@ -104,7 +104,8 @@ def playtime_tick(
         session.history.observe(state, demo=demo)
         return
 
-    pids = qualifying_pids(rules)
+    owners = qualifying_pids(rules)
+    pids = set(owners)
     monotonic = time.monotonic()
     verdict = session.tracker.assess(rules, qualifying=pids, now_monotonic=monotonic)
 
@@ -113,6 +114,9 @@ def playtime_tick(
         now=now,
         qualifying=pids if verdict.engaged else set(),
         interval=interval,
+        credited_key=(
+            attributed_key(owners, verdict.focus_pid) if verdict.engaged else ""
+        ),
     )
     state = session.tracker.backdate(state, verdict, rules=rules)
     state = _policy(state, rules, now=now)

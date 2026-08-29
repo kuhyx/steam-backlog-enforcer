@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 PLAYTIME_STATE_FILE = CONFIG_DIR / "playtime_state.json"
 PLAYTIME_DEMO_STATE_FILE = CONFIG_DIR / "playtime_demo_state.json"
 
+# Unchanged by per-game attribution: `load_state` keeps only keys that are
+# dataclass fields, so a record written before `per_game` existed loads with
+# the field's empty default. A bump would buy nothing and would route the
+# live file through the fail-closed unknown-schema path.
 _SCHEMA_VERSION = 1
 
 # The daemon runs as root, and ``mkstemp`` would leave this at 0600 — which
@@ -72,6 +76,21 @@ class PlaytimeState:
     """Epoch seconds of the last accounting tick; ``0.0`` means never ticked."""
     blocked_at: float = 0.0
     """Epoch seconds when the cutoff engaged; ``0.0`` means not blocked."""
+    per_game: dict[str, float] = field(default_factory=dict)
+    """Attribution key to seconds credited during ``day_key``.
+
+    Only ever a *subset* of ``seconds``: a tick that cannot be attributed to one
+    game still bills, and ``backdate`` refunds can outpace what one key holds.
+    The difference is rendered as "Unattributed" rather than stored, so the
+    invariant is ``sum(per_game.values()) <= seconds`` — never equality.
+    """
+    last_credited_key: str = ""
+    """Key credited by the most recent billing tick.
+
+    Exists so ``backdate``'s idle-grace refund can debit the same key it
+    credited; without it every engaged-to-paused edge would drift the parts
+    above the whole.
+    """
     warned_seconds: list[int] = field(default_factory=list)
     """Warning thresholds already fired during ``day_key``."""
 

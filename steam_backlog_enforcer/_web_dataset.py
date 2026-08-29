@@ -38,7 +38,7 @@ __all__ = [
 
 from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._hltb_types import _read_raw_cache
@@ -47,6 +47,7 @@ from steam_backlog_enforcer._scanning_confidence import (
     _MIN_CONFIDENCE_SUM,
     _MIN_COUNT_COMP,
 )
+from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._web_games import (
     _build_games,
     _default_qualifying,
@@ -66,11 +67,13 @@ from steam_backlog_enforcer._web_models import (
     WebStateInfo,
 )
 from steam_backlog_enforcer._web_pace import compute_pace_vs_hltb
-from steam_backlog_enforcer.config import State, load_snapshot
 from steam_backlog_enforcer.protondb import (
     MIN_PLAYABLE_TIER,
 )
 from steam_backlog_enforcer.steam_api import GameInfo
+
+if TYPE_CHECKING:
+    from steam_backlog_enforcer.config import State
 
 
 def count_complete_since_start(games: list[GameInfo], started_at: str) -> int:

@@ -32,12 +32,7 @@ from steam_backlog_enforcer._scanning_tampering import (
     _check_game_tampering,
     detect_tampering,
 )
-from steam_backlog_enforcer.config import (
-    Config,
-    State,
-    load_snapshot,
-    save_snapshot,
-)
+from steam_backlog_enforcer._snapshot import load_snapshot, save_snapshot
 from steam_backlog_enforcer.enforcer import (
     send_notification,
 )
@@ -51,6 +46,8 @@ from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from steam_backlog_enforcer.config import Config, State
 
 # These helpers moved to the _scanning_* leaf modules, but callers and tests
 # have always imported them from here. mypy's --no-implicit-reexport needs

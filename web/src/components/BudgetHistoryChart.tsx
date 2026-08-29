@@ -1,8 +1,10 @@
+import { seriesClass } from '../budgetSeries'
 import { fmtDuration } from '../format'
-import type { BudgetHistoryDay } from '../types'
+import type { BudgetHistoryDay, BudgetLegendEntry } from '../types'
 
 interface Props {
   days: BudgetHistoryDay[]
+  legend: BudgetLegendEntry[]
   budgetSeconds: number
 }
 
@@ -10,7 +12,7 @@ const W = 820
 const H = 220
 const PAD = { top: 16, right: 20, bottom: 36, left: 56 }
 
-export function BudgetHistoryChart({ days, budgetSeconds }: Props) {
+export function BudgetHistoryChart({ days, legend, budgetSeconds }: Props) {
   if (days.length === 0) {
     return (
       <div className="chart">
@@ -34,6 +36,8 @@ export function BudgetHistoryChart({ days, budgetSeconds }: Props) {
   const barW = slot * 0.7
 
   const yTicks = [0, 0.5, 1].map((f) => f * maxSeconds)
+  const labelFor = new Map(legend.map((e) => [e.key, e.label]))
+  const indexFor = new Map(legend.map((e, i) => [e.key, i]))
 
   return (
     <div className="chart">
@@ -54,18 +58,31 @@ export function BudgetHistoryChart({ days, budgetSeconds }: Props) {
           y2={sy(budgetSeconds)}
           className="budget-line"
         />
-        {days.map((d, i) => (
-          <rect
-            key={d.day}
-            x={PAD.left + i * slot + (slot - barW) / 2}
-            y={sy(d.seconds)}
-            width={barW}
-            height={PAD.top + plotH - sy(d.seconds)}
-            className={d.seconds >= budgetSeconds ? 'bar over' : 'bar'}
-          >
-            <title>{`${d.day}: ${fmtDuration(d.seconds)}`}</title>
-          </rect>
-        ))}
+        {days.map((d, i) => {
+          // Bands stack upwards from the axis in legend order, so a game keeps
+          // the same colour and the same relative position in every bar.
+          let base = 0
+          return d.segments.map((seg) => {
+            const top = base + seg.seconds
+            const y = sy(top)
+            const height = sy(base) - y
+            base = top
+            return (
+              <rect
+                key={`${d.day}:${seg.key}`}
+                x={PAD.left + i * slot + (slot - barW) / 2}
+                y={y}
+                width={barW}
+                height={height}
+                className={seriesClass(seg.key, indexFor.get(seg.key) ?? 0)}
+              >
+                <title>
+                  {`${d.day} · ${labelFor.get(seg.key) ?? seg.key}: ${fmtDuration(seg.seconds)}`}
+                </title>
+              </rect>
+            )
+          })
+        })}
         {days.map((d, i) => (
           <text
             key={`x${d.day}`}
@@ -77,9 +94,17 @@ export function BudgetHistoryChart({ days, budgetSeconds }: Props) {
           </text>
         ))}
       </svg>
+      <ul className="chart-legend">
+        {legend.map((entry, i) => (
+          <li key={entry.key}>
+            <span className={`swatch ${seriesClass(entry.key, i)}`} aria-hidden="true" />
+            {entry.label}
+          </li>
+        ))}
+      </ul>
       <p className="hint">
-        Billed gaming time per day. The dashed line is the daily budget; today&apos;s bar
-        can still move.
+        Billed gaming time per day, split by game. The dashed line is the daily budget;
+        today&apos;s bar can still move.
       </p>
     </div>
   )

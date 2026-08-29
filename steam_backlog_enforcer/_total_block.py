@@ -24,6 +24,7 @@ import logging
 import shutil
 import subprocess
 
+from steam_backlog_enforcer._counted_procs import kill_target_names
 from steam_backlog_enforcer._total_block_hosts import (
     apply_total_block_hosts,
     remove_total_block_hosts,
@@ -41,6 +42,7 @@ from steam_backlog_enforcer._total_block_purge import (
     uninstall_steam_package,
 )
 from steam_backlog_enforcer.config import CONFIG_DIR
+from steam_backlog_enforcer.enforcer import kill_processes_by_name
 from steam_backlog_enforcer.store_blocker import flush_dns_cache
 
 logger = logging.getLogger(__name__)
@@ -177,6 +179,9 @@ def start_total_block(days: int) -> bool:
         return False
 
     killed = kill_steam_and_launchers(LAUNCHER_PROCESS_NAMES)
+    # Kill only: kill_steam_and_launchers() uninstalls what it is given, and a
+    # counted process is a game the user chose to bill, not a launcher to purge.
+    killed += kill_processes_by_name(kill_target_names())
     if killed:
         logger.info("Total block: killed %d process(es): %s", len(killed), killed)
 
@@ -204,6 +209,7 @@ def enforce_total_block_tick() -> None:
     is True.
     """
     kill_steam_and_launchers(LAUNCHER_PROCESS_NAMES)
+    kill_processes_by_name(kill_target_names())
 
     if is_steam_installed():
         logger.warning("Steam reappeared during total block - removing again")

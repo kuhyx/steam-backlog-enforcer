@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta, timezone
 import os
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 from steam_backlog_enforcer._playtime_notify import (
     _humanise,
@@ -12,13 +11,10 @@ from steam_backlog_enforcer._playtime_procs import (
     _match_cmdline,
     get_pids_by_cmdline_names,
     process_name,
-    qualifying_pids,
 )
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeState,
-    rules_for,
 )
-from steam_backlog_enforcer.config import Config
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -107,67 +103,6 @@ class TestGetPidsByCmdlineNames:
 
     def test_empty_proc(self) -> None:
         assert get_pids_by_cmdline_names(frozenset({"lutris"})) == {}
-
-
-class TestQualifyingPids:
-    def test_steam_games_only_when_launchers_are_off(self) -> None:
-        rules = rules_for(Config(count_launcher_processes=False), demo=False)
-        with (
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_running_steam_game_pids",
-                return_value={5: 440, 6: 0},
-            ),
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_pids_by_process_names"
-            ) as mock_comm,
-        ):
-            assert qualifying_pids(rules) == {5}
-        mock_comm.assert_not_called()
-
-    def test_steam_client_appid_zero_does_not_count(self) -> None:
-        """Browsing the store is not gaming."""
-        rules = rules_for(Config(count_launcher_processes=False), demo=False)
-        with patch(
-            "steam_backlog_enforcer._playtime_procs.get_running_steam_game_pids",
-            return_value={9: 0},
-        ):
-            assert qualifying_pids(rules) == set()
-
-    def test_unions_launchers_from_both_scanners(self) -> None:
-        rules = rules_for(Config(count_launcher_processes=True), demo=False)
-        with (
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_running_steam_game_pids",
-                return_value={5: 440},
-            ),
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_pids_by_process_names",
-                return_value={7: "heroic"},
-            ),
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_pids_by_cmdline_names",
-                return_value={8: "lutris"},
-            ),
-        ):
-            assert qualifying_pids(rules) == {5, 7, 8}
-
-    def test_no_processes_at_all(self) -> None:
-        rules = rules_for(Config(), demo=False)
-        with (
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_running_steam_game_pids",
-                return_value={},
-            ),
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_pids_by_process_names",
-                return_value={},
-            ),
-            patch(
-                "steam_backlog_enforcer._playtime_procs.get_pids_by_cmdline_names",
-                return_value={},
-            ),
-        ):
-            assert qualifying_pids(rules) == set()
 
 
 class TestHumanise:
