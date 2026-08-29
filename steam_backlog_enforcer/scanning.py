@@ -10,6 +10,7 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
 )
+from steam_backlog_enforcer._pick_completion import mark_finished, report_completion
 from steam_backlog_enforcer._scanning_assign import (
     _NO_CONF_MSG,
     _assign_chosen_game,
@@ -205,6 +206,7 @@ def pick_next_game(
 
 def do_check(config: Config, state: State) -> None:
     """Check assigned game completion status; detect tampering."""
+    report_completion(config, state)
     if state.current_app_id is None:
         _echo("No game currently assigned. Run 'scan' first.")
         return
@@ -224,7 +226,7 @@ def do_check(config: Config, state: State) -> None:
 
     if game.is_complete:
         _echo(f"\n  COMPLETED: {state.current_game_name}!")
-        state.finished_app_ids.append(state.current_app_id)
+        mark_finished(state, state.current_app_id)
         send_notification(
             "Game Complete!",
             f"You finished {state.current_game_name}! Picking next game...",

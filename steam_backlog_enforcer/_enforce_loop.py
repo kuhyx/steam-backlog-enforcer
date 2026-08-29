@@ -16,6 +16,10 @@ from steam_backlog_enforcer._enforce_steps import (
 # Re-exported: five modules and the test suite import get_all_owned_app_ids
 # from here, so splitting it into _owned_apps_cache stays invisible to them.
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
+from steam_backlog_enforcer._pick_completion import (
+    daemon_sweep,
+    retire_completed_manual_picks_throttled,
+)
 from steam_backlog_enforcer._playtime import playtime_tick
 from steam_backlog_enforcer._playtime_session import PlaytimeSession, new_session
 from steam_backlog_enforcer._steam_launch import steam_is_installed
@@ -139,7 +143,16 @@ def _enforce_loop_iteration(
     if not steam_is_installed():
         return
 
-    allowed = allowed_app_ids(state)
+    # Retire manual picks that have hit 100%, at most once every
+    # MANUAL_PICK_RECHECK_TTL_SECONDS - this loop ticks every 3s.
+    retire_completed_manual_picks_throttled(config, state)
+
+    # Record, but do not evict. A pick the daemon just retired is no longer in
+    # allowed_app_ids, so steps A and B below would kill the running process
+    # and uninstall the game - possibly seconds after the final achievement
+    # popped, mid-session. Keeping those ids allowed defers eviction to a
+    # user-invoked done/check/pick-manual, which is where it was before.
+    allowed = allowed_app_ids(state) | daemon_sweep.retired
     if not allowed:
         return
 
@@ -224,6 +237,10 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
             state.current_app_id = fresh.current_app_id
             state.current_game_name = fresh.current_game_name
             state.finished_app_ids = fresh.finished_app_ids
+            # Manual picks too: the MCP pick_manual tool adds a *second* pick
+            # without touching current_app_id, so a daemon that never reloaded
+            # this list would uninstall that pick as unauthorized.
+            state.manual_picks = fresh.manual_picks
 
             _enforce_loop_iteration(config, state, session=session, demo=demo)
             time.sleep(ENFORCE_INTERVAL)

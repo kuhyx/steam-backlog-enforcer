@@ -213,6 +213,10 @@ class TestAbandonOneOfTwoPicks:
                 "steam_backlog_enforcer.main.status.get_installed_games",
                 return_value=[],
             ),
+            patch(
+                "steam_backlog_enforcer.main.status.report_completion",
+                return_value=[],
+            ),
             patch("steam_backlog_enforcer.main.status._echo") as mock_echo,
         ):
             cmd_status(Config(), two_pick_state())
@@ -232,6 +236,10 @@ class TestAbandonOneOfTwoPicks:
             ),
             patch(
                 "steam_backlog_enforcer.main.status.get_installed_games",
+                return_value=[],
+            ),
+            patch(
+                "steam_backlog_enforcer.main.status.report_completion",
                 return_value=[],
             ),
             patch("steam_backlog_enforcer.main.status._echo") as mock_echo,

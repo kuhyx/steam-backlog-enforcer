@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from steam_backlog_enforcer._pick_completion import PickProgress
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import (
     cmd_pick_manual,
@@ -20,6 +21,7 @@ class TestPickManualCap:
     def test_second_pick_is_added_not_replacing(self) -> None:
         state = locked_state(app_id=100)
         with (
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch("builtins.input", return_value="YES"),
@@ -34,6 +36,7 @@ class TestPickManualCap:
     def test_third_pick_refused_at_cap(self) -> None:
         state = two_pick_state()
         with (
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             pytest.raises(SystemExit) as exc,
@@ -49,6 +52,7 @@ class TestPickManualCap:
         # The cap has room, so this exercises the core's own refusal path.
         state = locked_state(app_id=489830)
         with (
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch("builtins.input", return_value="YES"),
@@ -68,6 +72,7 @@ class TestPickManualCap:
         # not uninstall or hide the first.
         state = locked_state(app_id=100)
         with (
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch("builtins.input", return_value="YES"),
@@ -84,6 +89,7 @@ class TestPickManualCap:
     def test_installs_every_missing_allowed_game(self) -> None:
         state = locked_state(app_id=100)
         with (
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch("builtins.input", return_value="YES"),
@@ -96,3 +102,28 @@ class TestPickManualCap:
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
         installed = {call.args[0] for call in mock_install.call_args_list}
         assert installed == {100, 489830}
+
+
+class TestPickManualRetirementNotices:
+    """A pick retired by the sweep is announced before the YES prompt."""
+
+    def test_warns_about_uninstall_and_stale_assignment(self) -> None:
+        state = locked_state(app_id=100)
+        state.current_app_id = 200
+        state.current_game_name = "Finished"
+        retired = [PickProgress(200, "Finished", 5, 5, retired=True, determinable=True)]
+        with (
+            patch(f"{PKG}.report_completion", return_value=retired),
+            patch(f"{PKG}._echo") as mock_echo,
+            # warn_stale_assignment prints from the completion module.
+            patch("steam_backlog_enforcer._pick_completion._echo") as mock_note,
+            patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
+            patch("builtins.input", return_value="no"),
+        ):
+            cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "Uninstall Finished (completed" in output
+        assert "Aborted." in output
+        # Abort leaves the finished game as the assignment, so say so.
+        note = " ".join(str(c) for c in mock_note.call_args_list)
+        assert "still" in note

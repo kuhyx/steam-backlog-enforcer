@@ -23,6 +23,9 @@ from steam_backlog_enforcer._mcp_server import (
     logger,
     mcp,
 )
+from steam_backlog_enforcer._pick_completion import (
+    retire_completed_manual_picks,
+)
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer.config import Config, State
 
@@ -61,12 +64,16 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             ),
             "confirm_required": True,
         }
+    config = Config.load()
     state = State.load()
+    # Free the slots of picks already at 100%, so the cap below cannot refuse
+    # on behalf of a game that is finished. Matches the CLI's pick-manual.
+    retired = retire_completed_manual_picks(config, state)
     refused = apply_manual_pick(
         state,
         app_id,
         game_name,
-        max_picks=Config.load().max_manual_picks,
+        max_picks=config.max_manual_picks,
     )
     if refused is not None:
         return {"ok": False, "reason": refused}
@@ -77,6 +84,9 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
         "action": "pick_manual",
         "app_id": app_id,
         "game_name": game_name,
+        "retired_completed": [
+            {"app_id": r.app_id, "game_name": r.game_name} for r in retired if r.retired
+        ],
     }
 
 

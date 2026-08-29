@@ -38,6 +38,48 @@ class TestCheckGameTampering:
         result = _check_game_tampering(MagicMock(), _entry(app_id=1), state)
         assert result is None
 
+    def test_finished_manual_pick_is_not_tampering(self) -> None:
+        # The completion that retired the pick is legitimate progress; the
+        # snapshot is simply stale. Reported as TAMPERING before this exemption.
+        client = MagicMock()
+        game = MagicMock()
+        game.unlocked_achievements = 16
+        client.refresh_single_game.return_value = game
+        state = State(
+            current_app_id=475150,
+            finished_app_ids=[588730],
+            manual_picks=[
+                {"app_id": 588730, "game_name": "Majotori", "started_at": ""}
+            ],
+        )
+        entry = _entry(app_id=588730, name="Majotori", total=16, unlocked=13)
+        assert _check_game_tampering(client, entry, state) is None
+
+    def test_active_second_pick_is_not_tampering(self) -> None:
+        # A second manual pick is allowed but is not current_app_id.
+        client = MagicMock()
+        game = MagicMock()
+        game.unlocked_achievements = 9
+        client.refresh_single_game.return_value = game
+        state = State(
+            current_app_id=475150,
+            manual_picks=[
+                {"app_id": 412830, "game_name": "STEINS;GATE", "started_at": ""}
+            ],
+        )
+        entry = _entry(app_id=412830, name="STEINS;GATE", total=42, unlocked=5)
+        assert _check_game_tampering(client, entry, state) is None
+
+    def test_unrelated_game_still_flagged(self) -> None:
+        # The detector must keep working for games never allowed.
+        client = MagicMock()
+        game = MagicMock()
+        game.unlocked_achievements = 8
+        client.refresh_single_game.return_value = game
+        state = State(current_app_id=475150, finished_app_ids=[588730])
+        entry = _entry(app_id=813780, name="AoE2", unlocked=5)
+        assert _check_game_tampering(client, entry, state) == ("AoE2", 813780, 3)
+
     def test_already_complete_skipped(self) -> None:
         state = State()
         result = _check_game_tampering(

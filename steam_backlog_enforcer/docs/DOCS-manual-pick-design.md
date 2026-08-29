@@ -60,7 +60,28 @@ releases only when every pick is finished or past its own 14-day deadline.
   assignment and keeps the lock.
 - `cmd_done` still finishes `current_app_id` and auto-picks a replacement, so
   the remaining picks stay queued. A finished pick leaves the active set
-  automatically via `finished_app_ids` — no pruning needed.
+  automatically via `finished_app_ids` — no pruning needed — but *something*
+  has to put the id there in the first place; see the next point.
+- **Completion is checked per pick, not just for the assignment**
+  (`_pick_completion.py`). `finished_app_ids` used to gain ids only from
+  `cmd_done`/`do_check`, and both look at `current_app_id` alone — so a pick
+  that was not the current assignment had no achievement-based release path
+  and sat on its slot until the 14-day expiry. `retire_completed_manual_picks`
+  now re-checks every active pick and records the ones at 100%, so the cap can
+  never refuse on behalf of a game that is already finished. It runs from
+  `pick-manual`, `status`, `check`, the MCP `pick_manual` tool, and the enforce
+  loop (throttled to once every `MANUAL_PICK_RECHECK_TTL_SECONDS`, since that
+  loop ticks every 3s).
+  - A pick whose achievements cannot be read — the game has none, or Steam is
+    unreachable — stays locked. Unknown must never look like complete.
+  - Retiring frees the slot and nothing more: it never calls `pick_next_game`,
+    so freeing a slot cannot hand you an unrequested extra game.
+  - In the daemon it records without evicting. A retired pick leaves
+    `allowed_app_ids`, which would otherwise make the loop kill and uninstall
+    the game mid-session, seconds after the last achievement popped; the ids in
+    `daemon_sweep.retired` stay allowed until a user-invoked command acts.
+  - `mark_finished` is the single writer of `finished_app_ids`, so the sweep
+    and `done`/`check` cannot both record the same completion.
 
 **Deployment note:** the enforce daemon holds the allowed set in code, so
 `sudo systemctl restart steam-backlog-enforcer` is required after upgrading.

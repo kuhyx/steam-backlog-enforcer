@@ -52,6 +52,10 @@ def _atomic_write(path: Path, data: str, *, mode: int | None = None) -> None:
         os.write(fd, data.encode("utf-8"))
         if mode is not None:
             os.fchmod(fd, mode)
+        # Keep the owner, or a root daemon write locks the user's CLI out.
+        with contextlib.suppress(OSError):  # absent file / non-root: skip
+            original = path.stat()
+            os.fchown(fd, original.st_uid, original.st_gid)
         os.close(fd)
         tmp_path.replace(path)
     except BaseException:

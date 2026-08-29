@@ -16,6 +16,7 @@ from steam_backlog_enforcer._cmd_done import (
     _report_assigned_confidence,
 )
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._pick_completion import mark_finished
 from steam_backlog_enforcer.config import Config, State, load_snapshot
 from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
@@ -48,7 +49,7 @@ def _finalize_completion(
 ) -> None:
     """Mark game complete, pick next, hide non-assigned games, notify."""
     _echo(f"\n  COMPLETED: {game_name}!")
-    state.finished_app_ids.append(app_id)
+    mark_finished(state, app_id)
 
     snapshot_data = load_snapshot()
     _echo("\nPicking next game...")

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 import logging
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._scanning_candidates import (
     _pick_next_shortest_candidate,
     _sort_key,
@@ -84,7 +85,12 @@ def _assign_chosen_game(
     )
     _report_poll_confidence(chosen, games, state)
     if config.uninstall_other_games:
-        count = uninstall_other_games(chosen.app_id)
+        # The whole allowed set, not just the new assignment: passing a bare
+        # int made the `in` test raise TypeError, and would tear down a
+        # concurrent manual pick even if it did not. Matches the other four
+        # call sites (main/install.py, _cmd_done_finalize.py, main/picks.py,
+        # _enforce_steps.py). state.current_app_id is already `chosen` here.
+        count = uninstall_other_games(allowed_app_ids(state))
         if count:
             _echo(f"\n  Uninstalled {count} non-assigned games")
     if not is_game_installed(chosen.app_id):

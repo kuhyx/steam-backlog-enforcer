@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.game_uninstall import uninstall_other_games
 from steam_backlog_enforcer.scanning import (
     pick_next_game,
 )
 from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.tests._main_helpers import STARTED_AT
 
 
 def _game(
@@ -156,3 +161,75 @@ class TestPickNextGame:
         ):
             pick_next_game([g1], state, config)
             mock_install.assert_called_once()
+
+
+class TestAssignUninstallsAgainstTheAllowedSet:
+    """_assign_chosen_game must pass the allowed *set*, never a bare app id."""
+
+    def test_passes_set_including_concurrent_manual_pick(self) -> None:
+        g = _game(app_id=2, name="Short", hours=10.0)
+        config = Config(steam_api_key="k", steam_id="i")
+        state = State(
+            manual_picks=[
+                {"app_id": 900, "game_name": "Pick", "started_at": STARTED_AT}
+            ],
+        )
+        with (
+            patch(
+                "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
+                side_effect=lambda c: c[0] if c else None,
+            ),
+            patch("steam_backlog_enforcer.scanning._echo"),
+            patch("steam_backlog_enforcer._scanning_confidence._echo"),
+            patch(
+                "steam_backlog_enforcer._scanning_assign.is_game_installed",
+                return_value=True,
+            ),
+            patch(
+                "steam_backlog_enforcer._scanning_assign.uninstall_other_games",
+                return_value=0,
+            ) as mock_uninstall,
+            patch("builtins.input", return_value="1"),
+        ):
+            pick_next_game([g], state, config)
+        (allowed,) = mock_uninstall.call_args.args
+        assert isinstance(allowed, set)
+        # The new assignment survives, and so does the untouched manual pick.
+        assert allowed == {2, 900}
+
+    def test_real_uninstall_accepts_that_argument(self) -> None:
+        """Guards the contract the mock above cannot: a bare int raises.
+
+        ``uninstall_other_games`` membership-tests every installed game against
+        its argument, so an int made it raise TypeError as soon as anything was
+        installed. The suite hid that because no games are installed by default.
+        """
+        with (
+            patch(
+                "steam_backlog_enforcer.game_uninstall.get_installed_games",
+                return_value=[(2, "Short"), (900, "Pick"), (55, "Other")],
+            ),
+            patch(
+                "steam_backlog_enforcer.game_uninstall.is_protected_app",
+                return_value=False,
+            ),
+            patch(
+                "steam_backlog_enforcer.game_uninstall.uninstall_game",
+                return_value=True,
+            ) as mock_rm,
+        ):
+            assert uninstall_other_games({2, 900}) == 1
+        assert [c.args[0] for c in mock_rm.call_args_list] == [55]
+
+        # Typed as Any so the wrong-type call is a runtime check, not a
+        # suppressed type error.
+        bare_app_id: Any = 2
+        with (
+            patch(
+                "steam_backlog_enforcer.game_uninstall.get_installed_games",
+                return_value=[(2, "Short")],
+            ),
+            patch("steam_backlog_enforcer.game_uninstall.uninstall_game"),
+            pytest.raises(TypeError),
+        ):
+            uninstall_other_games(bare_app_id)

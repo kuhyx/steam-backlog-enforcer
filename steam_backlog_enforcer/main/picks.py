@@ -17,6 +17,10 @@ from steam_backlog_enforcer._allowed_games import (
 )
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
+from steam_backlog_enforcer._pick_completion import (
+    report_completion,
+    warn_stale_assignment,
+)
 from steam_backlog_enforcer.config import load_snapshot
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -177,6 +181,8 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
 
     _echo(f"\nGame found: {game_name} (AppID={app_id})")
 
+    retired = report_completion(config, state)
+
     existing = _report_pick_slots(config, state)
 
     _echo(
@@ -189,12 +195,18 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         f"\n    {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
         f"\n  - Stay undoable at any time via 'abandon-pick {app_id}'"
     )
+    for done_pick in retired:
+        _echo(
+            f"  - Uninstall {done_pick.game_name} (completed, no longer an"
+            " allowed game)"
+        )
     _echo()
     confirm = input(
         f"Type YES to confirm you will play {game_name} until completion: "
     ).strip()
     if confirm != "YES":
         _echo("Aborted.")
+        warn_stale_assignment(state, retired)
         return
 
     # State mutation is the shared, stdout-free core (also used by the MCP

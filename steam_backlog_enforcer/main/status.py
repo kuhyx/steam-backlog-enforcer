@@ -8,6 +8,7 @@ from steam_backlog_enforcer._actions import (
     active_manual_picks,
     manual_pick_age_days,
 )
+from steam_backlog_enforcer._pick_completion import report_completion
 from steam_backlog_enforcer._total_block import get_total_block_status
 from steam_backlog_enforcer.config import load_snapshot
 from steam_backlog_enforcer.game_install import (
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
 
 
-def cmd_status(_config: Config, state: State) -> None:
+def cmd_status(config: Config, state: State) -> None:
     """Show current status."""
     _echo("=== Steam Backlog Enforcer ===\n")
 
@@ -52,6 +53,16 @@ def cmd_status(_config: Config, state: State) -> None:
     if state.current_app_id:
         is_assigned_installed = any(aid == state.current_app_id for aid, _ in installed)
         _echo(f"Assigned game installed: {is_assigned_installed}")
+
+    # Retire any pick that has hit 100% since we last looked, so the list
+    # below reflects reality. Deliberately non-fatal: status is the
+    # always-available diagnostic (it is exempt from both the total block and
+    # the manual-pick lock), so a Steam outage or an unwritable state file must
+    # degrade to a printed note, never to a failed status.
+    try:
+        report_completion(config, state)
+    except (OSError, RuntimeError, ValueError) as exc:
+        _echo(f"\n(Could not refresh pick completion: {exc})")
 
     picks = active_manual_picks(state)
     if picks:

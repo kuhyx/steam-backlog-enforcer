@@ -151,3 +151,32 @@ class TestDoEnforce:
         ):
             do_enforce(config, state)
             mock_iter.assert_not_called()
+
+
+class TestStateReload:
+    """The loop must pick up CLI/MCP state changes without a restart."""
+
+    def test_reloads_manual_picks_from_disk(self) -> None:
+        # The MCP pick_manual tool adds a *second* pick without touching
+        # current_app_id. A daemon that never reloaded manual_picks would drop
+        # it out of the allowed set and uninstall it as unauthorized.
+        state = State(current_app_id=1, current_game_name="G")
+        fresh = State(
+            current_app_id=1,
+            current_game_name="G",
+            finished_app_ids=[7],
+            manual_picks=[{"app_id": 900, "game_name": "AddedByMcp", "started_at": ""}],
+        )
+        with (
+            patch(f"{PKG}._enforce_setup"),
+            patch(f"{PKG}._echo"),
+            patch.object(State, "load", return_value=fresh),
+            patch(
+                f"{PKG}._enforce_loop_iteration",
+                side_effect=KeyboardInterrupt,
+            ),
+            patch(f"{PKG}.time.sleep"),
+        ):
+            do_enforce(Config(), state)
+        assert state.manual_picks == fresh.manual_picks
+        assert state.finished_app_ids == [7]

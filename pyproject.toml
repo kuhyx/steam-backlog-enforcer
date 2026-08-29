@@ -51,6 +51,12 @@ ignore = [
     "COM812", # formatter handles this
     "ISC001", # formatter may create these
     "S603",   # prone to false positives
+    # Conflicts with SIM117. A `pytest.raises` that needs patches in scope has
+    # no legal form: combine them into one `with` and PT012 objects to the
+    # extra context managers; nest `raises` inside and SIM117 objects to the
+    # nested `with`. SIM117's combined form is the style used across this repo,
+    # so PT012 is the one that loses.
+    "PT012",
 ]
 fixable = ["ALL"]
 unfixable = []

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from steam_backlog_enforcer._allowed_games import allowed_games
 from steam_backlog_enforcer.config import load_snapshot
 from steam_backlog_enforcer.enforcer import send_notification
 from steam_backlog_enforcer.game_install import _echo
@@ -20,6 +21,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _TAMPER_CHECK_LIMIT = 3
+
+
+def _legitimately_played(state: State) -> set[int]:
+    """Return every app id the user was allowed to earn achievements on.
+
+    Wider than ``allowed_app_ids`` on purpose. A manual pick that has been
+    completed is no longer *allowed* -- it leaves the active set the moment it
+    lands in ``finished_app_ids`` -- but the achievements that finished it were
+    earned legitimately, so comparing it against a stale snapshot would report
+    the user's own completion as tampering. Every game ever manually picked,
+    plus every finished game, is therefore exempt.
+
+    Args:
+        state: Current enforcer state.
+
+    Returns:
+        App ids whose achievement progress must not be treated as suspicious.
+    """
+    exempt = {app_id for app_id, _ in allowed_games(state)}
+    exempt.update(state.finished_app_ids)
+    exempt.update(
+        pick["app_id"] for pick in state.manual_picks if pick.get("app_id") is not None
+    )
+    return exempt
 
 
 def _check_game_tampering(
@@ -38,7 +63,7 @@ def _check_game_tampering(
         Tuple of (name, app_id, diff) if tampering detected, else None.
     """
     app_id = entry["app_id"]
-    if app_id == state.current_app_id:
+    if app_id in _legitimately_played(state):
         return None
     if entry["unlocked_achievements"] >= entry["total_achievements"]:
         return None

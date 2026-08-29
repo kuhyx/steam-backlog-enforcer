@@ -29,6 +29,7 @@ class TestCmdStatus:
         with (
             patch(f"{PKG}.is_store_blocked", return_value=True),
             patch(f"{PKG}.get_installed_games", return_value=[(440, "TF2")]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
         ):
             cmd_status(Config(), state)
@@ -37,6 +38,7 @@ class TestCmdStatus:
         with (
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
         ):
             cmd_status(Config(), State())
@@ -48,6 +50,7 @@ class TestCmdList:
     def test_no_snapshot(self) -> None:
         with (
             patch(f"{PKG}.load_snapshot", return_value=None),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_list(Config(), State())
@@ -62,6 +65,7 @@ class TestCmdList:
         state = State(current_app_id=1)
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
         ):
             cmd_list(Config(), state)
@@ -70,6 +74,7 @@ class TestCmdList:
         snapshot = [snap(i, f"Game{i}") for i in range(60)]
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_list(Config(), State())
@@ -82,6 +87,7 @@ class TestCmdStatusLockHint:
         with (
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_status(Config(), state)
@@ -92,6 +98,7 @@ class TestCmdStatusLockHint:
         with (
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_status(Config(), State())
@@ -120,6 +127,7 @@ class TestCmdStatusTotalBlock:
             patch(f"{PKG}.get_total_block_status", return_value=ACTIVE_STATUS),
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_status(Config(), State())
@@ -132,6 +140,7 @@ class TestCmdStatusTotalBlock:
             patch(f"{PKG}.get_total_block_status", return_value=INACTIVE_STATUS),
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_status(Config(), State())
@@ -146,6 +155,7 @@ class TestCmdStatusTotalBlock:
             patch(f"{PKG}.get_total_block_status", return_value=status),
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_status(Config(), State())
@@ -157,3 +167,19 @@ class TestCmdStatusTotalBlock:
 # ──────────────────────────────────────────────────────────────
 # main() dispatch to the daily-gaming-budget commands
 # ──────────────────────────────────────────────────────────────
+
+
+class TestCmdStatusCompletionSweepIsNonFatal:
+    """status stays usable when the completion sweep cannot run."""
+
+    def test_reports_failure_and_still_renders(self) -> None:
+        with (
+            patch(f"{PKG}.report_completion", side_effect=OSError("state read-only")),
+            patch(f"{PKG}.is_store_blocked", return_value=True),
+            patch(f"{PKG}.get_installed_games", return_value=[]),
+            patch(f"{PKG}._echo") as mock_echo,
+        ):
+            cmd_status(Config(), State(current_app_id=440, current_game_name="TF2"))
+        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        assert "Could not refresh pick completion: state read-only" in output
+        assert "Store blocked" in output
