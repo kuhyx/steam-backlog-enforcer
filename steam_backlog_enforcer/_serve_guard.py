@@ -20,6 +20,8 @@ import signal
 import socket
 import time
 
+from steam_backlog_enforcer._serve_stale import newest_py_after
+
 _PROC = Path("/proc")
 _NET_TCP = (_PROC / "net" / "tcp", _PROC / "net" / "tcp6")
 
@@ -27,12 +29,11 @@ _NET_TCP = (_PROC / "net" / "tcp", _PROC / "net" / "tcp6")
 # not a bind, and must not be mistaken for the process owning the port.
 _LISTEN_STATE = "0A"
 
-# argv fragments that identify one of our own web servers.
-_OWN_MODULE = "steam_backlog_enforcer.main"
+# argv fragments identifying our own web servers, matched as substrings over
+# the joined argv: a `python -c` server never holds "…enforcer.main", so an
+# exact match missed it entirely. See _serve_stale for what that cost.
+_OWN_PACKAGE = "steam_backlog_enforcer"
 _OWN_COMMAND = "serve"
-
-# Package tree whose .py mtimes decide whether a running server is stale.
-_PACKAGE_ROOT = Path(__file__).resolve().parent
 
 # A wildcard IPv4 bind renders as an all-zero address column. Spelled as hex
 # rather than _hex_v4("0.0.0.0") so the dotted-quad literal never appears: this
@@ -155,9 +156,14 @@ def read_cmdline(pid: int) -> list[str]:
 
 
 def is_our_server(pid: int) -> bool:
-    """Check whether *pid* is one of our own ``serve`` processes."""
-    argv = read_cmdline(pid)
-    return _OWN_MODULE in argv and _OWN_COMMAND in argv
+    """Check whether *pid* is one of our own ``serve`` processes.
+
+    Recognises every launch form -- ``run.sh serve``, ``python -m …main
+    serve``, and a bare ``python -c``. One we fail to recognise can be neither
+    replaced when stale nor named accurately when it holds the port.
+    """
+    argv = " ".join(read_cmdline(pid))
+    return _OWN_PACKAGE in argv and _OWN_COMMAND in argv
 
 
 def process_started_at(pid: int) -> float | None:
@@ -176,19 +182,11 @@ def process_started_at(pid: int) -> float | None:
 def newest_py_since(started_at: float) -> Path | None:
     """Return the newest ``.py`` in the package modified after *started_at*.
 
-    Returning the path rather than a bool is deliberate: the restart message
-    names the file, so the decision to kill a server is always auditable.
+    Delegates to :mod:`_serve_stale`, which owns this scan because the server
+    itself needs the same answer about its own process. Two copies would be
+    free to disagree about whether a server is current.
     """
-    newest: Path | None = None
-    newest_mtime = started_at
-    for path in _PACKAGE_ROOT.rglob("*.py"):
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            continue
-        if mtime > newest_mtime:
-            newest, newest_mtime = path, mtime
-    return newest
+    return newest_py_after(started_at)
 
 
 def _own_pid_chain() -> set[int]:

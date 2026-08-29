@@ -17,9 +17,12 @@ import json
 import logging
 import mimetypes
 from pathlib import Path
+import threading
+import time
 from urllib.parse import urlsplit
 
 from steam_backlog_enforcer._budget_view import build_budget_snapshot
+from steam_backlog_enforcer._serve_stale import outdated_source
 from steam_backlog_enforcer._web_dataset import build_web_dataset, dataset_to_payload
 from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.game_install import _echo
@@ -40,6 +43,20 @@ _EXTRA_TEXT_TYPES = frozenset(
 )
 _NOT_BUILT_MSG = b"Frontend not built. Run: cd web && npm install && npm run build"
 
+# Epoch seconds this process began, captured at import. Anything in the
+# package newer than this is code we did not load.
+_STARTED_AT = time.time()
+
+# Set once a stale server has begun standing down, so concurrent requests
+# do not each spawn a shutdown thread.
+_RETIRING = threading.Event()
+
+_STALE_MSG = (
+    b"This server is running outdated code and has stopped answering rather "
+    b"than report numbers the enforcer is not applying. Restart it: "
+    b"./run.sh serve"
+)
+
 
 class _Handler(BaseHTTPRequestHandler):
     """Serve the dataset JSON and the static frontend bundle (read-only)."""
@@ -50,6 +67,14 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Dispatch a GET to one of the APIs or to a static file."""
+        stale = outdated_source(_STARTED_AT)
+        if stale is not None:
+            # Fail closed on every route, static included: a page served from a
+            # fresh bundle that then fetches numbers from stale code is the
+            # same lie with extra steps.
+            self._send(HTTPStatus.SERVICE_UNAVAILABLE, _STALE_MSG, "text/plain")
+            self._retire()
+            return
         split = urlsplit(self.path)
         if split.path == _API_DATASET:
             self._serve_dataset()
@@ -60,6 +85,24 @@ class _Handler(BaseHTTPRequestHandler):
             self._serve_budget(demo="demo=1" in split.query)
         else:
             self._serve_static(split.path)
+
+    def _retire(self) -> None:
+        """Answer this request, then stop the server so it can be replaced.
+
+        Refusing to serve is only half a fix: a process that 503s forever is
+        honest and useless. Exiting hands the problem to the supervisor, and
+        ``steam-backlog-enforcer-web.service`` has ``Restart=always``, so the
+        server comes back on current code with nobody having to remember to
+        restart it. Started outside systemd it simply exits, which is still
+        better than serving numbers the enforcer is not applying.
+
+        ``shutdown`` blocks until ``serve_forever`` returns and cannot be
+        called from the thread handling a request, so it goes to its own.
+        """
+        if _RETIRING.is_set():
+            return
+        _RETIRING.set()
+        threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     def _serve_budget(self, *, demo: bool) -> None:
         """Build and send the gaming-budget snapshot as JSON."""

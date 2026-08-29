@@ -32,6 +32,38 @@ else
     echo "(The rest of this tool is unaffected.)"
 fi
 
+# Install the web-UI user unit. No root needed: it serves read-only views and
+# needs no privilege. Automated rather than documented, because the whole
+# reason this unit exists is that a hand-started server outlived its own code.
+install_web_user_unit() {
+    local target_user home_dir dst src
+    target_user="${SUDO_USER:-$USER}"
+    home_dir="$(getent passwd "$target_user" | cut -d: -f6)"
+    if [[ -z $home_dir ]]; then
+        echo "Warning: cannot resolve home for $target_user; skipping web unit."
+        return 0
+    fi
+    src="$SCRIPT_DIR/steam-backlog-enforcer-web.service"
+    dst="$home_dir/.config/systemd/user/steam-backlog-enforcer-web.service"
+    mkdir -p "$(dirname "$dst")"
+    sed "s|__REPO_DIR__|$SCRIPT_DIR|g" "$src" > "$dst"
+    if [[ $EUID -eq 0 ]]; then
+        chown "$target_user" "$dst"
+        sudo -u "$target_user" \
+            XDG_RUNTIME_DIR="/run/user/$(id -u "$target_user")" \
+            systemctl --user daemon-reload
+        sudo -u "$target_user" \
+            XDG_RUNTIME_DIR="/run/user/$(id -u "$target_user")" \
+            systemctl --user enable --now steam-backlog-enforcer-web || true
+    else
+        systemctl --user daemon-reload
+        systemctl --user enable --now steam-backlog-enforcer-web || true
+    fi
+    echo "Installed and enabled: $dst"
+}
+
+install_web_user_unit
+
 # Install systemd service (system-level, runs as root).
 #
 # Non-interactive callers (install_core_system.sh, CI, `vm run`) have no stdin,

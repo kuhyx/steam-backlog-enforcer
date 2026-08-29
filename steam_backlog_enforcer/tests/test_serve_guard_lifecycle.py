@@ -17,7 +17,7 @@ import socket
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from steam_backlog_enforcer import _serve_guard
+from steam_backlog_enforcer import _serve_guard, _serve_stale
 from steam_backlog_enforcer.tests._fake_proc import add_pid, make_proc, patch_proc
 
 if TYPE_CHECKING:
@@ -48,7 +48,7 @@ class TestNewestPySince:
     def test_no_newer_file_returns_none(self, tmp_path: Path) -> None:
         (tmp_path / "a.py").write_text("x", encoding="utf-8")
         os.utime(tmp_path / "a.py", (1000.0, 1000.0))
-        with patch.object(_serve_guard, "_PACKAGE_ROOT", tmp_path):
+        with patch.object(_serve_stale, "_PACKAGE_ROOT", tmp_path):
             assert _serve_guard.newest_py_since(2000.0) is None
 
     def test_newer_file_is_named(self, tmp_path: Path) -> None:
@@ -58,19 +58,19 @@ class TestNewestPySince:
         nested.mkdir()
         (nested / "b.py").write_text("x", encoding="utf-8")
         os.utime(nested / "b.py", (3000.0, 3000.0))
-        with patch.object(_serve_guard, "_PACKAGE_ROOT", tmp_path):
+        with patch.object(_serve_stale, "_PACKAGE_ROOT", tmp_path):
             assert _serve_guard.newest_py_since(2000.0) == nested / "b.py"
 
     def test_the_newest_of_several_wins(self, tmp_path: Path) -> None:
         for name, mtime in (("a.py", 3000.0), ("b.py", 4000.0), ("c.py", 3500.0)):
             (tmp_path / name).write_text("x", encoding="utf-8")
             os.utime(tmp_path / name, (mtime, mtime))
-        with patch.object(_serve_guard, "_PACKAGE_ROOT", tmp_path):
+        with patch.object(_serve_stale, "_PACKAGE_ROOT", tmp_path):
             assert _serve_guard.newest_py_since(2000.0) == tmp_path / "b.py"
 
     def test_vanished_file_is_skipped(self, tmp_path: Path) -> None:
         (tmp_path / "gone.py").symlink_to(tmp_path / "missing.py")
-        with patch.object(_serve_guard, "_PACKAGE_ROOT", tmp_path):
+        with patch.object(_serve_stale, "_PACKAGE_ROOT", tmp_path):
             assert _serve_guard.newest_py_since(1000.0) is None
 
 

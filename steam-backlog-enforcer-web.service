@@ -1,0 +1,26 @@
+[Unit]
+Description=Steam Backlog Enforcer web UI (localhost only)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/run.sh serve
+Restart=always
+RestartSec=3s
+Environment=PYTHONUNBUFFERED=1
+
+# Why this unit exists at all: the UI used to be a hand-started `python -c`
+# that stayed up for hours after the code beneath it changed, reporting an 8h
+# gaming budget while the daemon enforced 6h. _serve_stale now makes the server
+# refuse to answer once its own source has moved on -- but refusing is only
+# half a fix if nothing brings it back. Restart=always is the other half: the
+# server dies on stale code and returns on current code, with no one having to
+# remember anything.
+#
+# Deliberately a *user* unit, not a system one. It reads state and serves
+# read-only views; it needs no privilege, and running it as root would give a
+# network-facing process rights the daemon's own hardening notes warn about.
+
+[Install]
+WantedBy=default.target
