@@ -23,7 +23,15 @@ from steam_backlog_enforcer._playtime_history import HistoryDay
 from steam_backlog_enforcer._playtime_state import PlaytimeState, rules_for
 from steam_backlog_enforcer.config import Config
 
-RULES = rules_for(Config(), demo=False)
+# Built at import time, so the autouse _no_workout_http fixture is not in
+# effect yet -- without this patch, collecting this module makes a real HTTP
+# call to the screen locker and pins RULES to whatever budget today happens to
+# have earned. Stub it explicitly so the constant is the earned budget always.
+with patch(
+    "steam_backlog_enforcer._playtime_state.resolve_budget_seconds",
+    side_effect=lambda config: float(config.daily_gaming_seconds),
+):
+    RULES = rules_for(Config(), demo=False)
 
 
 class TestStateAccess:

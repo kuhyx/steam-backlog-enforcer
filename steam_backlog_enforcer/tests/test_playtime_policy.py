@@ -119,3 +119,66 @@ class TestPolicyEnforcementDisabled:
         mock_rec.assert_called_once_with(should_block=False)
         mock_shutdown.assert_not_called()
         assert out.is_blocked() is False
+
+
+class TestPolicyBudgetRoseMidDay:
+    """Logging a workout raises the budget past what has already been spent.
+
+    Before the workout coupling the budget could not move within a day, so
+    ``blocked_at`` and ``warned_seconds`` were only ever reset by the 06:00
+    rollover. Both now have to come down with the mounts.
+    """
+
+    def _blocked_at_six_hours(self) -> PlaytimeState:
+        """Return state that hit the unearned 6h budget and got cut off."""
+        return PlaytimeState(
+            day_key=TODAY,
+            seconds=6 * 3600,
+            blocked_at=1.0,
+            warned_seconds=[3600, 1800, 600, 300],
+        )
+
+    def test_the_block_is_released(self) -> None:
+        """reconcile is asked to unmount, which is what re-enables gaming."""
+        with (
+            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
+            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+        ):
+            _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
+        mock_rec.assert_called_once_with(should_block=False)
+
+    def test_blocked_at_is_cleared(self) -> None:
+        """Otherwise the UI reports "blocked" while gaming works fine."""
+        with (
+            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+        ):
+            out = _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
+        assert out.is_blocked() is False
+
+    def test_warnings_are_re_armed(self) -> None:
+        """Thresholds key on seconds *remaining*, so a raise re-crosses them.
+
+        Left alone, the extra two hours would arrive with no warning at all.
+        """
+        with (
+            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
+            ) as mock_notify,
+        ):
+            out = _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
+        # Two hours remain, so nothing is due yet -- but the record is clear,
+        # so the 1h/30m/10m/5m warnings will fire again as it drains.
+        assert out.warned_seconds == []
+        mock_notify.assert_not_called()
+
+    def test_an_unblocked_day_is_left_alone(self) -> None:
+        """The release path must not fire on an ordinary under-budget tick."""
+        state = PlaytimeState(day_key=TODAY, seconds=100.0, warned_seconds=[3600])
+        with (
+            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+        ):
+            out = _policy(state, _rules(), now=NOW)
+        assert out.warned_seconds == [3600]

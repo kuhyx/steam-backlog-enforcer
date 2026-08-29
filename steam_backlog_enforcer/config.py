@@ -83,11 +83,15 @@ class Config:
     one allowed set. Raising this weakens enforcement proportionally.
     """
     daily_gaming_seconds: int = 8 * 3600
-    """Gaming seconds allowed per gaming day, which starts at 06:00 local.
-
-    Spending this budget shuts Steam down and masks the launcher binaries until
-    the next 06:00. See :mod:`steam_backlog_enforcer._playtime`.
-    """
+    """Seconds allowed per gaming day *once earned* by a workout; without one
+    the day gets ``unearned_gaming_seconds``. Spending whichever applies shuts
+    Steam down and masks the launchers until the next 06:00."""
+    unearned_gaming_seconds: int = 6 * 3600
+    """Seconds allowed on a day with no counted workout: a floor the day starts
+    at and rises from, never a later cut, and the fail-closed answer when the
+    locker is unreachable. Rationale in ``_workout_budget``."""
+    workout_status_url: str = "http://127.0.0.1:8770/api/status"
+    """Where to ask whether today has a counted workout. Loopback only."""
     count_launcher_processes: bool = True
     """Whether time spent in non-Steam launchers counts against the budget.
 

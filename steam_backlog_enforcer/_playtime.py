@@ -153,6 +153,43 @@ def _state_or_recover(rules: PlaytimeRules, *, now: datetime) -> PlaytimeState:
     return replace(fresh, seconds=rules.budget_seconds, blocked_at=stamp)
 
 
+def _release_after_raise(
+    state: PlaytimeState,
+    rules: PlaytimeRules,
+) -> PlaytimeState:
+    """Clear block bookkeeping after the day's budget rose past what was spent.
+
+    Only ``roll_over`` at the 06:00 boundary ever reset ``blocked_at`` before
+    the workout coupling existed, because the budget could not move within a
+    day. It can now: logging a workout raises it from the unearned floor to the
+    earned budget, and the mounts come down on the very next tick. Two things
+    have to come down with them.
+
+    ``blocked_at`` — otherwise ``is_blocked()`` stays true and ``build_today``
+    keeps reporting ``"blocked": true``, so the UI would claim you were blocked
+    while gaming worked fine. That is the exact "state disagrees with reality"
+    failure the mount-visibility check exists to catch.
+
+    ``warned_seconds`` — the thresholds are keyed on seconds *remaining*, so a
+    raise makes remaining climb back through values already recorded as fired.
+    Left alone, the extra two hours would arrive with no warnings at all.
+
+    Args:
+        state: Accounting state for the current gaming day.
+        rules: Policy for this tick, holding the newly raised budget.
+
+    Returns:
+        The state with block bookkeeping cleared.
+    """
+    logger.warning(
+        "Gaming budget rose to %.1fh past the %.0fs already spent — releasing "
+        "the block and re-arming warnings for the remaining time.",
+        rules.budget_seconds / 3600,
+        state.seconds,
+    )
+    return replace(state, blocked_at=0.0, warned_seconds=[])
+
+
 def _policy(
     state: PlaytimeState,
     rules: PlaytimeRules,
@@ -177,6 +214,8 @@ def _policy(
 
     if state.seconds < rules.budget_seconds:
         reconcile(should_block=False)
+        if state.is_blocked():
+            state = _release_after_raise(state, rules)
         return _warn(state, rules)
 
     if not state.is_blocked():

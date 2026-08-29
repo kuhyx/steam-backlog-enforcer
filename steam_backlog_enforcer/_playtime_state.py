@@ -14,6 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._whitelist import _try_set_immutable, unlock_for_write
+from steam_backlog_enforcer._workout_budget import resolve_budget_seconds
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 if TYPE_CHECKING:
@@ -138,9 +139,12 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         The rules governing this tick.
     """
     return PlaytimeRules(
-        budget_seconds=_DEMO_BUDGET_SECONDS
-        if demo
-        else float(config.daily_gaming_seconds),
+        # Production budget is resolved, not read straight off config: it
+        # depends on whether a workout was logged today. Resolving it *here*
+        # rather than at each caller is what stops the daemon (which holds one
+        # Config for its whole life) and _budget_view (which reloads Config per
+        # HTTP request) from reporting different budgets.
+        budget_seconds=_DEMO_BUDGET_SECONDS if demo else resolve_budget_seconds(config),
         warn_at=_DEMO_WARN_AT if demo else _WARN_AT,
         sigkill_after=(_DEMO_SIGKILL_AFTER_SECONDS if demo else _SIGKILL_AFTER_SECONDS),
         count_launchers=config.count_launcher_processes,
