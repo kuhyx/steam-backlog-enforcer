@@ -7,7 +7,7 @@ import importlib
 import logging
 import math
 import re
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer.config import CONFIG_DIR
 
@@ -130,7 +130,7 @@ _MOVED_TO_WHITELIST_LOCKING = frozenset(
 
 # Whatever the re-exported name turns out to be -- a function, a class or
 # a constant. Aliased so the annotation is a name rather than a bare Any.
-_Reexport: TypeAlias = Any
+type _Reexport = Any
 
 
 def __getattr__(name: str) -> _Reexport:

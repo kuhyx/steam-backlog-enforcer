@@ -46,7 +46,7 @@ def _mountpoints(path: Path) -> set[Path]:
     """
     try:
         raw = path.read_text(encoding="utf-8")
-    except (OSError, ValueError):
+    except OSError, ValueError:
         logger.warning("Could not read mountinfo at %s.", path)
         return set()
 

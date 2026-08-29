@@ -65,7 +65,7 @@ class _Handler(BaseHTTPRequestHandler):
         """Build and send the gaming-budget snapshot as JSON."""
         try:
             body = json.dumps(build_budget_snapshot(demo=demo)).encode("utf-8")
-        except (OSError, ValueError, KeyError):
+        except OSError, ValueError, KeyError:
             logger.exception("Failed to build budget snapshot")
             self._send(HTTPStatus.INTERNAL_SERVER_ERROR, b"budget error", "text/plain")
             return
@@ -76,7 +76,7 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             payload = dataset_to_payload(build_web_dataset(State.load()))
             body = json.dumps(payload).encode("utf-8")
-        except (OSError, ValueError, KeyError):
+        except OSError, ValueError, KeyError:
             logger.exception("Failed to build web dataset")
             self._send(HTTPStatus.INTERNAL_SERVER_ERROR, b"dataset error", "text/plain")
             return

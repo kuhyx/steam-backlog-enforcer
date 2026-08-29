@@ -73,7 +73,7 @@ def _match_cmdline(entry: Path, names: frozenset[str]) -> str | None:
     """
     try:
         raw = (entry / "cmdline").read_bytes()
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
 
     argv = [
@@ -106,7 +106,7 @@ def process_name(pid: int) -> str | None:
     """
     try:
         return (_PROC / str(pid) / "comm").read_text(encoding="utf-8").strip() or None
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
 
 

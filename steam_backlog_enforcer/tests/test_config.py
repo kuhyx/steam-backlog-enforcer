@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -140,18 +141,18 @@ class TestState:
         state.skip_for_days(42, 7)
         assert "42" in state.skipped_until
         # Round-trip parse and check ~7 days in the future.
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         expiry = datetime.fromisoformat(state.skipped_until["42"])
-        delta = (expiry - datetime.now(timezone.utc)).total_seconds()
+        delta = (expiry - datetime.now(UTC)).total_seconds()
         assert 6 * 86400 < delta <= 7 * 86400 + 1
 
     def test_active_skipped_ids_returns_active(self) -> None:
         """Test active skipped ids returns active."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         state = State()
-        future = datetime.now(timezone.utc) + timedelta(days=3)
+        future = datetime.now(UTC) + timedelta(days=3)
         state.skipped_until["100"] = future.isoformat()
         assert state.active_skipped_ids() == {100}
         # Active entry retained.
@@ -159,10 +160,10 @@ class TestState:
 
     def test_active_skipped_ids_prunes_expired(self) -> None:
         """Test active skipped ids prunes expired."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         state = State()
-        past = datetime.now(timezone.utc) - timedelta(days=1)
+        past = datetime.now(UTC) - timedelta(days=1)
         state.skipped_until["50"] = past.isoformat()
         assert state.active_skipped_ids() == set()
         assert "50" not in state.skipped_until

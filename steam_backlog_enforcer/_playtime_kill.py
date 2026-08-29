@@ -69,7 +69,7 @@ def _read_ppid(pid: int) -> int | None:
     """
     try:
         raw = (_PROC / str(pid) / "stat").read_text(encoding="utf-8")
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
     _, _, rest = raw.rpartition(") ")
     fields = rest.split()

@@ -37,7 +37,7 @@ def _get_shared_js_ws_url() -> str | None:
     try:
         resp = requests.get(f"http://127.0.0.1:{_CDP_PORT}/json", timeout=5)
         targets = resp.json()
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
 
     for target in targets:

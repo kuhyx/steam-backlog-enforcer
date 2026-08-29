@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Self
 from unittest.mock import patch
-
-from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_search import _AuthInfo
 from steam_backlog_enforcer.hltb import (

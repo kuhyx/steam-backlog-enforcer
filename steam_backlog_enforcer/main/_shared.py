@@ -7,7 +7,7 @@ import cycle.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 import sys
 from typing import TYPE_CHECKING
 
@@ -128,7 +128,7 @@ def _describe_pick(state: State, pick: dict[str, object]) -> bool:
         try:
             started = datetime.fromisoformat(started_at)
             deadline = started + timedelta(days=_MANUAL_LOCK_DAYS)
-            days_left = (deadline - datetime.now(timezone.utc)).days
+            days_left = (deadline - datetime.now(UTC)).days
             _echo(f"    Locked since: {started.strftime('%Y-%m-%d')}")
             _echo(
                 f"    Deadline:     {deadline.strftime('%Y-%m-%d')}"

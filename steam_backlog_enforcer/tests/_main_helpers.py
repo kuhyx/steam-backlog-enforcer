@@ -6,24 +6,22 @@ tests. ``name-tests-test`` exempts ``tests/_*.py`` for exactly this.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
 from steam_backlog_enforcer._total_block import TotalBlockStatus
 from steam_backlog_enforcer.config import State
 
-STARTED_AT = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+STARTED_AT = (datetime.now(UTC) - timedelta(days=1)).isoformat()
 
 # A start timestamp that is always past the 14-day deadline.
-EXPIRED_AT = (
-    datetime.now(timezone.utc) - timedelta(days=MANUAL_LOCK_DAYS + 1)
-).isoformat()
+EXPIRED_AT = (datetime.now(UTC) - timedelta(days=MANUAL_LOCK_DAYS + 1)).isoformat()
 
 ACTIVE_STATUS = TotalBlockStatus(
     active=True,
-    started_at=datetime.now(timezone.utc) - timedelta(hours=1),
-    until=datetime.now(timezone.utc) + timedelta(hours=23),
+    started_at=datetime.now(UTC) - timedelta(hours=1),
+    until=datetime.now(UTC) + timedelta(hours=23),
     days=1,
     days_remaining=0.96,
 )
@@ -106,8 +104,8 @@ def locked_state(
     )
 
 
-RECENT_PICK = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-OLD_PICK = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+RECENT_PICK = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+OLD_PICK = (datetime.now(UTC) - timedelta(days=8)).isoformat()
 
 VALID_REASON = "I need this game installed for a work presentation this week."
 

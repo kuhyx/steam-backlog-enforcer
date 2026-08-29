@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 from unittest.mock import patch
-
-from typing_extensions import Self
 
 from steam_backlog_enforcer.hltb import (
     fetch_hltb_detail_missing,

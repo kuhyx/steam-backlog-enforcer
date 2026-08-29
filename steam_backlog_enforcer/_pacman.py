@@ -62,7 +62,7 @@ def uninstall_package(package: str) -> bool:
             timeout=120,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to run pacman -R %s", package)
         return False
     if result.returncode == 0:

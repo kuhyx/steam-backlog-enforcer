@@ -146,7 +146,7 @@ async def _fetch_one(
                     confidence=data.get("confidence", ""),
                     total_reports=data.get("total", 0),
                 )
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+        except (TimeoutError, aiohttp.ClientError, OSError) as e:
             logger.warning("ProtonDB fetch failed for AppID=%d: %s", app_id, e)
             return None  # Don't cache transient failures — retry next run.
 

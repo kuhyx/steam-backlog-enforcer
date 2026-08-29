@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import contextlib
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 import json
 import logging
 import os
@@ -158,7 +158,7 @@ class State:
 
     def skip_for_days(self, app_id: int, days: int) -> None:
         """Mark ``app_id`` as skipped for ``days`` days from now (UTC)."""
-        expires = datetime.now(timezone.utc) + timedelta(days=days)
+        expires = datetime.now(UTC) + timedelta(days=days)
         self.skipped_until[str(app_id)] = expires.isoformat()
 
     def active_skipped_ids(self) -> set[int]:
@@ -167,7 +167,7 @@ class State:
         Mutates ``self.skipped_until`` to drop expired or malformed entries.
         Callers should ``save()`` if they want the prune persisted.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         active: set[int] = set()
         to_remove: list[str] = []
         for aid_str, ts in self.skipped_until.items():
@@ -197,7 +197,7 @@ class State:
         if STATE_FILE.exists():
             try:
                 data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError, ValueError):
+            except json.JSONDecodeError, OSError, ValueError:
                 logger.warning("Corrupt state file, using defaults.")
                 return cls()
             state = cls(

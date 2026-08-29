@@ -1,6 +1,6 @@
 """Tests for finalize_completion: snapshot refresh and install retry."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import (
     patch,
 )
@@ -9,7 +9,9 @@ from steam_backlog_enforcer._cmd_done import (
     _finalize_completion,
 )
 from steam_backlog_enforcer.config import Config, State
-from steam_backlog_enforcer.steam_api import GameInfo
+
+if TYPE_CHECKING:
+    from steam_backlog_enforcer.steam_api import GameInfo
 
 CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done_finalize"
 # _refresh_uncached_shortlist_hours stayed in _cmd_done, so its

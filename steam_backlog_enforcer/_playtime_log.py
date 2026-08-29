@@ -20,7 +20,7 @@ the sink degrades to a warning on the daemon's own logger and carries on.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import json
 import logging
 import logging.handlers
@@ -133,7 +133,7 @@ class BudgetLog:
         if sink is None:
             return
         payload = {
-            "timestamp": datetime.now(timezone.utc).astimezone().isoformat(),
+            "timestamp": datetime.now(UTC).astimezone().isoformat(),
             "event": event,
             **fields,
         }

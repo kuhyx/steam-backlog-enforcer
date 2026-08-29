@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import logging
 import sys
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer.config import State, load_snapshot
 from steam_backlog_enforcer.game_install import (
@@ -185,7 +185,7 @@ _MOVED_TO_CMD_DONE_FINALIZE = frozenset(
 
 # Whatever the re-exported name turns out to be -- a function, a class or
 # a constant. Aliased so the annotation is a name rather than a bare Any.
-_Reexport: TypeAlias = Any
+type _Reexport = Any
 
 
 def __getattr__(name: str) -> _Reexport:

@@ -181,7 +181,7 @@ def load_state(*, demo: bool) -> PlaytimeState | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError, ValueError:
         logger.warning("Playtime state at %s is unreadable; assuming tampered.", path)
         return None
     if not isinstance(data, dict) or data.get("schema_version") != _SCHEMA_VERSION:

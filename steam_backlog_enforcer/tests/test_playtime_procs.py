@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import os
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from steam_backlog_enforcer._playtime_notify import (
@@ -19,6 +19,9 @@ from steam_backlog_enforcer._playtime_state import (
     rules_for,
 )
 from steam_backlog_enforcer.config import Config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PKG = "steam_backlog_enforcer._playtime"
 LOCAL = timezone(timedelta(hours=2))

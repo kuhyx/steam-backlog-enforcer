@@ -18,7 +18,7 @@ active (package-block).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import json
 import logging
 import shutil
@@ -70,7 +70,7 @@ def _read_lock() -> dict[str, object] | None:
         return None
     try:
         data = json.loads(TOTAL_BLOCK_LOCK_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError, ValueError):
+    except json.JSONDecodeError, OSError, ValueError:
         return None
     if not isinstance(data, dict):
         return None
@@ -85,7 +85,7 @@ def is_total_block_active() -> bool:
     until = data.get("until")
     if not isinstance(until, int | float):
         return False
-    return datetime.now(timezone.utc).timestamp() < until
+    return datetime.now(UTC).timestamp() < until
 
 
 def total_block_needs_cleanup() -> bool:
@@ -113,17 +113,17 @@ def get_total_block_status() -> TotalBlockStatus:
     days = data.get("days")
 
     started_dt = (
-        datetime.fromtimestamp(started_at, tz=timezone.utc)
+        datetime.fromtimestamp(started_at, tz=UTC)
         if isinstance(started_at, int | float)
         else None
     )
     until_dt = (
-        datetime.fromtimestamp(until, tz=timezone.utc)
+        datetime.fromtimestamp(until, tz=UTC)
         if isinstance(until, int | float)
         else None
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     active = until_dt is not None and now < until_dt
     days_remaining = (
         (until_dt - now).total_seconds() / 86400 if active and until_dt else 0.0

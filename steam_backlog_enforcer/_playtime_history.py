@@ -75,7 +75,7 @@ def _read_days() -> dict[str, float]:
         raw = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
-    except (OSError, ValueError):
+    except OSError, ValueError:
         logger.warning(
             "Playtime history at %s is unreadable; starting over.", HISTORY_FILE
         )

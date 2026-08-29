@@ -26,7 +26,7 @@ def _run(cmd: list[str]) -> bool:
     """
     try:
         result = subprocess.run(cmd, capture_output=True, check=False, timeout=15)
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Playtime block command failed: %s", cmd)
         return False
     if result.returncode != 0:

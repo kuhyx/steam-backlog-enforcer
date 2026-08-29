@@ -81,7 +81,7 @@ def _resolve_game_name(config: Config, app_id: int) -> str | None:
         for g in owned:
             if g.get("appid") == app_id:
                 return str(g.get("name", f"Unknown ({app_id})"))
-    except (SteamAPIError, OSError, RuntimeError, ValueError):
+    except SteamAPIError, OSError, RuntimeError, ValueError:
         return None
 
     return None

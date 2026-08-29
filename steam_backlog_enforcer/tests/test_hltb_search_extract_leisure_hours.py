@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 from unittest.mock import MagicMock
-
-from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_detail import _extract_leisure_hours
 from steam_backlog_enforcer._hltb_matching import _build_search_variants

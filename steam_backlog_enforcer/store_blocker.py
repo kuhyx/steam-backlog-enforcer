@@ -134,7 +134,7 @@ def _block_via_hosts_install() -> bool:
             timeout=120,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to run hosts install script")
         return False
     else:

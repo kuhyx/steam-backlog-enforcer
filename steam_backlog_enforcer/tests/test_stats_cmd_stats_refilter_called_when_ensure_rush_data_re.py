@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from steam_backlog_enforcer._stats import (
@@ -123,11 +123,11 @@ class TestCmdStatsGroup2:
     def test_games_done_since_start_passed_to_pace(self) -> None:
         """_print_pace_scenario gets only games completed after started_at."""
 
-        started = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        started = datetime(2026, 1, 1, tzinfo=UTC)
         state = State(enforcement_started_at=started.isoformat())
 
-        after_ts = int(datetime(2026, 3, 1, tzinfo=timezone.utc).timestamp())
-        before_ts = int(datetime(2025, 6, 1, tzinfo=timezone.utc).timestamp())
+        after_ts = int(datetime(2026, 3, 1, tzinfo=UTC).timestamp())
+        before_ts = int(datetime(2025, 6, 1, tzinfo=UTC).timestamp())
 
         def _ach(ts: int) -> dict[str, object]:
             """Test ach."""

@@ -9,7 +9,7 @@ the JSON-RPC channel.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import os
 from typing import TYPE_CHECKING
 
@@ -112,7 +112,7 @@ def cmd_gaming_reset(config: Config, _state: State) -> int:
         return 1
 
     released = release_block()
-    now = datetime.now(timezone.utc).astimezone()
+    now = datetime.now(UTC).astimezone()
     save_state(
         PlaytimeState(day_key=gaming_day_key(now), last_tick_at=now.timestamp()),
         demo=rules_for(config, demo=False).demo,

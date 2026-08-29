@@ -6,11 +6,10 @@ them introduces no cycle. Split to keep both files under the 250-line cap.
 
 from __future__ import annotations
 
-import asyncio
 from http import HTTPStatus
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
@@ -21,6 +20,9 @@ from steam_backlog_enforcer._hltb_page_parse import (
 from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
 )
+
+if TYPE_CHECKING:
+    import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +110,7 @@ async def _fetch_detail_one(
                 if resp.status == HTTPStatus.OK:
                     html = await resp.text()
                     return _parse_game_page(html)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             logger.debug(
                 "HLTB detail fetch failed for game_id=%d: %s",
                 hltb_game_id,

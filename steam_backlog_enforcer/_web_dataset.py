@@ -37,7 +37,7 @@ __all__ = [
 ]
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from steam_backlog_enforcer._actions import allowed_app_ids
@@ -114,7 +114,7 @@ def _state_info(
         except ValueError:
             started = None
         if started is not None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             days_elapsed = max(1, (now - started).days)
             if games_done_since_start > 0:
                 pace = round(games_done_since_start / days_elapsed, 4)
@@ -169,7 +169,7 @@ def build_web_dataset(state: State) -> WebDataset:
         ),
         default_summary=_default_summary(rows),
         pace_vs_hltb=pace_vs_hltb,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
     )
 
 

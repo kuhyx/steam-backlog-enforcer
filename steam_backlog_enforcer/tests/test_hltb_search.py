@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 from unittest.mock import MagicMock
 
 import aiohttp
-from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_search import (
     _search_one,

@@ -1,6 +1,6 @@
 """Tests for applying/releasing the playtime block and the kill walk."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from steam_backlog_enforcer._playtime_block import (
@@ -9,6 +9,9 @@ from steam_backlog_enforcer._playtime_block import (
     reconcile,
     release_block,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PKG = "steam_backlog_enforcer._playtime_block"
 

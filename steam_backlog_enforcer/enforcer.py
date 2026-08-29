@@ -38,7 +38,7 @@ def get_running_steam_game_pids() -> dict[int, int]:
                     if value.isdigit():
                         running[int(entry.name)] = int(value)
                     break
-        except (PermissionError, OSError, ValueError):
+        except PermissionError, OSError, ValueError:
             continue
 
     return running
@@ -64,7 +64,7 @@ def get_pids_by_process_names(names: frozenset[str]) -> dict[int, str]:
             continue
         try:
             comm = (entry / "comm").read_text(encoding="utf-8").strip()
-        except (PermissionError, OSError, ValueError):
+        except PermissionError, OSError, ValueError:
             continue
         if comm in truncated:
             running[int(entry.name)] = truncated[comm]
@@ -170,7 +170,7 @@ def send_notification(title: str, body: str) -> None:
             timeout=5,
             check=False,
         )
-    except (FileNotFoundError, OSError):
+    except FileNotFoundError, OSError:
         logger.debug("notify-send not available.")
     except subprocess.TimeoutExpired:
         # sudo can block where a bare notify-send would not; a dropped

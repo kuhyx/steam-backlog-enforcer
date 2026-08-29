@@ -38,7 +38,7 @@ def _load_cached_ips() -> set[str]:
         return set()
     try:
         data = json.loads(_IPTABLES_IP_CACHE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError, ValueError):
+    except json.JSONDecodeError, OSError, ValueError:
         return set()
     if not isinstance(data, list):
         return set()
@@ -156,7 +156,7 @@ def apply_total_block_iptables() -> bool:
                 timeout=5,
                 check=True,
             )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to apply total-block iptables rules")
         return False
     else:
@@ -187,7 +187,7 @@ def remove_total_block_iptables() -> bool:
             timeout=5,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to remove total-block iptables rules")
         return False
     else:

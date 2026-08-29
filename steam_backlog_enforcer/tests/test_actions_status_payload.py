@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from steam_backlog_enforcer._actions import (
@@ -13,7 +13,7 @@ from steam_backlog_enforcer.config import State
 
 
 def _iso_days_ago(days: float) -> str:
-    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    return (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
 
 def _pick(app_id: int = 440, name: str = "TF2", days_ago: float = 1.0) -> dict:
@@ -67,7 +67,7 @@ class TestStatusPayload:
         block = TotalBlockStatus(
             active=True,
             started_at=None,
-            until=datetime(2030, 1, 1, tzinfo=timezone.utc),
+            until=datetime(2030, 1, 1, tzinfo=UTC),
             days=3,
             days_remaining=2.55,
         )

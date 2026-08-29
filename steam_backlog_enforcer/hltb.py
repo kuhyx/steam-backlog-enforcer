@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
-from typing import Any, TypeAlias
+from typing import Any
 
 import aiohttp
 
@@ -191,7 +191,7 @@ _REEXPORTED = {
 
 # Whatever the re-exported name turns out to be -- a function, a class or
 # a constant. Aliased so the annotation is a name rather than a bare Any.
-_Reexport: TypeAlias = Any
+type _Reexport = Any
 
 
 def __getattr__(name: str) -> _Reexport:

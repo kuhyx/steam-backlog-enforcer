@@ -9,9 +9,9 @@ there is a single tested implementation of the underlying behaviour.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import importlib
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._allowed_games import (
     active_manual_picks,
@@ -135,7 +135,7 @@ def apply_manual_pick(
             f"(cap is {max_picks}): {names}."
         )
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     # Rewriting from `active` also prunes finished/expired entries.
     state.manual_picks = [
         *active,
@@ -160,7 +160,7 @@ _MOVED_TO_MANUAL_PICK_LIFECYCLE = frozenset(
 
 # Whatever the re-exported name turns out to be -- a function, a class or
 # a constant. Aliased so the annotation is a name rather than a bare Any.
-_Reexport: TypeAlias = Any
+type _Reexport = Any
 
 
 def __getattr__(name: str) -> _Reexport:

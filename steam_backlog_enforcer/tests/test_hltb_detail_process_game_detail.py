@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
-from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_comp_extract import _fetch_detail_one
 from steam_backlog_enforcer._hltb_detail import _process_game_detail

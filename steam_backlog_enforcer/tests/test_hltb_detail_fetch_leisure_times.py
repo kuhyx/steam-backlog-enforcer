@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, patch
-
-from typing_extensions import Self
 
 from steam_backlog_enforcer._hltb_detail import _fetch_leisure_times
 from steam_backlog_enforcer._hltb_types import (

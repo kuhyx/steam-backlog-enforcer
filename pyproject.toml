@@ -36,7 +36,7 @@ include = ["steam_backlog_enforcer*"]
 # RUFF - Fast Python linter and formatter
 # ============================================================================
 [tool.ruff]
-target-version = "py310"
+target-version = "py314"
 include = ["*.py", "**/*.py"]
 # scripts/file_length is a VENDORED copy of ~/utils/file_length and must stay
 # byte-identical to upstream; ruff --unsafe-fixes otherwise strips its print()
@@ -85,7 +85,7 @@ docstring-code-format = true
 # MYPY - Static type checker
 # ============================================================================
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -116,7 +116,7 @@ exclude = [".venv/"]
 analyse-fallback-blocks = true
 persistent = true
 jobs = 0
-py-version = "3.10"
+py-version = "3.14"
 ignore = [".venv", "__pycache__"]
 ignore-patterns = [".*\\.pyi$"]
 

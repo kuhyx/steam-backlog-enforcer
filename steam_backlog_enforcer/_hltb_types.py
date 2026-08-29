@@ -103,14 +103,14 @@ def _read_raw_cache() -> dict[int, dict[str, Any]]:
         return {}
     try:
         data = json.loads(HLTB_CACHE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError, OSError:
         logger.warning("Corrupt HLTB cache, starting fresh.")
         return {}
     out: dict[int, dict[str, Any]] = {}
     for k, v in data.items():
         try:
             aid = int(k)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         if isinstance(v, dict):
             out[aid] = {
@@ -131,7 +131,7 @@ def _read_raw_cache() -> dict[int, dict[str, Any]]:
                     "leisure_100h": -1,
                     "hltb_game_id": 0,
                 }
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
     return out
 

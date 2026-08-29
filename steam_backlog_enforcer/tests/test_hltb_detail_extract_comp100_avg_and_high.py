@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from typing_extensions import Self
+from typing import Any, Self
 
 from steam_backlog_enforcer._hltb_comp_extract import _extract_comp_100_avg_and_high
 

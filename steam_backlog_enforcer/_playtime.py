@@ -28,7 +28,7 @@ is why :func:`get_pids_by_cmdline_names` exists alongside
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -91,7 +91,7 @@ def playtime_tick(
         session: Cross-tick engagement and logging state.
         demo: Whether this is a short-budget demo run.
     """
-    now = datetime.now(timezone.utc).astimezone()
+    now = datetime.now(UTC).astimezone()
     rules = rules_for(config, demo=demo)
     state = roll_over(_state_or_recover(rules, now=now), day_key=gaming_day_key(now))
 

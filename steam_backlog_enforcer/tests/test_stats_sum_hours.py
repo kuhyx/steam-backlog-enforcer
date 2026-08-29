@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from steam_backlog_enforcer._stats import (
@@ -167,7 +167,7 @@ class TestPrintPaceScenario:
 
     def test_no_games_finished(self) -> None:
         """Test no games finished."""
-        started = datetime.now(timezone.utc) - timedelta(days=30)
+        started = datetime.now(UTC) - timedelta(days=30)
         state = State(enforcement_started_at=started.isoformat())
         echoed: list[str] = []
         with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):
@@ -176,7 +176,7 @@ class TestPrintPaceScenario:
 
     def test_normal_pace(self) -> None:
         """Test normal pace."""
-        started = datetime.now(timezone.utc) - timedelta(days=60)
+        started = datetime.now(UTC) - timedelta(days=60)
         state = State(enforcement_started_at=started.isoformat())
         echoed: list[str] = []
         with patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])):

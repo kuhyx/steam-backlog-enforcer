@@ -26,7 +26,7 @@ def _parse_game_page(html: str) -> dict[str, Any] | None:
     try:
         data = json.loads(match.group(1))
         result: dict[str, Any] = data["props"]["pageProps"]["game"]["data"]
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except json.JSONDecodeError, KeyError, TypeError:
         return None
     return result
 

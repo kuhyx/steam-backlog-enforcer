@@ -58,7 +58,7 @@ def _is_iptables_blocked() -> bool:
             timeout=5,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return False
     else:
         return result.returncode == 0 and "DROP" in result.stdout
@@ -121,7 +121,7 @@ def _block_store_iptables() -> bool:
                 timeout=5,
                 check=True,
             )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to block store via iptables")
         return False
     else:
@@ -150,7 +150,7 @@ def _unblock_store_iptables() -> bool:
             timeout=5,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to unblock iptables")
         return False
     else:

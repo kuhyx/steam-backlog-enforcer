@@ -51,7 +51,7 @@ def apply_total_block_hosts() -> bool:
     try:
         _disable_hosts_protection()
         _sudo_write_hosts(new_content)
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to write total-block hosts entries")
         return False
     finally:
@@ -78,7 +78,7 @@ def remove_total_block_hosts() -> bool:
     try:
         _disable_hosts_protection()
         _sudo_write_hosts(new_content)
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to remove total-block hosts entries")
         return False
     finally:

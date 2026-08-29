@@ -6,7 +6,6 @@ them introduces no cycle. Split to keep both files under the 250-line cap.
 
 from __future__ import annotations
 
-import asyncio
 from http import HTTPStatus
 import json
 import logging
@@ -60,7 +59,7 @@ def _get_hltb_search_url() -> str:
         if search_info and search_info.search_url:
             url: str = HTMLRequests.BASE_URL + search_info.search_url
             return url
-    except (OSError, RuntimeError, ValueError, TypeError):
+    except OSError, RuntimeError, ValueError, TypeError:
         logger.debug("Failed to discover HLTB search URL, using default")
     return "https://howlongtobeat.com/api/finder"
 
@@ -94,7 +93,7 @@ async def _get_auth_info(
                     hp_key=data.get("hpKey", ""),
                     hp_val=data.get("hpVal", ""),
                 )
-    except (aiohttp.ClientError, asyncio.TimeoutError):
+    except TimeoutError, aiohttp.ClientError:
         logger.warning("Failed to get HLTB auth token")
     return None
 

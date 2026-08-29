@@ -36,7 +36,7 @@ def _load_owned_app_ids_cache(steam_id: str) -> list[int] | None:
         data: dict[str, Any] = json.loads(
             _OWNED_IDS_CACHE_FILE.read_text(encoding="utf-8")
         )
-    except (json.JSONDecodeError, OSError, ValueError):
+    except json.JSONDecodeError, OSError, ValueError:
         return None
 
     cached_steam_id = str(data.get("steam_id", ""))
@@ -105,7 +105,7 @@ def get_all_owned_app_ids(config: Config) -> list[int]:
                 continue
             seen.add(app_id)
             merged_ids.append(app_id)
-    except (OSError, RuntimeError, ValueError):
+    except OSError, RuntimeError, ValueError:
         if snapshot_ids:
             return snapshot_ids
         logger.warning("Could not fetch owned game list for hiding.")

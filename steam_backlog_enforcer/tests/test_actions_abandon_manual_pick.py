@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from steam_backlog_enforcer import _actions, _allowed_games
 from steam_backlog_enforcer._actions import (
@@ -19,7 +19,7 @@ from steam_backlog_enforcer.config import State
 
 
 def _iso_days_ago(days: float) -> str:
-    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    return (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
 
 def _pick(app_id: int = 440, name: str = "TF2", days_ago: float = 1.0) -> dict:
@@ -56,9 +56,7 @@ class TestAbandonManualPick:
         state = self._state()
         abandon_manual_pick(state, 440)
         expiry = datetime.fromisoformat(state.skipped_until["440"])
-        expected = datetime.now(timezone.utc) + timedelta(
-            days=_actions.ABANDON_COOLDOWN_DAYS
-        )
+        expected = datetime.now(UTC) + timedelta(days=_actions.ABANDON_COOLDOWN_DAYS)
         assert abs((expiry - expected).total_seconds()) < 60
 
     def test_persists_to_disk(self) -> None:

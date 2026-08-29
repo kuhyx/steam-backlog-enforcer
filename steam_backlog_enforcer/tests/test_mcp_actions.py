@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from steam_backlog_enforcer import _mcp_actions as mcp_actions
@@ -58,7 +58,7 @@ class TestAbandonPickGate:
     """The MCP escape hatch mirrors the CLI grace rules, state-only."""
 
     def _state(self, *, days_ago: float = 1.0, app_id: int = 440) -> State:
-        started = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
+        started = (datetime.now(UTC) - timedelta(days=days_ago)).isoformat()
         return State(
             manual_picks=[
                 {"app_id": app_id, "game_name": "TF2", "started_at": started}

@@ -9,7 +9,7 @@ deletion safety net without creating a circular import.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ def _pick_is_active(state: State, pick: dict[str, Any]) -> bool:
             started = datetime.fromisoformat(started_at)
         except ValueError:
             return True
-        if datetime.now(timezone.utc) >= started + timedelta(days=MANUAL_LOCK_DAYS):
+        if datetime.now(UTC) >= started + timedelta(days=MANUAL_LOCK_DAYS):
             return False
 
     return True

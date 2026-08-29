@@ -6,7 +6,7 @@ under the 250-line cap.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._actions import (
@@ -61,7 +61,7 @@ def manual_pick_age_days(state: State, app_id: int) -> float | None:
         started = datetime.fromisoformat(pick["started_at"])
     except ValueError:
         return None
-    return (datetime.now(timezone.utc) - started).total_seconds() / 86400
+    return (datetime.now(UTC) - started).total_seconds() / 86400
 
 
 def abandon_manual_pick(state: State, app_id: int) -> bool:

@@ -116,7 +116,7 @@ async def _search_one(
                         continue
                     result = _build_result_from_best(app_id, name, query_name, best)
                     break
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            except (TimeoutError, aiohttp.ClientError) as exc:
                 logger.debug("HLTB search failed for '%s': %s", query_name, exc)
 
         # Update cache immediately (miss = -1).

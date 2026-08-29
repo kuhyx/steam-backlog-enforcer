@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from steam_backlog_enforcer._total_block import TotalBlockStatus
@@ -104,7 +104,7 @@ class TestCmdStatusLockHint:
 # ──────────────────────────────────────────────────────────────
 
 # A pick made yesterday / one made over a week ago. Both are abandonable.
-_RECENT_PICK = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+_RECENT_PICK = (datetime.now(UTC) - timedelta(days=1)).isoformat()
 
 
 def _abandonable_state(app_id: int = 100, started_at: str = _RECENT_PICK) -> State:

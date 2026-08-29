@@ -75,7 +75,7 @@ def _immutable_flag_is(path: Path, *, immutable: bool) -> bool:
         with path.open("rb") as handle:
             # mutate_flag defaults to True, so buf receives the flags in place.
             fcntl.ioctl(handle.fileno(), _FS_IOC_GETFLAGS, buf)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return False
     return bool(buf[0] & _FS_IMMUTABLE_FL) is immutable
 
@@ -144,7 +144,7 @@ def _load_approved() -> list[dict[str, object]]:
         data: object = json.loads(APPROVED_EXCEPTIONS_FILE.read_text(encoding="utf-8"))
         if isinstance(data, list):
             return cast("list[dict[str, object]]", data)
-    except (json.JSONDecodeError, OSError, ValueError):
+    except json.JSONDecodeError, OSError, ValueError:
         pass
     return []
 

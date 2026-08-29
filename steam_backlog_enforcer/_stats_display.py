@@ -6,7 +6,7 @@ the 250-line cap. Leaf helpers: nothing here calls back into ``_stats``.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 import secrets
 from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
@@ -68,7 +68,7 @@ def _format_completion_date(hours: float, daily_hours: float) -> str:
     if hours <= 0 or daily_hours <= 0:
         return "N/A"
     days = int(hours / daily_hours)
-    target = datetime.now(timezone.utc) + timedelta(days=days)
+    target = datetime.now(UTC) + timedelta(days=days)
     return f"{days} days ({target.strftime('%Y-%m-%d')})"
 
 
@@ -92,7 +92,7 @@ def _print_pace_scenario(state: State, remaining: int, games_done: int) -> None:
         _echo(f"    Invalid enforcement_started_at: {state.enforcement_started_at!r}")
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     days_elapsed = max(1, (now - started).days)
 
     if games_done == 0:

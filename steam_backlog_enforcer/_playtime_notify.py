@@ -32,7 +32,7 @@ def notify_desktop_user(title: str, body: str) -> None:
     user = _resolve_desktop_user()
     try:
         _run_as_user(["notify-send", title, body, "--icon=dialog-warning"], user)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         logger.debug("Could not send desktop notification.")
 
 

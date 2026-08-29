@@ -9,7 +9,7 @@ in :mod:`steam_backlog_enforcer._total_block_net`; the two are independent.
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import json
 import logging
 from pathlib import Path
@@ -188,11 +188,11 @@ def _log_steam_purge(removed_paths: list[str], removed_packages: list[str]) -> N
         existing = json.loads(_STEAM_PURGE_LOG_FILE.read_text(encoding="utf-8"))
         if not isinstance(existing, list):
             existing = []
-    except (OSError, json.JSONDecodeError, ValueError):
+    except OSError, json.JSONDecodeError, ValueError:
         existing = []
     existing.append(
         {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "removed_paths": removed_paths,
             "removed_packages": removed_packages,
         }

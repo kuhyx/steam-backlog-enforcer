@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 from unittest.mock import MagicMock, patch
-
-from typing_extensions import Self
 
 from steam_backlog_enforcer.hltb import (
     HLTB_BASE_URL,

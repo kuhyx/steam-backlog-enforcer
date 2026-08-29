@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import json
 
 from steam_backlog_enforcer._total_block import (
@@ -17,7 +17,7 @@ from steam_backlog_enforcer.tests._total_block_paths import (
 
 PKG = "steam_backlog_enforcer._total_block"
 
-_NOW = datetime.now(timezone.utc).timestamp()
+_NOW = datetime.now(UTC).timestamp()
 
 
 class TestIsTotalBlockActive:
