@@ -6,12 +6,18 @@ total gaming block.
 
 from __future__ import annotations
 
+import errno
 import sys
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._config_setup import interactive_setup
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._serve_startup import (
+    ensure_port_available,
+    parse_serve_args,
+)
 from steam_backlog_enforcer._total_block import start_total_block
+from steam_backlog_enforcer._web_build import build_frontend, frontend_is_stale
 from steam_backlog_enforcer._web_server import serve
 from steam_backlog_enforcer._whitelist import (
     add_pending_exception,
@@ -108,9 +114,32 @@ def cmd_setup(_config: Config, _state: State) -> None:
     interactive_setup()
 
 
-def cmd_serve(_config: Config, _state: State) -> None:
-    """Start the interactive web UI server (read-only, localhost only)."""
-    serve()
+def cmd_serve(args: list[str]) -> None:
+    """Start the interactive web UI server (read-only, localhost only).
+
+    Re-running this is safe rather than fatal: an already-running server on
+    current code is reported, one on outdated code is replaced, and a stale
+    frontend bundle is rebuilt before anything is served.
+
+    Args:
+        args: CLI argument list after the command name.
+    """
+    host, port = parse_serve_args(args)
+    # Build BEFORE touching the port. A failed build must not cost you the
+    # server that was already running, and rebuilding first is what lets the
+    # "already running" path hand the browser a fresh bundle on its next
+    # request - _web_server reads web/dist per request, not at startup.
+    if frontend_is_stale() and not build_frontend():
+        sys.exit(1)
+    ensure_port_available(host, port)
+    try:
+        serve(host, port)
+    except OSError as exc:
+        # Last-ditch cover for the gap between the /proc check and the bind.
+        if exc.errno != errno.EADDRINUSE:
+            raise
+        _echo(f"Port {port} was taken while starting up. Try again.")
+        sys.exit(1)
 
 
 def cmd_add_exception(args: list[str]) -> None:

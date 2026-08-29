@@ -134,7 +134,6 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "done": ("Finish game, open HLTB, pick next", cmd_done),
     "pick": ("Manually pick your next game from candidates", cmd_pick),
     "stats": ("Show backlog completion-time estimates", cmd_stats),
-    "serve": ("Start the interactive web UI (browser) server", cmd_serve),
     "gaming-status": ("Show today's gaming time and block state", cmd_gaming_status),
     "gaming-reset": ("Reset today's gaming counter (root + YES)", cmd_gaming_reset),
 }
@@ -142,6 +141,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
 _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
     "add-exception": "Request 24h-locked whitelist exception (use --reason)",
+    "serve": "Start the web UI (--port N; replaces a stale server)",
     "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
     "abandon-pick": "Undo a manual pick at any time (needs app_id)",
     "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
@@ -184,6 +184,9 @@ def _dispatch_extra_command(command: str, config: Config, state: State) -> bool:
         return True
     if command == "block-gaming":
         cmd_block_gaming(sys.argv[2:])
+        return True
+    if command == "serve":
+        cmd_serve(sys.argv[2:])
         return True
     if command == "pick-manual":
         cmd_pick_manual(config, state, sys.argv[2:])

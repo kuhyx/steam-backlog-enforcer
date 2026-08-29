@@ -69,7 +69,9 @@ describe('useBudgetPoll', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
-  it('does not poll while the tab is hidden', async () => {
+  // Browser automation always drives a hidden tab, so this is the case that
+  // used to leave the panel stuck on its loading text forever.
+  it('polls while the tab is hidden', async () => {
     vi.useFakeTimers()
     setHidden(true)
     const fetchMock = vi
@@ -77,10 +79,11 @@ describe('useBudgetPoll', () => {
       .mockResolvedValue({ ok: true, json: async () => makeBudget() })
     vi.stubGlobal('fetch', fetchMock)
     renderHook(() => useBudgetPoll(false, 1000))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     await act(async () => {
-      vi.advanceTimersByTime(5000)
+      vi.advanceTimersByTime(2000)
     })
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('stops polling after unmount', async () => {

@@ -11,11 +11,15 @@ export interface BudgetPollState {
 export const POLL_MS = 5000
 
 /**
- * Poll `/api/budget` while mounted, pausing whenever the tab is hidden.
+ * Poll `/api/budget` for as long as the panel is mounted.
  *
- * The hook is only mounted by the budget tab, so switching away stops the
- * requests entirely; the `document.hidden` check covers the other case, a tab
- * left open in the background for hours.
+ * Visibility is deliberately not consulted. A `document.hidden` guard used to
+ * skip the request, but it also swallowed the very first load, so a panel that
+ * mounted in a background tab sat on "Reading budget state…" with no data and
+ * no error. Every tab driven by browser automation is hidden, which made the
+ * panel unreadable that way. Switching tabs already unmounts the hook, so the
+ * only cost of dropping the guard is one request per interval in a background
+ * tab left open.
  */
 export function useBudgetPoll(demo: boolean, intervalMs: number = POLL_MS): BudgetPollState {
   const [data, setData] = useState<BudgetSnapshot | null>(null)
@@ -25,7 +29,6 @@ export function useBudgetPoll(demo: boolean, intervalMs: number = POLL_MS): Budg
     let cancelled = false
 
     const load = () => {
-      if (document.hidden) return
       fetchBudget(demo)
         .then((snapshot) => {
           // A response can arrive after unmount; committing it would warn and,

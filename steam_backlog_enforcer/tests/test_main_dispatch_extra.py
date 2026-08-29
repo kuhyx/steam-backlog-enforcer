@@ -32,6 +32,21 @@ class TestMainDispatchAddException:
         mock_cmd.assert_called_once_with(["440", "--reason", VALID_REASON])
 
 
+class TestMainDispatchServe:
+    def test_dispatches_serve_with_raw_argv(self) -> None:
+        # serve parses its own flags, so the dispatcher must hand the argv
+        # through untouched rather than pre-parsing it.
+        argv = ["prog", "serve", "--port", "8123"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=State()),
+            patch(f"{PKG}.cmd_serve") as mock_cmd,
+        ):
+            main()
+        mock_cmd.assert_called_once_with(["--port", "8123"])
+
+
 class TestMainDispatchPickManual:
     def test_dispatches_pick_manual(self) -> None:
         argv = ["prog", "pick-manual", "489830"]
