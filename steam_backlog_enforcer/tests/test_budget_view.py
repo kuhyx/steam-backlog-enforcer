@@ -123,7 +123,7 @@ class TestBuildBudgetSnapshot:
             patch.object(view, "last_verdict", return_value=kwargs["session"]),
             patch.object(view, "mounted_targets", return_value=set()),
         ):
-            return build_budget_snapshot()
+            return build_budget_snapshot(demo=bool(kwargs.get("demo", False)))
 
     def test_reports_a_readable_day(self) -> None:
         snapshot = self._snapshot()
@@ -179,6 +179,15 @@ class TestBuildBudgetSnapshot:
         ):
             snapshot = self._snapshot()
         assert snapshot["history"] == [{"day": "2026-08-27", "seconds": 1.5}]
+
+    def test_demo_runs_serve_no_history(self) -> None:
+        """Production days must not be plotted against the 60-second budget."""
+        day = HistoryDay(day="2026-08-28", seconds=28800.0)
+        with patch.object(view, "load_history", return_value=[day]) as load:
+            snapshot = self._snapshot(demo=True)
+        assert snapshot["history"] == []
+        assert snapshot["rules"]["demo"] is True
+        load.assert_not_called()
 
     def test_leaks_no_secret(self) -> None:
         """The API key must never cross the HTTP boundary."""

@@ -197,7 +197,13 @@ def build_budget_snapshot(*, demo: bool = False) -> dict[str, Any]:
                 {"pid": game.pid, "name": game.name} for game in session.games
             ],
         },
-        "history": [
+        # Demo runs have no history by design — HistoryWriter skips them, for
+        # the same reason they get their own state file and log. Serving the
+        # production days here would plot real 8-hour days against the demo's
+        # 60-second budget line, painting every one of them over-budget.
+        "history": []
+        if demo
+        else [
             {"day": day.day, "seconds": round(day.seconds, 1)}
             for day in load_history(_HISTORY_DAYS)
         ],
