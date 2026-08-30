@@ -82,16 +82,17 @@ class Config:
     All active picks stay installed and visible; the enforcer treats them as
     one allowed set. Raising this weakens enforcement proportionally.
     """
-    daily_gaming_seconds: int = 8 * 3600
-    """Seconds allowed per gaming day *once earned* by a workout; without one
-    the day gets ``unearned_gaming_seconds``. Spending whichever applies shuts
-    Steam down and masks the launchers until the next 06:00."""
-    unearned_gaming_seconds: int = 6 * 3600
-    """Seconds allowed on a day with no counted workout: a floor the day starts
-    at and rises from, never a later cut, and the fail-closed answer when the
-    locker is unreachable. Rationale in ``_workout_budget``."""
+    base_gaming_seconds: int = 5 * 3600
+    """Floor for a day that earned nothing; also the fail-closed answer."""
+    workout_bonus_seconds: int = 2 * 3600
+    leetcode_bonus_seconds: int = 1 * 3600
+    """The two bonuses, added to the floor and to each other. Read
+    independently, so a failing LeetCode read cannot disturb the workout."""
     workout_status_url: str = "http://127.0.0.1:8770/api/status"
     """Where to ask whether today has a counted workout. Loopback only."""
+    leetcode_ledger_path: str = "~/.local/share/leetcode_guard/ledger.json"
+    leetcode_status_url: str = "http://127.0.0.1:8771/api/status"
+    """LeetCode's transports: ledger first, this loopback URL as fallback."""
     count_launcher_processes: bool = True
     """Whether time spent in non-Steam launchers counts against the budget.
 

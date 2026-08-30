@@ -157,6 +157,15 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
         "warn_at": list(rules.warn_at),
         "demo": rules.demo,
         "masked_launchers": sorted(str(path) for path in mounted_targets()),
+        # Read off the rules, never re-resolved: resolving a second time here
+        # is what would let this view report a budget the daemon is not
+        # enforcing. See _budget_resolve's "one seam".
+        "budget_reason": rules.budget_reason,
+        "bonuses": {
+            "base": rules.base_seconds,
+            "workout": rules.workout_seconds,
+            "leetcode": rules.leetcode_seconds,
+        },
     }
 
 

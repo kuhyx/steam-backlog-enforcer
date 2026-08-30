@@ -68,7 +68,14 @@ class TestCmdGamingStatus:
             patch(f"{PKG}._echo") as mock_echo,
             patch(f"{PKG}.mounted_targets", return_value=set()),
         ):
-            cmd_gaming_status(Config(daily_gaming_seconds=500), State())
+            cmd_gaming_status(
+                Config(
+                    base_gaming_seconds=500,
+                    workout_bonus_seconds=0,
+                    leetcode_bonus_seconds=0,
+                ),
+                State(),
+            )
         output = _echoed(mock_echo)
         assert "used:" in output
         assert "100s" in output

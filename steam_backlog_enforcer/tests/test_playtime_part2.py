@@ -111,7 +111,7 @@ class TestRollOver:
 
 class TestPendingWarning:
     def _rules(self, *, demo: bool = False) -> object:
-        return rules_for(Config(daily_gaming_seconds=8 * 3600), demo=demo)
+        return rules_for(Config(), demo=demo)
 
     def test_none_when_far_from_the_budget(self) -> None:
         state = PlaytimeState(seconds=0.0)

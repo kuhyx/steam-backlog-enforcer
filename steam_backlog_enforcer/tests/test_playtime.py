@@ -163,12 +163,19 @@ class TestSaveStateImmutability:
 
 class TestRulesFor:
     def test_production_budget_comes_from_config(self) -> None:
-        rules = rules_for(Config(daily_gaming_seconds=100), demo=False)
+        rules = rules_for(
+            Config(
+                base_gaming_seconds=100,
+                workout_bonus_seconds=0,
+                leetcode_bonus_seconds=0,
+            ),
+            demo=False,
+        )
         assert rules.budget_seconds == 100.0
         assert rules.demo is False
 
     def test_demo_budget_is_sixty_seconds(self) -> None:
-        rules = rules_for(Config(daily_gaming_seconds=28800), demo=True)
+        rules = rules_for(Config(), demo=True)
         assert rules.budget_seconds == 60.0
         assert rules.demo is True
 

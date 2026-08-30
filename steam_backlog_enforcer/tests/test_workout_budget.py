@@ -1,9 +1,8 @@
-"""Tests for _workout_budget: the workout-to-gaming-budget coupling.
+"""Tests for _workout_budget: reading the "did I work out today" fact.
 
 The property that matters most here is that every way of *not* getting an
-answer yields the unearned floor. If any of them fell through to the earned
-budget, the whole coupling could be defeated by stopping one user service, and
-a silent 8h would be indistinguishable from an earned one.
+answer yields ``None``, never ``False``-that-looks-like-an-answer. The budget
+arithmetic that consumes it lives in test_budget_resolve.py.
 """
 
 from __future__ import annotations
@@ -18,7 +17,6 @@ import pytest
 from steam_backlog_enforcer import _workout_budget
 from steam_backlog_enforcer._workout_budget import (
     reset_cache,
-    resolve_budget_seconds,
     workout_logged_today,
 )
 from steam_backlog_enforcer.config import Config
@@ -27,9 +25,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 _PKG = "steam_backlog_enforcer._workout_budget"
-
-_EARNED = 8 * 3600
-_UNEARNED = 6 * 3600
 
 
 @pytest.fixture(autouse=True)
@@ -54,8 +49,6 @@ def _config(**over: object) -> Config:
         A Config instance; never loaded from or saved to disk.
     """
     config = Config()
-    config.daily_gaming_seconds = _EARNED
-    config.unearned_gaming_seconds = _UNEARNED
     config.workout_status_url = "http://127.0.0.1:8770/api/status"
     for key, value in over.items():
         setattr(config, key, value)
@@ -133,48 +126,6 @@ class TestWorkoutLoggedToday:
                 _config(workout_status_url="http://127.0.0.1:9999/api/status"),
             )
         assert fetch.call_count == 2
-
-
-class TestResolveBudgetSeconds:
-    """The number the enforcer actually bills against."""
-
-    def test_a_workout_earns_the_full_budget(self) -> None:
-        """8h once a counted workout is logged today."""
-        with patch(f"{_PKG}._fetch_workout_today", return_value=True):
-            assert resolve_budget_seconds(_config()) == float(_EARNED)
-
-    def test_no_workout_gets_the_floor(self) -> None:
-        """6h on a day with nothing logged."""
-        with patch(f"{_PKG}._fetch_workout_today", return_value=False):
-            assert resolve_budget_seconds(_config()) == float(_UNEARNED)
-
-    def test_an_unreachable_locker_gets_the_floor(self) -> None:
-        """Fail closed: a dead locker costs gaming time, never grants it."""
-        with patch(f"{_PKG}._fetch_workout_today", side_effect=OSError("refused")):
-            assert resolve_budget_seconds(_config()) == float(_UNEARNED)
-
-    def test_the_cut_is_explained(self, caplog: pytest.LogCaptureFixture) -> None:
-        """A 2h swing should never be silent."""
-        with (
-            caplog.at_level(logging.INFO),
-            patch(f"{_PKG}._fetch_workout_today", return_value=False),
-        ):
-            resolve_budget_seconds(_config())
-        assert "6.0h" in caplog.text
-        assert "8.0h" in caplog.text
-
-    def test_a_floor_above_the_ceiling_is_refused(
-        self,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """Misconfigured, skipping would otherwise buy MORE time than working out."""
-        config = _config(unearned_gaming_seconds=10 * 3600)
-        with (
-            caplog.at_level(logging.ERROR),
-            patch(f"{_PKG}._fetch_workout_today", return_value=False),
-        ):
-            assert resolve_budget_seconds(config) == float(_EARNED)
-        assert "exceeds daily_gaming_seconds" in caplog.text
 
 
 class TestFetchWorkoutToday:

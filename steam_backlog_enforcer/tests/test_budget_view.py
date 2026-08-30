@@ -8,6 +8,7 @@ from unittest.mock import patch
 from steam_backlog_enforcer import _budget_view as view
 from steam_backlog_enforcer import _playtime_state as state_mod
 from steam_backlog_enforcer._budget_log_tail import RunningGame, SessionView
+from steam_backlog_enforcer._budget_resolve import BudgetResolution
 from steam_backlog_enforcer._budget_view import (
     CORRUPT,
     DENIED,
@@ -28,8 +29,16 @@ from steam_backlog_enforcer.config import Config
 # call to the screen locker and pins RULES to whatever budget today happens to
 # have earned. Stub it explicitly so the constant is the earned budget always.
 with patch(
-    "steam_backlog_enforcer._playtime_state.resolve_budget_seconds",
-    side_effect=lambda config: float(config.daily_gaming_seconds),
+    "steam_backlog_enforcer._playtime_state.resolve_budget",
+    side_effect=lambda config: BudgetResolution(
+        seconds=float(config.base_gaming_seconds)
+        + float(config.workout_bonus_seconds)
+        + float(config.leetcode_bonus_seconds),
+        base_seconds=float(config.base_gaming_seconds),
+        workout_seconds=float(config.workout_bonus_seconds),
+        leetcode_seconds=float(config.leetcode_bonus_seconds),
+        reason="stubbed: fully earned",
+    ),
 ):
     RULES = rules_for(Config(), demo=False)
 
@@ -95,7 +104,12 @@ class TestBuildToday:
         assert today["blocked_at"] == 2.0
 
     def test_a_zero_budget_reads_as_fully_spent(self) -> None:
-        rules = rules_for(Config(daily_gaming_seconds=0), demo=False)
+        rules = rules_for(
+            Config(
+                base_gaming_seconds=0, workout_bonus_seconds=0, leetcode_bonus_seconds=0
+            ),
+            demo=False,
+        )
         today = build_today(PlaytimeState(day_key="d", seconds=0.0), rules)
         assert today["fraction_used"] == 1.0
 
@@ -221,4 +235,6 @@ class TestBuildBudgetSnapshot:
             "warn_at",
             "demo",
             "masked_launchers",
+            "budget_reason",
+            "bonuses",
         }

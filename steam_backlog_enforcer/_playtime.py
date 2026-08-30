@@ -161,9 +161,11 @@ def _release_after_raise(
 
     Only ``roll_over`` at the 06:00 boundary ever reset ``blocked_at`` before
     the workout coupling existed, because the budget could not move within a
-    day. It can now: logging a workout raises it from the unearned floor to the
-    earned budget, and the mounts come down on the very next tick. Two things
-    have to come down with them.
+    day. It can now: logging a workout adds 2h and solving a LeetCode problem
+    adds 1h, and the mounts come down on the very next tick. The trigger is
+    ``state.seconds < rules.budget_seconds`` -- the number alone, never which
+    earner moved it -- so both raises release identically. Two things have to
+    come down with them.
 
     ``blocked_at`` — otherwise ``is_blocked()`` stays true and ``build_today``
     keeps reporting ``"blocked": true``, so the UI would claim you were blocked
@@ -172,7 +174,7 @@ def _release_after_raise(
 
     ``warned_seconds`` — the thresholds are keyed on seconds *remaining*, so a
     raise makes remaining climb back through values already recorded as fired.
-    Left alone, the extra two hours would arrive with no warnings at all.
+    Left alone, the extra hour or two would arrive with no warnings at all.
 
     Args:
         state: Accounting state for the current gaming day.

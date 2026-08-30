@@ -13,8 +13,8 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._budget_resolve import resolve_budget
 from steam_backlog_enforcer._whitelist import _try_set_immutable, unlock_for_write
-from steam_backlog_enforcer._workout_budget import resolve_budget_seconds
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 if TYPE_CHECKING:
@@ -49,7 +49,6 @@ _DAY_BOUNDARY_HOURS = 6
 # smallest value that tolerates one skipped tick without inflating the count.
 _DELTA_CLAMP_FACTOR = 2.0
 
-_DEFAULT_BUDGET_SECONDS = 8 * 3600.0
 _DEMO_BUDGET_SECONDS = 60.0
 
 # Seconds remaining at which to warn, descending.
@@ -122,6 +121,13 @@ class PlaytimeRules:
     engagement_gate: bool = True
     idle_grace_seconds: float = 300.0
     require_game_focus: bool = True
+    # What earned today's budget, carried here rather than resolved a second
+    # time: _budget_view reads the breakdown off these fields, so there stays
+    # exactly one resolution site.
+    base_seconds: float = 0.0
+    workout_seconds: float = 0.0
+    leetcode_seconds: float = 0.0
+    budget_reason: str = ""
 
 
 def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
@@ -138,13 +144,14 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
     Returns:
         The rules governing this tick.
     """
+    # Production budget is resolved, not read straight off config: it is a
+    # floor plus a bonus per earner. Resolving it *here* rather than at each
+    # caller is what stops the daemon (which holds one Config for its whole
+    # life) and _budget_view (which reloads Config per HTTP request) from
+    # reporting different budgets.
+    resolved = None if demo else resolve_budget(config)
     return PlaytimeRules(
-        # Production budget is resolved, not read straight off config: it
-        # depends on whether a workout was logged today. Resolving it *here*
-        # rather than at each caller is what stops the daemon (which holds one
-        # Config for its whole life) and _budget_view (which reloads Config per
-        # HTTP request) from reporting different budgets.
-        budget_seconds=_DEMO_BUDGET_SECONDS if demo else resolve_budget_seconds(config),
+        budget_seconds=_DEMO_BUDGET_SECONDS if resolved is None else resolved.seconds,
         warn_at=_DEMO_WARN_AT if demo else _WARN_AT,
         sigkill_after=(_DEMO_SIGKILL_AFTER_SECONDS if demo else _SIGKILL_AFTER_SECONDS),
         count_launchers=config.count_launcher_processes,
@@ -153,6 +160,12 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         engagement_gate=config.engagement_gate,
         idle_grace_seconds=float(config.idle_grace_seconds),
         require_game_focus=config.require_game_focus,
+        base_seconds=_DEMO_BUDGET_SECONDS
+        if resolved is None
+        else resolved.base_seconds,
+        workout_seconds=0.0 if resolved is None else resolved.workout_seconds,
+        leetcode_seconds=0.0 if resolved is None else resolved.leetcode_seconds,
+        budget_reason=("demo run" if resolved is None else resolved.reason),
     )
 
 
