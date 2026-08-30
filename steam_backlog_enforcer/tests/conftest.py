@@ -21,13 +21,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Imported for its autouse side effect: naming it here registers it.
+from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
 from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
 
 # Re-exported so ruff --fix does not delete the imports above: pytest
 # registers autouse fixtures by name, so they look unused to the linter.
-__all__ = ["_block_real_subprocesses", "_isolate_playtime", "_no_workout_http"]
+__all__ = [
+    "_block_real_subprocesses",
+    "_isolate_incidents",
+    "_isolate_playtime",
+    "_no_workout_http",
+]
 
 from steam_backlog_enforcer.tests._total_block_paths import (
     BLOCK,
