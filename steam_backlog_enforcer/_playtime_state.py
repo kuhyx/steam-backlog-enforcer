@@ -118,9 +118,6 @@ class PlaytimeRules:
     count_launchers: bool
     enforcement: bool
     demo: bool
-    engagement_gate: bool = True
-    idle_grace_seconds: float = 300.0
-    require_game_focus: bool = True
     # What earned today's budget, carried here rather than resolved a second
     # time: _budget_view reads the breakdown off these fields, so there stays
     # exactly one resolution site.
@@ -157,9 +154,6 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         count_launchers=config.count_launcher_processes,
         enforcement=config.playtime_enforcement,
         demo=demo,
-        engagement_gate=config.engagement_gate,
-        idle_grace_seconds=float(config.idle_grace_seconds),
-        require_game_focus=config.require_game_focus,
         base_seconds=_DEMO_BUDGET_SECONDS
         if resolved is None
         else resolved.base_seconds,

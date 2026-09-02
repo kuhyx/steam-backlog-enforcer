@@ -176,37 +176,14 @@ class TestQualifyingPids:
 class TestAttributedKey:
     """Deciding which single game a tick belongs to."""
 
-    _PKG = "steam_backlog_enforcer._playtime_procs"
-
-    def test_focused_pid_wins(self) -> None:
-        assert attributed_key({7: "app:440", 8: "proc:osu"}, 8) == "proc:osu"
-
-    def test_walks_up_to_the_owning_process(self) -> None:
-        """A Proton game's window belongs to a child of the SteamAppId process."""
-        with patch(f"{self._PKG}._read_ppid", side_effect=[900, 7]):
-            assert attributed_key({7: "app:440"}, 999) == "app:440"
-
-    def test_gives_up_when_the_chain_ends(self) -> None:
-        with patch(f"{self._PKG}._read_ppid", return_value=None):
-            assert attributed_key({7: "app:440", 8: "app:1"}, 999) == ""
-
-    def test_stops_at_init(self) -> None:
-        with patch(f"{self._PKG}._read_ppid", return_value=1):
-            assert attributed_key({7: "app:440", 8: "app:1"}, 999) == ""
-
-    def test_stops_after_the_depth_limit(self) -> None:
-        """A ppid cycle must not spin the enforce loop."""
-        with patch(f"{self._PKG}._read_ppid", return_value=500):
-            assert attributed_key({7: "app:440", 8: "app:1"}, 500) == ""
-
     def test_falls_back_to_the_only_game_running(self) -> None:
-        """Covers no X, or a toolkit that omits _NET_WM_PID."""
-        assert attributed_key({7: "app:440", 8: "app:440"}, None) == "app:440"
+        assert attributed_key({7: "app:440", 8: "app:440"}) == "app:440"
 
-    def test_two_games_and_no_focus_is_unattributable(self) -> None:
-        # There is no honest answer, so the tick still bills but the gap shows
-        # up as Unattributed rather than being charged to a guess.
-        assert attributed_key({7: "app:440", 8: "app:1"}, None) == ""
+    def test_two_games_is_unattributable(self) -> None:
+        # There is no honest way to say which one earned the tick, so the
+        # tick still bills but the gap shows up as Unattributed rather than
+        # being charged to a guess.
+        assert attributed_key({7: "app:440", 8: "app:1"}) == ""
 
     def test_nothing_qualifying(self) -> None:
-        assert attributed_key({}, None) == ""
+        assert attributed_key({}) == ""

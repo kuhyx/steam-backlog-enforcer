@@ -14,15 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer import _playtime_log as log_mod
-from steam_backlog_enforcer._engagement_types import (
-    CAUSE_IDLE,
-    STATE_ENGAGED,
-    STATE_NOT_APPLICABLE,
-    STATE_PAUSED,
-    EngagementVerdict,
-)
 from steam_backlog_enforcer._playtime_log import (
-    EVENT_DETECTOR_FAILURE,
     EVENT_HEARTBEAT,
     EVENT_VERDICT_CHANGE,
     BudgetLog,
@@ -142,32 +134,28 @@ class TestTickJournal:
         for log in self._logs:
             log.close()
 
-    def _observe(
-        self, journal: TickJournal, verdict: EngagementVerdict, at: float
-    ) -> None:
-        journal.observe(verdict, STATE, rules=RULES, now_monotonic=at)
+    def _observe(self, journal: TickJournal, qualifying: set[int], at: float) -> None:
+        journal.observe(qualifying, STATE, rules=RULES, now_monotonic=at)
 
     def test_a_changed_verdict_is_recorded(self, tmp_path: Path) -> None:
         journal, target = self._journal(tmp_path)
-        self._observe(journal, EngagementVerdict(state=STATE_ENGAGED), 0.0)
+        self._observe(journal, {11}, 0.0)
         events = [r["event"] for r in _records(target)]
         assert events == [EVENT_VERDICT_CHANGE]
 
     def test_an_unchanged_verdict_is_not_repeated(self, tmp_path: Path) -> None:
         journal, target = self._journal(tmp_path, heartbeat=300.0)
-        verdict = EngagementVerdict(state=STATE_ENGAGED)
         for tick in range(5):
-            self._observe(journal, verdict, float(tick) * 3.0)
+            self._observe(journal, {11}, float(tick) * 3.0)
         assert len(_records(target)) == 1
 
     def test_a_heartbeat_is_written_once_the_interval_passes(
         self, tmp_path: Path
     ) -> None:
         journal, target = self._journal(tmp_path, heartbeat=10.0)
-        verdict = EngagementVerdict(state=STATE_ENGAGED)
-        self._observe(journal, verdict, 0.0)
-        self._observe(journal, verdict, 5.0)
-        self._observe(journal, verdict, 50.0)
+        self._observe(journal, {11}, 0.0)
+        self._observe(journal, {11}, 5.0)
+        self._observe(journal, {11}, 50.0)
         assert [r["event"] for r in _records(target)] == [
             EVENT_VERDICT_CHANGE,
             EVENT_HEARTBEAT,
@@ -175,32 +163,16 @@ class TestTickJournal:
 
     def test_ordinary_desktop_use_produces_no_heartbeat(self, tmp_path: Path) -> None:
         journal, target = self._journal(tmp_path, heartbeat=0.0)
-        verdict = EngagementVerdict(state=STATE_NOT_APPLICABLE)
-        self._observe(journal, verdict, 0.0)
-        self._observe(journal, verdict, 1000.0)
+        self._observe(journal, set(), 0.0)
+        self._observe(journal, set(), 1000.0)
         assert len(_records(target)) == 1
-
-    def test_a_degraded_probe_is_always_recorded(self, tmp_path: Path) -> None:
-        journal, target = self._journal(tmp_path)
-        verdict = EngagementVerdict(state=STATE_ENGAGED, degraded=("idle",))
-        self._observe(journal, verdict, 0.0)
-        self._observe(journal, verdict, 3.0)
-        events = [r["event"] for r in _records(target)]
-        assert events.count(EVENT_DETECTOR_FAILURE) == 2
-        assert all(r.get("billed", True) for r in _records(target))
 
     def test_the_snapshot_names_the_qualifying_processes(self, tmp_path: Path) -> None:
         # Without these, accrual from an orphaned helper process cannot be
         # attributed after the fact.
         journal, target = self._journal(tmp_path)
-        verdict = EngagementVerdict(
-            state=STATE_PAUSED,
-            causes=(CAUSE_IDLE,),
-            idle_seconds=310.0,
-            qualifying=(11, 22),
-        )
-        self._observe(journal, verdict, 0.0)
+        self._observe(journal, {22, 11}, 0.0)
         record = _records(target)[0]
         assert record["qualifying"] == [11, 22]
-        assert record["reason"] == "idle"
+        assert record["state"] == "engaged"
         assert record["remaining_seconds"] == 28700.0

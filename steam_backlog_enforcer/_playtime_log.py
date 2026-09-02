@@ -7,7 +7,9 @@ from the spacing of two warning notifications. That is not an audit trail.
 
 So every budget decision is recorded here as one JSON object per line, readable
 without ``sudo`` (unlike the state file, whose ``PermissionError`` is swallowed
-on load and silently reported as "no state recorded yet").
+on load and silently reported as "no state recorded yet"). There is no
+engagement gate any more, so the record is deliberately thin: it answers
+"was a qualifying process running," not "why wasn't it billing."
 
 Volume is controlled by only writing when something *changes*. At a three-second
 tick, one line per tick would be 28 800 lines a day of almost entirely identical
@@ -27,10 +29,7 @@ import logging.handlers
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
-from steam_backlog_enforcer._engagement_types import STATE_NOT_APPLICABLE
-
 if TYPE_CHECKING:
-    from steam_backlog_enforcer._engagement_types import EngagementVerdict
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 
 logger = logging.getLogger(__name__)
@@ -44,8 +43,10 @@ _HEARTBEAT_SECONDS: Final = 300.0
 
 EVENT_VERDICT_CHANGE: Final = "verdict_change"
 EVENT_HEARTBEAT: Final = "heartbeat"
-EVENT_DETECTOR_FAILURE: Final = "detector_failure"
 EVENT_MANUAL_ADJUSTMENT: Final = "manual_adjustment"
+
+STATE_ENGAGED: Final = "engaged"
+STATE_NOT_APPLICABLE: Final = "not_applicable"
 
 
 def budget_log_path(*, demo: bool) -> Path:
@@ -162,35 +163,30 @@ class TickJournal:
 
     def observe(
         self,
-        verdict: EngagementVerdict,
+        qualifying: set[int],
         state: PlaytimeState,
         *,
         rules: PlaytimeRules,
         now_monotonic: float,
     ) -> None:
-        """Record *verdict* if it changed, failed, or is due a heartbeat.
+        """Record this tick's qualifying set if it changed or is due a heartbeat.
 
         Args:
-            verdict: This tick's verdict.
+            qualifying: PIDs that qualified this tick.
             state: Accounting state after this tick.
             rules: Policy for this tick.
             now_monotonic: Monotonic timestamp for heartbeat spacing.
         """
-        if verdict.degraded:
-            self._log.record(
-                EVENT_DETECTOR_FAILURE,
-                degraded=list(verdict.degraded),
-                billed=True,
-                **_snapshot(verdict, state, rules),
-            )
-
-        if verdict.reason != self._last_reason:
-            self._last_reason = verdict.reason
+        reason = STATE_ENGAGED if qualifying else STATE_NOT_APPLICABLE
+        if reason != self._last_reason:
+            self._last_reason = reason
             self._last_written_at = now_monotonic
-            self._log.record(EVENT_VERDICT_CHANGE, **_snapshot(verdict, state, rules))
+            self._log.record(
+                EVENT_VERDICT_CHANGE, **_snapshot(qualifying, state, rules)
+            )
             return
 
-        if verdict.state == STATE_NOT_APPLICABLE:
+        if reason == STATE_NOT_APPLICABLE:
             return
         # The change branch above always fires on the first observation and
         # sets both fields together, so by here this is never None.
@@ -199,11 +195,11 @@ class TickJournal:
             return
 
         self._last_written_at = now_monotonic
-        self._log.record(EVENT_HEARTBEAT, **_snapshot(verdict, state, rules))
+        self._log.record(EVENT_HEARTBEAT, **_snapshot(qualifying, state, rules))
 
 
 def _snapshot(
-    verdict: EngagementVerdict, state: PlaytimeState, rules: PlaytimeRules
+    qualifying: set[int], state: PlaytimeState, rules: PlaytimeRules
 ) -> dict[str, object]:
     """Flatten a tick into the fields every record carries.
 
@@ -211,7 +207,7 @@ def _snapshot(
     after the last game exited could not be attributed without them.
 
     Args:
-        verdict: This tick's verdict.
+        qualifying: PIDs that qualified this tick.
         state: Accounting state after this tick.
         rules: Policy for this tick.
 
@@ -219,15 +215,8 @@ def _snapshot(
         The record body.
     """
     return {
-        "state": verdict.state,
-        "reason": verdict.reason,
-        "causes": list(verdict.causes),
-        "idle_seconds": verdict.idle_seconds,
-        "controller_idle_seconds": verdict.controller_idle_seconds,
-        "screen_held": verdict.screen_held,
-        "holder_pid": verdict.holder_pid,
-        "focus_pid": verdict.focus_pid,
-        "qualifying": list(verdict.qualifying),
+        "state": STATE_ENGAGED if qualifying else STATE_NOT_APPLICABLE,
+        "qualifying": sorted(qualifying),
         "day_key": state.day_key,
         "billed_seconds": round(state.seconds, 3),
         "remaining_seconds": round(rules.budget_seconds - state.seconds, 3),

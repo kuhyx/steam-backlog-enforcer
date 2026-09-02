@@ -623,9 +623,6 @@ td.proton {
 .budget-verdict--engaged {
   color: var(--accent-2);
 }
-.budget-verdict--paused {
-  color: var(--warn);
-}
 .budget-rules-list {
   display: grid;
   grid-template-columns: max-content 1fr;

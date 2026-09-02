@@ -116,7 +116,7 @@ def _enforce_loop_iteration(
     Args:
         config: Enforcer configuration.
         state: Current enforcer state.
-        session: Cross-tick engagement and logging state.
+        session: Cross-tick logging state.
         demo: Run the gaming budget on a 60-second demo budget.
     """
     # Daily gaming budget runs FIRST and unconditionally. Every guard below
@@ -220,8 +220,8 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
     _echo(f"  Enforce loop: ACTIVE (every {ENFORCE_INTERVAL}s)")
     _echo("  Guarding: processes + installs + store")
     _echo("  Press Ctrl+C to stop.\n")
-    # One session for the whole daemon: the engagement backdate needs to see
-    # the previous tick's verdict, so it cannot be rebuilt per iteration.
+    # One session for the whole daemon: the audit journal needs to see the
+    # previous tick's record, so it cannot be rebuilt per iteration.
     session = new_session(demo=demo)
     try:
         while True:

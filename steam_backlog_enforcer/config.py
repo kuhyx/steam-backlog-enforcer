@@ -119,14 +119,6 @@ class Config:
     Disabling stops the cutoff but never strands a live block — the release
     path runs regardless, so "disabled" cannot come to mean "blocked forever".
     """
-    # Engagement gating: without it a resident game process bills the budget
-    # while the screen is locked. See :mod:`_playtime_engagement`.
-    engagement_gate: bool = True
-    """Whether a tick must show active engagement before it bills."""
-    idle_grace_seconds: int = 300
-    """Input silence before billing stops; controller input counts as input."""
-    require_game_focus: bool = True
-    """Whether the focused window must belong to the game for a tick to bill."""
 
     def save(self) -> None:
         """Persist config to disk."""

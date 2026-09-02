@@ -12,11 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._counted_procs import key_by_name, load_counted_processes
-from steam_backlog_enforcer._playtime_kill import (
-    _INIT_PID,
-    _MAX_PROCESS_TREE_DEPTH,
-    _read_ppid,
-)
 from steam_backlog_enforcer._total_block_launchers import LAUNCHER_PROCESS_NAMES
 from steam_backlog_enforcer.enforcer import (
     get_pids_by_process_names,
@@ -177,38 +172,19 @@ def qualifying_pids(rules: PlaytimeRules) -> dict[int, str]:
     return found
 
 
-def attributed_key(qualifying: dict[int, str], focus_pid: int | None) -> str:
+def attributed_key(qualifying: dict[int, str]) -> str:
     """Return the single attribution key this tick should be credited to.
 
-    The focused window decides it, walking ancestry the same way
-    ``_engagement_probes.focus_qualifies`` does — a Proton game's window belongs
-    to a child of the process carrying ``SteamAppId``.
-
-    Falling back to "the only game running" keeps attribution working when the
-    focus probe is unavailable (no X, or a toolkit that omits ``_NET_WM_PID``).
-    With two games running and no focus signal there is no honest answer, so it
-    returns ``""``: the tick still bills, and the gap shows up as Unattributed
-    rather than being charged to a guess.
+    With exactly one game qualifying, it gets the credit. With two or more
+    running at once there is no honest way to say which one earned the tick,
+    so this returns ``""``: the tick still bills, and the gap shows up as
+    Unattributed rather than being charged to a guess.
 
     Args:
         qualifying: Mapping of qualifying PID to attribution key.
-        focus_pid: PID owning the focused window, or ``None``.
 
     Returns:
         The attribution key, or ``""`` if none can be determined.
     """
-    if focus_pid is not None:
-        pid = focus_pid
-        for _ in range(_MAX_PROCESS_TREE_DEPTH):
-            key = qualifying.get(pid)
-            if key is not None:
-                return key
-            if pid <= _INIT_PID:
-                break
-            parent = _read_ppid(pid)
-            if parent is None:
-                break
-            pid = parent
-
     distinct = set(qualifying.values())
     return distinct.pop() if len(distinct) == 1 else ""

@@ -20,10 +20,6 @@ def _record(**over: object) -> str:
         "timestamp": "2026-08-28T20:42:19+02:00",
         "event": "verdict_change",
         "state": "engaged",
-        "reason": "engaged",
-        "causes": [],
-        "idle_seconds": 1.5,
-        "screen_held": False,
         "qualifying": [],
         "day_key": "2026-08-28",
         "billed_seconds": 100.0,
@@ -41,13 +37,10 @@ class TestLastVerdict:
         assert view.state == ""
 
     def test_reads_the_last_record(self) -> None:
-        _write([_record(state="paused"), _record(state="engaged", reason="ok")])
+        _write([_record(state="not_applicable"), _record(state="engaged")])
         view = last_verdict(demo=False)
         assert view.available is True
         assert view.state == "engaged"
-        assert view.reason == "ok"
-        assert view.idle_seconds == 1.5
-        assert view.screen_held is False
         assert view.observed_at.startswith("2026-08-28")
 
     def test_skips_a_malformed_last_line(self) -> None:
@@ -93,14 +86,7 @@ class TestLastVerdict:
         view = last_verdict(demo=False)
         assert view.available is True
         assert view.state == ""
-        assert view.causes == []
-        assert view.idle_seconds is None
-        assert view.screen_held is None
         assert view.observed_at == ""
-
-    def test_non_list_causes_are_dropped(self) -> None:
-        _write([_record(causes="focus")])
-        assert last_verdict(demo=False).causes == []
 
 
 class TestLiveGames:

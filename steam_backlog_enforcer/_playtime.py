@@ -81,14 +81,13 @@ def playtime_tick(
     that time is still counted (and a 06:00 release still happens) in the
     situations where the rest of the loop early-returns.
 
-    Time only accrues while the user is actually engaged: a resident game
-    process behind a locked screen, an unfocused window or five minutes of
-    silence is not play. See :mod:`_playtime_engagement`.
+    A qualifying process running is sufficient on its own — there is no
+    engagement gate on top of it.
 
     Args:
         config: Loaded user configuration.
         interval: Nominal seconds between enforce-loop ticks.
-        session: Cross-tick engagement and logging state.
+        session: Cross-tick logging state.
         demo: Whether this is a short-budget demo run.
     """
     now = datetime.now(UTC).astimezone()
@@ -106,21 +105,16 @@ def playtime_tick(
 
     owners = qualifying_pids(rules)
     pids = set(owners)
-    monotonic = time.monotonic()
-    verdict = session.tracker.assess(rules, qualifying=pids, now_monotonic=monotonic)
 
     state = accumulate(
         state,
         now=now,
-        qualifying=pids if verdict.engaged else set(),
+        qualifying=pids,
         interval=interval,
-        credited_key=(
-            attributed_key(owners, verdict.focus_pid) if verdict.engaged else ""
-        ),
+        credited_key=attributed_key(owners),
     )
-    state = session.tracker.backdate(state, verdict, rules=rules)
     state = _policy(state, rules, now=now)
-    session.journal.observe(verdict, state, rules=rules, now_monotonic=monotonic)
+    session.journal.observe(pids, state, rules=rules, now_monotonic=time.monotonic())
     save_state(state, demo=demo)
     session.history.observe(state, demo=demo)
 

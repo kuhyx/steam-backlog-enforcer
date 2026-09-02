@@ -177,10 +177,6 @@ class TestBuildBudgetSnapshot:
         session = SessionView(
             observed_at="2026-08-28T20:42:19+02:00",
             state="engaged",
-            reason="engaged",
-            causes=["focus"],
-            idle_seconds=2.0,
-            screen_held=False,
             games=[RunningGame(pid=7, name="hollow_knight")],
             available=True,
         )
@@ -229,9 +225,6 @@ class TestBuildBudgetSnapshot:
             "budget_seconds",
             "enforcement",
             "counts_launchers",
-            "engagement_gate",
-            "idle_grace_seconds",
-            "require_game_focus",
             "warn_at",
             "demo",
             "masked_launchers",

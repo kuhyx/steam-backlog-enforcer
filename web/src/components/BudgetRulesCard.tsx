@@ -18,11 +18,6 @@ export function BudgetRulesCard({ rules }: Props) {
         <dd>{fmtDuration(rules.budget_seconds)}</dd>
         <dt>Enforcement</dt>
         <dd>{onOff(rules.enforcement)}</dd>
-        <dt>Engagement gate</dt>
-        <dd>
-          {onOff(rules.engagement_gate)} · idle grace {fmtDuration(rules.idle_grace_seconds)}
-          {rules.require_game_focus ? ' · game must be focused' : ''}
-        </dd>
         <dt>Counts launchers</dt>
         <dd>{rules.counts_launchers ? 'yes' : 'no'}</dd>
         <dt>Warnings at</dt>

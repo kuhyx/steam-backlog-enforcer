@@ -1,4 +1,4 @@
-import { fmtAgo, fmtDuration } from '../format'
+import { fmtAgo } from '../format'
 import type { BudgetSession } from '../types'
 
 interface Props {
@@ -7,18 +7,7 @@ interface Props {
 
 const VERDICT_LABELS: Record<string, string> = {
   engaged: 'Billing — you are playing',
-  paused: 'Not billing — paused',
   not_applicable: 'Not billing — no game running',
-}
-
-const CAUSE_LABELS: Record<string, string> = {
-  idle: 'no input for longer than the idle grace',
-  focus: 'the game window is not focused',
-  screen_held: 'the screen is locked or held',
-}
-
-function describe(values: string[], labels: Record<string, string>): string[] {
-  return values.map((value) => labels[value] ?? value)
 }
 
 export function BudgetLiveCard({ session }: Props) {
@@ -54,17 +43,13 @@ export function BudgetLiveCard({ session }: Props) {
           {/* The assignment above is what the enforcer told you to play; this
               is what the budget charged. A counted non-Steam game is never the
               assignment, so the two legitimately differ. The key is the *last*
-              one credited, so it must not claim to be live while paused. */}
+              one credited, so it must not claim to be live once nothing
+              qualifies any more. */}
           {session.state === 'engaged' ? 'Billing to ' : 'Last billed to '}
           <strong>{session.billing_label}</strong>
         </p>
       )}
-      {session.causes.length > 0 && (
-        <p className="hint">Paused because {describe(session.causes, CAUSE_LABELS).join(', ')}.</p>
-      )}
       <p className="hint">
-        {session.idle_seconds !== null && <>Idle {fmtDuration(session.idle_seconds)} · </>}
-        {session.screen_held !== null && <>Screen held: {session.screen_held ? 'yes' : 'no'} · </>}
         {/* The daemon logs on change or a 5-minute heartbeat, so this reading
             can legitimately be minutes old. Saying so beats implying "now". */}
         as of {fmtAgo(session.observed_at)}

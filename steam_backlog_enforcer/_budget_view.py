@@ -151,9 +151,6 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
         "budget_seconds": rules.budget_seconds,
         "enforcement": rules.enforcement,
         "counts_launchers": rules.count_launchers,
-        "engagement_gate": rules.engagement_gate,
-        "idle_grace_seconds": rules.idle_grace_seconds,
-        "require_game_focus": rules.require_game_focus,
         "warn_at": list(rules.warn_at),
         "demo": rules.demo,
         "masked_launchers": sorted(str(path) for path in mounted_targets()),
@@ -207,10 +204,6 @@ def build_budget_snapshot(*, demo: bool = False) -> dict[str, Any]:
             "available": session.available,
             "observed_at": session.observed_at,
             "state": session.state,
-            "reason": session.reason,
-            "causes": session.causes,
-            "idle_seconds": session.idle_seconds,
-            "screen_held": session.screen_held,
             # A single Proton title qualifies a dozen processes — reaper,
             # srt-bwrap, wineserver, plugplay.exe. Listing those as "games
             # running" would be nonsense, so the headline is the game the

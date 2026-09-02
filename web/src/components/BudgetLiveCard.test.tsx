@@ -12,36 +12,11 @@ describe('BudgetLiveCard', () => {
     expect(screen.getByText(/Billing to/)).toBeInTheDocument()
     expect(screen.getAllByText('Hollow Knight')).toHaveLength(2)
     expect(screen.getByText(/3 qualifying processes/)).toBeInTheDocument()
-    expect(screen.getByText(/Idle 2s/)).toBeInTheDocument()
-    expect(screen.getByText(/Screen held: no/)).toBeInTheDocument()
   })
 
-  it('explains why a session is paused', () => {
-    render(
-      <BudgetLiveCard
-        session={makeBudgetSession({
-          state: 'paused',
-          reason: 'focus',
-          causes: ['focus', 'idle'],
-          screen_held: true,
-        })}
-      />,
-    )
-    expect(screen.getByText(/Not billing — paused/)).toBeInTheDocument()
-    expect(
-      screen.getByText(/the game window is not focused, no input for longer/),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/Screen held: yes/)).toBeInTheDocument()
-  })
-
-  it('falls back to the raw cause and verdict when unrecognised', () => {
-    render(
-      <BudgetLiveCard
-        session={makeBudgetSession({ state: 'weird', causes: ['gremlins'] })}
-      />,
-    )
+  it('falls back to the raw verdict when unrecognised', () => {
+    render(<BudgetLiveCard session={makeBudgetSession({ state: 'weird' })} />)
     expect(screen.getByText('weird')).toBeInTheDocument()
-    expect(screen.getByText(/gremlins/)).toBeInTheDocument()
   })
 
   it('omits the game line when nothing qualifies', () => {
@@ -51,14 +26,11 @@ describe('BudgetLiveCard', () => {
           state: 'not_applicable',
           qualifying_count: 0,
           processes: [],
-          idle_seconds: null,
-          screen_held: null,
         })}
       />,
     )
     expect(screen.getByText(/no game running/)).toBeInTheDocument()
     expect(screen.queryByText(/qualifying processes/)).toBeNull()
-    expect(screen.queryByText(/Idle/)).toBeNull()
   })
 
   it('handles a qualifying session with no assigned game name', () => {

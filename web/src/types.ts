@@ -139,10 +139,6 @@ export interface BudgetSession {
   /** ISO-8601 timestamp the daemon recorded; may be minutes old. */
   observed_at: string
   state: string
-  reason: string
-  causes: string[]
-  idle_seconds: number | null
-  screen_held: boolean | null
   game_name: string
   /** Game the budget is actually charging; differs from `game_name`, which
    * is the backlog assignment. Empty when nothing has billed yet. */
@@ -174,9 +170,6 @@ export interface BudgetRules {
   budget_seconds: number
   enforcement: boolean
   counts_launchers: boolean
-  engagement_gate: boolean
-  idle_grace_seconds: number
-  require_game_focus: boolean
   warn_at: number[]
   demo: boolean
   masked_launchers: string[]

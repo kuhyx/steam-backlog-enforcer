@@ -1,10 +1,10 @@
 """Reading the last recorded verdict back out of the budget audit log.
 
-``_playtime_log`` writes the daemon's own view of why time is or is not being
-billed — engagement state, the causes behind it, which PIDs qualified. That is
-exactly what a live status display wants, and reading it back beats having the
-web server run its own engagement probes: a second opinion that disagreed with
-the daemon's would be worse than no opinion at all.
+``_playtime_log`` writes the daemon's own view of whether a qualifying process
+was running and which PIDs qualified. That is exactly what a live status
+display wants, and reading it back beats having the web server re-derive it
+itself: a second opinion that disagreed with the daemon's would be worse than
+no opinion at all.
 
 The log is append-only and can reach 5 MB before rotating, so only its tail is
 read. One record is all anyone needs and a status endpoint polled every few
@@ -43,15 +43,11 @@ class RunningGame:
 
 @dataclass(frozen=True)
 class SessionView:
-    """The most recently logged engagement verdict."""
+    """The most recently logged tick observation."""
 
     observed_at: str = ""
     """ISO-8601 timestamp the daemon recorded, ``""`` if unknown."""
     state: str = ""
-    reason: str = ""
-    causes: list[str] = field(default_factory=list)
-    idle_seconds: float | None = None
-    screen_held: bool | None = None
     games: list[RunningGame] = field(default_factory=list)
     available: bool = False
     """Whether a record was found at all."""
@@ -111,7 +107,7 @@ def _live_games(record: dict[str, Any]) -> list[RunningGame]:
 
 
 def last_verdict(*, demo: bool) -> SessionView:
-    """Return the most recently logged engagement verdict.
+    """Return the most recently logged tick observation.
 
     Args:
         demo: Whether to read the demo log.
@@ -123,16 +119,9 @@ def last_verdict(*, demo: bool) -> SessionView:
     if record is None:
         return SessionView()
 
-    causes = record.get("causes")
-    idle = record.get("idle_seconds")
-    held = record.get("screen_held")
     return SessionView(
         observed_at=str(record.get("timestamp") or ""),
         state=str(record.get("state") or ""),
-        reason=str(record.get("reason") or ""),
-        causes=[str(cause) for cause in causes] if isinstance(causes, list) else [],
-        idle_seconds=float(idle) if isinstance(idle, (int, float)) else None,
-        screen_held=held if isinstance(held, bool) else None,
         games=_live_games(record),
         available=True,
     )
