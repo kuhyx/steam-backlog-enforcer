@@ -1,7 +1,7 @@
 # Session prompt: continue the 250-line cap refactor
 
 Paste everything below the line into a fresh Claude Code session started in
-`~/steam-backlog-enforcer`.
+`~/src/steam-backlog-enforcer`.
 
 ---
 
@@ -25,7 +25,7 @@ bash scripts/check_file_length.sh --all        # 39 files over the cap
 Already done (do not redo):
 
 - **The gate is live.** `scripts/file_length/` is a vendored copy of
-  `~/utils/file_length/`, wired as the `file-length` pre-commit hook. It is
+  `~/src/utils/file_length/`, wired as the `file-length` pre-commit hook. It is
   excluded from ruff/mypy/pylint and must stay byte-identical to upstream.
   `pre-commit install` has been run (it never had been — only `pre-push`).
 - `main.py` → `main/` package; `_total_block`, `_playtime`, `_mcp` split.
@@ -163,7 +163,7 @@ Long jobs (`scripts/ci_mirror.sh`, full-suite runs) go in the background with
 ## Done condition
 
 - `bash scripts/check_file_length.sh --all` → exit 0, and the todo's literal
-  `bash ~/utils/scripts/check_file_length.sh --all` → exit 0 (running both
+  `bash ~/src/utils/scripts/check_file_length.sh --all` → exit 0 (running both
   catches drift between the vendored copy and upstream).
 - `.ci-mirror-venv/bin/python -m pytest steam_backlog_enforcer/tests/ -q` →
   green at exactly 100%.

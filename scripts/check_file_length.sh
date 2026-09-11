@@ -7,9 +7,9 @@
 # which is the largest avoidable cost in an LLM-assisted workflow. The cap
 # applies to code AND prose; generated files, markup and data are exempt.
 #
-# This is a VENDORED copy of ~/utils/file_length/. It is vendored rather than
+# This is a VENDORED copy of ~/src/utils/file_length/. It is vendored rather than
 # referenced because pre-commit's `entry:` is not shell-expanded and CI
-# runners have no ~/utils -- an external reference would pass locally and
+# runners have no ~/src/utils -- an external reference would pass locally and
 # silently skip on push.
 #
 # Usage:

@@ -1,7 +1,7 @@
 # Session prompt: take pylint from 8.65 to 10.00
 
 Paste everything below the line into a fresh Claude Code session started in
-`~/steam-backlog-enforcer`.
+`~/src/steam-backlog-enforcer`.
 
 ---
 
@@ -12,7 +12,7 @@ weakening the linter.
 
 The pre-commit pylint hook runs with `--fail-under=8.0`, so at 8.65 the repo
 passes its gate while carrying ~1600 findings. The threshold is hiding the
-debt rather than measuring it. The same job was done in `~/utils/crdt-sync`
+debt rather than measuring it. The same job was done in `~/src/utils/crdt-sync`
 on 2026-08-21 (8.58 -> 10.00); this repo has the identical shape of problem,
 only larger.
 

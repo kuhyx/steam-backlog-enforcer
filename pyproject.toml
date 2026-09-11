@@ -22,7 +22,7 @@ dependencies = [
 # dependency so the systemd/CLI system-python path stays dependency-light and
 # never has to import the MCP SDK.
 [project.optional-dependencies]
-mcp = ["mcp==2.1.1"]
+mcp = ["mcp==2.2.0"]
 
 # Explicit package discovery. Without this, setuptools' flat-layout
 # auto-discovery aborts because the repo root holds two top-level dirs
@@ -38,7 +38,7 @@ include = ["steam_backlog_enforcer*"]
 [tool.ruff]
 target-version = "py314"
 include = ["*.py", "**/*.py"]
-# scripts/file_length is a VENDORED copy of ~/utils/file_length and must stay
+# scripts/file_length is a VENDORED copy of ~/src/utils/file_length and must stay
 # byte-identical to upstream; ruff --unsafe-fixes otherwise strips its print()
 # calls (T201) and silently guts the gate's reporting.
 exclude = [".git", ".venv", "__pycache__", "build", "dist", ".eggs", "scripts/file_length"]
