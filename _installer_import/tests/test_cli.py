@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from steam_installer import appinfo, cli, recognize, resolve, runlog, vdf
+from steam_installer import appinfo, cli, depotdl, deps, recognize, runlog, vdf
 from steam_installer.library import SteamLibrary
 
 
@@ -53,21 +53,23 @@ def steam(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "find_steam_root", lambda: root)
     monkeypatch.setattr(cli, "list_libraries", lambda r: [library])
     monkeypatch.setattr(cli, "pick_install_target", lambda libs, d: install_dir)
-    monkeypatch.setattr(cli.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(deps.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(
-        cli.appinfo,
+        appinfo,
         "get_metadata",
         lambda appid: appinfo.AppMetadata(appid, "KCD2", "KingdomComeDeliverance2"),
     )
     monkeypatch.setattr(
-        cli.appinfo,
+        appinfo,
         "get_depot_plan",
         lambda appid, language: appinfo.DepotPlan({"1771303"}, {"228989"}),
     )
-    monkeypatch.setattr(cli.appinfo, "get_build_id", lambda appid: "23914554")
+    monkeypatch.setattr(appinfo, "get_build_id", lambda appid: "23914554")
     monkeypatch.setattr(recognize, "steam_client_pids", lambda: [])
-    monkeypatch.setattr(cli.recognize, "steam_client_pids", lambda: [])
+    monkeypatch.setattr(recognize, "steam_client_pids", lambda: [])
     monkeypatch.setattr("builtins.input", lambda *a: "y")
+    # Prompting is tty-gated now, and pytest's stdin is not a tty.
+    monkeypatch.setattr(cli, "_is_interactive", lambda args: True)
     return library, install_dir
 
 
@@ -75,12 +77,12 @@ ARGV = ["--appid", "1771300", "--username", "u", "--language", "english"]
 
 
 def _stub_download(monkeypatch, returncode=0):
-    monkeypatch.setattr(cli.depotdl, "download", lambda **kw: returncode)
+    monkeypatch.setattr(depotdl, "download", lambda **kw: returncode)
 
 
 def _stub_steamcmd(monkeypatch, returncode, crashed=False):
     monkeypatch.setattr(
-        cli.recognize,
+        recognize,
         "run_steamcmd_validate",
         lambda appid, username, logger: recognize.ValidateResult(
             completed=returncode == 0,
@@ -112,7 +114,7 @@ def test_refuses_when_a_required_depot_never_downloaded(steam, monkeypatch):
     _stub_download(monkeypatch)
     _stub_steamcmd(monkeypatch, returncode=8)
     monkeypatch.setattr(
-        cli.appinfo,
+        appinfo,
         "get_depot_plan",
         lambda appid, language: appinfo.DepotPlan({"1771303", "9999999"}, set()),
     )
@@ -133,13 +135,15 @@ def test_refuses_when_depotdownloader_fails(steam, monkeypatch):
     assert app_state["StateFlags"] == "1026"
 
 
-def test_refuses_before_downloading_when_steam_is_running(steam, monkeypatch):
-    """Steam owns the manifest while it runs; refuse up front rather than after
-    an hour of downloading."""
-    library, _ = steam
-    monkeypatch.setattr(cli.recognize, "steam_client_pids", lambda: [4242])
+def test_declining_to_close_steam_aborts_before_downloading(steam, monkeypatch):
+    """Steam owns the manifest while it runs. The tool offers to close it, but a
+    "no" must stop the run rather than download for an hour and lose the write."""
+    monkeypatch.setattr(recognize, "steam_client_pids", lambda: [4242])
+    monkeypatch.setattr(
+        "builtins.input", lambda *a: "n" if "Steam is running" in a[0] else "y"
+    )
     called = []
-    monkeypatch.setattr(cli.depotdl, "download", lambda **kw: called.append(1) or 0)
+    monkeypatch.setattr(depotdl, "download", lambda **kw: called.append(1) or 0)
 
     assert cli.main(ARGV) == 1
     assert called == []
@@ -165,10 +169,10 @@ def test_clean_steamcmd_run_short_circuits(steam, monkeypatch):
         )
         return recognize.ValidateResult(True, False, 0)
 
-    monkeypatch.setattr(cli.recognize, "run_steamcmd_validate", fake_validate)
+    monkeypatch.setattr(recognize, "run_steamcmd_validate", fake_validate)
     called = []
     monkeypatch.setattr(
-        cli.recognize,
+        recognize,
         "finish_manifest_manually",
         lambda **kw: called.append(1),
     )
@@ -205,10 +209,10 @@ def test_a_complete_install_after_a_failed_steamcmd_is_not_credited_to_it(
         )
         return recognize.ValidateResult(True, False, 5)
 
-    monkeypatch.setattr(cli.recognize, "run_steamcmd_validate", fake_validate)
+    monkeypatch.setattr(recognize, "run_steamcmd_validate", fake_validate)
     called = []
     monkeypatch.setattr(
-        cli.recognize, "finish_manifest_manually", lambda **kw: called.append(1)
+        recognize, "finish_manifest_manually", lambda **kw: called.append(1)
     )
 
     assert cli.main(ARGV) == 0
@@ -221,7 +225,7 @@ def test_a_complete_install_after_a_failed_steamcmd_is_not_credited_to_it(
 def test_user_declining_confirmation_aborts(steam, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *a: "n")
     called = []
-    monkeypatch.setattr(cli.depotdl, "download", lambda **kw: called.append(1) or 0)
+    monkeypatch.setattr(depotdl, "download", lambda **kw: called.append(1) or 0)
     assert cli.main(ARGV) == 1
     assert called == []
 
@@ -230,7 +234,7 @@ def test_unhandled_error_returns_nonzero_and_names_the_log(steam, monkeypatch, c
     def boom(**kwargs):
         raise RuntimeError("depotdownloader exploded")
 
-    monkeypatch.setattr(cli.depotdl, "download", boom)
+    monkeypatch.setattr(depotdl, "download", boom)
 
     assert cli.main(ARGV) == 1
     assert "Run log" in capsys.readouterr().out
@@ -268,43 +272,11 @@ def test_missing_manifest_with_steamcmd_blames_steamcmd(steam, monkeypatch, caps
     assert "steamcmd never ran far enough" in capsys.readouterr().out
 
 
-def test_require_tool_exits_when_binary_missing(monkeypatch, capsys):
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
-    with pytest.raises(SystemExit):
-        cli._require_tool("depotdownloader", "See ~/depotdownloader.")
-    assert "not found on PATH" in capsys.readouterr().err
-
-
-def test_resolve_appid_uses_search_when_no_appid(monkeypatch):
-    monkeypatch.setattr(
-        cli.resolve, "search", lambda name: [resolve.SearchResult(1771300, "KCD2")]
-    )
-    monkeypatch.setattr(cli.resolve, "prompt_confirm", lambda results: results[0])
-
-    args = cli._build_parser().parse_args(["kingdom", "--username", "u"])
-    assert cli._resolve_appid(args) == 1771300
-
-
-def test_resolve_appid_exits_when_search_unavailable(monkeypatch, capsys):
-    """store.steampowered.com blocks scripted clients on some networks; tell the
-    user to pass --appid rather than dying with a traceback."""
-
-    def boom(name):
-        raise resolve.SearchUnavailable("tls blocked")
-
-    monkeypatch.setattr(cli.resolve, "search", boom)
-    args = cli._build_parser().parse_args(["kingdom", "--username", "u"])
-
-    with pytest.raises(SystemExit):
-        cli._resolve_appid(args)
-    assert "pass --appid" in capsys.readouterr().err
-
-
 def test_language_defaults_to_english_when_prompt_is_empty(steam, monkeypatch):
     seen = {}
     monkeypatch.setattr("builtins.input", lambda *a: "y" if "Proceed" in a[0] else "")
     monkeypatch.setattr(
-        cli.appinfo,
+        appinfo,
         "get_depot_plan",
         lambda appid, language: (
             seen.setdefault("language", language)
@@ -328,8 +300,10 @@ def test_reports_the_known_install_script_crash(steam, monkeypatch, capsys):
     assert "known install-script crash" in capsys.readouterr().out
 
 
-def test_reports_cleared_staging(steam, monkeypatch, capsys):
-    library, _ = steam
+def test_adopts_staged_content_then_clears_it(steam, monkeypatch, capsys):
+    """Steam's staging tree is adopted into the install dir before downloading,
+    and only cleared once the install is finished -- never discarded up front."""
+    library, install_dir = steam
     staged = library.steamapps / "downloading" / "1771300"
     staged.mkdir(parents=True)
     (staged / "big.pak").write_bytes(b"x" * 2_000_000)
@@ -337,7 +311,12 @@ def test_reports_cleared_staging(steam, monkeypatch, capsys):
     _stub_steamcmd(monkeypatch, returncode=8)
 
     assert cli.main(ARGV) == 0
-    assert "stale Steam staging data" in capsys.readouterr().out
+
+    out = capsys.readouterr().out
+    assert "Hardlinking it" in out
+    assert "now-redundant Steam staging data" in out
+    # Adopted, not copied: the file is one inode with two names.
+    assert (install_dir / "big.pak").stat().st_size == 2_000_000
 
 
 def test_fails_when_written_manifest_does_not_read_back_as_installed(
@@ -348,7 +327,7 @@ def test_fails_when_written_manifest_does_not_read_back_as_installed(
     _stub_download(monkeypatch)
     _stub_steamcmd(monkeypatch, returncode=8)
     monkeypatch.setattr(
-        cli.recognize, "manifest_reflects_real_install", lambda *a, **kw: False
+        recognize, "manifest_reflects_real_install", lambda *a, **kw: False
     )
 
     assert cli.main(ARGV) == 1

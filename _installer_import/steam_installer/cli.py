@@ -1,65 +1,70 @@
-"""Entry point: resolve -> confirm -> fast download -> make Steam recognize it."""
+"""Entry point: resolve -> confirm -> adopt what exists -> fast download -> recognize."""
 
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
-import time
-from pathlib import Path
 
-from steam_installer import appinfo, depotdl, recognize, resolve, runlog
-from steam_installer.library import (
-    SteamLibrary,
-    find_steam_root,
-    list_libraries,
-    pick_install_target,
+from steam_installer import (
+    config,
+    depotdl,
+    deps,
+    flow,
+    ghost,
+    resolve,
+    runlog,
+    takeover,
+    target,
 )
-
-
-def _require_tool(name: str, install_hint: str) -> None:
-    if shutil.which(name) is None:
-        print(f"error: `{name}` not found on PATH. {install_hint}", file=sys.stderr)
-        sys.exit(1)
-
-
-def _resolve_appid(args: argparse.Namespace) -> int:
-    """Prefer an explicit --appid; fall back to search, which is best-effort
-    (store.steampowered.com is known to reject scripted clients on some
-    networks -- see resolve.py). Either way, the final confirmation uses the
-    real name from steamcmd's own app info, not whatever the search returned.
-    """
-    if args.appid is not None:
-        return args.appid
-
-    try:
-        results = resolve.search(args.name)
-    except resolve.SearchUnavailable as exc:
-        print(f"Store search unavailable ({exc}).", file=sys.stderr)
-        print(
-            "Find the numeric AppID yourself (e.g. from the store URL) and pass --appid.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    chosen = resolve.prompt_confirm(results)
-    return chosen.appid
+from steam_installer.library import find_steam_root, list_libraries, pick_install_target
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Download an owned Steam game fast, then make Steam recognize it."
     )
-    parser.add_argument("name", nargs="?", default=None, help="Game name to search for")
     parser.add_argument(
-        "--appid", type=int, default=None, help="Steam AppID (skips search)"
+        "target",
+        nargs="?",
+        default=None,
+        metavar="TARGET",
+        help=(
+            "AppID (284160), a Steam URL "
+            "(https://steamcommunity.com/app/284160/guides/), or a game name "
+            "(BeamNG.drive, or just BeamNG)"
+        ),
     )
-    parser.add_argument("--username", required=True, help="Steam account username")
+    parser.add_argument(
+        "--appid", type=int, default=None, help="Steam AppID (skips detection)"
+    )
+    parser.add_argument(
+        "--username",
+        default=None,
+        help="Steam account username (default: $STEAM_USERNAME, then the saved one)",
+    )
     parser.add_argument(
         "--language", default=None, help="Language depot to fetch (default: prompts)"
     )
     parser.add_argument(
         "--max-downloads", type=int, default=depotdl.DEFAULT_MAX_DOWNLOADS
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Assume yes for every prompt. Ambiguous names still fail rather than guess.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Resolve the target and report what would happen. Changes nothing.",
+    )
+    parser.add_argument(
+        "--repair-ghosts",
+        action="store_true",
+        help=(
+            "Scan every library for the fake 'installed' manifests anonymous "
+            "steamcmd leaves behind, and clear them away."
+        ),
     )
     parser.add_argument(
         "--skip-steamcmd",
@@ -84,10 +89,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if args.appid is None and args.name is None:
-        parser.error("provide a game name to search for, or --appid directly")
+    if not args.repair_ghosts and args.appid is None and args.target is None:
+        parser.error("provide an AppID, a Steam URL, a game name, or --repair-ghosts")
 
-    log = runlog.setup(args.appid, verbose=args.verbose)
+    literal = target.parse_literal(args.target) if args.target else None
+    log = runlog.setup(args.appid or (literal[0] if literal else None), args.verbose)
     logger = log.logger
     # Printed up front as well as at the end: if the run dies badly, the path
     # still has to be on screen to copy-paste.
@@ -102,197 +108,135 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
+def _is_interactive(args: argparse.Namespace) -> bool:
+    return sys.stdin.isatty() and not args.yes
+
+
+def _ask(args: argparse.Namespace, interactive: bool, question: str) -> bool:
+    if args.yes:
+        return True
+    if not interactive:
+        return False
+    return input(question).strip().lower() == "y"
+
+
+def _repair_ghosts(log: runlog.RunLog) -> int:
+    """Report every ghost manifest; delete only the ones with nothing behind them."""
+    logger = log.logger
+    reports = ghost.scan(list_libraries(find_steam_root()))
+    if not reports:
+        logger.info("No ghost installs found.")
+        return 0
+
+    for report in reports:
+        logger.info("Ghost: appid %s (%s)", report.appid, report.manifest_path.name)
+        for reason in report.reasons:
+            logger.info("  - %s", reason)
+        if report.is_warm:
+            logger.warning(
+                "  Steam has %.2f GB staged for this app. Those bytes are a real "
+                "partial download, so nothing is deleted -- install it normally "
+                "(this tool adopts them) instead of repairing it.",
+                report.staging_bytes / 1e9,
+            )
+            continue
+        ghost.repair(report, logger)
+    logger.info("Run log: %s", log.path)
+    return 0
+
+
+def _describe(logger, metadata, install_target, report, staged) -> int:
+    """--dry-run output: everything the real run would act on, and nothing done."""
+    logger.info("Install target: %s", install_target)
+    if report.is_ghost:
+        logger.warning("This app currently has a GHOST manifest:")
+        for reason in report.reasons:
+            logger.warning("  - %s", reason)
+    if staged is not None:
+        logger.info(
+            "Steam has %.2f GB staged in %s (%d files) -- these would be adopted, "
+            "not re-downloaded.",
+            staged.bytes_staged / 1e9,
+            staged.staging_dir,
+            staged.file_count,
+        )
+    logger.info("Dry run: nothing was changed.")
+    return 0
+
+
 def _run(args: argparse.Namespace, log: runlog.RunLog) -> int:
     logger = log.logger
+    interactive = _is_interactive(args)
 
-    _require_tool("depotdownloader", "See ~/depotdownloader.")
-    if not args.skip_steamcmd:
-        _require_tool("steamcmd", "Run: yay -S steamcmd")
+    if args.repair_ghosts:
+        return _repair_ghosts(log)
 
-    appid = _resolve_appid(args)
-    metadata = appinfo.get_metadata(appid)
-    logger.info("Confirmed: %s (appid %s)", metadata.name, metadata.appid)
-    answer = input("Proceed? [y/N]: ").strip().lower()
-    if answer != "y":
-        logger.info("Cancelled.")
+    try:
+        deps.require(skip_steamcmd=args.skip_steamcmd)
+        resolved = target.resolve_target(
+            args.target, args.appid, interactive=interactive
+        )
+    except deps.DependencyError as exc:
+        logger.error("%s", exc)
+        return 1
+    except (target.TargetError, resolve.ResolveError) as exc:
+        logger.error("%s", exc)
+        return 2
+
+    metadata = resolved.metadata
+    logger.info(
+        "Confirmed: %s (appid %s, matched by %s)",
+        metadata.name,
+        metadata.appid,
+        resolved.source,
+    )
+
+    libraries = list_libraries(find_steam_root())
+    install_target = pick_install_target(libraries, metadata.installdir)
+    library = next(lib for lib in libraries if lib.common == install_target.parent)
+    report = ghost.inspect(library, metadata.appid)
+    staged = takeover.find_staged(library, metadata.appid, install_target)
+
+    if args.dry_run:
+        return _describe(logger, metadata, install_target, report, staged)
+
+    if report.is_ghost and not report.is_warm:
+        logger.error(
+            "appid %s has a ghost manifest (a fake 'installed' state with nothing "
+            "behind it). Clear it first: ./run.sh --repair-ghosts",
+            metadata.appid,
+        )
         return 1
 
-    steam_root = find_steam_root()
-    libraries = list_libraries(steam_root)
-    target = pick_install_target(libraries, metadata.installdir)
-    logger.info("Install target: %s", target)
+    try:
+        username = config.resolve_username(args.username, interactive=interactive)
+    except config.ConfigError as exc:
+        logger.error("%s", exc)
+        return 1
+
+    logger.info("Install target: %s", install_target)
+    if not _ask(args, interactive, "Proceed? [y/N]: "):
+        logger.info("Cancelled (use --yes for a non-interactive run).")
+        return 1
 
     language = args.language
     if language is None:
-        language = input("Language [english]: ").strip() or "english"
-
-    # Refuse early rather than after an hour of downloading: a live Steam client
-    # rewrites the manifest from its own state and discards whatever we write.
-    running = recognize.steam_client_pids()
-    if running:
-        logger.error(
-            "The Steam client is running (pid %s). It owns appmanifest_%s.acf and "
-            "will overwrite anything this tool writes. Close Steam, then re-run.",
-            ", ".join(str(p) for p in running),
-            metadata.appid,
+        language = (
+            (input("Language [english]: ").strip() or "english")
+            if interactive
+            else "english"
         )
-        logger.info("Run log (send this): %s", log.path)
-        return 1
 
-    depot_plan = appinfo.get_depot_plan(metadata.appid, language)
-    expected_build_id = appinfo.get_build_id(metadata.appid)
-    log.section("Plan")
-    logger.debug("language=%s max_downloads=%s", language, args.max_downloads)
-    logger.debug("required depots: %s", sorted(depot_plan.required))
-    logger.debug("shared depots:   %s", sorted(depot_plan.shared))
-    logger.debug("expected buildid: %s", expected_build_id)
-
-    library = next(lib for lib in libraries if lib.common == target.parent)
-    manifest_path = library.steamapps / f"appmanifest_{metadata.appid}.acf"
-    log.file_contents("Manifest before run", manifest_path)
-
-    logger.info("Downloading via depotdownloader (fast path)...")
-    log.section("depotdownloader")
-    returncode = depotdl.download(
-        appid=metadata.appid,
-        install_dir=target,
-        username=args.username,
-        language=language,
-        max_downloads=args.max_downloads,
-        logger=logger,
-    )
-    if returncode != 0:
-        logger.error(
-            "depotdownloader failed (exit %d) -- not touching the manifest.", returncode
-        )
-        logger.info("Run log (send this): %s", log.path)
-        return 1
-
-    log.section("depotdownloader cache")
-    for depot_id, mid in sorted(
-        recognize.discover_cached_depot_manifests(target).items()
-    ):
-        logger.debug("depot %s -> manifest %s", depot_id, mid)
-
-    recognize.ensure_installdir_correct(library, metadata.appid, target)
-
-    if not args.skip_steamcmd:
-        logger.info("Reconciling with steamcmd (validate)...")
-        log.section("steamcmd app_update validate")
-        result = recognize.run_steamcmd_validate(metadata.appid, args.username, logger)
-        log.file_contents("Manifest after steamcmd", manifest_path)
-
-        # Never trust steamcmd's exit code alone -- verify the manifest actually
-        # reflects a real install before believing it. A "clean" exit has
-        # produced a manifest steamcmd itself hadn't finished updating before.
-        if (
-            not result.crashed_on_install_script
-            and recognize.manifest_reflects_real_install(
-                library, metadata.appid, target
-            )
-        ):
-            logger.info("steamcmd finished cleanly -- Steam should show Play.")
-            logger.info("Run log: %s", log.path)
-            return 0
-
-        if result.crashed_on_install_script:
-            logger.info(
-                "steamcmd hit the known install-script crash; finishing the manifest manually..."
-            )
-        else:
-            logger.info(
-                "steamcmd exited %d but the manifest doesn't reflect a real install; "
-                "checking whether it is safe to finish it manually...",
-                result.returncode,
-            )
-
-    return _finish(
-        log,
-        library,
-        metadata,
-        target,
-        depot_plan,
-        expected_build_id,
-        skipped_steamcmd=args.skip_steamcmd,
-    )
-
-
-def _finish(
-    log: runlog.RunLog,
-    library: SteamLibrary,
-    metadata: appinfo.AppMetadata,
-    target: Path,
-    depot_plan: appinfo.DepotPlan,
-    expected_build_id: str | None,
-    skipped_steamcmd: bool,
-) -> int:
-    """Hand-finish the manifest, but only if every precondition really holds."""
-    logger = log.logger
-    manifest_path = library.steamapps / f"appmanifest_{metadata.appid}.acf"
-
-    if not manifest_path.is_file():
-        # Reachable two ways, so don't blame steamcmd unconditionally: under
-        # --skip-steamcmd it never runs at all, and nothing else in this tool
-        # creates a manifest from scratch.
-        logger.error(
-            "No %s exists, so there is nothing to finish. This tool only ever "
-            "patches a manifest Steam or steamcmd already wrote; it never "
-            "fabricates one. %s",
-            manifest_path,
-            (
-                "Re-run without --skip-steamcmd so steamcmd creates it (it writes "
-                "one even when it crashes)."
-                if skipped_steamcmd
-                else "steamcmd writes one even when it crashes, so its absence "
-                "means steamcmd never ran far enough."
-            ),
-        )
-        logger.info("Run log (send this): %s", log.path)
-        return 1
-
-    app_state = recognize.read_app_state(manifest_path)
-    problems = recognize.check_ready_to_finish(
-        install_dir=target,
-        app_state=app_state,
-        required_depots=depot_plan.required,
-        expected_build_id=expected_build_id,
-    )
-    if problems:
-        # Fail closed. Writing StateFlags=4 here is what previously turned a
-        # steamcmd run that did nothing at all into a reported success.
-        logger.error("Refusing to mark %s as installed:", metadata.name)
-        for problem in problems:
-            logger.error("  - %s", problem)
-        logger.info("Run log (send this): %s", log.path)
-        return 1
-
-    # Do this before writing the manifest: a StateFlags=4 manifest alongside a
-    # staging tree full of pending chunks is the same contradiction that made
-    # Steam resume the download last time.
-    freed = recognize.clear_steam_staging(library, metadata.appid)
-    if freed:
-        logger.info("Cleared %.1f GB of stale Steam staging data.", freed / 1e9)
-
-    written = recognize.finish_manifest_manually(
+    return flow.install(
+        args=args,
+        log=log,
         library=library,
-        appid=metadata.appid,
-        install_dir=target,
-        now_unix=int(time.time()),
+        metadata=metadata,
+        install_target=install_target,
+        staged=staged,
+        username=username,
+        language=language,
     )
-    log.file_contents("Manifest after manual finish", written)
-
-    # Re-read from disk: claiming success without checking the write landed is
-    # the same fail-open mistake in a different place.
-    if not recognize.manifest_reflects_real_install(library, metadata.appid, target):
-        logger.error(
-            "Wrote %s but it still does not read back as a real install.", written
-        )
-        logger.info("Run log (send this): %s", log.path)
-        return 1
-
-    logger.info("Wrote %s -- launch Steam and confirm Play works.", written)
-    logger.info("Run log: %s", log.path)
-    return 0
 
 
 if __name__ == "__main__":

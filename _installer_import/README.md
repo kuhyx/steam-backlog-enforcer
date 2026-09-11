@@ -5,14 +5,73 @@ better than the Steam client), then make the Steam client accept the result as
 a real install so **Play** works.
 
 ```bash
-./install.sh                  # checks depotdownloader + steamcmd are present
-pip install -e .
-steam-game-installer --appid 1771300 --username <steam-user>
+./run.sh BeamNG.drive
 ```
 
-**Close the Steam client first.** Steam owns `appmanifest_<appid>.acf` while it
+That is the whole thing. `run.sh` installs its own dependencies (steamcmd via
+`yay`, DepotDownloader from the SteamRE release, and a local `.venv`) on first
+use, then works out what you meant. All four of these install the same game:
+
+```bash
+./run.sh 284160                                           # an AppID
+./run.sh https://steamcommunity.com/app/284160/guides/    # any Steam URL
+./run.sh BeamNG.drive                                     # the exact name
+./run.sh BeamNG                                           # part of the name
+```
+
+An exact title always wins, so `./run.sh Portal` installs Portal and not
+Portal 2 — even though Steam's own search ranks the sequel first. An ambiguous
+name shows a numbered picker, and in a non-interactive run it lists the
+candidates and exits 2 rather than guessing.
+
+Useful flags: `--dry-run` (resolve and report, change nothing), `--yes`
+(no prompts), `--repair-ghosts` (see below), `--username` (remembered after the
+first run, in `~/.config/steam-game-installer/config`; never a password).
+
+**Steam gets closed for you.** Steam owns `appmanifest_<appid>.acf` while it
 runs and rewrites it from its own in-memory state, so anything written
-underneath a live client is discarded. The tool refuses to start if it sees one.
+underneath a live client is discarded. The tool asks, shuts it down with
+`steam -shutdown`, and restarts it afterwards. It never sends a signal: a client
+that refuses to exit aborts the run instead.
+
+## It takes over a download Steam already started
+
+Steam stages an in-progress download into `steamapps/downloading/<appid>/`, laid
+out exactly like the finished game. Those bytes are yours — you waited for them
+— so the tool **hardlinks them into place** before calling depotdownloader,
+which hash-checks what is already on disk and fetches only the remainder.
+
+Hardlinks, not moves and not copies. Nothing is deleted up front: the staging
+tree is cleared only at the very end, so a failed run still leaves Steam able to
+resume its own download. Linking is free, where copying a 47 GB tree would cost
+47 GB.
+
+Because the two trees share inodes, depotdownloader patching a partial file in
+place also rewrites Steam's copy. That is deliberate — both names converge on
+the same corrected content — but it does mean the staged bytes are working data,
+not a frozen backup. On ext4 there is no reflink that would give you both.
+
+## Ghost installs
+
+`steamcmd +login anonymous +app_update <paid appid>` has no licence for the app.
+It does not say so. It transfers nothing, prints `Success! App '...' fully
+installed.`, exits 0, and writes a manifest claiming `StateFlags=4` with
+`SizeOnDisk=0` and an empty `InstalledDepots`.
+
+That manifest is not harmless: a running Steam client reads it, concludes the
+app is installed but out of date, and downloads the entire game by itself.
+
+```bash
+./run.sh --repair-ghosts
+```
+
+finds them across every library and clears them away — but only the *cold* ones.
+A ghost with staged content behind it is a real partial download; it is reported
+and left alone, to be adopted by a normal install instead. Detection requires
+all of: the manifest claims installed, `InstalledDepots` is empty, `SizeOnDisk`
+is `0`, there are zero content bytes on disk, and there is no `.DepotDownloader`
+state. Repair uses `rmdir`, never `rmtree`, so a non-empty directory cannot be
+deleted even if the diagnosis were wrong.
 
 ## Run logs
 
@@ -50,7 +109,7 @@ The tool refuses to mark an app installed, and exits non-zero, unless:
   optional and shared depots — KCD2 lists 12 depots but an english/windows
   install only ever fetches 3);
 - the manifest carries a real `buildid` matching the current public build;
-- no Steam client is running;
+- no Steam client is running (it is closed first, and restarted afterwards);
 - the manifest reads back as a real install *after* being written.
 
 This matters: an earlier version wrote `StateFlags=4` and reported success after
