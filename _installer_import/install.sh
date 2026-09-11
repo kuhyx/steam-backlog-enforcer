@@ -11,7 +11,7 @@ readonly SCRIPT_DIR
 missing=0
 
 if ! command -v depotdownloader >/dev/null 2>&1; then
-	echo "missing: depotdownloader (see ~/depotdownloader)" >&2
+	echo "missing: depotdownloader (see ~/vendor/depotdownloader)" >&2
 	missing=1
 fi
 
