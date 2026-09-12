@@ -159,11 +159,8 @@ def apply_total_block_iptables() -> bool:
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to apply total-block iptables rules")
         return False
-    else:
-        logger.info(
-            "Total block: %d domain IP(s) blocked via iptables.", len(blocked_ips)
-        )
-        return True
+    logger.info("Total block: %d domain IP(s) blocked via iptables.", len(blocked_ips))
+    return True
 
 
 def remove_total_block_iptables() -> bool:
@@ -190,6 +187,5 @@ def remove_total_block_iptables() -> bool:
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to remove total-block iptables rules")
         return False
-    else:
-        _IPTABLES_IP_CACHE_FILE.unlink(missing_ok=True)
-        return True
+    _IPTABLES_IP_CACHE_FILE.unlink(missing_ok=True)
+    return True

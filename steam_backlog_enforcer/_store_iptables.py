@@ -9,50 +9,26 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from pathlib import Path
-import shutil
 import socket
 import subprocess
 
+from steam_backlog_enforcer._store_tools import (
+    IPTABLES,
+    IPTABLES_CHAIN,
+    SUDO,
+)
 from steam_backlog_enforcer.config import (
     BLOCKED_DOMAINS,
 )
 
 logger = logging.getLogger(__name__)
 
-# Path to the hosts install script. _REPO_ROOT resolves to $HOME (this
-# module lives two levels below it); the script itself is in the
-# linux_configuration checkout under testsAndMisc, not directly under $HOME.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-HOSTS_INSTALL_SCRIPT = (
-    _REPO_ROOT
-    / "testsAndMisc"
-    / "linux_configuration"
-    / "scripts"
-    / "periodic_background"
-    / "hosts"
-    / "install.sh"
-)
-
-# iptables chain name for our blocking rules.
-IPTABLES_CHAIN = "STEAM_ENFORCER"
-
-# Resolved absolute paths for executables (avoids S607 partial-path warnings).
-_SUDO = shutil.which("sudo") or "/usr/bin/sudo"
-_IPTABLES = shutil.which("iptables") or "/usr/sbin/iptables"
-_BASH = shutil.which("bash") or "/usr/bin/bash"
-_GUARDCTL = shutil.which("guardctl") or "/usr/local/bin/guardctl"
-_TEE = shutil.which("tee") or "/usr/bin/tee"
-
-# IP address used in /etc/hosts for blocking domains.
-_HOSTS_REDIRECT_IP = ".".join(["0"] * 4)
-
 
 def _is_iptables_blocked() -> bool:
     """Check if our iptables chain exists and has rules."""
     try:
         result = subprocess.run(
-            [_SUDO, _IPTABLES, "-L", IPTABLES_CHAIN, "-n"],
+            [SUDO, IPTABLES, "-L", IPTABLES_CHAIN, "-n"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -60,8 +36,7 @@ def _is_iptables_blocked() -> bool:
         )
     except OSError, subprocess.SubprocessError:
         return False
-    else:
-        return result.returncode == 0 and "DROP" in result.stdout
+    return result.returncode == 0 and "DROP" in result.stdout
 
 
 def _block_store_iptables() -> bool:
@@ -69,14 +44,14 @@ def _block_store_iptables() -> bool:
     try:
         # Create chain if it doesn't exist.
         subprocess.run(
-            [_SUDO, _IPTABLES, "-N", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-N", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         # Flush existing rules in our chain.
         subprocess.run(
-            [_SUDO, _IPTABLES, "-F", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=True,
@@ -93,8 +68,8 @@ def _block_store_iptables() -> bool:
         for ip in blocked_ips:
             subprocess.run(
                 [
-                    _SUDO,
-                    _IPTABLES,
+                    SUDO,
+                    IPTABLES,
                     "-A",
                     IPTABLES_CHAIN,
                     "-d",
@@ -109,14 +84,14 @@ def _block_store_iptables() -> bool:
 
         # Hook our chain into OUTPUT if not already there.
         result = subprocess.run(
-            [_SUDO, _IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         if result.returncode != 0:
             subprocess.run(
-                [_SUDO, _IPTABLES, "-I", "OUTPUT", "-j", IPTABLES_CHAIN],
+                [SUDO, IPTABLES, "-I", "OUTPUT", "-j", IPTABLES_CHAIN],
                 capture_output=True,
                 timeout=5,
                 check=True,
@@ -124,28 +99,27 @@ def _block_store_iptables() -> bool:
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to block store via iptables")
         return False
-    else:
-        logger.info("Steam Store blocked via iptables (%d IPs).", len(blocked_ips))
-        return True
+    logger.info("Steam Store blocked via iptables (%d IPs).", len(blocked_ips))
+    return True
 
 
 def _unblock_store_iptables() -> bool:
     """Remove iptables-based block."""
     try:
         subprocess.run(
-            [_SUDO, _IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         subprocess.run(
-            [_SUDO, _IPTABLES, "-F", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         subprocess.run(
-            [_SUDO, _IPTABLES, "-X", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-X", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
@@ -153,9 +127,8 @@ def _unblock_store_iptables() -> bool:
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to unblock iptables")
         return False
-    else:
-        logger.info("Steam Store unblocked from iptables.")
-        return True
+    logger.info("Steam Store unblocked from iptables.")
+    return True
 
 
 def flush_dns_cache() -> None:

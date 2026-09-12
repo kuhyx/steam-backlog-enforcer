@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 _SPAWNED: list[subprocess.Popen[bytes]] = []
 
 
+def spawn_detached(cmd: list[str]) -> subprocess.Popen[bytes]:
+    """Start ``cmd`` and hand back the process, output discarded.
+
+    Fire-and-forget on purpose: the process must outlive the calling scope
+    (Steam itself, a desktop notifier), so it is polled or reaped later rather
+    than waited on in a ``with`` block here.
+    """
+    return subprocess.Popen(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def _reap_spawned() -> None:
     """Clear out previously launched processes that have since exited.
 
@@ -49,10 +63,4 @@ def _run_as_user(cmd: list[str], user: str | None) -> None:
         return
     full_cmd = desktop_user_cmd(cmd, user)
 
-    _SPAWNED.append(
-        subprocess.Popen(
-            full_cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    )
+    _SPAWNED.append(spawn_detached(full_cmd))

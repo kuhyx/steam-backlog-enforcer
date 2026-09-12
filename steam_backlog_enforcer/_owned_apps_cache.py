@@ -106,8 +106,7 @@ def get_all_owned_app_ids(config: Config) -> list[int]:
             return snapshot_ids
         logger.warning("Could not fetch owned game list for hiding.")
         return []
-    else:
-        return merged_ids
+    return merged_ids
 
 
 # ──────────────────────────────────────────────────────────────

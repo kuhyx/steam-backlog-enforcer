@@ -136,6 +136,17 @@ def _read_raw_cache() -> dict[int, dict[str, Any]]:
     return out
 
 
+def restore_prior_hours(refreshed: dict[int, float], prior: dict[int, float]) -> None:
+    """Put back known hours a refetch replaced with nothing.
+
+    A refetch that finds no (or a zero-hour) match must not erase an estimate
+    we already had -- prior leisure/DLC figures are trusted over a miss.
+    """
+    for app_id, old_hours in prior.items():
+        if old_hours > 0 and refreshed.get(app_id, -1.0) <= 0:
+            refreshed[app_id] = old_hours
+
+
 def load_hltb_cache() -> dict[int, float]:
     """Load the hours portion of the HLTB cache.
 

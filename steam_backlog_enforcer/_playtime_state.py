@@ -7,7 +7,7 @@ which is what lets the enforcer survive a restart mid-session.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta
 import json
 import logging
@@ -220,8 +220,8 @@ def load_state(*, demo: bool) -> PlaytimeState | None:
     if not isinstance(data, dict) or data.get("schema_version") != _SCHEMA_VERSION:
         logger.warning("Playtime state at %s has an unknown schema.", path)
         return None
-    fields = PlaytimeState.__dataclass_fields__
-    return PlaytimeState(**{k: v for k, v in data.items() if k in fields})
+    known = {f.name for f in fields(PlaytimeState)}
+    return PlaytimeState(**{k: v for k, v in data.items() if k in known})
 
 
 def save_state(state: PlaytimeState, *, demo: bool) -> None:

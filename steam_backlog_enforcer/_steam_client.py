@@ -20,6 +20,7 @@ from steam_backlog_enforcer._desktop_env import (
     resolve_desktop_user,
 )
 from steam_backlog_enforcer._steam_launch import steam_is_installed
+from steam_backlog_enforcer._steam_process import spawn_detached
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
 
 logger = logging.getLogger(__name__)
@@ -42,8 +43,7 @@ def _get_uid_gid_for_user(username: str) -> tuple[int, int]:
         pw = pwd.getpwnam(username)
     except KeyError:
         return 1000, 1000
-    else:
-        return pw.pw_uid, pw.pw_gid
+    return pw.pw_uid, pw.pw_gid
 
 
 def is_game_installed(app_id: int) -> bool:
@@ -106,11 +106,7 @@ def _ensure_steam_running() -> None:
         else:
             cmd = ["steam", "-silent"]
 
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        spawn_detached(cmd)
         # Give Steam time to initialize and start scanning manifests.
         time.sleep(15)
     except FileNotFoundError:

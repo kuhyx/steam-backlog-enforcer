@@ -95,9 +95,9 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
             pct = done * 100 // total
             bar_w = 30
             filled = bar_w * done // total
-            bar = "█" * filled + "░" * (bar_w - filled)
+            meter = "█" * filled + "░" * (bar_w - filled)
             _echo(
-                f"\r  HLTB [{bar}] {done}/{total} ({pct}%) "
+                f"\r  HLTB [{meter}] {done}/{total} ({pct}%) "
                 f"| {found} found | {name[:30]:<30s}",
                 end="",
                 flush=True,

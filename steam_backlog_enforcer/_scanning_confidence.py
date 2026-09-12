@@ -11,17 +11,17 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_cache,
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
+    restore_prior_hours,
     save_hltb_cache,
+)
+from steam_backlog_enforcer._polls_reporting import (
+    _backfill_polls_for_finished,
+    _report_poll_confidence,
 )
 from steam_backlog_enforcer.game_install import _echo
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.steam_api import GameInfo
-
-from steam_backlog_enforcer._polls_reporting import (
-    _backfill_polls_for_finished,
-    _report_poll_confidence,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +123,7 @@ def _refresh_candidate_confidence_batch(
     refreshed_hours = load_hltb_cache()
     refreshed_polls = load_hltb_polls_cache()
     refreshed_count_comp = load_hltb_count_comp_cache()
-    for aid, old_hours in prior_hours.items():
-        if old_hours > 0 and refreshed_hours.get(aid, -1) <= 0:
-            refreshed_hours[aid] = old_hours
+    restore_prior_hours(refreshed_hours, prior_hours)
     save_hltb_cache(
         refreshed_hours, refreshed_polls, _HLTBExtras(count_comp=refreshed_count_comp)
     )

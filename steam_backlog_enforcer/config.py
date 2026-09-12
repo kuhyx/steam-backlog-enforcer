@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import UTC, datetime, timedelta
 import json
 import logging
@@ -64,6 +64,11 @@ def _atomic_write(path: Path, data: str, *, mode: int | None = None) -> None:
         with contextlib.suppress(OSError):
             tmp_path.unlink()
         raise
+
+
+def _field_names(cls: type) -> frozenset[str]:
+    """The dataclass's own field names, for filtering a loaded JSON object."""
+    return frozenset(f.name for f in fields(cls))
 
 
 @dataclass
@@ -132,9 +137,7 @@ class Config:
         """Load config from disk, or return defaults."""
         if CONFIG_FILE.exists():
             data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            return cls(
-                **{k: v for k, v in data.items() if k in cls.__dataclass_fields__}
-            )
+            return cls(**{k: v for k, v in data.items() if k in _field_names(cls)})
         return cls()
 
 
@@ -146,14 +149,14 @@ class State:
     current_game_name: str = ""
     finished_app_ids: list[int] = field(default_factory=list)
     skipped_until: dict[str, str] = field(default_factory=dict)
-    enforcement_started_at: str = ""
-    """ISO-8601 UTC timestamp set on the first game assignment."""
     """Map of ``str(app_id)`` → ISO-8601 UTC timestamp when the skip expires.
 
     Games in this map are excluded from auto-assignment until the timestamp
     elapses. Populated when the user declines a freshly-picked game via the
     interactive prompt in ``cmd_done``.
     """
+    enforcement_started_at: str = ""
+    """ISO-8601 UTC timestamp set on the first game assignment."""
     manual_pick_app_id: int | None = None
     manual_pick_game_name: str = ""
     manual_pick_started_at: str = ""
@@ -214,9 +217,7 @@ class State:
             except json.JSONDecodeError, OSError, ValueError:
                 logger.warning("Corrupt state file, using defaults.")
                 return cls()
-            state = cls(
-                **{k: v for k, v in data.items() if k in cls.__dataclass_fields__}
-            )
+            state = cls(**{k: v for k, v in data.items() if k in _field_names(cls)})
             state._migrate_legacy_manual_pick()
             return state
         return cls()

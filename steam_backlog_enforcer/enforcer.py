@@ -99,8 +99,7 @@ def _kill_pid_by_name(pid: int, name: str) -> bool:
     except PermissionError:
         logger.exception("No permission to kill PID %d (%s).", pid, name)
         return False
-    else:
-        return True
+    return True
 
 
 def enforce_allowed_game(

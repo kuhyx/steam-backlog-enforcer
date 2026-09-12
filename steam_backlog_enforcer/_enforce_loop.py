@@ -70,21 +70,21 @@ def _allowed_names(state: State) -> str:
     return ", ".join(names) if names else "your assigned game"
 
 
-def _guard_installed_games(allowed_app_ids: set[int]) -> int:
+def _guard_installed_games(allowed: set[int]) -> int:
     """Remove any unauthorized game manifests + files.  Runs every loop.
 
     Args:
-        allowed_app_ids: Every app id that may stay installed — the assignment
-            plus any concurrent manual picks.
+        allowed: Every app id that may stay installed — the assignment plus
+            any concurrent manual picks.
 
     Returns number of games removed this pass.
     """
-    if not allowed_app_ids:
+    if not allowed:
         return 0
     installed = get_installed_games()
     count = 0
     for app_id, name in installed:
-        if app_id in allowed_app_ids:
+        if app_id in allowed:
             continue
         if is_protected_app(app_id):
             continue

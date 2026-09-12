@@ -77,8 +77,7 @@ class SteamAPIClient:
         except requests.RequestException as e:
             msg = f"Steam API request failed: {e}"
             raise SteamAPIError(msg) from e
-        else:
-            return result
+        return result
 
     def get_owned_games(self) -> list[dict[str, Any]]:
         """Fetch all games owned by the user."""

@@ -61,7 +61,7 @@ _STALE_MSG = (
 class _Handler(BaseHTTPRequestHandler):
     """Serve the dataset JSON and the static frontend bundle (read-only)."""
 
-    def log_message(self, fmt: str, *args: object) -> None:
+    def log_message(self, fmt: str, /, *args: object) -> None:
         """Route the default request log to ``logging`` at debug level."""
         logger.debug("%s - %s", self.address_string(), fmt % args)
 

@@ -107,15 +107,16 @@ class TestGetHltbSearchUrl:
             url = _get_hltb_search_url()
             assert url == "https://howlongtobeat.com/api/finder"
 
-    def test_first_returns_none_second_returns_info(self) -> None:
-        """Test first returns none second returns info."""
+    def test_passes_the_user_agent_the_library_now_requires(self) -> None:
+        """howlongtobeatpy 1.0.23 takes a user agent, not a parse-all flag."""
         mock_info = MagicMock()
         mock_info.search_url = "/api/search/xyz"
         with patch("steam_backlog_enforcer._hltb_search_api.HTMLRequests") as mock_html:
-            mock_html.send_website_request_getcode.side_effect = [None, mock_info]
+            mock_html.send_website_request_getcode.return_value = mock_info
             mock_html.BASE_URL = "https://howlongtobeat.com"
-            url = _get_hltb_search_url()
-            assert url == "https://howlongtobeat.com/api/search/xyz"
+            _get_hltb_search_url()
+        (agent,) = mock_html.send_website_request_getcode.call_args.args
+        assert agent.startswith("Mozilla/5.0")
 
     def test_exception_fallback(self) -> None:
         """Test exception fallback."""

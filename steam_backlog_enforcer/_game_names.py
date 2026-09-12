@@ -69,7 +69,7 @@ def _protected_name_stems() -> list[str]:
     """
     try:
         return [name for _, name in allowed_games(State.load()) if name]
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Could not load allowed games for the deletion safety net")
         return []
 

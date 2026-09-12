@@ -32,6 +32,17 @@ class TestPickBestHltbEntry:
         assert result is not None
         assert result[0]["game_name"] == "FAITH: The Unholy Trinity"
 
+    def test_keeps_the_longer_extended_edition(self) -> None:
+        """Two extended editions: the one with more completionist hours wins."""
+        base: dict[str, Any] = {"game_name": "FAITH", "comp_100": 1800}
+        longer: dict[str, Any] = {"game_name": "FAITH: Chapter III", "comp_100": 9000}
+        shorter: dict[str, Any] = {"game_name": "FAITH: Chapter I", "comp_100": 3000}
+        result = _pick_best_hltb_entry(
+            "FAITH", [(base, 1.0), (longer, 0.7), (shorter, 0.9)]
+        )
+        assert result is not None
+        assert result[0]["game_name"] == "FAITH: Chapter III"
+
     def test_prefers_full_edition_dash(self) -> None:
         """Test prefers full edition dash."""
         demo: dict[str, Any] = {"game_name": "FAITH", "comp_100": 1800}

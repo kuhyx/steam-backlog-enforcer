@@ -42,20 +42,19 @@ _EXTENDED_MIN_CONFIDENCE = 3
 # ──────────────────────────────────────────────────────────────
 
 
+_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
+
+
 def _get_hltb_search_url() -> str:
     """Discover the current HLTB search API endpoint.
 
-    Scrapes the homepage for JS bundles containing the fetch URL.
-    Falls back to ``/api/finder`` if extraction fails.
+    Scrapes the homepage for JS bundles containing the fetch URL, walking
+    every bundle until one names it (howlongtobeatpy >= 1.0.23 does that
+    itself; the older ``parse_all_scripts`` two-step is gone). Falls back to
+    ``/api/finder`` if extraction fails.
     """
     try:
-        search_info = HTMLRequests.send_website_request_getcode(
-            parse_all_scripts=False,
-        )
-        if search_info is None:
-            search_info = HTMLRequests.send_website_request_getcode(
-                parse_all_scripts=True,
-            )
+        search_info = HTMLRequests.send_website_request_getcode(_USER_AGENT)
         if search_info and search_info.search_url:
             url: str = HTMLRequests.BASE_URL + search_info.search_url
             return url
@@ -72,9 +71,7 @@ async def _get_auth_info(
     init_url = search_url + "/init"
     ts = int(time.time() * 1000)
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
-        ),
+        "User-Agent": _USER_AGENT,
         "referer": "https://howlongtobeat.com/",
     }
     try:

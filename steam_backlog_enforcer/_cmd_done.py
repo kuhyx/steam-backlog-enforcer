@@ -11,6 +11,7 @@ from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_cache,
     load_hltb_polls_cache,
+    restore_prior_hours,
     save_hltb_cache,
 )
 from steam_backlog_enforcer._snapshot import load_snapshot
@@ -93,9 +94,7 @@ def _backfill_polls_for_finished(
 
     refreshed_hours = load_hltb_cache()
     refreshed_polls = load_hltb_polls_cache()
-    for aid, prior_hours in preserved_hours.items():
-        if prior_hours > 0 and refreshed_hours.get(aid, -1) <= 0:
-            refreshed_hours[aid] = prior_hours
+    restore_prior_hours(refreshed_hours, preserved_hours)
     save_hltb_cache(refreshed_hours, refreshed_polls)
     return refreshed_polls
 

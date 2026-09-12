@@ -90,7 +90,6 @@ class ProtonDBRating:
             return ""
 
         tier_rank = TIER_ORDER.get(self.tier, 99)
-        TIER_ORDER[MIN_PLAYABLE_TIER]
         silver_rank = TIER_ORDER["silver"]
 
         if not self.trending_tier:

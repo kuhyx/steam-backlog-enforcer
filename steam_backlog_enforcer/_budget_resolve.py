@@ -141,21 +141,19 @@ def resolve_budget(config: Config) -> BudgetResolution:
     )
     total = base + workout_seconds + leetcode_seconds
 
-    reason = "{:.1f}h: {}, {}".format(
-        total / _SECONDS_PER_HOUR,
-        _describe(
-            answer=workout,
-            earned="workout counted",
-            missed="no counted workout",
-            unknown="workout unknown (screen-locker unreachable)",
-        ),
-        _describe(
-            answer=leetcode,
-            earned="LeetCode solve recorded",
-            missed="no LeetCode solve recorded",
-            unknown="LeetCode unknown (ledger and status API both unreadable)",
-        ),
+    workout_part = _describe(
+        answer=workout,
+        earned="workout counted",
+        missed="no counted workout",
+        unknown="workout unknown (screen-locker unreachable)",
     )
+    leetcode_part = _describe(
+        answer=leetcode,
+        earned="LeetCode solve recorded",
+        missed="no LeetCode solve recorded",
+        unknown="LeetCode unknown (ledger and status API both unreadable)",
+    )
+    reason = f"{total / _SECONDS_PER_HOUR:.1f}h: {workout_part}, {leetcode_part}"
     logger.info("Gaming budget %s", reason)
     return BudgetResolution(
         seconds=total,

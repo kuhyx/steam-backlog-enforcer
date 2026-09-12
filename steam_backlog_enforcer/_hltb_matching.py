@@ -182,10 +182,13 @@ def _find_best_extended(
         entry_name = (entry.get("game_name") or "").lower()
         if entry_name.startswith((lower + ":", lower + " -")):
             suffix = entry_name[len(lower) :].lstrip(" :-")
-            if not any(suffix.startswith(kw) for kw in _SUBSET_SUFFIXES) and (
-                best is None or entry.get("comp_100", 0) > best[0].get("comp_100", 0)
+            if any(suffix.startswith(kw) for kw in _SUBSET_SUFFIXES):
+                continue
+            if best is not None and entry.get("comp_100", 0) <= best[0].get(
+                "comp_100", 0
             ):
-                best = (entry, sim)
+                continue
+            best = (entry, sim)
     return best
 
 

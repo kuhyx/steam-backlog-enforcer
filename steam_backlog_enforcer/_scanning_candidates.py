@@ -32,7 +32,7 @@ def _sort_key(g: GameInfo) -> tuple[int, float]:
     """Sort by known HLTB time (shortest first), then unknown games."""
     if g.completionist_hours > 0:
         return (0, g.completionist_hours)
-    return (1, g.name.lower().encode().hex().__hash__())
+    return (1, hash(g.name.lower().encode().hex()))
 
 
 def _pick_playable_candidate(

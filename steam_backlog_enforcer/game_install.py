@@ -89,9 +89,8 @@ def _trigger_steam_install(app_id: int, label: str) -> bool:
         )
     except FileNotFoundError, OSError, subprocess.TimeoutExpired:
         return False
-    else:
-        logger.info("Triggered Steam install for %s via protocol handler", label)
-        return True
+    logger.info("Triggered Steam install for %s via protocol handler", label)
+    return True
 
 
 # ──────────────────────────────────────────────────────────────

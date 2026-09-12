@@ -19,6 +19,7 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_leisure_100h_cache,
     load_hltb_polls_cache,
     load_hltb_rush_cache,
+    restore_prior_hours,
     save_hltb_cache,
 )
 from steam_backlog_enforcer.hltb import (
@@ -152,10 +153,7 @@ def fetch_hltb_detail_missing(
     )
     elapsed = time.monotonic() - t0
 
-    # Restore prior hours for games the detail fetch didn't re-find.
-    for app_id, old_hours in prior_hours.items():
-        if old_hours > 0 and cache.get(app_id, -1.0) <= 0:
-            cache[app_id] = old_hours
+    restore_prior_hours(cache, prior_hours)
 
     save_hltb_cache(cache, polls, extras)
 
