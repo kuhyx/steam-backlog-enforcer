@@ -11,13 +11,15 @@ from typing import Any
 
 from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS,
-    abandon_manual_pick,
     active_manual_picks,
     apply_manual_pick,
     find_manual_pick,
-    manual_pick_age_days,
 )
 from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
+from steam_backlog_enforcer._manual_pick_lifecycle import (
+    abandon_manual_pick,
+    manual_pick_age_days,
+)
 from steam_backlog_enforcer._mcp_server import (
     _resolve_game_name,
     logger,

@@ -29,9 +29,7 @@ from steam_backlog_enforcer._total_block import (
     is_total_block_active,
     total_block_needs_cleanup,
 )
-from steam_backlog_enforcer._whitelist import (
-    lock_enforcement_files,
-)
+from steam_backlog_enforcer._whitelist_locking import lock_enforcement_files
 from steam_backlog_enforcer.config import (
     CONFIG_FILE,
     Config,

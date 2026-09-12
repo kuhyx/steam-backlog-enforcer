@@ -10,8 +10,8 @@ from steam_backlog_enforcer import _allowed_games
 from steam_backlog_enforcer._actions import (
     apply_manual_pick,
     is_manual_pick_locked,
-    manual_pick_age_days,
 )
+from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer.config import State
 
 

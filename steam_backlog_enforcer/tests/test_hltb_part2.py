@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Self
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer.hltb import (
+from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
+from steam_backlog_enforcer._hltb_confidence import get_hltb_submit_url
+from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
     HLTBResult,
-    fetch_hltb_times_cached,
-    get_hltb_submit_url,
 )
 
 if TYPE_CHECKING:

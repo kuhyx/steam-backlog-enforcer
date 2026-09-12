@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from steam_backlog_enforcer._whitelist import (
+from steam_backlog_enforcer._whitelist_locking import (
     _immutable_flag_is,
     _load_approved,
     _save_approved,

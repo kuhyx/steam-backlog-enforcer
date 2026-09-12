@@ -6,11 +6,11 @@ import asyncio
 from typing import Self
 from unittest.mock import patch
 
+from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
 from steam_backlog_enforcer._hltb_search import _AuthInfo
 from steam_backlog_enforcer.hltb import (
     _fetch_batch_confidence_only,
     fetch_hltb_confidence,
-    fetch_hltb_confidence_cached,
 )
 
 PKG = "steam_backlog_enforcer.hltb"

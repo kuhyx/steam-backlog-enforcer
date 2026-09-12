@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._game_names import _is_protected_name
 from steam_backlog_enforcer._protected_apps import PROTECTED_APP_IDS
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH, _assert_not_real_steam
-from steam_backlog_enforcer._whitelist import get_approved_exception_ids
+from steam_backlog_enforcer._whitelist_locking import get_approved_exception_ids
 
 if TYPE_CHECKING:
     from pathlib import Path

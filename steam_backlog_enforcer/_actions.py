@@ -10,7 +10,6 @@ there is a single tested implementation of the underlying behaviour.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-import importlib
 from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._allowed_games import (
@@ -147,32 +146,3 @@ def apply_manual_pick(
         state.enforcement_started_at = now
     state.save()
     return None
-
-
-_MOVED_TO_MANUAL_PICK_LIFECYCLE = frozenset(
-    {
-        "abandon_manual_pick",
-        "manual_pick_age_days",
-        "status_payload",
-    }
-)
-
-
-# Whatever the re-exported name turns out to be -- a function, a class or
-# a constant. Aliased so the annotation is a name rather than a bare Any.
-type _Reexport = Any
-
-
-def __getattr__(name: str) -> _Reexport:
-    """Re-export the names that moved to :mod:`_manual_pick_lifecycle`.
-
-    Deferred rather than imported at the top because _manual_pick_lifecycle imports
-    back from this module, so a module-level import would be circular.
-    """
-    if name in _MOVED_TO_MANUAL_PICK_LIFECYCLE:
-        module = importlib.import_module(
-            "steam_backlog_enforcer._manual_pick_lifecycle",
-        )
-        return getattr(module, name)
-    msg = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(msg)

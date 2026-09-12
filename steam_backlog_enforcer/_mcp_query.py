@@ -9,9 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from steam_backlog_enforcer._actions import (
-    status_payload,
-)
+from steam_backlog_enforcer._manual_pick_lifecycle import status_payload
 from steam_backlog_enforcer._mcp_server import (
     _DEFAULT_LIST_LIMIT,
     _backlog_sort_key,

@@ -14,7 +14,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._budget_resolve import resolve_budget
-from steam_backlog_enforcer._whitelist import _try_set_immutable, unlock_for_write
+from steam_backlog_enforcer._whitelist_locking import (
+    _try_set_immutable,
+    unlock_for_write,
+)
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 if TYPE_CHECKING:

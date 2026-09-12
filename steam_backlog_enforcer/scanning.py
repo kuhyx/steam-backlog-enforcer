@@ -6,6 +6,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
@@ -38,9 +39,6 @@ from steam_backlog_enforcer.enforcer import (
 )
 from steam_backlog_enforcer.game_install import (
     _echo,
-)
-from steam_backlog_enforcer.hltb import (
-    fetch_hltb_times_cached,
 )
 from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 

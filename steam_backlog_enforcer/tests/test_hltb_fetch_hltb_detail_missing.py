@@ -5,9 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Self
 from unittest.mock import patch
 
-from steam_backlog_enforcer.hltb import (
-    fetch_hltb_detail_missing,
-)
+from steam_backlog_enforcer._hltb_confidence import fetch_hltb_detail_missing
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer._hltb_types import _HLTBExtras

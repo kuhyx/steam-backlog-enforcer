@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 
 from steam_backlog_enforcer import _actions, _allowed_games
 from steam_backlog_enforcer._actions import (
-    abandon_manual_pick,
     active_manual_picks,
     allowed_app_ids,
     allowed_games,
@@ -15,6 +14,7 @@ from steam_backlog_enforcer._actions import (
     is_manual_pick_locked,
     manual_pick_slots_left,
 )
+from steam_backlog_enforcer._manual_pick_lifecycle import abandon_manual_pick
 from steam_backlog_enforcer.config import State
 
 

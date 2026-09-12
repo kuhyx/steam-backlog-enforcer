@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import importlib
 import logging
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer._snapshot import load_snapshot
-from steam_backlog_enforcer.game_install import (
-    _echo,
-)
-from steam_backlog_enforcer.hltb import (
-    fetch_hltb_confidence_cached,
-    fetch_hltb_times_cached,
+from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
+from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
+from steam_backlog_enforcer._hltb_types import (
     load_hltb_cache,
     load_hltb_polls_cache,
     save_hltb_cache,
+)
+from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer.game_install import (
+    _echo,
 )
 
 if TYPE_CHECKING:
@@ -173,30 +172,3 @@ def _refresh_uncached_shortlist_hours(
     if shorter_uncached:
         refreshed = fetch_hltb_times_cached(shorter_uncached)
         hltb_cache.update(refreshed)
-
-
-_MOVED_TO_CMD_DONE_FINALIZE = frozenset(
-    {
-        "_enforce_on_done",
-        "_finalize_completion",
-        "cmd_done",
-    }
-)
-
-
-# Whatever the re-exported name turns out to be -- a function, a class or
-# a constant. Aliased so the annotation is a name rather than a bare Any.
-type _Reexport = Any
-
-
-def __getattr__(name: str) -> _Reexport:
-    """Re-export the names that moved to :mod:`_cmd_done_finalize`.
-
-    Deferred rather than imported at the top because _cmd_done_finalize imports
-    back from this module, so a module-level import would be circular.
-    """
-    if name in _MOVED_TO_CMD_DONE_FINALIZE:
-        module = importlib.import_module("steam_backlog_enforcer._cmd_done_finalize")
-        return getattr(module, name)
-    msg = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(msg)

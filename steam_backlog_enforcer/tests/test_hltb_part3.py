@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from steam_backlog_enforcer.hltb import (
-    HLTBResult,
-    fetch_hltb_times,
-)
+from steam_backlog_enforcer._hltb_types import HLTBResult
+from steam_backlog_enforcer.hltb import fetch_hltb_times
 
 
 class TestFetchHltbTimes:

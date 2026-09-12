@@ -13,9 +13,7 @@ Fetches leisure completionist hour estimates from howlongtobeat.com with:
 from __future__ import annotations
 
 import asyncio
-import importlib
 import logging
-from typing import Any
 
 import aiohttp
 
@@ -167,41 +165,3 @@ def fetch_hltb_confidence(
             count_comp=count_comp,
         )
     )
-
-
-_REEXPORTED = {
-    "HLTB_BASE_URL": "steam_backlog_enforcer._hltb_types",
-    "MAX_CONCURRENT": "steam_backlog_enforcer._hltb_types",
-    "HLTBResult": "steam_backlog_enforcer._hltb_types",
-    "ProgressCb": "steam_backlog_enforcer._hltb_types",
-    "_HLTBExtras": "steam_backlog_enforcer._hltb_types",
-    "load_hltb_cache": "steam_backlog_enforcer._hltb_types",
-    "load_hltb_count_comp_cache": "steam_backlog_enforcer._hltb_types",
-    "load_hltb_game_id_cache": "steam_backlog_enforcer._hltb_types",
-    "load_hltb_leisure_100h_cache": "steam_backlog_enforcer._hltb_types",
-    "load_hltb_polls_cache": "steam_backlog_enforcer._hltb_types",
-    "load_hltb_rush_cache": "steam_backlog_enforcer._hltb_types",
-    "save_hltb_cache": "steam_backlog_enforcer._hltb_types",
-    "fetch_hltb_times_cached": "steam_backlog_enforcer._hltb_cached",
-    "fetch_hltb_confidence_cached": "steam_backlog_enforcer._hltb_confidence",
-    "fetch_hltb_detail_missing": "steam_backlog_enforcer._hltb_confidence",
-    "get_hltb_submit_url": "steam_backlog_enforcer._hltb_confidence",
-}
-
-
-# Whatever the re-exported name turns out to be -- a function, a class or
-# a constant. Aliased so the annotation is a name rather than a bare Any.
-type _Reexport = Any
-
-
-def __getattr__(name: str) -> _Reexport:
-    """Serve names that moved out of this module when it was split.
-
-    Deferred via importlib rather than imported at the top: the modules below
-    import back from here, so a module-level import would be circular.
-    """
-    home = _REEXPORTED.get(name)
-    if home is not None:
-        return getattr(importlib.import_module(home), name)
-    msg = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(msg)

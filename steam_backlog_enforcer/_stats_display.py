@@ -11,13 +11,13 @@ import secrets
 from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
 
+from steam_backlog_enforcer._hltb_confidence import fetch_hltb_detail_missing
 from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
     load_hltb_game_id_cache,
 )
 from steam_backlog_enforcer._stats_types import _HLTB_SEARCH_BASE, _GameTimes
 from steam_backlog_enforcer.game_install import _echo
-from steam_backlog_enforcer.hltb import fetch_hltb_detail_missing
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import State

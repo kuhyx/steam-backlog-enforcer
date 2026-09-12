@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer._whitelist import (
+from steam_backlog_enforcer._whitelist import validate_reason
+from steam_backlog_enforcer._whitelist_locking import (
     _load_approved,
     _save_approved,
     add_pending_exception,
     get_approved_exception_ids,
-    validate_reason,
 )
 
 # ──────────────────────────────────────────────────────────────

@@ -9,10 +9,10 @@ from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS as _ABANDON_COOLDOWN_DAYS,
 )
 from steam_backlog_enforcer._actions import (
-    abandon_manual_pick,
     active_manual_picks,
     find_manual_pick,
 )
+from steam_backlog_enforcer._manual_pick_lifecycle import abandon_manual_pick
 from steam_backlog_enforcer.game_install import (
     _echo,
     is_game_installed,

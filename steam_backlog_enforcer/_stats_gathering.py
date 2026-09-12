@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._hltb_confidence import fetch_hltb_detail_missing
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_cache,
     load_hltb_game_id_cache,
@@ -24,7 +25,6 @@ from steam_backlog_enforcer._scanning_confidence import (
 from steam_backlog_enforcer._stats_types import _GameTimes
 from steam_backlog_enforcer.config import SNAPSHOT_FILE
 from steam_backlog_enforcer.game_install import _echo
-from steam_backlog_enforcer.hltb import fetch_hltb_detail_missing
 from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
     fetch_protondb_ratings,

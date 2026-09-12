@@ -9,12 +9,12 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_cache,
     load_hltb_polls_cache,
     save_hltb_cache,
 )
-from steam_backlog_enforcer.hltb import fetch_hltb_confidence_cached
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer._steam_models import GameInfo

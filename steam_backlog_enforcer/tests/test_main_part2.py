@@ -5,9 +5,7 @@ from unittest.mock import (
     patch,
 )
 
-from steam_backlog_enforcer._cmd_done import (
-    _finalize_completion,
-)
+from steam_backlog_enforcer._cmd_done_finalize import _finalize_completion
 from steam_backlog_enforcer.config import Config, State
 
 CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done_finalize"

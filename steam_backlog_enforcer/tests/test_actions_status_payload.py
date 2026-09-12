@@ -5,9 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-from steam_backlog_enforcer._actions import (
-    status_payload,
-)
+from steam_backlog_enforcer._manual_pick_lifecycle import status_payload
 from steam_backlog_enforcer._total_block import TotalBlockStatus
 from steam_backlog_enforcer.config import State
 

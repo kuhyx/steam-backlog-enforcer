@@ -11,16 +11,14 @@ from datetime import UTC, datetime, timedelta
 import sys
 from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer._actions import (
-    active_manual_picks,
-    manual_pick_age_days,
-)
+from steam_backlog_enforcer._actions import active_manual_picks
 from steam_backlog_enforcer._actions import (
     is_manual_pick_locked as _is_manual_pick_locked,
 )
 from steam_backlog_enforcer._allowed_games import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
+from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer._total_block import (
     TotalBlockStatus,
     get_total_block_status,

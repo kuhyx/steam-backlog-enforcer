@@ -17,6 +17,8 @@ from steam_backlog_enforcer._cmd_done import (
     _report_assigned_confidence,
 )
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
+from steam_backlog_enforcer._hltb_types import load_hltb_cache
 from steam_backlog_enforcer._pick_completion import mark_finished
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.enforcer import (
@@ -28,10 +30,6 @@ from steam_backlog_enforcer.game_install import (
     install_game,
     is_game_installed,
     uninstall_other_games,
-)
-from steam_backlog_enforcer.hltb import (
-    fetch_hltb_times_cached,
-    load_hltb_cache,
 )
 from steam_backlog_enforcer.library_hider import try_hide_other_games
 from steam_backlog_enforcer.scanning import pick_next_game

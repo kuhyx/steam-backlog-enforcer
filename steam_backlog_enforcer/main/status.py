@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer._actions import (
-    active_manual_picks,
-    manual_pick_age_days,
-)
+from steam_backlog_enforcer._actions import active_manual_picks
+from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer._pick_completion import report_completion
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._total_block import get_total_block_status

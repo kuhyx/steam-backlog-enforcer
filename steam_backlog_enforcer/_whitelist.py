@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from collections import Counter
-import importlib
 import logging
 import math
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer.config import CONFIG_DIR
 
@@ -112,35 +111,3 @@ def validate_reason(reason: str) -> str | None:
 # long); FS_IMMUTABLE_FL is the "immutable" bit that `chattr +i` sets.
 _FS_IOC_GETFLAGS = 0x80086601
 _FS_IMMUTABLE_FL = 0x00000010
-
-_MOVED_TO_WHITELIST_LOCKING = frozenset(
-    {
-        "_append_audit_log",
-        "_immutable_flag_is",
-        "_load_approved",
-        "_save_approved",
-        "_try_set_immutable",
-        "add_pending_exception",
-        "get_approved_exception_ids",
-        "lock_enforcement_files",
-        "unlock_for_write",
-    }
-)
-
-
-# Whatever the re-exported name turns out to be -- a function, a class or
-# a constant. Aliased so the annotation is a name rather than a bare Any.
-type _Reexport = Any
-
-
-def __getattr__(name: str) -> _Reexport:
-    """Re-export the names that moved to :mod:`_whitelist_locking`.
-
-    Deferred rather than imported at the top because _whitelist_locking imports
-    back from this module, so a module-level import would be circular.
-    """
-    if name in _MOVED_TO_WHITELIST_LOCKING:
-        module = importlib.import_module("steam_backlog_enforcer._whitelist_locking")
-        return getattr(module, name)
-    msg = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(msg)

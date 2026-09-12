@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._allowed_games import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
-from steam_backlog_enforcer._cmd_done import cmd_done
+from steam_backlog_enforcer._cmd_done_finalize import cmd_done
 from steam_backlog_enforcer._cmd_playtime import (
     cmd_enforce,
     cmd_gaming_reset,

@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 from steam_backlog_enforcer._whitelist import (
     _shannon_entropy,
-    _try_set_immutable,
     validate_reason,
 )
+from steam_backlog_enforcer._whitelist_locking import _try_set_immutable
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -3,7 +3,7 @@
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer._cmd_done import (
+from steam_backlog_enforcer._cmd_done_finalize import (
     _enforce_on_done,
     cmd_done,
 )

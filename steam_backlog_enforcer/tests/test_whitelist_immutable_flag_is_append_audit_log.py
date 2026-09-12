@@ -5,9 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from steam_backlog_enforcer._whitelist import (
-    _append_audit_log,
-)
+from steam_backlog_enforcer._whitelist_locking import _append_audit_log
 
 if TYPE_CHECKING:
     from pathlib import Path
