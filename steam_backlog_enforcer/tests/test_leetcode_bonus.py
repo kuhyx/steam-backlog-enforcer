@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 _PKG = "steam_backlog_enforcer._leetcode_bonus"
+_API = "steam_backlog_enforcer._status_api"
 
 
 @pytest.fixture(autouse=True)
@@ -104,7 +105,7 @@ class TestFetchLeetcodeToday:
             {"leetcode": {"checked": False, "solved_today": False, "reason": "dead"}}
         ).encode()
         with (
-            patch(f"{_PKG}.http.client.HTTPConnection") as conn,
+            patch(f"{_API}.http.client.HTTPConnection") as conn,
             pytest.raises(ValueError, match="could not check"),
         ):
             resp = conn.return_value.getresponse.return_value
@@ -115,7 +116,7 @@ class TestFetchLeetcodeToday:
     def test_a_non_200_is_an_error(self) -> None:
         """An error page is not a payload."""
         with (
-            patch(f"{_PKG}.http.client.HTTPConnection") as conn,
+            patch(f"{_API}.http.client.HTTPConnection") as conn,
             pytest.raises(ValueError, match="status 500"),
         ):
             resp = conn.return_value.getresponse.return_value
@@ -129,7 +130,7 @@ class TestFetchLeetcodeToday:
         payload = json.dumps(
             {"leetcode": {"checked": True, "solved_today": True, "reason": "1"}}
         ).encode()
-        with patch(f"{_PKG}.http.client.HTTPConnection") as conn:
+        with patch(f"{_API}.http.client.HTTPConnection") as conn:
             resp = conn.return_value.getresponse.return_value
             resp.status = 200
             resp.read.return_value = payload

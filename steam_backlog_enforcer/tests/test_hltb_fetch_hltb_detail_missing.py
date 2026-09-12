@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from steam_backlog_enforcer._hltb_types import _HLTBExtras
 
 PKG = "steam_backlog_enforcer._hltb_confidence"
+_HLTB = "steam_backlog_enforcer.hltb"
 
 
 class _DummySession:
@@ -33,7 +34,7 @@ class TestFetchHltbDetailMissing:
         with (
             patch(f"{PKG}.load_hltb_rush_cache", return_value={440: 15.0}),
             patch(f"{PKG}.load_hltb_game_id_cache", return_value={440: 12345}),
-            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
+            patch(f"{_HLTB}.fetch_hltb_times") as mock_fetch,
         ):
             result = fetch_hltb_detail_missing([(440, "TF2")])
         assert result == 0
@@ -63,7 +64,7 @@ class TestFetchHltbDetailMissing:
             patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
             patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
             patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times", side_effect=add_rush),
+            patch(f"{_HLTB}.fetch_hltb_times", side_effect=add_rush),
             patch(f"{PKG}.save_hltb_cache") as mock_save,
             patch(f"{PKG}.time.monotonic", side_effect=[0.0, 2.0]),
         ):
@@ -90,7 +91,7 @@ class TestFetchHltbDetailMissing:
             patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
             patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
             patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times"),  # no-op, cache stays empty
+            patch(f"{_HLTB}.fetch_hltb_times"),  # no-op, cache stays empty
             patch(f"{PKG}.save_hltb_cache", side_effect=capture_save),
             patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
         ):
@@ -131,7 +132,7 @@ class TestFetchHltbDetailMissing:
             patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
             patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
             patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times", side_effect=add_hours_and_rush),
+            patch(f"{_HLTB}.fetch_hltb_times", side_effect=add_hours_and_rush),
             patch(f"{PKG}.save_hltb_cache", side_effect=capture_save),
             patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
         ):
@@ -148,7 +149,7 @@ class TestFetchHltbDetailMissing:
             patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
             patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
             patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times"),
+            patch(f"{_HLTB}.fetch_hltb_times"),
             patch(f"{PKG}.save_hltb_cache"),
             patch(f"{PKG}.time.monotonic", side_effect=[5.0, 5.0]),
         ):
@@ -164,7 +165,7 @@ class TestFetchHltbDetailMissing:
             patch(f"{PKG}.load_hltb_count_comp_cache", return_value={}),
             patch(f"{PKG}.load_hltb_leisure_100h_cache", return_value={}),
             patch(f"{PKG}.load_hltb_game_id_cache", return_value={}),
-            patch(f"{PKG}.fetch_hltb_times"),
+            patch(f"{_HLTB}.fetch_hltb_times"),
             patch(f"{PKG}.save_hltb_cache"),
             patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
         ):

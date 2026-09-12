@@ -35,16 +35,6 @@ logger = logging.getLogger(__name__)
 APPROVED_EXCEPTIONS_FILE: Path = CONFIG_DIR / "approved_exceptions.json"
 EXCEPTION_AUDIT_LOG: Path = CONFIG_DIR / "exception_audit.log"
 
-# ──────────────────────────────────────────────────────────────
-# Constants
-# ──────────────────────────────────────────────────────────────
-
-_MIN_REASON_WORDS: int = 5
-_MIN_REASON_LENGTH: int = 25
-_MIN_ENTROPY: float = 3.0
-# Reject runs of the same character longer than this (e.g. "aaaa").
-_MAX_CHAR_RUN: int = 3
-
 
 # ──────────────────────────────────────────────────────────────
 # Reason validation

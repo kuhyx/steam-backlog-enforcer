@@ -25,6 +25,8 @@ from steam_backlog_enforcer._hltb_types import (
 from steam_backlog_enforcer.hltb import (
     fetch_hltb_confidence,
     fetch_hltb_times,
+    fetch_hltb_times_timed,
+    games_per_second,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,30 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 # Confidence-only batch fetch (no leisure/DLC detail pages)
 # ──────────────────────────────────────────────────────────────
+
+
+def refetch_poll_counts(missing: list[tuple[int, str]]) -> dict[int, int]:
+    """Re-search ``missing`` for poll counts and return the refreshed polls cache.
+
+    The search-level fetch skips anything already in the hours cache, so the
+    hours entries are dropped first to force it -- then put back where the
+    refetch found nothing better, since a prior leisure/DLC estimate is
+    trusted over a miss.
+    """
+    cache = load_hltb_cache()
+    polls = load_hltb_polls_cache()
+    preserved_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
+    for aid, _name in missing:
+        cache.pop(aid, None)
+    save_hltb_cache(cache, polls)
+
+    fetch_hltb_confidence_cached(missing)
+
+    refreshed_hours = load_hltb_cache()
+    refreshed_polls = load_hltb_polls_cache()
+    restore_prior_hours(refreshed_hours, preserved_hours)
+    save_hltb_cache(refreshed_hours, refreshed_polls)
+    return refreshed_polls
 
 
 def fetch_hltb_confidence_cached(
@@ -143,28 +169,19 @@ def fetch_hltb_detail_missing(
         )
     else:
         logger.info("Backfilling HLTB game ID for %d game(s)...", n_id)
-    t0 = time.monotonic()
-    fetch_hltb_times(
-        missing,
-        cache=cache,
-        polls=polls,
-        progress_cb=progress_cb,
-        extras=extras,
-    )
-    elapsed = time.monotonic() - t0
+    elapsed = fetch_hltb_times_timed(missing, cache, polls, progress_cb, extras)
 
     restore_prior_hours(cache, prior_hours)
 
     save_hltb_cache(cache, polls, extras)
 
     fetched = sum(1 for app_id, _ in missing_rush if extras.rush.get(app_id, -1) > 0)
-    rate = len(missing) / elapsed if elapsed > 0 else 0
     logger.info(
         "HLTB detail fetch done: %d/%d got rush data in %.1fs (%.0f games/s)",
         fetched,
         len(missing_rush),
         elapsed,
-        rate,
+        games_per_second(len(missing), elapsed),
     )
     return fetched
 

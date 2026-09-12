@@ -62,12 +62,11 @@ class _SearchCtx:
     headers: dict[str, str]
     cache: dict[int, float]
     polls: dict[int, int] = field(default_factory=dict)
-    count_comp: dict[int, int] = field(default_factory=dict)
+    extras: _HLTBExtras = field(default_factory=_HLTBExtras)
     auth: _AuthInfo | None = None
     counter: dict[str, int] = field(default_factory=dict)
     total: int = 0
     progress_cb: ProgressCb | None = None
-    hltb_game_id: dict[int, int] = field(default_factory=dict)
 
 
 async def _search_one(
@@ -123,25 +122,21 @@ async def _search_one(
         if result is not None:
             ctx.cache[app_id] = result.completionist_hours
             ctx.polls[app_id] = result.comp_100_count
-            ctx.count_comp[app_id] = result.count_comp
+            ctx.extras.count_comp[app_id] = result.count_comp
             if result.hltb_game_id > 0:
-                ctx.hltb_game_id[app_id] = result.hltb_game_id
+                ctx.extras.hltb_game_id[app_id] = result.hltb_game_id
             ctx.counter["found"] += 1
         else:
             ctx.cache[app_id] = -1
             ctx.polls[app_id] = 0
-            ctx.count_comp[app_id] = 0
+            ctx.extras.count_comp[app_id] = 0
 
         ctx.counter["done"] += 1
         done = ctx.counter["done"]
 
         # Incremental save every _SAVE_INTERVAL lookups.
         if not done % _SAVE_INTERVAL:
-            save_hltb_cache(
-                ctx.cache,
-                ctx.polls,
-                _HLTBExtras(count_comp=ctx.count_comp, hltb_game_id=ctx.hltb_game_id),
-            )
+            save_hltb_cache(ctx.cache, ctx.polls, ctx.extras)
 
         # Report progress.
         if ctx.progress_cb is not None:
@@ -150,17 +145,18 @@ async def _search_one(
         return result
 
 
-async def _fetch_batch(
+async def _search_batch(
     games: list[tuple[int, str]],
     cache: dict[int, float],
     polls: dict[int, int],
     progress_cb: ProgressCb | None,
-    extras: _HLTBExtras | None = None,
+    extras: _HLTBExtras,
 ) -> list[HLTBResult]:
-    """Fetch HLTB data for a batch of games using one shared session."""
-    if extras is None:
-        extras = _HLTBExtras()
+    """Run the search-level HLTB lookups for a batch through one session.
 
+    Hours, poll counts and the extras come from the search results alone;
+    :func:`_fetch_batch` layers the per-game detail pages on top of this.
+    """
     # 1. Discover the search URL (sync, one-time).
     search_url = _get_hltb_search_url()
     logger.info("HLTB search URL: %s", search_url)
@@ -191,9 +187,6 @@ async def _fetch_batch(
 
     # 4. Fire all searches through a single persistent session.
     sem = asyncio.Semaphore(MAX_CONCURRENT)
-    counter = {"done": 0, "found": 0}
-    total = len(games)
-
     connector = aiohttp.TCPConnector(
         limit=MAX_CONCURRENT,
         keepalive_timeout=30,
@@ -208,25 +201,29 @@ async def _fetch_batch(
             headers=headers,
             cache=cache,
             polls=polls,
-            count_comp=extras.count_comp,
+            extras=extras,
             auth=auth,
-            counter=counter,
-            total=total,
+            counter={"done": 0, "found": 0},
+            total=len(games),
             progress_cb=progress_cb,
-            hltb_game_id=extras.hltb_game_id,
         )
-        tasks = [
-            _search_one(
-                sem,
-                ctx,
-                app_id,
-                name,
-            )
-            for app_id, name in games
-        ]
+        tasks = [_search_one(sem, ctx, app_id, name) for app_id, name in games]
         results = await asyncio.gather(*tasks)
 
-    search_results = [r for r in results if r is not None]
+    return [r for r in results if r is not None]
+
+
+async def _fetch_batch(
+    games: list[tuple[int, str]],
+    cache: dict[int, float],
+    polls: dict[int, int],
+    progress_cb: ProgressCb | None,
+    extras: _HLTBExtras | None = None,
+) -> list[HLTBResult]:
+    """Fetch HLTB data for a batch of games using one shared session."""
+    if extras is None:
+        extras = _HLTBExtras()
+    search_results = await _search_batch(games, cache, polls, progress_cb, extras)
 
     # 5. Fetch leisure times + DLC from game detail pages.
     logger.info(

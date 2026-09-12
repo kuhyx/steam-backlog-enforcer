@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 _TYPES = "steam_backlog_enforcer._hltb_types"
 _CMD = "steam_backlog_enforcer._cmd_done"
+_CONF = "steam_backlog_enforcer._hltb_confidence"
 _SCAN = "steam_backlog_enforcer.scanning"
 
 
@@ -68,7 +69,7 @@ class TestBackfillPollsForFinished:
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 1, "name": "G"}]),
-            patch(f"{_CMD}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(f"{_CONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
             patch(f"{_CMD}._echo"),
         ):
             result = _cmd_done._backfill_polls_for_finished(_state([1]))
@@ -93,7 +94,7 @@ class TestBackfillPollsForFinished:
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 7, "name": "G"}]),
-            patch(f"{_CMD}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(f"{_CONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
             patch(f"{_CMD}._echo"),
         ):
             result = _cmd_done._backfill_polls_for_finished(
@@ -121,7 +122,7 @@ class TestBackfillPollsForFinished:
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 3, "name": "G"}]),
-            patch(f"{_CMD}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(f"{_CONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
             patch(f"{_CMD}._echo"),
         ):
             _cmd_done._backfill_polls_for_finished(_state([3]))

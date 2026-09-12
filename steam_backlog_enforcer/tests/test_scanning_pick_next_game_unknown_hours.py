@@ -141,6 +141,11 @@ class TestPickNextGameGroup2:
                 "steam_backlog_enforcer._scanning_confidence._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
+            # The "nothing assignable" line is spoken where the slot is cleared.
+            patch(
+                "steam_backlog_enforcer._scanning_assign._echo",
+                side_effect=lambda *a, **_: echoed.append(a[0]),
+            ),
             patch(
                 "steam_backlog_enforcer._scanning_candidates._pick_playable_candidate",
                 return_value=None,

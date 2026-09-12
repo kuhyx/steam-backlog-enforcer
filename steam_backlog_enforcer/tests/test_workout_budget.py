@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 _PKG = "steam_backlog_enforcer._workout_budget"
+_API = "steam_backlog_enforcer._status_api"
 
 
 @pytest.fixture(autouse=True)
@@ -112,7 +113,8 @@ class TestWorkoutLoggedToday:
         """A workout logged later in the day still raises the budget."""
         with (
             patch(f"{_PKG}._fetch_workout_today", return_value=False) as fetch,
-            patch(f"{_PKG}.time.monotonic", side_effect=[0.0, 999.0]),
+            # Stored at 0.0; read back at 999.0 (expired); stored again.
+            patch(f"{_API}.time.monotonic", side_effect=[0.0, 999.0, 999.0]),
         ):
             workout_logged_today(_config())
             workout_logged_today(_config())

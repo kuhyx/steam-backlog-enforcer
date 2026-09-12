@@ -7,7 +7,6 @@ under the 250-line cap.
 from __future__ import annotations
 
 import logging
-import time
 
 from steam_backlog_enforcer._hltb_types import (
     ProgressCb,
@@ -19,7 +18,7 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_rush_cache,
     save_hltb_cache,
 )
-from steam_backlog_enforcer.hltb import fetch_hltb_times
+from steam_backlog_enforcer.hltb import fetch_hltb_times_timed, games_per_second
 
 logger = logging.getLogger(__name__)
 
@@ -56,40 +55,20 @@ def fetch_hltb_times_cached(
             len(uncached),
             len(games) - len(uncached),
         )
-        t0 = time.monotonic()
-        fetch_hltb_times(
-            uncached,
-            cache=cache,
-            polls=polls,
-            progress_cb=progress_cb,
-            extras=extras,
-        )
-        elapsed = time.monotonic() - t0
+        elapsed = fetch_hltb_times_timed(uncached, cache, polls, progress_cb, extras)
 
         # Final save.
         save_hltb_cache(cache, polls, extras)
 
         found = sum(1 for aid, _ in uncached if cache.get(aid, -1) > 0)
-        rate = len(uncached) / elapsed if elapsed > 0 else 0
         logger.info(
             "HLTB fetch done: %d/%d found in %.1fs (%.0f games/s)",
             found,
             len(uncached),
             elapsed,
-            rate,
+            games_per_second(len(uncached), elapsed),
         )
     else:
         logger.info("All %d games found in HLTB cache.", len(games))
 
     return cache
-
-
-_REEXPORTED_TYPES = frozenset({"HLTB_BASE_URL"})
-
-_MOVED_TO_HLTB_CONFIDENCE = frozenset(
-    {
-        "fetch_hltb_confidence_cached",
-        "fetch_hltb_detail_missing",
-        "get_hltb_submit_url",
-    }
-)

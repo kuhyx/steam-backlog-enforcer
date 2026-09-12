@@ -100,6 +100,31 @@ def _assign_chosen_game(
         )
 
 
+def _clear_assignment(state: State, message: str) -> None:
+    """Say why nothing could be assigned and leave the slot empty."""
+    _echo(message)
+    state.current_app_id = None
+    state.current_game_name = ""
+    state.save()
+
+
+def _no_pick_message(confidence_skipped: int, linux_skipped: int) -> str:
+    """Why the candidate pass produced nothing: confidence, or ProtonDB."""
+    if confidence_skipped > 0 and linux_skipped == 0:
+        return _NO_CONF_MSG
+    return "\nNo playable games left (all have poor ProtonDB ratings)!"
+
+
+def _open_candidates(games: list[GameInfo], state: State) -> list[GameInfo]:
+    """Unfinished, unskipped games, shortest first, with cached confidence."""
+    skip = set(state.finished_app_ids) | state.active_skipped_ids()
+    candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
+    if candidates:
+        candidates.sort(key=_sort_key)
+        _apply_cached_confidence_to_candidates(candidates)
+    return candidates
+
+
 def _pick_next_game_sequential(
     games: list[GameInfo],
     state: State,
@@ -113,29 +138,18 @@ def _pick_next_game_sequential(
     ``state`` for that game and the next candidate is evaluated.
     """
     while True:
-        skip = set(state.finished_app_ids) | state.active_skipped_ids()
-        candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
+        candidates = _open_candidates(games, state)
         if not candidates:
-            _echo(_NO_CONF_MSG)
-            state.current_app_id = None
-            state.current_game_name = ""
-            state.save()
+            _clear_assignment(state, _NO_CONF_MSG)
             return
 
-        candidates.sort(key=_sort_key)
-        _apply_cached_confidence_to_candidates(candidates)
         chosen, confidence_skipped, linux_skipped = _pick_next_shortest_candidate(
             candidates
         )
         if chosen is None:
-            _echo(
-                _NO_CONF_MSG
-                if confidence_skipped > 0 and linux_skipped == 0
-                else "\nNo playable games left (all have poor ProtonDB ratings)!"
+            _clear_assignment(
+                state, _no_pick_message(confidence_skipped, linux_skipped)
             )
-            state.current_app_id = None
-            state.current_game_name = ""
-            state.save()
             return
 
         if not on_select(chosen):

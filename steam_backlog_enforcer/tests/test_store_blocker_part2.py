@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from steam_backlog_enforcer.store_blocker import (
+from steam_backlog_enforcer._hosts_protection import (
     _disable_hosts_protection,
     _enable_hosts_protection,
     _reblock_hosts,
     _sudo_write_hosts,
+)
+from steam_backlog_enforcer.store_blocker import (
     _unblock_hosts,
     flush_dns_cache,
 )
@@ -18,6 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 PKG = "steam_backlog_enforcer.store_blocker"
+_HP = "steam_backlog_enforcer._hosts_protection"
 
 
 class TestSudoWriteHosts:
@@ -70,10 +73,10 @@ class TestUnblockHosts:
         )
         with (
             patch(f"{PKG}.is_store_blocked", return_value=True),
-            patch(f"{PKG}.HOSTS_FILE", hosts_file),
-            patch(f"{PKG}._disable_hosts_protection"),
-            patch(f"{PKG}._enable_hosts_protection"),
-            patch(f"{PKG}._sudo_write_hosts") as mock_write,
+            patch(f"{_HP}.HOSTS_FILE", hosts_file),
+            patch(f"{_HP}._disable_hosts_protection"),
+            patch(f"{_HP}._enable_hosts_protection"),
+            patch(f"{_HP}._sudo_write_hosts") as mock_write,
         ):
             result = _unblock_hosts()
         assert result is True
@@ -88,10 +91,10 @@ class TestUnblockHosts:
         )
         with (
             patch(f"{PKG}.is_store_blocked", return_value=True),
-            patch(f"{PKG}.HOSTS_FILE", hosts_file),
-            patch(f"{PKG}._disable_hosts_protection"),
-            patch(f"{PKG}._enable_hosts_protection"),
-            patch(f"{PKG}._sudo_write_hosts") as mock_write,
+            patch(f"{_HP}.HOSTS_FILE", hosts_file),
+            patch(f"{_HP}._disable_hosts_protection"),
+            patch(f"{_HP}._enable_hosts_protection"),
+            patch(f"{_HP}._sudo_write_hosts") as mock_write,
         ):
             result = _unblock_hosts()
         assert result is True
@@ -100,7 +103,7 @@ class TestUnblockHosts:
     def test_os_error(self) -> None:
         with (
             patch(f"{PKG}.is_store_blocked", return_value=True),
-            patch(f"{PKG}._disable_hosts_protection", side_effect=OSError),
+            patch(f"{_HP}._disable_hosts_protection", side_effect=OSError),
         ):
             result = _unblock_hosts()
         assert result is False

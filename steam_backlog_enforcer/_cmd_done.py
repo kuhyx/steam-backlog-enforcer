@@ -7,12 +7,11 @@ import sys
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
-from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
+from steam_backlog_enforcer._hltb_confidence import (
+    refetch_poll_counts,
+)
 from steam_backlog_enforcer._hltb_types import (
-    load_hltb_cache,
     load_hltb_polls_cache,
-    restore_prior_hours,
-    save_hltb_cache,
 )
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.game_install import (
@@ -84,19 +83,7 @@ def _backfill_polls_for_finished(
         return polls_cache
 
     _echo(f"  Backfilling HLTB poll counts for {len(missing)} game(s)...")
-    cache = load_hltb_cache()
-    preserved_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
-    for aid, _name in missing:
-        cache.pop(aid, None)
-    save_hltb_cache(cache, polls_cache)
-
-    fetch_hltb_confidence_cached(missing)
-
-    refreshed_hours = load_hltb_cache()
-    refreshed_polls = load_hltb_polls_cache()
-    restore_prior_hours(refreshed_hours, preserved_hours)
-    save_hltb_cache(refreshed_hours, refreshed_polls)
-    return refreshed_polls
+    return refetch_poll_counts(missing)
 
 
 def _report_assigned_confidence(

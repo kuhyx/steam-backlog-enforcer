@@ -15,10 +15,8 @@ import logging
 import subprocess
 
 from steam_backlog_enforcer._hosts_protection import (
-    _disable_hosts_protection,
-    _enable_hosts_protection,
     _reblock_hosts,
-    _sudo_write_hosts,
+    rewrite_hosts_lines,
 )
 from steam_backlog_enforcer._store_iptables import (
     _block_store_iptables,
@@ -161,29 +159,18 @@ def _unblock_hosts() -> bool:
         logger.info("Steam Store not blocked in /etc/hosts, nothing to do.")
         return True
 
-    try:
-        _disable_hosts_protection()
-        content = HOSTS_FILE.read_text(encoding="utf-8")
-        new_lines = []
-        changed = False
-        for line in content.splitlines(keepends=True):
-            stripped = line.strip()
-            if (
-                not stripped.startswith("#")
-                and stripped.startswith(HOSTS_REDIRECT_IP)
-                and any(d in stripped for d in BLOCKED_DOMAINS)
-            ):
-                new_lines.append(f"# {line}" if line.endswith("\n") else f"# {line}\n")
-                changed = True
-            else:
-                new_lines.append(line)
+    return rewrite_hosts_lines(
+        _comment_out_blocked, "Commented out Steam Store entries in /etc/hosts."
+    )
 
-        if changed:
-            _sudo_write_hosts("".join(new_lines))
-            logger.info("Commented out Steam Store entries in /etc/hosts.")
 
-        _enable_hosts_protection()
-    except OSError:
-        logger.exception("Failed to modify /etc/hosts")
-        return False
-    return True
+def _comment_out_blocked(line: str) -> str | None:
+    """The line commented out, if it is a live redirect of a blocked domain."""
+    stripped = line.strip()
+    if (
+        not stripped.startswith("#")
+        and stripped.startswith(HOSTS_REDIRECT_IP)
+        and any(d in stripped for d in BLOCKED_DOMAINS)
+    ):
+        return f"# {line}" if line.endswith("\n") else f"# {line}\n"
+    return None

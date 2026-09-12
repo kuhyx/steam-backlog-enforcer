@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 _TYPES = "steam_backlog_enforcer._hltb_types"
 _CMD = "steam_backlog_enforcer._cmd_done"
+_CONF = "steam_backlog_enforcer._hltb_confidence"
 _SCAN = "steam_backlog_enforcer.scanning"
 _SCANCONF = "steam_backlog_enforcer._scanning_confidence"
 _POLLS = "steam_backlog_enforcer._polls_reporting"
@@ -160,7 +161,7 @@ class TestScanningPollsIntegration:
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(
-                f"{_POLLS}.fetch_hltb_confidence_cached",
+                f"{_CONF}.fetch_hltb_confidence_cached",
                 side_effect=fake_fetch,
             ),
         ):
@@ -197,7 +198,7 @@ class TestScanningPollsIntegration:
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(
-                f"{_POLLS}.fetch_hltb_confidence_cached",
+                f"{_CONF}.fetch_hltb_confidence_cached",
                 side_effect=fake_fetch,
             ),
         ):

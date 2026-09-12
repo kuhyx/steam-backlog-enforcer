@@ -6,21 +6,8 @@ from collections import Counter
 import logging
 import math
 import re
-from typing import TYPE_CHECKING
-
-from steam_backlog_enforcer.config import CONFIG_DIR
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-# ──────────────────────────────────────────────────────────────
-# File paths (patched in tests via conftest)
-# ──────────────────────────────────────────────────────────────
-
-APPROVED_EXCEPTIONS_FILE: Path = CONFIG_DIR / "approved_exceptions.json"
-EXCEPTION_AUDIT_LOG: Path = CONFIG_DIR / "exception_audit.log"
 
 # ──────────────────────────────────────────────────────────────
 # Constants

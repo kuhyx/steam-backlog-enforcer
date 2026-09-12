@@ -11,16 +11,16 @@ from __future__ import annotations
 import logging
 import subprocess
 
+from steam_backlog_enforcer._hosts_protection import (
+    _disable_hosts_protection,
+    _enable_hosts_protection,
+    _sudo_write_hosts,
+)
 from steam_backlog_enforcer._total_block_domains import (
     _ALL_TOTAL_BLOCK_DOMAINS,
     NULL_ROUTE_IP,
 )
 from steam_backlog_enforcer.config import HOSTS_FILE
-from steam_backlog_enforcer.store_blocker import (
-    _disable_hosts_protection,
-    _enable_hosts_protection,
-    _sudo_write_hosts,
-)
 
 logger = logging.getLogger(__name__)
 

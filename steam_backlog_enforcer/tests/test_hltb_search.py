@@ -101,7 +101,7 @@ class TestSearchOne:
         ctx = _make_ctx(_make_session(resp))
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
         assert result is not None
-        assert 440 not in ctx.hltb_game_id
+        assert 440 not in ctx.extras.hltb_game_id
 
     def test_not_found(self) -> None:
         """Test not found."""

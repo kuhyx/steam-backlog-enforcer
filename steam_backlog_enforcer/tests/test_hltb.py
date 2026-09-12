@@ -11,12 +11,11 @@ import aiohttp
 
 from steam_backlog_enforcer._hltb_matching import _similarity
 from steam_backlog_enforcer._hltb_search import _AuthInfo
-from steam_backlog_enforcer._hltb_search_api import _get_hltb_search_url
+from steam_backlog_enforcer._hltb_search_api import _get_auth_info, _get_hltb_search_url
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_cache,
     save_hltb_cache,
 )
-from steam_backlog_enforcer.hltb import _get_auth_info
 
 if TYPE_CHECKING:
     from pathlib import Path

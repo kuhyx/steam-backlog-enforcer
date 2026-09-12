@@ -47,9 +47,9 @@ class TestFetchHltbTimesCached:
         """Test uncached games fetched."""
         with (
             patch(f"{_CACHED}.load_hltb_cache", return_value={440: 50.0}),
-            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
             patch(f"{_CACHED}.save_hltb_cache") as mock_save,
-            patch(f"{_CACHED}.time.monotonic", side_effect=[0.0, 2.0]),
+            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 2.0]),
         ):
             # fetch_hltb_times modifies cache in-place
             def add_to_cache(
@@ -81,9 +81,9 @@ class TestFetchHltbTimesCached:
         cb = MagicMock()
         with (
             patch(f"{_CACHED}.load_hltb_cache", return_value={}),
-            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
             patch(f"{_CACHED}.save_hltb_cache"),
-            patch(f"{_CACHED}.time.monotonic", side_effect=[0.0, 1.0]),
+            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 1.0]),
         ):
             mock_fetch.return_value = []
             result = fetch_hltb_times_cached(
@@ -96,9 +96,9 @@ class TestFetchHltbTimesCached:
         """Covers the elapsed == 0 branch for rate calculation."""
         with (
             patch(f"{_CACHED}.load_hltb_cache", return_value={}),
-            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
             patch(f"{_CACHED}.save_hltb_cache"),
-            patch(f"{_CACHED}.time.monotonic", side_effect=[5.0, 5.0]),
+            patch(f"{PKG}.time.monotonic", side_effect=[5.0, 5.0]),
         ):
             mock_fetch.return_value = []
             fetch_hltb_times_cached([(440, "TF2")])
@@ -107,9 +107,9 @@ class TestFetchHltbTimesCached:
         """Covers the found count in logging."""
         with (
             patch(f"{_CACHED}.load_hltb_cache", return_value={}),
-            patch(f"{_CACHED}.fetch_hltb_times") as mock_fetch,
+            patch(f"{PKG}.fetch_hltb_times") as mock_fetch,
             patch(f"{_CACHED}.save_hltb_cache"),
-            patch(f"{_CACHED}.time.monotonic", side_effect=[0.0, 3.0]),
+            patch(f"{PKG}.time.monotonic", side_effect=[0.0, 3.0]),
         ):
 
             def add_found(

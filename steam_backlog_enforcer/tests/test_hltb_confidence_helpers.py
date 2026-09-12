@@ -13,7 +13,7 @@ from steam_backlog_enforcer.hltb import (
     fetch_hltb_confidence,
 )
 
-PKG = "steam_backlog_enforcer.hltb"
+PKG = "steam_backlog_enforcer._hltb_search"
 _CONF = "steam_backlog_enforcer._hltb_confidence"
 
 

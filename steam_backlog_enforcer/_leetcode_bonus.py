@@ -32,29 +32,20 @@ transports, the memo, and the incident on total failure.
 
 from __future__ import annotations
 
-import http.client
-import json
 import logging
 from pathlib import Path
-import time as time_module
-from typing import TYPE_CHECKING, Final
-from urllib.parse import urlsplit
+from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._bonus_incident import report_leetcode_incident
 from steam_backlog_enforcer._leetcode_ledger import read_ledger_solved_today
+from steam_backlog_enforcer._status_api import AnswerCache, get_status
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS: Final = 2.0
-_CACHE_TTL_SECONDS: Final = 60.0
-
-# Only successes are cached, matching _workout_budget: a failure is retried on
-# the very next tick, so a restarted service takes effect immediately instead
-# of costing an hour for another minute.
-_cache: dict[str, tuple[float, bool]] = {}
+_cache = AnswerCache()
 
 
 def reset_cache() -> None:
@@ -77,22 +68,7 @@ def _fetch_leetcode_today(url: str) -> bool:
             could not check.
         KeyError: The payload lacked the expected fields.
     """
-    split = urlsplit(url)
-    conn = http.client.HTTPConnection(
-        split.hostname or "127.0.0.1",
-        split.port or 80,
-        timeout=_TIMEOUT_SECONDS,
-    )
-    try:
-        conn.request("GET", split.path or "/api/status")
-        resp = conn.getresponse()
-        body = resp.read()
-        if resp.status != http.HTTPStatus.OK:
-            msg = f"status {resp.status} {resp.reason}"
-            raise ValueError(msg)
-    finally:
-        conn.close()
-    block = json.loads(body)["leetcode"]
+    block = get_status(url)["leetcode"]
     if not block["checked"]:
         # The server answered, but said it could not look. That is not a "no".
         msg = f"leetcode-guard could not check: {block.get('reason', 'no reason')}"
@@ -113,10 +89,9 @@ def leetcode_solved_today(config: Config) -> bool | None:
         incident while an honest "not solved yet" does not.
     """
     url = config.leetcode_status_url
-    now = time_module.monotonic()
-    cached = _cache.get(url)
-    if cached is not None and now - cached[0] < _CACHE_TTL_SECONDS:
-        return cached[1]
+    cached = _cache.fresh(url)
+    if cached is not None:
+        return cached
 
     path = Path(config.leetcode_ledger_path).expanduser()
     answer = read_ledger_solved_today(path)
@@ -125,8 +100,7 @@ def leetcode_solved_today(config: Config) -> bool | None:
         if answer is None:
             return None
 
-    _cache[url] = (now, answer)
-    return answer
+    return _cache.store(url, answer=answer)
 
 
 def _fallback_to_endpoint(url: str, path: Path) -> bool | None:

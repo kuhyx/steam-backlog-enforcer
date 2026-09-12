@@ -9,12 +9,11 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._echo import _echo
-from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
+from steam_backlog_enforcer._hltb_confidence import (
+    refetch_poll_counts,
+)
 from steam_backlog_enforcer._hltb_types import (
-    load_hltb_cache,
     load_hltb_polls_cache,
-    restore_prior_hours,
-    save_hltb_cache,
 )
 
 if TYPE_CHECKING:
@@ -49,23 +48,7 @@ def _backfill_polls_for_finished(
         "Backfilling HLTB poll counts for %d already-finished games...",
         len(missing),
     )
-    # Force a fresh search by removing the hours entries we want to refetch.
-    # (fetch_hltb_times_cached skips entries already in the hours cache.)
-    cache = load_hltb_cache()
-    preserved_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
-    for aid, _name in missing:
-        cache.pop(aid, None)
-    save_hltb_cache(cache, polls_cache)
-
-    fetch_hltb_confidence_cached(missing)
-
-    # Restore any previously-known hours that the refetch may have replaced
-    # with a worse match (we trust prior leisure+dlc estimates).
-    refreshed_hours = load_hltb_cache()
-    refreshed_polls = load_hltb_polls_cache()
-    restore_prior_hours(refreshed_hours, preserved_hours)
-    save_hltb_cache(refreshed_hours, refreshed_polls)
-    return refreshed_polls
+    return refetch_poll_counts(missing)
 
 
 def _report_poll_confidence(

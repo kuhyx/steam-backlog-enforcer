@@ -15,6 +15,9 @@ from steam_backlog_enforcer._pick_completion import mark_finished, report_comple
 from steam_backlog_enforcer._scanning_assign import (
     _NO_CONF_MSG,
     _assign_chosen_game,
+    _clear_assignment,
+    _no_pick_message,
+    _open_candidates,
     _pick_next_game_sequential,
     _prompt_user_pick,
 )
@@ -23,10 +26,8 @@ from steam_backlog_enforcer._scanning_candidates import (
     _collect_top_candidates,
     _pick_next_shortest_candidate,
     _pick_playable_candidate,
-    _sort_key,
 )
 from steam_backlog_enforcer._scanning_confidence import (
-    _apply_cached_confidence_to_candidates,
     _report_poll_confidence,
 )
 from steam_backlog_enforcer._scanning_tampering import (
@@ -163,31 +164,16 @@ def pick_next_game(
         _pick_next_game_sequential(games, state, config, on_select)
         return
 
-    skip = set(state.finished_app_ids) | state.active_skipped_ids()
-    candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
-
+    candidates = _open_candidates(games, state)
     if not candidates:
-        _echo(_NO_CONF_MSG)
-        state.current_app_id = None
-        state.current_game_name = ""
-        state.save()
+        _clear_assignment(state, _NO_CONF_MSG)
         return
 
-    candidates.sort(key=_sort_key)
-    _apply_cached_confidence_to_candidates(candidates)
     qualified, confidence_skipped, linux_skipped = _collect_qualified_candidates(
         candidates
     )
-
     if not qualified:
-        _echo(
-            _NO_CONF_MSG
-            if confidence_skipped > 0 and linux_skipped == 0
-            else "\nNo playable games left (all have poor ProtonDB ratings)!"
-        )
-        state.current_app_id = None
-        state.current_game_name = ""
-        state.save()
+        _clear_assignment(state, _no_pick_message(confidence_skipped, linux_skipped))
         return
 
     idx = _prompt_user_pick(qualified)
