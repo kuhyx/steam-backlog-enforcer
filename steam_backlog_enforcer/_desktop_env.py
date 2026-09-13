@@ -70,6 +70,13 @@ def desktop_env_args(user: str, uid: int) -> list[str]:
         f"XAUTHORITY={xauth}",
         f"DBUS_SESSION_BUS_ADDRESS={dbus_addr}",
         f"XDG_RUNTIME_DIR={runtime_dir}",
+        # Steam Runtime's srt-logger opts INTO the journal when it finds one
+        # (it inherits this unit's JOURNAL_STREAM), regardless of the DEVNULL
+        # stderr the spawn already uses. That wrote 481k "joystick FFB" lines
+        # in one boot and evicted two weeks of history from a 300M journal.
+        # Steam still keeps its own logs/console-linux.txt; this only stops
+        # the copy into journald.
+        "SRT_LOGGER_USE_JOURNAL=0",
     ]
 
 

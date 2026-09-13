@@ -55,6 +55,16 @@ class TestDesktopEnvArgs:
             args = desktop_env_args("bob", 1000)
         assert _env_value(args, "XDG_RUNTIME_DIR") == "/run/user/1000"
 
+    def test_steam_runtime_logger_kept_out_of_the_journal(self) -> None:
+        """srt-logger must be told not to mirror Steam's console into journald.
+
+        It inherits the service's JOURNAL_STREAM and opts in on its own; one
+        boot's worth of joystick FFB errors (481k lines) evicted two weeks of
+        journal history and the evidence for a curfew failure with it.
+        """
+        args = desktop_env_args("bob", 1000)
+        assert _env_value(args, "SRT_LOGGER_USE_JOURNAL") == "0"
+
     def test_dbus_address_defaults_to_uid_path(self) -> None:
         """DBUS falls back to the uid-derived socket when unset."""
         env_copy = os.environ.copy()

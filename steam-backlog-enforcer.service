@@ -16,6 +16,15 @@ Environment=STEAM_ENFORCER_DESKTOP_USER=__DESKTOP_USER__
 Environment=DISPLAY=:0
 # Hardening: enforcer must not be easily killed.
 OOMScoreAdjust=-900
+# Journal backstop. Steam's srt-logger runs in this unit's cgroup and mirrors
+# Steam's console into journald; 2026-09-12 it wrote 481k "joystick FFB"
+# lines in one boot (99% of the journal) and evicted two weeks of history.
+# SRT_LOGGER_USE_JOURNAL=0 in the spawn env is the fix at source; these two
+# make sure a future Steam that ignores it still cannot flood the journal.
+LogFilterPatterns=~Failed to get joystick[0-9]+ FFB effect status
+LogFilterPatterns=~FFBInterface
+LogRateLimitIntervalSec=1min
+LogRateLimitBurst=2000
 #
 # DO NOT ADD PrivateMounts=, PrivateTmp=, ProtectSystem= OR ProtectHome= HERE.
 # The daily gaming budget enforces its cutoff by bind-mounting a refusal stub
