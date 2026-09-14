@@ -77,6 +77,13 @@ def desktop_env_args(user: str, uid: int) -> list[str]:
         # Steam still keeps its own logs/console-linux.txt; this only stops
         # the copy into journald.
         "SRT_LOGGER_USE_JOURNAL=0",
+        # SDL3's HIDAPI lg4ff driver has no effect-status query; BeamNG 0.39
+        # native treats the failed query as a dead effect and the G29 goes
+        # limp (12k "Failed to get joystick3 FFB effect status" lines per
+        # session). Narrow hint so gamepads keep HIDAPI (rumble/LEDs); only
+        # the Logitech wheel falls back to the kernel driver. Name verified
+        # against BeamNG's SDL 3.4.12 strings, 2026-09-14.
+        "SDL_JOYSTICK_HIDAPI_LG4FF=0",
     ]
 
 

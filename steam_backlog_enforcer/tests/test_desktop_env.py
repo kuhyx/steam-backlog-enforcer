@@ -65,6 +65,16 @@ class TestDesktopEnvArgs:
         args = desktop_env_args("bob", 1000)
         assert _env_value(args, "SRT_LOGGER_USE_JOURNAL") == "0"
 
+    def test_logitech_wheel_uses_kernel_driver_not_sdl_hidapi(self) -> None:
+        """Every SDL3 game must see SDL_JOYSTICK_HIDAPI_LG4FF=0.
+
+        SDL3's hidapi lg4ff driver cannot answer effect-status queries, which
+        BeamNG 0.39 native reads as a dead effect: zero force on the G29. The
+        narrow hint keeps HIDAPI for gamepads and only demotes the wheel.
+        """
+        args = desktop_env_args("bob", 1000)
+        assert _env_value(args, "SDL_JOYSTICK_HIDAPI_LG4FF") == "0"
+
     def test_dbus_address_defaults_to_uid_path(self) -> None:
         """DBUS falls back to the uid-derived socket when unset."""
         env_copy = os.environ.copy()
