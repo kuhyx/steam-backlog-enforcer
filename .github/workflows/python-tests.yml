@@ -28,3 +28,23 @@ jobs:
             --cov-branch \
             --cov-fail-under=100 \
             -v
+
+  # vitest's 100% bar used to run only in the local pre-push hook, which
+  # became a 1-second stamp check on 2026-09-20 (pre-commit's manual stage
+  # holds it now). Nothing else in CI runs the web suite, so this job is the
+  # only place that bar is enforced on every push.
+  web-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: vitest --coverage, 100% (web UI)
+        run: |
+          npm --prefix web ci
+          npm --prefix web run coverage
