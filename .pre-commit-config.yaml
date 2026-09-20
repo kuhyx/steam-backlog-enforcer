@@ -163,7 +163,7 @@ repos:
         pass_filenames: false
         always_run: true
         require_serial: true
-        stages: [pre-push]
+        stages: [manual]
 
   # ===========================================================================
   # VITEST + COVERAGE (push stage)
@@ -177,7 +177,7 @@ repos:
         files: ^web/src/
         pass_filenames: false
         require_serial: true
-        stages: [pre-push]
+        stages: [manual]
 
   # ===========================================================================
   # CODESPELL - Spell checking
@@ -235,3 +235,17 @@ repos:
           |Cargo\.(toml|lock)|go\.(mod|sum)
           |\.fvmrc|\.nvmrc|\.python-version
           |\.github/workflows/.*\.ya?ml)$
+
+  - repo: local
+    hooks:
+      # The only pre-push hook. Everything that used to run here is now
+      # `stages: [manual]` -- run on demand with `scripts/check_gate_stamp.sh
+      # full`, and by CI on every push. finish_auto.sh stamps HEAD after its
+      # gate; a tree without that receipt cannot leave the machine.
+      - id: gate-stamp
+        name: pushed tree passed the local gate (stamp check)
+        entry: scripts/check_gate_stamp.sh check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
