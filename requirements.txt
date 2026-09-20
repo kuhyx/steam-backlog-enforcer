@@ -17,6 +17,6 @@ pytest-sugar==1.1.1
 pytest-timeout==2.4.0
 pytest-xdist==3.8.0
 requests==2.34.2
-ruff==0.16.7
+ruff==0.16.8
 types-requests==2.33.0.20260906
 websockets==17.1
