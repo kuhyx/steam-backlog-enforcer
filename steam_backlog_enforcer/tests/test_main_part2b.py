@@ -51,8 +51,14 @@ class TestEnforceOnDone:
             ),
             patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=2),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(1, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(1, None),
+            ),
         ):
             _enforce_on_done(config, state)
 
@@ -67,8 +73,14 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}.enforce_allowed_game", return_value=[]),
             patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=0),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(0, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(0, None),
+            ),
         ):
             _enforce_on_done(config, state)
 
@@ -77,10 +89,15 @@ class TestEnforceOnDone:
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{CMD_DONE_PKG}._echo") as mock_echo,
+            # The skip line is printed by the shared hide helper.
+            patch("steam_backlog_enforcer.library_hider._echo", mock_echo),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
             patch(
-                f"{CMD_DONE_PKG}.try_hide_other_games",
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
                 return_value=(0, "Steam is not installed"),
             ),
         ):
@@ -100,8 +117,14 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(0, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(0, None),
+            ),
         ):
             _enforce_on_done(config, state)
         mock_install.assert_called_once_with(1, "G", "s1", use_steam_protocol=True)

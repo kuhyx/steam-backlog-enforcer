@@ -9,26 +9,25 @@ from steam_backlog_enforcer._actions import (
     active_manual_picks,
     allowed_app_ids,
     allowed_games,
-    apply_manual_pick,
+    apply_configured_pick,
     manual_pick_slots_left,
 )
 from steam_backlog_enforcer._allowed_games import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
-from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
 from steam_backlog_enforcer._pick_completion import (
     report_completion,
     warn_stale_assignment,
 )
-from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer._snapshot import load_snapshot, snapshot_game_name
 from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,
     is_game_installed,
     uninstall_other_games,
 )
-from steam_backlog_enforcer.library_hider import try_hide_other_games
+from steam_backlog_enforcer.library_hider import hide_others_and_report
 from steam_backlog_enforcer.main._shared import _MANUAL_LOCK_EXEMPT_COMMANDS
 from steam_backlog_enforcer.scanning import pick_next_game
 from steam_backlog_enforcer.steam_api import (
@@ -57,13 +56,7 @@ def cmd_pick(config: Config, state: State) -> None:
     pick_next_game(games, state, config)
 
     if state.current_app_id is not None:
-        owned_ids = get_all_owned_app_ids(config)
-        if owned_ids:
-            hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
-            if skipped is not None:
-                _echo(f"\n  Library hiding: skipped ({skipped})")
-            elif hidden > 0:
-                _echo(f"\n  Library: hid {hidden} games")
+        hide_others_and_report(config, state)
 
 
 def _resolve_game_name(config: Config, app_id: int) -> str | None:
@@ -72,11 +65,9 @@ def _resolve_game_name(config: Config, app_id: int) -> str | None:
     Returns the game name, or None if not found.
     """
     # Fast path: snapshot already on disk.
-    snapshot = load_snapshot()
-    if snapshot:
-        for entry in snapshot:
-            if entry.get("app_id") == app_id:
-                return str(entry["name"])
+    name = snapshot_game_name(app_id)
+    if name is not None:
+        return name
 
     # Slower path: owned games API.
     try:
@@ -145,13 +136,7 @@ def _apply_allowed_set(config: Config, state: State) -> None:
         _echo(f"  Installing {name}...")
         install_game(app_id, name, config.steam_id, use_steam_protocol=True)
 
-    owned_ids = get_all_owned_app_ids(config)
-    if owned_ids:
-        hidden, skipped = try_hide_other_games(owned_ids, allowed)
-        if skipped is not None:
-            _echo(f"  Library hiding: skipped ({skipped})")
-        elif hidden > 0:
-            _echo(f"  Library: hid {hidden} games")
+    hide_others_and_report(config, state, lead="  ")
 
 
 def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
@@ -211,12 +196,7 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
 
     # State mutation is the shared, stdout-free core (also used by the MCP
     # server); the destructive post-assignment cascade below stays CLI-only.
-    refused = apply_manual_pick(
-        state,
-        app_id,
-        game_name,
-        max_picks=config.max_manual_picks,
-    )
+    refused = apply_configured_pick(config, state, app_id, game_name)
     if refused is not None:
         _echo(f"\nError: {refused}")
         sys.exit(1)

@@ -12,10 +12,10 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import shutil
 import socket
 import subprocess
 
+from steam_backlog_enforcer._store_tools import IPTABLES, SUDO, ensure_chain_in_output
 from steam_backlog_enforcer._total_block_domains import (
     _ALL_TOTAL_BLOCK_DOMAINS,
     NULL_ROUTE_IP,
@@ -23,9 +23,6 @@ from steam_backlog_enforcer._total_block_domains import (
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 logger = logging.getLogger(__name__)
-
-_IPTABLES = shutil.which("iptables") or "/usr/sbin/iptables"
-_SUDO = shutil.which("sudo") or "/usr/bin/sudo"
 
 IPTABLES_CHAIN = "STEAM_TOTAL_BLOCK"
 
@@ -59,7 +56,7 @@ def _iptables_chain_intact(expected_ips: set[str]) -> bool:
     3-second enforce tick.
     """
     listing = subprocess.run(
-        [_SUDO, _IPTABLES, "-S", IPTABLES_CHAIN],
+        [SUDO, IPTABLES, "-S", IPTABLES_CHAIN],
         capture_output=True,
         text=True,
         timeout=5,
@@ -80,7 +77,7 @@ def _iptables_chain_intact(expected_ips: set[str]) -> bool:
         return False
 
     hook = subprocess.run(
-        [_SUDO, _IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
+        [SUDO, IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
         capture_output=True,
         timeout=5,
         check=False,
@@ -115,13 +112,13 @@ def apply_total_block_iptables() -> bool:
     resolved_ips: set[str] = set()
     try:
         subprocess.run(
-            [_SUDO, _IPTABLES, "-N", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-N", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         subprocess.run(
-            [_SUDO, _IPTABLES, "-F", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=True,
@@ -137,25 +134,13 @@ def apply_total_block_iptables() -> bool:
 
         for ip in blocked_ips:
             subprocess.run(
-                [_SUDO, _IPTABLES, "-A", IPTABLES_CHAIN, "-d", ip, "-j", "DROP"],
+                [SUDO, IPTABLES, "-A", IPTABLES_CHAIN, "-d", ip, "-j", "DROP"],
                 capture_output=True,
                 timeout=5,
                 check=True,
             )
 
-        result = subprocess.run(
-            [_SUDO, _IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        if result.returncode != 0:
-            subprocess.run(
-                [_SUDO, _IPTABLES, "-I", "OUTPUT", "-j", IPTABLES_CHAIN],
-                capture_output=True,
-                timeout=5,
-                check=True,
-            )
+        ensure_chain_in_output(IPTABLES_CHAIN)
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to apply total-block iptables rules")
         return False
@@ -167,19 +152,19 @@ def remove_total_block_iptables() -> bool:
     """Remove the total-block iptables chain and its OUTPUT hook."""
     try:
         subprocess.run(
-            [_SUDO, _IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         subprocess.run(
-            [_SUDO, _IPTABLES, "-F", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,
         )
         subprocess.run(
-            [_SUDO, _IPTABLES, "-X", IPTABLES_CHAIN],
+            [SUDO, IPTABLES, "-X", IPTABLES_CHAIN],
             capture_output=True,
             timeout=5,
             check=False,

@@ -34,7 +34,10 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={2: 5.0}),
             patch(f"{PKG}.pick_next_game") as mock_pick,
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
         ):
             config = Config(steam_api_key="k", steam_id="i")
             state = State()
@@ -48,8 +51,14 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={2: 5.0}),
             patch(f"{PKG}.pick_next_game"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{PKG}.try_hide_other_games", return_value=(2, None)) as mock_hide,
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2, 3],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(2, None),
+            ) as mock_hide,
             patch(f"{PKG}._echo"),
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
@@ -62,8 +71,14 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{PKG}.try_hide_other_games", return_value=(0, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2, 3],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(0, None),
+            ),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
@@ -76,12 +91,17 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
             patch(
-                f"{PKG}.try_hide_other_games",
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2, 3],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
                 return_value=(0, "Steam is not installed"),
             ),
             patch(f"{PKG}._echo") as mock_echo,
+            # The skip line is printed by the shared hide helper.
+            patch("steam_backlog_enforcer.library_hider._echo", mock_echo),
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
@@ -93,7 +113,9 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(f"{PKG}.get_all_owned_app_ids") as mock_owned,
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids"
+            ) as mock_owned,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), State())
         mock_owned.assert_not_called()
@@ -105,8 +127,13 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{PKG}.try_hide_other_games") as mock_hide,
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games"
+            ) as mock_hide,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         mock_hide.assert_not_called()
@@ -124,7 +151,10 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={2: 7.5}),
             patch(f"{PKG}.pick_next_game", side_effect=capture_pick),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
         ):
             cmd_pick(config, state)
 
@@ -143,7 +173,9 @@ class TestResolveGameName:
                 "playtime_minutes": 0,
             }
         ]
-        with patch(f"{PKG}.load_snapshot", return_value=snapshot):
+        with patch(
+            "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+        ):
             result = _resolve_game_name(Config(), 440)
         assert result == "TF2"
 

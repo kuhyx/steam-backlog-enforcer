@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from steam_backlog_enforcer import _mcp_actions as mcp_actions
 from steam_backlog_enforcer import _mcp_query as mcp_query
-from steam_backlog_enforcer import _mcp_server as mcp_server
 from steam_backlog_enforcer.steam_api import GameInfo
 
 
@@ -120,14 +119,16 @@ class TestListBacklog:
 
 class TestResolveAndSort:
     def test_resolve_found(self) -> None:
-        with patch.object(
-            mcp_server, "load_snapshot", return_value=[{"app_id": 440, "name": "TF2"}]
+        with patch(
+            "steam_backlog_enforcer._snapshot.load_snapshot",
+            return_value=[{"app_id": 440, "name": "TF2"}],
         ):
             assert mcp_actions._resolve_game_name(440) == "TF2"
 
     def test_resolve_missing(self) -> None:
-        with patch.object(
-            mcp_server, "load_snapshot", return_value=[{"app_id": 1, "name": "X"}]
+        with patch(
+            "steam_backlog_enforcer._snapshot.load_snapshot",
+            return_value=[{"app_id": 1, "name": "X"}],
         ):
             assert mcp_actions._resolve_game_name(440) is None
 

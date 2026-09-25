@@ -12,7 +12,7 @@ from typing import Any
 from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS,
     active_manual_picks,
-    apply_manual_pick,
+    apply_configured_pick,
     find_manual_pick,
 )
 from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
@@ -71,12 +71,7 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
     # Free the slots of picks already at 100%, so the cap below cannot refuse
     # on behalf of a game that is finished. Matches the CLI's pick-manual.
     retired = retire_completed_manual_picks(config, state)
-    refused = apply_manual_pick(
-        state,
-        app_id,
-        game_name,
-        max_picks=config.max_manual_picks,
-    )
+    refused = apply_configured_pick(config, state, app_id, game_name)
     if refused is not None:
         return {"ok": False, "reason": refused}
     logger.info("pick_manual applied: %s (AppID=%s)", game_name, app_id)

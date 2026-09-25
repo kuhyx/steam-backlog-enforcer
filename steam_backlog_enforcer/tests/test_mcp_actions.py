@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from steam_backlog_enforcer import _mcp_actions as mcp_actions
 from steam_backlog_enforcer import _mcp_query as mcp_query
-from steam_backlog_enforcer import _mcp_server as mcp_server
 from steam_backlog_enforcer.config import State
 
 
@@ -20,12 +19,11 @@ class TestPickManualGate:
 
     def test_preview_does_not_mutate(self) -> None:
         with (
-            patch.object(
-                mcp_server,
-                "load_snapshot",
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot",
                 return_value=[{"app_id": 440, "name": "TF2"}],
             ),
-            patch.object(mcp_actions, "apply_manual_pick") as amp,
+            patch("steam_backlog_enforcer._actions.apply_manual_pick") as amp,
         ):
             out = mcp_actions.pick_manual(440)
         assert out["preview"] is True
@@ -34,14 +32,15 @@ class TestPickManualGate:
 
     def test_confirm_applies(self) -> None:
         with (
-            patch.object(
-                mcp_server,
-                "load_snapshot",
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot",
                 return_value=[{"app_id": 440, "name": "TF2"}],
             ),
             patch.object(mcp_actions, "State") as state,
             patch.object(mcp_actions, "Config") as config,
-            patch.object(mcp_actions, "apply_manual_pick", return_value=None) as amp,
+            patch(
+                "steam_backlog_enforcer._actions.apply_manual_pick", return_value=None
+            ) as amp,
         ):
             out = mcp_actions.pick_manual(440, confirm=True)
         assert out["applied"] is True
@@ -113,14 +112,16 @@ class TestAbandonPickGate:
 
     def test_refused_at_cap(self) -> None:
         with (
-            patch.object(
-                mcp_server,
-                "load_snapshot",
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot",
                 return_value=[{"app_id": 440, "name": "TF2"}],
             ),
             patch.object(mcp_actions, "State"),
             patch.object(mcp_actions, "Config"),
-            patch.object(mcp_actions, "apply_manual_pick", return_value="cap reached"),
+            patch(
+                "steam_backlog_enforcer._actions.apply_manual_pick",
+                return_value="cap reached",
+            ),
         ):
             out = mcp_actions.pick_manual(440, confirm=True)
         assert out["ok"] is False

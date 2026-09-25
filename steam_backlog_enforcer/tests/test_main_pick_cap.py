@@ -28,7 +28,10 @@ class TestPickManualCap:
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_installed", return_value=True),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
         ):
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
         assert [p["app_id"] for p in state.manual_picks] == [100, 489830]
@@ -59,7 +62,10 @@ class TestPickManualCap:
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_installed", return_value=True),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
             pytest.raises(SystemExit),
         ):
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
@@ -79,8 +85,14 @@ class TestPickManualCap:
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0) as mock_uninstall,
             patch(f"{PKG}.is_game_installed", return_value=True),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 100, 489830]),
-            patch(f"{PKG}.try_hide_other_games", return_value=(1, None)) as mock_hide,
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 100, 489830],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(1, None),
+            ) as mock_hide,
         ):
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
         mock_uninstall.assert_called_once_with({100, 489830})
@@ -97,7 +109,10 @@ class TestPickManualCap:
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_installed", return_value=False),
             patch(f"{PKG}.install_game") as mock_install,
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
         ):
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
         installed = {call.args[0] for call in mock_install.call_args_list}

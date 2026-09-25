@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._hltb_types import (
     _read_raw_cache,
 )
-from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer._snapshot import require_snapshot_games
 from steam_backlog_enforcer._stats_display import (
     _format_completion_date,
     _print_pace_scenario,
@@ -28,9 +28,6 @@ from steam_backlog_enforcer._web_dataset import (
     count_complete_since_start,
 )
 from steam_backlog_enforcer.game_install import _echo
-from steam_backlog_enforcer.steam_api import (
-    GameInfo,
-)
 
 # _GameTimes lives in the _stats_types leaf so both this module and its
 # helper modules can share it; it is re-exported here because callers (and
@@ -135,12 +132,10 @@ def cmd_stats(_config: Config, state: State) -> None:
     4. Worst   — absolute maximum recorded time (any category) per HLTB.
     5. Your play style — extrapolated from completed-game calibration vs HLTB.
     """
-    snapshot = load_snapshot()
-    if snapshot is None:
-        _echo("No snapshot found. Run 'scan' first.")
+    games = require_snapshot_games()
+    if games is None:
         return
 
-    games = [GameInfo.from_snapshot(d) for d in snapshot]
     games = _refresh_recently_played_completions(games, _config)
     # Count all 100%-achievement games in library (more accurate than
     # finished_app_ids, which only tracks enforcer-assigned completions).

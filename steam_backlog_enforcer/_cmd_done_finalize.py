@@ -16,7 +16,6 @@ from steam_backlog_enforcer._cmd_done import (
     _refresh_uncached_shortlist_hours,
     _report_assigned_confidence,
 )
-from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
 from steam_backlog_enforcer._pick_completion import mark_finished
@@ -31,7 +30,7 @@ from steam_backlog_enforcer.game_install import (
     is_game_installed,
     uninstall_other_games,
 )
-from steam_backlog_enforcer.library_hider import try_hide_other_games
+from steam_backlog_enforcer.library_hider import hide_others_and_report
 from steam_backlog_enforcer.scanning import pick_next_game
 from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIClient
 
@@ -73,13 +72,7 @@ def _finalize_completion(
         _echo("  No more games to assign!")
         return
 
-    owned_ids = get_all_owned_app_ids(config)
-    if owned_ids:
-        hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
-        if skipped is not None:
-            _echo(f"\n  Library hiding: skipped ({skipped})")
-        elif hidden > 0:
-            _echo(f"\n  Library: hid {hidden} games")
+    hide_others_and_report(config, state)
 
     if not is_game_installed(state.current_app_id):
         logger.info(
@@ -139,13 +132,7 @@ def _enforce_on_done(config: Config, state: State) -> None:
     # Reconcile library: hide non-assigned games and unhide the assigned one.
     # Without this, an interrupted earlier completion can leave the new
     # assigned game hidden and stale games visible.
-    owned_ids = get_all_owned_app_ids(config)
-    if owned_ids:
-        hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
-        if skipped is not None:
-            _echo(f"  Library hiding: skipped ({skipped})")
-        elif hidden > 0:
-            _echo(f"  Library: hid {hidden} games")
+    hide_others_and_report(config, state, lead="  ")
 
 
 def cmd_done(config: Config, state: State) -> None:

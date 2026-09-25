@@ -24,7 +24,7 @@ from steam_backlog_enforcer._allowed_games import (
 # accessible normally; this only needs to list names imported-then-reexported.
 
 if TYPE_CHECKING:
-    from steam_backlog_enforcer.config import State
+    from steam_backlog_enforcer.config import Config, State
 
 # How long an abandoned pick stays out of the auto-assignment pool, so that
 # ``scan`` does not immediately hand back the game the user just rejected.
@@ -91,6 +91,15 @@ def manual_pick_slots_left(state: State, max_picks: int) -> int:
         Remaining slots, never negative.
     """
     return max(0, max_picks - len(active_manual_picks(state)))
+
+
+def apply_configured_pick(
+    config: Config, state: State, app_id: int, game_name: str
+) -> str | None:
+    """:func:`apply_manual_pick` under the cap the configuration sets."""
+    return apply_manual_pick(
+        state, app_id, game_name, max_picks=config.max_manual_picks
+    )
 
 
 def apply_manual_pick(

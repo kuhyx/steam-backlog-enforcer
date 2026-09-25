@@ -73,7 +73,9 @@ class TestCmdStats:
         )
         echoed: list[str] = []
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], hltb_skip, linux_skip, no_data_skip),
@@ -92,8 +94,12 @@ class TestCmdStats:
         echoed: list[str] = []
         state = State()
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=None),
-            patch(f"{_PKG}._echo", side_effect=lambda *a, **_: echoed.append(a[0])),
+            patch("steam_backlog_enforcer._snapshot.load_snapshot", return_value=None),
+            # The "run scan" hint is printed by the shared snapshot helper.
+            patch(
+                "steam_backlog_enforcer._snapshot._echo",
+                side_effect=lambda *a, **_: echoed.append(a[0]),
+            ),
         ):
             cmd_stats(self._config(), state)
         assert any("No snapshot found" in s for s in echoed)
@@ -153,7 +159,9 @@ class TestCmdStats:
         )
         echoed: list[str] = []
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),
@@ -184,7 +192,9 @@ class TestCmdStats:
         )
         echoed: list[str] = []
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),
@@ -206,7 +216,9 @@ class TestCmdStats:
         snapshot = [self._snapshot_game()]
         echoed: list[str] = []
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([], 0, 0, 0),

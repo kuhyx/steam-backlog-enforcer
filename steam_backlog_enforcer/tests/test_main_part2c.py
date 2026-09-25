@@ -93,8 +93,14 @@ class TestFinalizeCompletionRetries:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(1, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(1, None),
+            ),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.send_notification"),
@@ -123,8 +129,14 @@ class TestFinalizeCompletionRetries:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(1, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(1, None),
+            ),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.send_notification"),

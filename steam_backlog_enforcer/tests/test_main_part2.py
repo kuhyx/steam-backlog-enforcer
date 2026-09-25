@@ -38,8 +38,14 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(2, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2, 3],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(2, None),
+            ),
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
@@ -65,11 +71,16 @@ class TestFinalizeCompletion:
         snap = [_snap(2, "NewGame", 10, 0, 5.0)]
         with (
             patch(f"{CMD_DONE_PKG}._echo") as mock_echo,
+            # The skip line is printed by the shared hide helper.
+            patch("steam_backlog_enforcer.library_hider._echo", mock_echo),
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
             patch(
-                f"{CMD_DONE_PKG}.try_hide_other_games",
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2, 3],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
                 return_value=(0, "update in progress"),
             ),
             patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
@@ -133,7 +144,10 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[]),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[],
+            ),
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
@@ -158,8 +172,14 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
             patch(f"{CMD_DONE_PKG}.pick_next_game") as mock_pick,
-            patch(f"{CMD_DONE_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{CMD_DONE_PKG}.try_hide_other_games", return_value=(0, None)),
+            patch(
+                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
+                return_value=[1, 2],
+            ),
+            patch(
+                "steam_backlog_enforcer.library_hider.try_hide_other_games",
+                return_value=(0, None),
+            ),
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):

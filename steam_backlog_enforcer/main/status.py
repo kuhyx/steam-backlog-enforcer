@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._actions import active_manual_picks
 from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer._pick_completion import report_completion
-from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer._snapshot import require_snapshot_games
 from steam_backlog_enforcer._total_block import get_total_block_status
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -15,11 +15,11 @@ from steam_backlog_enforcer.game_install import (
     is_protected_app,
 )
 from steam_backlog_enforcer.main._shared import _LIST_DISPLAY_LIMIT
-from steam_backlog_enforcer.steam_api import GameInfo
 from steam_backlog_enforcer.store_blocker import is_store_blocked
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
+    from steam_backlog_enforcer.steam_api import GameInfo
 
 
 def cmd_status(config: Config, state: State) -> None:
@@ -74,12 +74,10 @@ def cmd_status(config: Config, state: State) -> None:
 
 def cmd_list(_config: Config, state: State) -> None:
     """List games from the last snapshot."""
-    snapshot = load_snapshot()
-    if snapshot is None:
-        _echo("No snapshot found. Run 'scan' first.")
+    games = require_snapshot_games()
+    if games is None:
         return
 
-    games = [GameInfo.from_snapshot(d) for d in snapshot]
     incomplete = [g for g in games if not g.is_complete]
     complete = [g for g in games if g.is_complete]
 

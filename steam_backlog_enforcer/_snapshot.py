@@ -11,6 +11,8 @@ import json
 from typing import Any
 
 from steam_backlog_enforcer import config
+from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._steam_models import GameInfo
 from steam_backlog_enforcer.config import _atomic_write
 
 
@@ -38,3 +40,20 @@ def load_snapshot() -> list[dict[str, Any]] | None:
         )
         return result
     return None
+
+
+def snapshot_game_name(app_id: int) -> str | None:
+    """The name the last snapshot recorded for ``app_id``, or ``None``."""
+    for entry in load_snapshot() or []:
+        if entry.get("app_id") == app_id:
+            return str(entry["name"])
+    return None
+
+
+def require_snapshot_games() -> list[GameInfo] | None:
+    """The last snapshot as games, or ``None`` after telling the user to scan."""
+    snapshot = load_snapshot()
+    if snapshot is None:
+        _echo("No snapshot found. Run 'scan' first.")
+        return None
+    return [GameInfo.from_snapshot(d) for d in snapshot]

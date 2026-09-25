@@ -75,7 +75,9 @@ class TestCmdStatsGroup2:
         )
         echoed: list[str] = []
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], hltb_skip, linux_skip, no_data_skip),
@@ -107,7 +109,9 @@ class TestCmdStatsGroup2:
             return [entry], 0, 0, 0
 
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(f"{_PKG}._filter_qualifying_games", side_effect=count_filter),
             patch(f"{_PKG}._ensure_completed_rush_data", return_value=False),
             patch(f"{_PKG}._ensure_rush_data", return_value=True),
@@ -162,7 +166,9 @@ class TestCmdStatsGroup2:
             captured["games_done"] = games_done
 
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),
@@ -201,7 +207,9 @@ class TestCmdStatsGroup2:
             captured["leisure"] = leisure
 
         with (
-            patch(f"{_PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(
                 f"{_PKG}._filter_qualifying_games",
                 return_value=([entry], 0, 0, 0),

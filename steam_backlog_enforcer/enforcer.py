@@ -13,6 +13,7 @@ from steam_backlog_enforcer._desktop_env import (
     desktop_user_cmd,
     resolve_desktop_user,
 )
+from steam_backlog_enforcer._store_tools import run_quiet
 from steam_backlog_enforcer.game_uninstall import is_protected_app
 
 logger = logging.getLogger(__name__)
@@ -163,12 +164,7 @@ def send_notification(title: str, body: str) -> None:
         resolve_desktop_user(),
     )
     try:
-        subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
+        run_quiet(cmd)
     except FileNotFoundError, OSError:
         logger.debug("notify-send not available.")
     except subprocess.TimeoutExpired:

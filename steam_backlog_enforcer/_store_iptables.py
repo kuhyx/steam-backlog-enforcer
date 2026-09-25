@@ -16,6 +16,8 @@ from steam_backlog_enforcer._store_tools import (
     IPTABLES,
     IPTABLES_CHAIN,
     SUDO,
+    ensure_chain_in_output,
+    run_quiet,
 )
 from steam_backlog_enforcer.config import (
     BLOCKED_DOMAINS,
@@ -82,20 +84,7 @@ def _block_store_iptables() -> bool:
                 check=True,
             )
 
-        # Hook our chain into OUTPUT if not already there.
-        result = subprocess.run(
-            [SUDO, IPTABLES, "-C", "OUTPUT", "-j", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        if result.returncode != 0:
-            subprocess.run(
-                [SUDO, IPTABLES, "-I", "OUTPUT", "-j", IPTABLES_CHAIN],
-                capture_output=True,
-                timeout=5,
-                check=True,
-            )
+        ensure_chain_in_output(IPTABLES_CHAIN)
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to block store via iptables")
         return False
@@ -140,9 +129,4 @@ def flush_dns_cache() -> None:
     ]
     for cmd in commands:
         with contextlib.suppress(FileNotFoundError, OSError):
-            subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=5,
-                check=False,
-            )
+            run_quiet(cmd)

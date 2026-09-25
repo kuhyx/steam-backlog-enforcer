@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from mcp.server import MCPServer
 
-from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer._snapshot import snapshot_game_name
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.steam_api import GameInfo
@@ -63,12 +63,7 @@ def _resolve_game_name(app_id: int) -> str | None:
     Returns:
         The game name, or ``None`` if not present in the snapshot.
     """
-    snapshot = load_snapshot()
-    if snapshot:
-        for entry in snapshot:
-            if entry.get("app_id") == app_id:
-                return str(entry["name"])
-    return None
+    return snapshot_game_name(app_id)
 
 
 def _backlog_sort_key(game: GameInfo) -> tuple[int, float]:

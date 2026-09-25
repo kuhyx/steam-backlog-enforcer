@@ -49,9 +49,10 @@ class TestCmdList:
 
     def test_no_snapshot(self) -> None:
         with (
-            patch(f"{PKG}.load_snapshot", return_value=None),
+            patch("steam_backlog_enforcer._snapshot.load_snapshot", return_value=None),
             patch(f"{PKG}.report_completion", return_value=[]),
-            patch(f"{PKG}._echo") as mock_echo,
+            # The "run scan" hint is printed by the shared snapshot helper.
+            patch("steam_backlog_enforcer._snapshot._echo") as mock_echo,
         ):
             cmd_list(Config(), State())
             assert any("No snapshot" in str(c) for c in mock_echo.call_args_list)
@@ -64,7 +65,9 @@ class TestCmdList:
         ]
         state = State(current_app_id=1)
         with (
-            patch(f"{PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
         ):
@@ -73,7 +76,9 @@ class TestCmdList:
     def test_many_games(self) -> None:
         snapshot = [snap(i, f"Game{i}") for i in range(60)]
         with (
-            patch(f"{PKG}.load_snapshot", return_value=snapshot),
+            patch(
+                "steam_backlog_enforcer._snapshot.load_snapshot", return_value=snapshot
+            ),
             patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
         ):

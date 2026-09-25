@@ -18,8 +18,12 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._cdp import _cdp_result_value, _evaluate_js
+from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
 from steam_backlog_enforcer._steam_errors import (
     SteamUnavailableError,
 )
@@ -28,6 +32,9 @@ from steam_backlog_enforcer._steam_launch import (
     restart_steam,
     steam_is_installed,
 )
+
+if TYPE_CHECKING:
+    from steam_backlog_enforcer.config import Config, State
 
 logger = logging.getLogger(__name__)
 
@@ -195,3 +202,19 @@ def unhide_all_games(owned_app_ids: list[int]) -> int:
     count: int = parsed["count"]
     logger.info("Unhidden %d games via CDP.", count)
     return count
+
+
+def hide_others_and_report(config: Config, state: State, *, lead: str = "\n  ") -> None:
+    """Hide every owned game the state does not allow, and say what happened.
+
+    ``lead`` is the indentation (and blank line, by default) the report lines
+    start with, so the caller's output stays aligned with its own.
+    """
+    owned_ids = get_all_owned_app_ids(config)
+    if not owned_ids:
+        return
+    hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
+    if skipped is not None:
+        _echo(f"{lead}Library hiding: skipped ({skipped})")
+    elif hidden > 0:
+        _echo(f"{lead}Library: hid {hidden} games")
