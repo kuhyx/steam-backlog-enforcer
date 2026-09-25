@@ -19,10 +19,10 @@ from steam_backlog_enforcer._scanning_confidence import (
     _apply_cached_confidence_to_candidates,
     _report_poll_confidence,
 )
+from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,
-    is_game_installed,
     uninstall_other_games,
 )
 
@@ -93,7 +93,7 @@ def _assign_chosen_game(
         count = uninstall_other_games(allowed_app_ids(state))
         if count:
             _echo(f"\n  Uninstalled {count} non-assigned games")
-    if not is_game_installed(chosen.app_id):
+    if not is_game_fully_installed(chosen.app_id):
         _echo(f"\n  Auto-installing {chosen.name}...")
         install_game(
             chosen.app_id, chosen.name, config.steam_id, use_steam_protocol=True

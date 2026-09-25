@@ -31,7 +31,9 @@ from steam_backlog_enforcer._steam_errors import (
 )
 from steam_backlog_enforcer._steam_process import _run_as_user
 from steam_backlog_enforcer._steam_restart_guard import (
+    assert_no_fast_install,
     assert_safe_to_restart,
+    fast_install_running,
     game_is_running,
 )
 from steam_backlog_enforcer._steam_state import steam_update_in_progress
@@ -53,10 +55,6 @@ _STEAM_BINARY = "/usr/bin/steam"
 def steam_is_installed() -> bool:
     """Return True if the real Steam client binary is present."""
     return Path(_STEAM_BINARY).exists()
-
-
-# Handles for fire-and-forget launches, kept only so they can be reaped.
-_SPAWNED: list[subprocess.Popen[bytes]] = []
 
 
 # ──────────────────────────────────────────────────────────────
@@ -170,6 +168,7 @@ def ensure_steam_debug_port() -> None:
         SteamUnavailableError: If Steam is not installed, or is installed but
             never opens its debug port.
     """
+    assert_no_fast_install()
     if _steam_has_debug_port():
         logger.debug("Steam CDP port already available.")
         return
@@ -231,10 +230,10 @@ def restart_steam() -> None:
         )
         return
 
-    if steam_update_in_progress():
+    if steam_update_in_progress() or fast_install_running():
         logger.warning(
-            "Skipping Steam restart — a game update is in progress; "
-            "restarting now could corrupt it.",
+            "Skipping Steam restart — a game update or fast install is in "
+            "progress; restarting now could corrupt it.",
         )
         return
 

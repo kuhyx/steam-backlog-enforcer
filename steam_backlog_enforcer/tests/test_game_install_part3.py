@@ -23,10 +23,13 @@ class TestInstallGame:
     """Tests for install_game."""
 
     def test_already_installed(self, tmp_path: Path) -> None:
-        manifest = tmp_path / "appmanifest_440.acf"
-        manifest.touch()
-        with patch("steam_backlog_enforcer.game_install.STEAMAPPS_PATH", tmp_path):
+        (tmp_path / "appmanifest_440.acf").write_text('"StateFlags"\t\t"4"\n')
+        with (
+            patch("steam_backlog_enforcer._steam_state.STEAMAPPS_PATH", tmp_path),
+            patch(f"{PKG}.fast_install") as fast,
+        ):
             assert install_game(440, "TF2", "steam123") is True
+        fast.assert_not_called()
 
     def test_use_steam_protocol_success(self, tmp_path: Path) -> None:
         with (

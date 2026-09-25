@@ -20,6 +20,7 @@ from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
 from steam_backlog_enforcer._pick_completion import mark_finished
 from steam_backlog_enforcer._snapshot import load_snapshot
+from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     send_notification,
@@ -27,7 +28,6 @@ from steam_backlog_enforcer.enforcer import (
 from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,
-    is_game_installed,
     uninstall_other_games,
 )
 from steam_backlog_enforcer.library_hider import hide_others_and_report
@@ -74,7 +74,7 @@ def _finalize_completion(
 
     hide_others_and_report(config, state)
 
-    if not is_game_installed(state.current_app_id):
+    if not is_game_fully_installed(state.current_app_id):
         logger.info(
             "Assigned game still missing after library reconciliation; "
             "re-triggering install"
@@ -120,7 +120,7 @@ def _enforce_on_done(config: Config, state: State) -> None:
         if count:
             _echo(f"  Uninstalled {count} unauthorized game(s)")
 
-    if not is_game_installed(state.current_app_id):
+    if not is_game_fully_installed(state.current_app_id):
         _echo(f"  Re-installing {state.current_game_name}...")
         install_game(
             state.current_app_id,

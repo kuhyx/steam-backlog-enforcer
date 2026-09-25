@@ -66,7 +66,7 @@ class TestPickNextGame:
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(
-                "steam_backlog_enforcer._scanning_assign.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_fully_installed",
                 return_value=True,
             ),
             patch(
@@ -101,7 +101,7 @@ class TestPickNextGame:
             ),
             patch("steam_backlog_enforcer.scanning._echo"),
             patch(
-                "steam_backlog_enforcer._scanning_assign.is_game_installed",
+                "steam_backlog_enforcer._scanning_assign.is_game_fully_installed",
                 return_value=True,
             ),
             patch(

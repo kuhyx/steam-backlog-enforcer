@@ -91,6 +91,15 @@ def _block_real_subprocesses() -> Iterator[None]:
             "steam_backlog_enforcer._playtime_run.subprocess.run",
             noop_run,
         ),
+        # steam-game-installer closes the user's Steam; never reach it.
+        patch(
+            "steam_backlog_enforcer._fast_install.subprocess.run",
+            noop_run,
+        ),
+        patch(
+            "steam_backlog_enforcer._fast_install.subprocess.Popen",
+            noop_popen,
+        ),
         # A real `npm run build` here would rewrite web/dist/index.html, which
         # then perturbs frontend_is_stale() for every later test in the run.
         patch(

@@ -27,7 +27,7 @@ class TestPickManualCap:
             patch("builtins.input", return_value="YES"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.is_game_fully_installed", return_value=True),
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
                 return_value=[],
@@ -61,7 +61,7 @@ class TestPickManualCap:
             patch("builtins.input", return_value="YES"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.is_game_fully_installed", return_value=True),
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
                 return_value=[],
@@ -84,7 +84,7 @@ class TestPickManualCap:
             patch("builtins.input", return_value="YES"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0) as mock_uninstall,
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.is_game_fully_installed", return_value=True),
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
                 return_value=[1, 100, 489830],
@@ -107,7 +107,7 @@ class TestPickManualCap:
             patch("builtins.input", return_value="YES"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
-            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch(f"{PKG}.is_game_fully_installed", return_value=False),
             patch(f"{PKG}.install_game") as mock_install,
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",

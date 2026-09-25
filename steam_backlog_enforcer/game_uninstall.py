@@ -95,6 +95,10 @@ def _remove_game_dirs(install_dir: Path | None, app_id: int) -> bool:
     success = True
     if install_dir and install_dir.is_dir():
         _assert_not_real_steam(install_dir)
+        # Folder-name safety net, independent of the app-id gating callers
+        # already do: it stops deleting the *wrong* directory for an allowed
+        # game whose name was written inconsistently ("KingdomComeDeliverance2"
+        # vs "Kingdom Come: Deliverance II"), which caused real data loss once.
         if _is_protected_name(install_dir.name):
             logger.warning(
                 "Refusing to remove %s: name matches an allowed game", install_dir

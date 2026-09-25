@@ -12,9 +12,13 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._fast_install import poll_fast_installs
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
 from steam_backlog_enforcer._steam_client import is_game_installed
-from steam_backlog_enforcer._steam_state import steam_library_ready
+from steam_backlog_enforcer._steam_state import (
+    is_game_fully_installed,
+    steam_library_ready,
+)
 from steam_backlog_enforcer.enforcer import send_notification
 from steam_backlog_enforcer.game_install import install_game
 from steam_backlog_enforcer.game_uninstall import uninstall_other_games
@@ -41,6 +45,9 @@ def _reinstall_missing_allowed(config: Config, state: State) -> None:
     if not steam_library_ready():
         return
 
+    # Reap/stall-check a detached fast install every pass: the game it is
+    # installing may already have a manifest, so install_game never runs.
+    poll_fast_installs()
     for app_id, name in allowed_games(state):
         if is_game_installed(app_id):
             continue
@@ -83,7 +90,7 @@ def _enforce_auto_install(config: Config, state: State) -> None:
         state: Current enforcer state.
     """
     for app_id, name in allowed_games(state):
-        if is_game_installed(app_id):
+        if is_game_fully_installed(app_id):
             _echo(f"  Allowed game already installed: {name}")
             continue
         _echo(f"  Auto-installing {name}...")

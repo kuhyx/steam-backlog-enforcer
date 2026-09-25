@@ -83,7 +83,7 @@ class TestFinalizeCompletion:
                 "steam_backlog_enforcer.library_hider.try_hide_other_games",
                 return_value=(0, "update in progress"),
             ),
-            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=True),
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):

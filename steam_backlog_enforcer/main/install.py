@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
     _echo,
     get_installed_games,
     install_game,
-    is_game_installed,
     is_protected_app,
     uninstall_other_games,
 )
@@ -75,7 +75,7 @@ def cmd_install(config: Config, state: State) -> None:
         _echo("No game currently assigned. Run 'scan' first.")
         return
 
-    if is_game_installed(state.current_app_id):
+    if is_game_fully_installed(state.current_app_id):
         _echo(f"{state.current_game_name} is already installed.")
         return
 

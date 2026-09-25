@@ -21,10 +21,10 @@ from steam_backlog_enforcer._pick_completion import (
     warn_stale_assignment,
 )
 from steam_backlog_enforcer._snapshot import load_snapshot, snapshot_game_name
+from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
     _echo,
     install_game,
-    is_game_installed,
     uninstall_other_games,
 )
 from steam_backlog_enforcer.library_hider import hide_others_and_report
@@ -130,7 +130,7 @@ def _apply_allowed_set(config: Config, state: State) -> None:
             _echo(f"  Uninstalled {count} non-allowed game(s)")
 
     for app_id, name in allowed_games(state):
-        if is_game_installed(app_id):
+        if is_game_fully_installed(app_id):
             _echo(f"  {name} is already installed.")
             continue
         _echo(f"  Installing {name}...")

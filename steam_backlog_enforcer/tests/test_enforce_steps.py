@@ -124,7 +124,7 @@ class TestEnforceAutoInstall:
     def test_already_installed(self) -> None:
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_fully_installed", return_value=True),
             patch(f"{ENFORCE_STEPS_PKG}._echo"),
         ):
             _enforce_auto_install(Config(), state)
@@ -132,7 +132,7 @@ class TestEnforceAutoInstall:
     def test_installs_successfully(self) -> None:
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=False),
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_fully_installed", return_value=False),
             patch(f"{ENFORCE_STEPS_PKG}.install_game", return_value=True),
             patch(f"{ENFORCE_STEPS_PKG}.send_notification"),
             patch(f"{ENFORCE_STEPS_PKG}._echo"),
@@ -142,7 +142,7 @@ class TestEnforceAutoInstall:
     def test_install_fails(self) -> None:
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=False),
+            patch(f"{ENFORCE_STEPS_PKG}.is_game_fully_installed", return_value=False),
             patch(f"{ENFORCE_STEPS_PKG}.install_game", return_value=False),
             patch(f"{ENFORCE_STEPS_PKG}._echo") as mock_echo,
         ):

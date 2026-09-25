@@ -21,6 +21,7 @@ from steam_backlog_enforcer._desktop_env import (
 )
 from steam_backlog_enforcer._steam_launch import steam_is_installed
 from steam_backlog_enforcer._steam_process import spawn_detached
+from steam_backlog_enforcer._steam_restart_guard import fast_install_running
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,9 @@ def _ensure_steam_running() -> None:
     """
     if not steam_is_installed():
         logger.info("Steam is not installed — skipping client start.")
+        return
+    if fast_install_running():
+        logger.info("steam-game-installer is running — leaving Steam closed.")
         return
 
     # Check if any steam process is running (main client, not just helpers).

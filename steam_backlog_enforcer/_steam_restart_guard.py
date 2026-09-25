@@ -12,8 +12,10 @@ Split out of :mod:`_steam_launch` to keep it under the 250-line cap, and because
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from steam_backlog_enforcer._steam_errors import (
+    FastInstallInProgressError,
     GameInProgressError,
     SteamUpdateInProgressError,
 )
@@ -64,3 +66,40 @@ def assert_safe_to_restart() -> None:
         )
         logger.info(msg)
         raise SteamUpdateInProgressError(msg)
+
+
+# Matched against /proc cmdlines, so a run started by hand counts exactly like
+# one the enforcer spawned. run.sh as well as the module it execs: the sudo
+# and bash wrappers exist the moment Popen returns, the Python process only a
+# moment later, and a Steam launch in that gap would race the shutdown.
+_INSTALLER_MARKERS = (b"steam-game-installer/run.sh", b"steam_installer.cli")
+
+
+def fast_install_running() -> bool:
+    """Whether a steam-game-installer run is live (and so owns Steam's state).
+
+    Returns:
+        True if any process is running the installer's CLI module.
+    """
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            cmdline = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if any(marker in cmdline for marker in _INSTALLER_MARKERS):
+            return True
+    return False
+
+
+def assert_no_fast_install() -> None:
+    """Refuse to launch Steam while steam-game-installer holds it closed.
+
+    Raises:
+        FastInstallInProgressError: If an installer run is live.
+    """
+    if fast_install_running():
+        msg = "Deferring Steam launch: steam-game-installer is running."
+        logger.info(msg)
+        raise FastInstallInProgressError(msg)

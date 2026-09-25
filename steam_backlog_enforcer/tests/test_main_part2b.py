@@ -50,7 +50,7 @@ class TestEnforceOnDone:
                 return_value=[(1234, 999)],
             ),
             patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=2),
-            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=True),
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
                 return_value=[1, 2],
@@ -72,7 +72,7 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}._echo"),
             patch(f"{CMD_DONE_PKG}.enforce_allowed_game", return_value=[]),
             patch(f"{CMD_DONE_PKG}.uninstall_other_games", return_value=0),
-            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=True),
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
                 return_value=[],
@@ -91,7 +91,7 @@ class TestEnforceOnDone:
             patch(f"{CMD_DONE_PKG}._echo") as mock_echo,
             # The skip line is printed by the shared hide helper.
             patch("steam_backlog_enforcer.library_hider._echo", mock_echo),
-            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=True),
+            patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=True),
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
                 return_value=[1, 2],
@@ -115,7 +115,7 @@ class TestEnforceOnDone:
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{CMD_DONE_PKG}._echo"),
-            patch(f"{CMD_DONE_PKG}.is_game_installed", return_value=False),
+            patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=False),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(
                 "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",

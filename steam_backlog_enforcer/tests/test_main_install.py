@@ -85,7 +85,7 @@ class TestCmdInstall:
     def test_already_installed(self) -> None:
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.is_game_installed", return_value=True),
+            patch(f"{PKG}.is_game_fully_installed", return_value=True),
             patch(f"{PKG}._echo"),
         ):
             cmd_install(Config(), state)
@@ -93,7 +93,7 @@ class TestCmdInstall:
     def test_installs_ok(self) -> None:
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch(f"{PKG}.is_game_fully_installed", return_value=False),
             patch(f"{PKG}.install_game", return_value=True),
             patch(f"{PKG}._echo"),
         ):
@@ -102,7 +102,7 @@ class TestCmdInstall:
     def test_install_fails(self) -> None:
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}.is_game_installed", return_value=False),
+            patch(f"{PKG}.is_game_fully_installed", return_value=False),
             patch(f"{PKG}.install_game", return_value=False),
             patch(f"{PKG}._echo"),
         ):

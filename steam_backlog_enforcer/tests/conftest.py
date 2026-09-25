@@ -23,6 +23,7 @@ import pytest
 # Imported for its autouse side effect: naming it here registers it.
 from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
+from steam_backlog_enforcer.tests._no_fast_install import _no_fast_install
 from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
 from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
 
@@ -32,6 +33,7 @@ __all__ = [
     "_block_real_subprocesses",
     "_isolate_incidents",
     "_isolate_playtime",
+    "_no_fast_install",
     "_no_workout_http",
 ]
 
@@ -81,14 +83,18 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             fake_config / "snapshot.json",
         ),
         # Steam game manifests / install dirs. STEAMAPPS_PATH is canonical in
-        # _steam_state; game_install imports it, so both bindings need the
-        # patch (same gotcha as HOSTS_FILE below).
+        # _steam_state; game_install and _steam_client import it by name, so
+        # every binding needs the patch (same gotcha as HOSTS_FILE below).
         patch(
             "steam_backlog_enforcer._steam_state.STEAMAPPS_PATH",
             fake_steamapps,
         ),
         patch(
             "steam_backlog_enforcer.game_install.STEAMAPPS_PATH",
+            fake_steamapps,
+        ),
+        patch(
+            "steam_backlog_enforcer._steam_client.STEAMAPPS_PATH",
             fake_steamapps,
         ),
         # HLTB cache file (computed at import time from CONFIG_DIR, so

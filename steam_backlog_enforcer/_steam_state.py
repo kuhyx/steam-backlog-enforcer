@@ -79,7 +79,7 @@ def _manifest_transfer_active(manifest: Path) -> bool:
     ) > _field("BytesStaged")
 
 
-def steam_update_in_progress() -> bool:
+def steam_update_in_progress(exclude_app_id: int | None = None) -> bool:
     """Return True if any installed Steam app is mid-update.
 
     Steam records live transfer progress in each ``appmanifest_*.acf``: a game
@@ -90,11 +90,40 @@ def steam_update_in_progress() -> bool:
     failure that corrupted Age of Empires II DE into a deterministic launch
     crash).
 
+    Args:
+        exclude_app_id: An app whose own transfer does not count - the one a
+            fast install is about to take over.
+
     Returns:
         True if at least one appmanifest shows an unfinished download/stage.
     """
+    skip = f"appmanifest_{exclude_app_id}.acf"
     try:
         manifests = list(STEAMAPPS_PATH.glob("appmanifest_*.acf"))
     except OSError:
         return False
-    return any(_manifest_transfer_active(m) for m in manifests)
+    return any(_manifest_transfer_active(m) for m in manifests if m.name != skip)
+
+
+def is_game_fully_installed(app_id: int) -> bool:
+    """Whether *app_id* is completely installed, not merely queued.
+
+    :func:`_steam_client.is_game_installed` counts any manifest, which is right
+    for "has an install been triggered". This is the stricter question a fast
+    install needs: a manifest Steam wrote for its own slow download (no
+    FullyInstalled bit, or bytes still in flight) is work to take over.
+
+    Args:
+        app_id: Steam application ID.
+
+    Returns:
+        True if the manifest has StateFlags bit 4 and no transfer in flight.
+    """
+    manifest = STEAMAPPS_PATH / f"appmanifest_{app_id}.acf"
+    try:
+        content = manifest.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    match = re.search(r'"StateFlags"\s+"(\d+)"', content)
+    flags = int(match.group(1)) if match else 0
+    return bool(flags & 4) and not _manifest_transfer_active(manifest)

@@ -13,14 +13,21 @@ from steam_backlog_enforcer._desktop_env import (
     desktop_user_cmd,
 )
 from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._fast_install import (
+    fast_install,
+    is_fast_installing,
+    poll_fast_installs,
+)
 from steam_backlog_enforcer._steam_client import (
     _ensure_steam_running,
     _get_real_user,
     _get_uid_gid_for_user,
     is_game_installed,
 )
+from steam_backlog_enforcer._steam_restart_guard import fast_install_running
 from steam_backlog_enforcer._steam_state import (
     STEAMAPPS_PATH,
+    is_game_fully_installed,
     steam_library_ready,
 )
 from steam_backlog_enforcer.game_uninstall import (
@@ -48,22 +55,6 @@ __all__ = [
 # Latches the "no Steam library" warning so a 3s enforce loop logs it once
 # rather than once per game per pass.
 _LIBRARY_WARNED: set[str] = set()
-
-_UNINSTALL_EXPORTS = frozenset(
-    {
-        "get_installed_games",
-        "is_protected_app",
-        "uninstall_game",
-        "uninstall_other_games",
-    }
-)
-
-# Folder-name safety net for _remove_game_dirs. Independent of the app-id
-# gating callers already do (uninstall_other_games skips allowed app ids) --
-# this protects against deleting the *wrong* directory for an allowed game
-# when its name has been written inconsistently (e.g. "KingdomComeDeliverance2"
-# vs "Kingdom Come: Deliverance II" vs a typo'd variant), which is exactly the
-# kind of multi-name confusion that caused real data loss once already.
 
 
 def _trigger_steam_install(app_id: int, label: str) -> bool:
@@ -98,6 +89,48 @@ def _trigger_steam_install(app_id: int, label: str) -> bool:
 # ──────────────────────────────────────────────────────────────
 
 
+def _install_precheck(app_id: int, label: str) -> bool | None:
+    """Settle an install without starting one, where that is possible.
+
+    Returns:
+        True if the game is installed or already being fast-installed, False
+        if no install may start right now, None to go ahead and install.
+    """
+    # Re-arm the one-shot warning before any early return, so a library that
+    # comes back (Steam finally signed in) is reported again if it vanishes.
+    if steam_library_ready():
+        _LIBRARY_WARNED.discard("missing")
+
+    poll_fast_installs()
+    if is_game_fully_installed(app_id):
+        logger.info("Game already installed: %s", label)
+        return True
+
+    # A live installer holds Steam closed; steam:// would reopen it underneath
+    # the manifest the installer is about to write. Wait for it to finish.
+    if fast_install_running():
+        if is_fast_installing(app_id):
+            return True
+        logger.info("Deferring install of %s: steam-game-installer busy.", label)
+        return False
+
+    # No library means no install can succeed — neither the steam:// handler
+    # nor the appmanifest write below. Without this the enforce loop retried
+    # every allowed game every pass (measured: 1656 times in 30 minutes).
+    if not steam_library_ready():
+        if "missing" not in _LIBRARY_WARNED:
+            logger.warning(
+                "Steam library not initialised (%s missing) — skipping installs "
+                "until Steam has been signed in to at least once.",
+                STEAMAPPS_PATH,
+            )
+            _LIBRARY_WARNED.add("missing")
+        else:
+            logger.debug("Skipping install of %s: no Steam library.", label)
+        return False
+    return None
+
+
 def install_game(
     app_id: int,
     game_name: str,
@@ -105,7 +138,10 @@ def install_game(
     *,
     use_steam_protocol: bool = False,
 ) -> bool:
-    """Install a game by triggering a Steam download.
+    """Install a game, through steam-game-installer when it can be used.
+
+    The fast path (:mod:`_fast_install`) is always tried first; everything
+    below it is the fallback for when it is refused or fails.
 
     When *use_steam_protocol* is True the ``steam://install`` URI handler
     is used, which lets Steam determine the correct install directory from
@@ -128,30 +164,16 @@ def install_game(
     Returns True if the install was triggered successfully.
     """
     label = game_name or f"AppID={app_id}"
+    ready = _install_precheck(app_id, label)
+    if ready is not None:
+        return ready
 
-    # Re-arm the one-shot warning before any early return, so a library that
-    # comes back (Steam finally signed in) is reported again if it vanishes.
-    if steam_library_ready():
-        _LIBRARY_WARNED.discard("missing")
-
-    if is_game_installed(app_id):
-        logger.info("Game already installed: %s", label)
+    if fast_install(app_id, label):
         return True
-
-    # No library means no install can succeed — neither the steam:// handler
-    # nor the appmanifest write below. Without this the enforce loop retried
-    # every allowed game every pass (measured: 1656 times in 30 minutes).
-    if not steam_library_ready():
-        if "missing" not in _LIBRARY_WARNED:
-            logger.warning(
-                "Steam library not initialised (%s missing) — skipping installs "
-                "until Steam has been signed in to at least once.",
-                STEAMAPPS_PATH,
-            )
-            _LIBRARY_WARNED.add("missing")
-        else:
-            logger.debug("Skipping install of %s: no Steam library.", label)
-        return False
+    # Steam already has a download of its own going: let it carry on, rather
+    # than overwrite its manifest with the fabricated one below.
+    if is_game_installed(app_id):
+        return True
 
     if use_steam_protocol:
         _ensure_steam_running()

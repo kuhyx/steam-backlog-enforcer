@@ -50,3 +50,13 @@ class GameInProgressError(SteamUnavailableError):
     unrelated change killed a live session. Library hiding can wait; a player's
     afternoon cannot be given back.
     """
+
+
+class FastInstallInProgressError(SteamUnavailableError):
+    """Raised to keep Steam closed while steam-game-installer is running.
+
+    The installer shuts Steam down because a live client owns
+    ``appmanifest_<appid>.acf`` and rewrites it from memory. A Steam started
+    underneath it discards the manifest the installer is about to write and
+    resumes the slow client download - so every launch path defers instead.
+    """
