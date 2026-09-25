@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from steam_installer import recognize, vdf
+from steam_installer import manifest_write, recognize, vdf
 from steam_installer.library import SteamLibrary
 
 INSTALLED_STATE_FLAG = 4
@@ -91,7 +91,7 @@ def inspect(library: SteamLibrary, appid: int) -> GhostReport:
 
     install_dir = _install_dir(library, app_state)
     content_bytes = (
-        recognize.measure_content_size(install_dir)
+        manifest_write.measure_content_size(install_dir)
         if install_dir is not None and install_dir.is_dir()
         else 0
     )

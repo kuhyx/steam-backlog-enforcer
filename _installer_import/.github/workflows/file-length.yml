@@ -1,0 +1,35 @@
+name: file length
+
+# The shared 250-line cap, enforced on push as well as at commit time: the
+# pre-commit hook only sees staged files and a fresh clone may never have run
+# `pre-commit install`. This checks the whole tree.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  file-length:
+    name: files at most 250 lines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The gate and its exemption list live in the shared utils repo.
+      - name: Check out the shared gate
+        uses: actions/checkout@v4
+        with:
+          repository: kuhyx/utils
+          path: .utils
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # Tracked files only: --all would also walk the .utils checkout above,
+      # which is another repo's code and not this one's to split.
+      - name: Every file is at most 250 lines
+        run: git ls-files -z | xargs -0 bash .utils/scripts/check_file_length.sh

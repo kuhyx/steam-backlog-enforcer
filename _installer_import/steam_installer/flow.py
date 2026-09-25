@@ -11,8 +11,11 @@ from pathlib import Path
 from steam_installer import (
     appinfo,
     depotdl,
+    dlc,
+    manifest_write,
     recognize,
     runlog,
+    steamcmd_validate,
     steamctl,
     takeover,
 )
@@ -121,18 +124,32 @@ def _download_and_recognize(
         logger.info("Run log (send this): %s", log.path)
         return 1
 
+    logger.info("Checking for owned DLC with depots of its own...")
+    dlc_depots = dlc.download_owned(
+        metadata.appid, install_target, username, language, args.max_downloads, log
+    )
+    if dlc_depots is None:
+        logger.info("Run log (send this): %s", log.path)
+        return 1
+    # Downloaded DLC is part of this install now: the finish gate must find its
+    # depot cached, and the manifest must credit it to its DLC app.
+    depot_plan.required |= set(dlc_depots)
+    depot_plan.dlc.update(dlc_depots)
+
     log.section("depotdownloader cache")
     for depot_id, mid in sorted(
         recognize.discover_cached_depot_manifests(install_target).items()
     ):
         logger.debug("depot %s -> manifest %s", depot_id, mid)
 
-    recognize.ensure_installdir_correct(library, metadata.appid, install_target)
+    manifest_write.ensure_installdir_correct(library, metadata.appid, install_target)
 
     if not args.skip_steamcmd:
         logger.info("Reconciling with steamcmd (validate)...")
         log.section("steamcmd app_update validate")
-        result = recognize.run_steamcmd_validate(metadata.appid, username, logger)
+        result = steamcmd_validate.run_steamcmd_validate(
+            metadata.appid, username, logger
+        )
         log.file_contents("Manifest after steamcmd", manifest_path)
 
         # Never trust steamcmd's exit code alone -- verify the manifest actually

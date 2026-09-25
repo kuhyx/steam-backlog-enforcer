@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from steam_installer import appinfo, recognize, runlog
+from steam_installer import appinfo, finish_check, manifest_write, recognize, runlog
 from steam_installer.library import SteamLibrary
 
 
@@ -47,7 +47,7 @@ def finish(
         return 1
 
     app_state = recognize.read_app_state(manifest_path)
-    problems = recognize.check_ready_to_finish(
+    problems = finish_check.check_ready_to_finish(
         install_dir=target,
         app_state=app_state,
         required_depots=depot_plan.required,
@@ -70,11 +70,12 @@ def finish(
     if freed:
         logger.info("Cleared %.1f GB of now-redundant Steam staging data.", freed / 1e9)
 
-    written = recognize.finish_manifest_manually(
+    written = manifest_write.finish_manifest_manually(
         library=library,
         appid=metadata.appid,
         install_dir=target,
         now_unix=int(time.time()),
+        dlc_depots=depot_plan.dlc,
     )
     log.file_contents("Manifest after manual finish", written)
 

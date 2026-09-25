@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from steam_installer import vdf
 
@@ -31,13 +31,22 @@ class DepotPlan:
 
     required: set[str]
     shared: set[str]
+    # depot id -> the DLC app it belongs to. Steam writes that dlcappid into
+    # InstalledDepots, and a DLC depot recorded without it is not credited.
+    dlc: dict[str, str] = field(default_factory=dict)
 
     @property
     def all_expected(self) -> set[str]:
         return self.required | self.shared
 
 
-def _fetch_app_block(appid: int) -> dict:
+def _fetch_app_blocks(appids: list[int]) -> dict[int, dict]:
+    """App info for every id in `appids`, from a single anonymous steamcmd call.
+
+    One call for the lot: each steamcmd start costs seconds of login, and a game
+    can list dozens of DLC.
+    """
+    prints = [arg for appid in appids for arg in ("+app_info_print", str(appid))]
     result = subprocess.run(
         [
             "steamcmd",
@@ -47,25 +56,39 @@ def _fetch_app_block(appid: int) -> dict:
             "windows",
             "+login",
             "anonymous",
-            "+app_info_print",
-            str(appid),
+            *prints,
             "+quit",
         ],
         capture_output=True,
         text=True,
-        timeout=60,
+        # The exit code says nothing useful; a missing block is caught below.
+        check=False,
+        timeout=60 + 5 * len(appids),
     )
     output = result.stdout
-    # app_info_print emits `"<appid>"\n{ ... }` inside a stream of steamcmd's own log lines;
-    # slice from the first line that starts the VDF block onward.
-    match = re.search(rf'^"{appid}"\s*$', output, re.MULTILINE)
-    if not match:
-        raise AppInfoError(f"steamcmd did not return app info for {appid}:\n{output}")
-    data = vdf.parse(output[match.start() :])
-    app_block = data.get(str(appid), {})
-    if not isinstance(app_block, dict):
-        raise AppInfoError(f"unexpected app_info_print structure for {appid}")
-    return app_block
+    # app_info_print emits `"<appid>"\n{ ... }` inside a stream of steamcmd's own
+    # log lines; each block runs from its own header to the next one.
+    starts = {}
+    for appid in appids:
+        match = re.search(rf'^"{appid}"\s*$', output, re.MULTILINE)
+        if not match:
+            raise AppInfoError(
+                f"steamcmd did not return app info for {appid}:\n{output}"
+            )
+        starts[appid] = match.start()
+    ordered = sorted(starts.values()) + [len(output)]
+    blocks: dict[int, dict] = {}
+    for appid, start in starts.items():
+        end = ordered[ordered.index(start) + 1]
+        app_block = vdf.parse(output[start:end]).get(str(appid), {})
+        if not isinstance(app_block, dict):
+            raise AppInfoError(f"unexpected app_info_print structure for {appid}")
+        blocks[appid] = app_block
+    return blocks
+
+
+def _fetch_app_block(appid: int) -> dict:
+    return _fetch_app_blocks([appid])[appid]
 
 
 def get_metadata(appid: int) -> AppMetadata:
@@ -118,7 +141,49 @@ def get_depot_plan(
     depots = app_block.get("depots", {})
     if not isinstance(depots, dict):
         raise AppInfoError(f"no 'depots' section in app info for {appid}")
+    plan = _plan_from_depots(appid, depots, language, os_name)
+    # Tag the game's own list's DLC depots too: depotdownloader fetches the
+    # owned ones in the base run, and Steam records each with its dlcappid.
+    for depot_id, entry in depots.items():
+        if isinstance(entry, dict) and isinstance(entry.get("dlcappid"), str):
+            plan.dlc[depot_id] = entry["dlcappid"]
+    return plan
 
+
+def get_dlc_plans(
+    appid: int, language: str = "english", os_name: str = "windows"
+) -> dict[int, set[str]]:
+    """DLC app id -> the depots it installs itself, for DLC with depots of its own.
+
+    Some DLC (Cyberpunk 2077's Phantom Liberty, app 2138330, ~25 GB) keeps its
+    content under its own app id rather than in the game's depot list, so a
+    depotdownloader run for the game never sees it. DLC with no depots of its
+    own, or whose depots the game already lists, needs no run of its own.
+    """
+    app_block = _fetch_app_block(appid)
+    extended = app_block.get("extended", {})
+    listed = extended.get("listofdlc", "") if isinstance(extended, dict) else ""
+    dlc_ids = [int(x) for x in str(listed).split(",") if x.strip().isdigit()]
+    if not dlc_ids:
+        return {}
+    game_depots = app_block.get("depots", {})
+    game_depot_ids = set(game_depots) if isinstance(game_depots, dict) else set()
+    plans: dict[int, set[str]] = {}
+    for dlc_id, dlc_block in _fetch_app_blocks(dlc_ids).items():
+        depots = dlc_block.get("depots", {})
+        if not isinstance(depots, dict):
+            continue
+        own = _plan_from_depots(dlc_id, depots, language, os_name).required
+        own -= game_depot_ids
+        if own:
+            plans[dlc_id] = own
+    return plans
+
+
+def _plan_from_depots(
+    appid: int, depots: dict, language: str, os_name: str
+) -> DepotPlan:
+    """The depots of one app's `depots` section that an (os, language) install gets."""
     required: set[str] = set()
     shared: set[str] = set()
     for depot_id, entry in depots.items():
@@ -128,7 +193,10 @@ def get_depot_plan(
         if "depotfromapp" in entry or "sharedinstall" in entry:
             shared.add(depot_id)
             continue
-        if entry.get("dlcappid") or entry.get("optional") == "1":
+        # Another app's DLC is not part of this install -- but a DLC app's own
+        # depots carry its own id as dlcappid, and are exactly what it installs.
+        dlc_owner = entry.get("dlcappid")
+        if (dlc_owner and dlc_owner != str(appid)) or entry.get("optional") == "1":
             continue
         config = entry.get("config", {})
         config = config if isinstance(config, dict) else {}

@@ -14,7 +14,6 @@ import os
 import pathlib
 
 import pytest
-
 from steam_installer import (
     appinfo,
     cli,
@@ -131,3 +130,67 @@ def cli_steam(tmp_path, monkeypatch, isolated_cli):
         depotdl, "download", lambda **kw: pytest.fail("must not download")
     )
     return library
+
+
+@pytest.fixture(autouse=True)
+def _no_host_depotdownloader(tmp_path, monkeypatch):
+    """Never let this machine's ~/.local/bin decide which binary a test sees."""
+    monkeypatch.setattr(deps, "MANAGED_DEPOTDOWNLOADER", tmp_path / "absent")
+
+
+@pytest.fixture
+def cli_logs(tmp_path, monkeypatch):
+    monkeypatch.setattr(runlog, "LOG_DIR", tmp_path / "state")
+    yield
+    logger = logging.getLogger(runlog.LOGGER_NAME)
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
+
+
+@pytest.fixture
+def steam(tmp_path, monkeypatch):
+    """A Steam tree with KCD2 downloaded but its manifest not yet finished."""
+    root = tmp_path / "Steam"
+    library = SteamLibrary(root)
+    install_dir = library.common / "KingdomComeDeliverance2"
+    cache = install_dir / ".DepotDownloader"
+    cache.mkdir(parents=True)
+    (cache / "1771303_1999516201078544527.manifest").write_bytes(b"x")
+    (install_dir / "game.pak").write_bytes(b"x" * 1000)
+    library.steamapps.mkdir(parents=True, exist_ok=True)
+    (library.steamapps / "appmanifest_1771300.acf").write_text(
+        vdf.dumps(
+            "AppState",
+            {
+                "appid": "1771300",
+                "StateFlags": "1026",
+                "buildid": "23914554",
+                "BytesToDownload": "92009052960",
+                "BytesDownloaded": "22129058224",
+            },
+        )
+    )
+
+    monkeypatch.setattr(cli, "find_steam_root", lambda: root)
+    monkeypatch.setattr(cli, "list_libraries", lambda r: [library])
+    monkeypatch.setattr(cli, "pick_install_target", lambda libs, d: install_dir)
+    monkeypatch.setattr(deps.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        appinfo,
+        "get_metadata",
+        lambda appid: appinfo.AppMetadata(appid, "KCD2", "KingdomComeDeliverance2"),
+    )
+    monkeypatch.setattr(
+        appinfo,
+        "get_depot_plan",
+        lambda appid, language: appinfo.DepotPlan({"1771303"}, {"228989"}),
+    )
+    monkeypatch.setattr(appinfo, "get_build_id", lambda appid: "23914554")
+    # No DLC unless a test says so: the real lookup is a steamcmd call.
+    monkeypatch.setattr(appinfo, "get_dlc_plans", lambda appid, language: {})
+    monkeypatch.setattr(recognize, "steam_client_pids", lambda: [])
+    monkeypatch.setattr("builtins.input", lambda *a: "y")
+    # Prompting is tty-gated now, and pytest's stdin is not a tty.
+    monkeypatch.setattr(cli, "_is_interactive", lambda args: True)
+    return library, install_dir

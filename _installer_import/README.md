@@ -51,6 +51,29 @@ place also rewrites Steam's copy. That is deliberate — both names converge on
 the same corrected content — but it does mean the staged bytes are working data,
 not a frozen backup. On ext4 there is no reflink that would give you both.
 
+## Owned DLC comes down fast too
+
+Some DLC keeps its content under an app id of its own rather than in the
+game's depot list -- Cyberpunk 2077's Phantom Liberty is app 2138330, about
+25 GB. A depotdownloader run for the game never sees it, and Steam, restarted
+onto a manifest without it, downloads all of it at its own pace.
+
+So every DLC in the game's `listofdlc` that has depots of its own gets its own
+depotdownloader run into the same install dir. Depotdownloader's licence check
+decides ownership: its "not available from this account" is skipped as
+expected, any other failure aborts before the manifest is touched. Each DLC
+depot is then written into `InstalledDepots` with its `dlcappid`, exactly as
+Steam records it.
+
+## Which depotdownloader
+
+Always `~/.local/bin/depotdownloader` (the copy `install.sh` manages) when it
+exists, never "whatever is first on PATH". Each depotdownloader binary keeps
+its remembered login in its own storage slot, keyed by its path; with an AUR
+copy in `/usr/bin` too, a terminal run and a `sudo`'d run (whose PATH lacks
+`~/.local/bin`) used different binaries -- one logged in, one prompting for a
+password nobody was there to type.
+
 ## Ghost installs
 
 `steamcmd +login anonymous +app_update <paid appid>` has no licence for the app.
@@ -95,6 +118,7 @@ terminal — with a plain pipe the prompt never appears and the run looks hung.
 ## How it works
 
 1. `depotdownloader` pulls the content (fast path).
+   Then each owned DLC with depots of its own gets a run of its own.
 2. `steamcmd app_update <id> validate` reconciles Steam's own bookkeeping.
 3. If that fails or leaves the manifest incomplete, the manifest is finished by
    hand — but only when every precondition below holds.

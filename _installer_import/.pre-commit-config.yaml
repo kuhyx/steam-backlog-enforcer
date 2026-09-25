@@ -16,6 +16,15 @@ repos:
         language: system
         files: \.(md|markdown)$
 
+      # Shared 250-line cap on every file in the commit, code and prose alike.
+      # Checks only what is staged, so an unrelated commit never goes red, and
+      # it fails rather than warns: no baseline, no allowlist.
+      - id: file-length
+        name: files at most 250 lines
+        entry: scripts/check_file_length.sh
+        language: system
+        types: [text]
+
       # Every dependency on its ecosystem's newest STABLE release, exact-pinned
       # so the question is mechanically answerable at all.
       #
