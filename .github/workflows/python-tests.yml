@@ -18,16 +18,27 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      # uv with a cached wheel store installs requirements.txt in seconds;
+      # plain pip took ~20 s of a ~70 s run.
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements.txt
 
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      # -n auto spreads the suite over every runner core (pytest-xdist is in
+      # requirements.txt); pytest-cov merges the workers' coverage.
       - name: Run tests with coverage
         run: |
           python -m pytest steam_backlog_enforcer/tests/ \
+            -n auto \
+            -p no:sugar \
             --cov=steam_backlog_enforcer \
             --cov-branch \
             --cov-fail-under=100 \
-            -v
+            -q
 
   # vitest's 100% bar used to run only in the local pre-push hook, which
   # became a 1-second stamp check on 2026-09-20 (pre-commit's manual stage
