@@ -162,6 +162,7 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
             "base": rules.base_seconds,
             "workout": rules.workout_seconds,
             "leetcode": rules.leetcode_seconds,
+            "reading": rules.reading_seconds,
         },
     }
 

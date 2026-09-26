@@ -1,13 +1,15 @@
 """Today's gaming budget: a floor, plus whatever today earned.
 
-The budget is a sum, not a choice between two values:
+The budget is a sum, not a choice between values, capped at
+``max_gaming_seconds`` (8h):
 
-    base (5h) + workout bonus (2h) + LeetCode bonus (1h)
+    base (4h) + workout bonus (2h) + LeetCode bonus (1h) + reading bonus (1h)
 
-so a day earns 5h, 6h, 7h or 8h. The two earners are read **independently** --
-:mod:`steam_backlog_enforcer._workout_budget` and
-:mod:`steam_backlog_enforcer._leetcode_bonus` share no state and neither can
-fail in a way that changes the other's term. That is what "the LeetCode bonus
+so a day earns anything from 4h to 8h. The earners are read **independently**
+-- :mod:`steam_backlog_enforcer._workout_budget`,
+:mod:`steam_backlog_enforcer._leetcode_bonus` and
+:mod:`steam_backlog_enforcer._reading_bonus` share no state and none can fail
+in a way that changes another's term. That is what "the LeetCode bonus
 must not interfere with the workout" means in code.
 
 **Fail closed.** An answer that could not be obtained contributes nothing, the
@@ -42,10 +44,12 @@ resolving a second time.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime
 import logging
 from typing import TYPE_CHECKING, Final
 
 from steam_backlog_enforcer._leetcode_bonus import leetcode_solved_today
+from steam_backlog_enforcer._reading_bonus import read_today
 from steam_backlog_enforcer._workout_budget import workout_logged_today
 
 if TYPE_CHECKING:
@@ -54,6 +58,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SECONDS_PER_HOUR: Final = 3600.0
+
+# The 5h -> 4h base cut belongs to book-guard's reading hour, and book-guard's
+# gate starts on 2026-10-01. Until then the old 5h floor stands: cutting an
+# hour a reader cannot yet earn back was a same-day loss (2026-09-26).
+READING_BASE_FROM: Final = date(2026, 10, 1)
+_PRE_READING_EXTRA: Final = 3600.0
+
+
+def base_for(configured: float, today: date) -> float:
+    """The floor for ``today``: the configured base, +1h before the cut."""
+    return configured + (_PRE_READING_EXTRA if today < READING_BASE_FROM else 0.0)
 
 
 @dataclass(frozen=True)
@@ -66,6 +81,7 @@ class BudgetResolution:
         workout_seconds: Seconds added by a counted workout, or 0.
         leetcode_seconds: Seconds added by a LeetCode solve, or 0.
         reason: A human-readable account, for the journal and ``/api/budget``.
+        reading_seconds: Seconds added by a credited reading session, or 0.
     """
 
     seconds: float
@@ -73,6 +89,7 @@ class BudgetResolution:
     workout_seconds: float
     leetcode_seconds: float
     reason: str
+    reading_seconds: float = 0.0
 
 
 def _bonus_seconds(configured: int, label: str) -> float:
@@ -125,9 +142,13 @@ def resolve_budget(config: Config) -> BudgetResolution:
         could not be obtained contributes nothing, exactly as a "no" does --
         the difference is only in what gets logged and reported.
     """
-    base = _bonus_seconds(config.base_gaming_seconds, "base_gaming_seconds")
+    base = base_for(
+        _bonus_seconds(config.base_gaming_seconds, "base_gaming_seconds"),
+        datetime.now().astimezone().date(),
+    )
     workout = workout_logged_today(config)
     leetcode = leetcode_solved_today(config)
+    reading = read_today(config)
 
     workout_seconds = (
         _bonus_seconds(config.workout_bonus_seconds, "workout_bonus_seconds")
@@ -139,7 +160,13 @@ def resolve_budget(config: Config) -> BudgetResolution:
         if leetcode
         else 0.0
     )
-    total = base + workout_seconds + leetcode_seconds
+    reading_seconds = (
+        _bonus_seconds(config.reading_bonus_seconds, "reading_bonus_seconds")
+        if reading
+        else 0.0
+    )
+    ceiling = _bonus_seconds(config.max_gaming_seconds, "max_gaming_seconds")
+    total = min(ceiling, base + workout_seconds + leetcode_seconds + reading_seconds)
 
     workout_part = _describe(
         answer=workout,
@@ -153,7 +180,16 @@ def resolve_budget(config: Config) -> BudgetResolution:
         missed="no LeetCode solve recorded",
         unknown="LeetCode unknown (ledger and status API both unreadable)",
     )
-    reason = f"{total / _SECONDS_PER_HOUR:.1f}h: {workout_part}, {leetcode_part}"
+    reading_part = _describe(
+        answer=reading,
+        earned="reading credited",
+        missed="no reading credited",
+        unknown="reading unknown (book-guard ledger unreadable)",
+    )
+    reason = (
+        f"{total / _SECONDS_PER_HOUR:.1f}h: {workout_part}, {leetcode_part}, "
+        f"{reading_part}"
+    )
     logger.info("Gaming budget %s", reason)
     return BudgetResolution(
         seconds=total,
@@ -161,4 +197,5 @@ def resolve_budget(config: Config) -> BudgetResolution:
         workout_seconds=workout_seconds,
         leetcode_seconds=leetcode_seconds,
         reason=reason,
+        reading_seconds=reading_seconds,
     )

@@ -73,6 +73,7 @@ class TestCmdGamingStatus:
                     base_gaming_seconds=500,
                     workout_bonus_seconds=0,
                     leetcode_bonus_seconds=0,
+                    reading_bonus_seconds=0,
                 ),
                 State(),
             )

@@ -33,11 +33,13 @@ with patch(
     side_effect=lambda config: BudgetResolution(
         seconds=float(config.base_gaming_seconds)
         + float(config.workout_bonus_seconds)
-        + float(config.leetcode_bonus_seconds),
+        + float(config.leetcode_bonus_seconds)
+        + float(config.reading_bonus_seconds),
         base_seconds=float(config.base_gaming_seconds),
         workout_seconds=float(config.workout_bonus_seconds),
         leetcode_seconds=float(config.leetcode_bonus_seconds),
         reason="stubbed: fully earned",
+        reading_seconds=float(config.reading_bonus_seconds),
     ),
 ):
     RULES = rules_for(Config(), demo=False)
@@ -106,7 +108,10 @@ class TestBuildToday:
     def test_a_zero_budget_reads_as_fully_spent(self) -> None:
         rules = rules_for(
             Config(
-                base_gaming_seconds=0, workout_bonus_seconds=0, leetcode_bonus_seconds=0
+                base_gaming_seconds=0,
+                workout_bonus_seconds=0,
+                leetcode_bonus_seconds=0,
+                reading_bonus_seconds=0,
             ),
             demo=False,
         )

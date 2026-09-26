@@ -127,6 +127,7 @@ class PlaytimeRules:
     base_seconds: float = 0.0
     workout_seconds: float = 0.0
     leetcode_seconds: float = 0.0
+    reading_seconds: float = 0.0
     budget_reason: str = ""
 
 
@@ -162,6 +163,7 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         else resolved.base_seconds,
         workout_seconds=0.0 if resolved is None else resolved.workout_seconds,
         leetcode_seconds=0.0 if resolved is None else resolved.leetcode_seconds,
+        reading_seconds=0.0 if resolved is None else resolved.reading_seconds,
         budget_reason=("demo run" if resolved is None else resolved.reason),
     )
 

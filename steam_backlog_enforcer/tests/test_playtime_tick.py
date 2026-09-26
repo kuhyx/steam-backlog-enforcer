@@ -72,7 +72,10 @@ class TestStateOrRecover:
     def test_fails_closed_when_state_is_gone_but_mounts_remain(self) -> None:
         """Deleting the state file must not be a way to lift the block."""
         rules = _rules(
-            base_gaming_seconds=100, workout_bonus_seconds=0, leetcode_bonus_seconds=0
+            base_gaming_seconds=100,
+            workout_bonus_seconds=0,
+            leetcode_bonus_seconds=0,
+            reading_bonus_seconds=0,
         )
         with patch(f"{PKG}.mounted_targets", return_value={"/usr/bin/steam"}):
             out = _state_or_recover(rules, now=NOW)
@@ -89,6 +92,7 @@ class TestStateOrRecover:
                     base_gaming_seconds=50,
                     workout_bonus_seconds=0,
                     leetcode_bonus_seconds=0,
+                    reading_bonus_seconds=0,
                 ),
                 now=NOW,
             )

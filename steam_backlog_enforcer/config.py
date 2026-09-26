@@ -92,12 +92,20 @@ class Config:
     All active picks stay installed and visible; the enforcer treats them as
     one allowed set. Raising this weakens enforcement proportionally.
     """
-    base_gaming_seconds: int = 5 * 3600
-    """Floor for a day that earned nothing; also the fail-closed answer."""
+    base_gaming_seconds: int = 4 * 3600
+    """Floor for a day that earned nothing; also the fail-closed answer.
+    5h -> 4h when book-guard's reading hour arrives (from 2026-10-01; until
+    then ``_budget_resolve.base_for`` adds the hour back): the 8h best case is
+    unchanged, a day without reading is an hour shorter."""
     workout_bonus_seconds: int = 2 * 3600
     leetcode_bonus_seconds: int = 1 * 3600
-    """The two bonuses, added to the floor and to each other. Read
+    reading_bonus_seconds: int = 1 * 3600
+    """The three bonuses, added to the floor and to each other. Read
     independently, so a failing LeetCode read cannot disturb the workout."""
+    max_gaming_seconds: int = 8 * 3600
+    """Hard ceiling on the resolved budget, whatever the terms add up to."""
+    book_ledger_path: str = "~/.local/share/book_guard/ledger.json"
+    """book-guard's signed ledger: the reading hour's only transport."""
     workout_status_url: str = "http://127.0.0.1:8770/api/status"
     """Where to ask whether today has a counted workout. Loopback only."""
     leetcode_ledger_path: str = "~/.local/share/leetcode_guard/ledger.json"

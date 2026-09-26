@@ -9,8 +9,8 @@ those services happen to be running and whether the machine's owner has
 trained or solved today. Tests would pass in the morning and fail in the
 evening.
 
-The stub returns the *fully earned* budget (base + both bonuses = 8h), which is
-what every pre-coupling test was written against. Tests that care about a
+The stub returns the *fully earned* budget (base + all three bonuses = 8h),
+which is what every pre-coupling test was written against. Tests that care about a
 coupling patch a level below this, at ``_workout_budget._fetch_workout_today``
 or ``_leetcode_bonus.read_ledger_solved_today``.
 
@@ -34,23 +34,25 @@ if TYPE_CHECKING:
 
 
 def _earned_budget(config: Config) -> BudgetResolution:
-    """Return the fully earned budget, as a day with both bonuses would.
+    """Return the fully earned budget, as a day with every bonus would.
 
     Args:
         config: Loaded user configuration.
 
     Returns:
-        A resolution whose seconds are base plus both bonuses.
+        A resolution whose seconds are base plus every bonus.
     """
     base = float(config.base_gaming_seconds)
     workout = float(config.workout_bonus_seconds)
     leetcode = float(config.leetcode_bonus_seconds)
+    reading = float(config.reading_bonus_seconds)
     return BudgetResolution(
-        seconds=base + workout + leetcode,
+        seconds=base + workout + leetcode + reading,
         base_seconds=base,
         workout_seconds=workout,
         leetcode_seconds=leetcode,
         reason="stubbed: fully earned",
+        reading_seconds=reading,
     )
 
 
