@@ -1,42 +1,50 @@
-"""Tests for achievement-based retirement of finished manual picks."""
+"""Tests for achievement-based release of manual picks."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
+from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._pick_completion import (
     MANUAL_PICK_RECHECK_TTL_SECONDS,
     PickProgress,
     _DaemonSweep,
     daemon_sweep,
-    mark_finished,
     report_completion,
     retire_completed_manual_picks,
     retire_completed_manual_picks_throttled,
     warn_stale_assignment,
 )
 from steam_backlog_enforcer.config import Config, State
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.steam_api import AchievementInfo, GameInfo
 from steam_backlog_enforcer.tests._main_helpers import locked_state, two_pick_state
 
 PKG = "steam_backlog_enforcer._pick_completion"
 
 
-def game(app_id: int, unlocked: int, total: int) -> GameInfo:
+def game(app_id: int, unlocked: int, total: int, *, new: bool = False) -> GameInfo:
     """Build a GameInfo with the given achievement progress.
 
     Args:
         app_id: Steam application id.
         unlocked: Unlocked achievement count.
         total: Total achievement count.
+        new: Whether one of the unlocks happened just now (after any pick).
 
     Returns:
         A GameInfo carrying that progress.
     """
+    now = int(datetime.now(UTC).timestamp())
+    achievements = [
+        AchievementInfo(f"a{i}", f"Ach{i}", i < unlocked, now if new and i == 0 else 1)
+        for i in range(total)
+    ]
     return GameInfo(
         app_id=app_id,
         name="G",
         total_achievements=total,
         unlocked_achievements=unlocked,
         playtime_minutes=0,
+        achievements=achievements,
     )
 
 
@@ -54,30 +62,24 @@ def client_returning(*games: GameInfo | None) -> MagicMock:
     return fake
 
 
-class TestMarkFinished:
-    def test_records_once(self) -> None:
-        state = State()
-        assert mark_finished(state, 7) is True
-        assert state.finished_app_ids == [7]
-
-    def test_does_not_duplicate(self) -> None:
-        state = State(finished_app_ids=[7])
-        assert mark_finished(state, 7) is False
-        assert state.finished_app_ids == [7]
-
-
 class TestPickProgressDescribe:
     def test_undeterminable(self) -> None:
         line = PickProgress(1, "G", 0, 0, retired=False, determinable=False).describe()
         assert "progress unavailable" in line
 
-    def test_retired(self) -> None:
+    def test_retired_at_100(self) -> None:
         line = PickProgress(1, "G", 5, 5, retired=True, determinable=True).describe()
-        assert "COMPLETE, freeing its slot" in line
+        assert "COMPLETE, slot freed, stays playable" in line
+
+    def test_released_by_new_achievement(self) -> None:
+        line = PickProgress(
+            1, "G", 2, 5, retired=True, determinable=True, new_achievement="Win"
+        ).describe()
+        assert "2/5 (40%) - earned 'Win', slot freed, stays playable" in line
 
     def test_in_progress(self) -> None:
         line = PickProgress(1, "G", 1, 4, retired=False, determinable=True).describe()
-        assert "1/4 (25%) - still in progress" in line
+        assert "1/4 (25%) - no new achievement since it was picked yet" in line
 
     def test_in_progress_with_zero_total(self) -> None:
         # Defensive: determinable but no achievements must not divide by zero.
@@ -99,6 +101,18 @@ class TestRetireCompletedManualPicks:
             )
         assert [r.retired for r in results] == [True]
         assert state.finished_app_ids == [100]
+        mock_save.assert_called_once()
+
+    def test_new_achievement_releases_without_finishing(self) -> None:
+        state = locked_state(app_id=100)
+        with patch.object(State, "save") as mock_save:
+            results = retire_completed_manual_picks(
+                Config(), state, client=client_returning(game(100, 1, 5, new=True))
+            )
+        assert [(r.retired, r.new_achievement) for r in results] == [(True, "Ach0")]
+        assert state.finished_app_ids == []
+        assert state.manual_picks[0]["released_at"]
+        assert 100 in state.active_skipped_ids()
         mock_save.assert_called_once()
 
     def test_incomplete_pick_is_left_alone(self) -> None:
@@ -176,8 +190,8 @@ class TestReportCompletion:
             retired = report_completion(Config(), state)
         assert [r.app_id for r in retired] == [200]
         output = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "still in progress" in output
-        assert "COMPLETE, freeing its slot" in output
+        assert "no new achievement" in output
+        assert "COMPLETE, slot freed" in output
 
 
 class TestWarnStaleAssignment:
@@ -205,10 +219,9 @@ class TestDaemonSweep:
         assert sweep.due(1100.0, 900.0) is False
         assert sweep.due(2000.0, 900.0) is True
 
-    def test_throttled_call_records_retirements_without_evicting(self) -> None:
+    def test_throttled_call_releases_without_evicting(self) -> None:
         state = locked_state(app_id=100)
         daemon_sweep.last = None
-        daemon_sweep.retired.clear()
         try:
             with (
                 patch.object(State, "save"),
@@ -219,12 +232,11 @@ class TestDaemonSweep:
             ):
                 results = retire_completed_manual_picks_throttled(Config(), state)
                 assert [r.retired for r in results] == [True]
-                assert daemon_sweep.retired == {100}
+                assert 100 in allowed_app_ids(state)
                 # Second call inside the TTL must not re-query Steam.
                 assert retire_completed_manual_picks_throttled(Config(), state) == []
         finally:
             daemon_sweep.last = None
-            daemon_sweep.retired.clear()
 
     def test_ttl_is_well_clear_of_the_three_second_loop(self) -> None:
         assert MANUAL_PICK_RECHECK_TTL_SECONDS >= 300

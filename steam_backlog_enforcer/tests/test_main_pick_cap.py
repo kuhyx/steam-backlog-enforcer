@@ -10,6 +10,7 @@ from steam_backlog_enforcer.main import (
     cmd_pick_manual,
 )
 from steam_backlog_enforcer.tests._main_helpers import (
+    STARTED_AT,
     locked_state,
     two_pick_state,
 )
@@ -126,6 +127,14 @@ class TestPickManualRetirementNotices:
         state = locked_state(app_id=100)
         state.current_app_id = 200
         state.current_game_name = "Finished"
+        state.manual_picks.append(
+            {
+                "app_id": 200,
+                "game_name": "Finished",
+                "started_at": STARTED_AT,
+                "released_at": STARTED_AT,
+            }
+        )
         retired = [PickProgress(200, "Finished", 5, 5, retired=True, determinable=True)]
         with (
             patch(f"{PKG}.report_completion", return_value=retired),
@@ -137,7 +146,7 @@ class TestPickManualRetirementNotices:
         ):
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
         output = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "Uninstall Finished (completed" in output
+        assert "Replace Finished (released or expired" in output
         assert "Aborted." in output
         # Abort leaves the finished game as the assignment, so say so.
         note = " ".join(str(c) for c in mock_note.call_args_list)

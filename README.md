@@ -1,10 +1,16 @@
 # Steam Backlog Enforcer
 
-Forces you to 100% complete one Steam game at a time before moving on.
+Forces you to play one Steam game at a time: earn at least one new
+achievement in the assigned game before moving on to the next.
+
+Requiring 100% completion kept you locked onto one game for weeks, which proved
+ineffective. A game released after one new achievement stays in the backlog
+(it is not counted as finished) and comes round again later.
 
 ## Features
 
-- **Achievement tracking**: Picks the next game by shortest HLTB completionist time
+- **Achievement tracking**: Picks the least-recently-assigned game next, then the
+  shortest HLTB completionist time; a released game sits out a 7-day cooldown
 - **Store blocking**: Blocks `store.steampowered.com` via `/etc/hosts`
 - **Game uninstalling**: Removes all installed games except the assigned one
 - **Process enforcement**: Kills unauthorized game processes
@@ -22,7 +28,7 @@ python -m python_pkg.steam_backlog_enforcer.main setup
 | Command     | Description                                |
 | ----------- | ------------------------------------------ |
 | `scan`      | Scan library, fetch HLTB data, assign game |
-| `check`     | Check if assigned game is complete         |
+| `check`     | Check assigned game for a new achievement  |
 | `status`    | Show current assignment and blocking       |
 | `list`      | List incomplete games from snapshot        |
 | `skip`      | Skip the currently assigned game           |

@@ -158,9 +158,9 @@ def _show_manual_pick_lock_message(state: State) -> None:
         any_in_grace |= _describe_pick(state, pick)
 
     _echo(
-        "\nYou CANNOT use any other feature until you finish these games"
-        "\n(100% achievements) or their 2-week deadlines pass."
-        "\n\nTo release the lock: finish them, then run 'done' or 'check'."
+        "\nYou CANNOT use any other feature until you earn at least one new"
+        "\nachievement in each of these games or their 2-week deadlines pass."
+        "\n\nTo release the lock: earn one, then run 'done' or 'check'."
     )
 
     # 'abandon-pick' is dropped from the allowed list once no pick is still

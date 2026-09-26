@@ -7,6 +7,7 @@ from unittest.mock import (
 
 from steam_backlog_enforcer._cmd_done_finalize import _finalize_completion
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._main_helpers import done_game
 
 CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done_finalize"
 PKG = "steam_backlog_enforcer.main"
@@ -60,7 +61,7 @@ class TestFinalizeCompletion:
                 s.current_game_name = "NewGame"
 
             mock_pick.side_effect = set_next
-            _finalize_completion(config, state, "G", 1)
+            _finalize_completion(config, state, done_game(1, "G"))
         assert 1 in state.finished_app_ids
 
     def test_hide_skipped_when_steam_unreachable(self) -> None:
@@ -98,7 +99,7 @@ class TestFinalizeCompletion:
                 s.current_game_name = "NewGame"
 
             mock_pick.side_effect = set_next
-            _finalize_completion(config, state, "G", 1)
+            _finalize_completion(config, state, done_game(1, "G"))
         assert "skipped (update in progress)" in " ".join(
             str(c) for c in mock_echo.call_args_list
         )
@@ -111,8 +112,9 @@ class TestFinalizeCompletion:
             patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=None),
             patch.object(State, "save"),
         ):
-            _finalize_completion(config, state, "G", 1)
-        assert state.current_app_id is None
+            _finalize_completion(config, state, done_game(1, "G"))
+        # No replacement was chosen, so the released game stays assigned.
+        assert state.current_app_id == 1
 
     def test_no_next_game(self) -> None:
         config = Config()
@@ -134,7 +136,7 @@ class TestFinalizeCompletion:
                 s.current_app_id = None
 
             mock_pick.side_effect = set_none
-            _finalize_completion(config, state, "G", 1)
+            _finalize_completion(config, state, done_game(1, "G"))
 
     def test_no_owned_ids(self) -> None:
         config = Config()
@@ -162,7 +164,7 @@ class TestFinalizeCompletion:
                 s.current_game_name = "Next"
 
             mock_pick.side_effect = set_2
-            _finalize_completion(config, state, "G", 1)
+            _finalize_completion(config, state, done_game(1, "G"))
 
     def test_hide_returns_zero(self) -> None:
         config = Config()
@@ -194,4 +196,4 @@ class TestFinalizeCompletion:
                 s.current_game_name = "Next"
 
             mock_pick.side_effect = set_2
-            _finalize_completion(config, state, "G", 1)
+            _finalize_completion(config, state, done_game(1, "G"))

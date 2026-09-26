@@ -12,6 +12,11 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from steam_backlog_enforcer._state_migrations import (
+    backfill_assignment_times,
+    migrate_legacy_manual_pick,
+)
+
 CONFIG_DIR = Path.home() / ".config" / "steam_backlog_enforcer"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 STATE_FILE = CONFIG_DIR / "state.json"
@@ -166,12 +171,18 @@ class State:
     blanked once migrated and are never written again.
     """
     manual_picks: list[dict[str, Any]] = field(default_factory=list)
-    """Active manual picks, newest last.
+    """Manual picks, newest last; inactive ones stay until a new choice.
 
-    Each entry is ``{"app_id": int, "game_name": str, "started_at": iso}``.
-    Plain dicts rather than a dataclass because ``save`` serialises
-    ``self.__dict__`` straight to JSON.
+    Each entry is ``{"app_id": int, "game_name": str, "started_at": iso}``,
+    plus ``"released_at": iso`` once it earned a new achievement. Plain dicts
+    because ``save`` serialises ``self.__dict__`` straight to JSON.
     """
+    current_assigned_at: str = ""
+    """ISO time the current game was assigned; unlocks after it release it."""
+    last_assigned_at: dict[str, str] = field(default_factory=dict)
+    """``str(app_id)`` → ISO time of its latest assignment (pick ordering)."""
+    released_at: dict[str, str] = field(default_factory=dict)
+    """``str(app_id)`` → ISO time it was released below 100% (tampering)."""
 
     def skip_for_days(self, app_id: int, days: int) -> None:
         """Mark ``app_id`` as skipped for ``days`` days from now (UTC)."""
@@ -218,26 +229,8 @@ class State:
                 logger.warning("Corrupt state file, using defaults.")
                 return cls()
             state = cls(**{k: v for k, v in data.items() if k in _field_names(cls)})
-            state._migrate_legacy_manual_pick()
+            migrated = migrate_legacy_manual_pick(state)
+            if backfill_assignment_times(state) or migrated:
+                state.save()
             return state
         return cls()
-
-    def _migrate_legacy_manual_pick(self) -> None:
-        """Fold a pre-multi-pick single manual pick into ``manual_picks``.
-
-        A live lock written by the old single-slot code must survive the
-        upgrade, so the legacy fields are read once, converted, and cleared.
-        Migration happens in memory; the next ``save`` persists it.
-        """
-        if self.manual_pick_app_id is None or self.manual_picks:
-            return
-        self.manual_picks = [
-            {
-                "app_id": self.manual_pick_app_id,
-                "game_name": self.manual_pick_game_name,
-                "started_at": self.manual_pick_started_at,
-            }
-        ]
-        self.manual_pick_app_id = None
-        self.manual_pick_game_name = ""
-        self.manual_pick_started_at = ""

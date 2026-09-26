@@ -103,6 +103,9 @@ def cmd_reset(config: Config, state: State) -> None:
     state.manual_pick_game_name = ""
     state.manual_pick_started_at = ""
     state.manual_picks = []
+    state.current_assigned_at = ""
+    state.last_assigned_at = {}
+    state.released_at = {}
     state.save()
     _echo("State reset. Store unblocked.")
 

@@ -119,7 +119,7 @@ __all__ = [
 
 COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "scan": ("Scan library & assign a game", do_scan),
-    "check": ("Check assigned game completion", do_check),
+    "check": ("Check assigned game for a new achievement", do_check),
     "status": ("Show current status", cmd_status),
     "list": ("List games from snapshot", cmd_list),
     "install": ("Install the assigned game", cmd_install),
@@ -131,7 +131,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "installed": ("List installed games", cmd_installed),
     "uninstall": ("Uninstall all non-assigned games", cmd_uninstall),
     "setup": ("Run first-time setup", cmd_setup),
-    "done": ("Finish game, open HLTB, pick next", cmd_done),
+    "done": ("Move on after a new achievement, pick next", cmd_done),
     "pick": ("Manually pick your next game from candidates", cmd_pick),
     "stats": ("Show backlog completion-time estimates", cmd_stats),
     "gaming-status": ("Show today's gaming time and block state", cmd_gaming_status),

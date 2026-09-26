@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._allowed_games import allowed_games
+from steam_backlog_enforcer._assignment_progress import iso_to_epoch
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.enforcer import send_notification
 from steam_backlog_enforcer.game_install import _echo
@@ -72,8 +73,18 @@ def _check_game_tampering(
     game = client.refresh_single_game(
         app_id, entry["name"], entry.get("playtime_minutes", 0)
     )
-    if game and game.unlocked_achievements > entry["unlocked_achievements"]:
+    if game is None:
+        return None
+    released = iso_to_epoch(state.released_at.get(str(app_id), ""))
+    if released is not None:
+        # Released below 100%: the snapshot predates the unlocks earned while
+        # it was assigned, so only unlocks after the release are suspicious.
+        diff = sum(
+            1 for a in game.achievements if a.achieved and a.unlock_time > released
+        )
+    else:
         diff = game.unlocked_achievements - entry["unlocked_achievements"]
+    if diff > 0:
         return (entry["name"], app_id, diff)
     return None
 

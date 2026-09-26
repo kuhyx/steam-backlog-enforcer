@@ -21,10 +21,15 @@ MANUAL_LOCK_DAYS = 14
 
 
 def _pick_is_active(state: State, pick: dict[str, Any]) -> bool:
-    """Return ``True`` if *pick* still holds the lock.
+    """Return ``True`` if *pick* still holds the lock and a pick slot.
 
-    A pick stops being active once its game is finished (100% achievements) or
-    once ``MANUAL_LOCK_DAYS`` have elapsed. A missing or malformed timestamp
+    An inactive pick is *not* evicted: it stays in ``state.manual_picks``, and
+    so installed and playable, until the user explicitly chooses another game
+    (:func:`drop_inactive_picks`).
+
+    A pick stops being active once it earned a new achievement since it was
+    picked (``released_at``), once its game is 100% finished, or once
+    ``MANUAL_LOCK_DAYS`` have elapsed. A missing or malformed timestamp
     keeps it active: with no deadline to evaluate, the safe answer for an
     enforcement tool is "still locked".
 
@@ -37,6 +42,8 @@ def _pick_is_active(state: State, pick: dict[str, Any]) -> bool:
     """
     app_id = pick.get("app_id")
     if app_id is None or app_id in state.finished_app_ids:
+        return False
+    if pick.get("released_at"):
         return False
 
     started_at = pick.get("started_at") or ""
@@ -58,14 +65,38 @@ def active_manual_picks(state: State) -> list[dict[str, Any]]:
         state: The loaded enforcer state.
 
     Returns:
-        The subset of ``state.manual_picks`` that is neither finished nor past
-        its own deadline.
+        The subset of ``state.manual_picks`` that is neither released,
+        finished nor past its own deadline.
     """
     return [p for p in state.manual_picks if _pick_is_active(state, p)]
 
 
+def drop_inactive_picks(state: State) -> list[dict[str, Any]]:
+    """Forget every pick that no longer holds the lock; return the dropped ones.
+
+    Released, finished and expired picks stay installed and playable for as
+    long as the user wants. Only an explicit choice of another game (a new
+    manual pick, or accepting the next assignment) calls this and so lets
+    enforcement remove them. Does not save.
+
+    Args:
+        state: The enforcer state to mutate.
+
+    Returns:
+        The dropped pick entries, oldest first.
+    """
+    active = active_manual_picks(state)
+    dropped = [p for p in state.manual_picks if p not in active]
+    state.manual_picks = active
+    return dropped
+
+
 def allowed_games(state: State) -> list[tuple[int, str]]:
     """Return ``(app_id, name)`` for every game the enforcer must keep.
+
+    That is the current assignment plus every stored manual pick, including
+    released and expired ones: a game is only removed once the user has
+    explicitly chosen something else.
 
     Args:
         state: The loaded enforcer state.
@@ -77,7 +108,7 @@ def allowed_games(state: State) -> list[tuple[int, str]]:
     games: list[tuple[int, str]] = []
     if state.current_app_id is not None:
         games.append((state.current_app_id, state.current_game_name))
-    for pick in active_manual_picks(state):
+    for pick in state.manual_picks:
         app_id = pick.get("app_id")
         if app_id is not None and all(app_id != aid for aid, _ in games):
             games.append((app_id, pick.get("game_name", "")))

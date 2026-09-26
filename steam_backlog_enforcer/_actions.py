@@ -15,7 +15,9 @@ from typing import TYPE_CHECKING, Any
 from steam_backlog_enforcer._allowed_games import (
     active_manual_picks,
     allowed_games,
+    drop_inactive_picks,
 )
+from steam_backlog_enforcer._assignment_progress import record_assignment
 
 # Marks these two as an intentional re-export (they're imported from
 # _allowed_games above, not defined here) -- without this, mypy's
@@ -51,7 +53,7 @@ def is_manual_pick_locked(state: State) -> bool:
     """Return ``True`` if any manual pick is currently holding the lock.
 
     With several picks allowed at once the lock releases only when every one
-    of them is finished or expired.
+    of them is released (one new achievement), finished or expired.
 
     Args:
         state: The loaded enforcer state.
@@ -118,8 +120,8 @@ def apply_manual_pick(
     its interactive ``YES`` confirmation. Keeping this state-only means an
     automated caller (the MCP server) can never wipe installed games.
 
-    Finished and expired entries are dropped on the way through so the stored
-    list does not grow without bound.
+    Picking is an explicit choice of another game, so released, finished and
+    expired picks are dropped here (and enforcement may then remove them).
 
     Args:
         state: The enforcer state to mutate and save.
@@ -144,14 +146,10 @@ def apply_manual_pick(
         )
 
     now = datetime.now(UTC).isoformat()
-    # Rewriting from `active` also prunes finished/expired entries.
-    state.manual_picks = [
-        *active,
-        {"app_id": app_id, "game_name": game_name, "started_at": now},
-    ]
-    state.current_app_id = app_id
-    state.current_game_name = game_name
-    if not state.enforcement_started_at:
-        state.enforcement_started_at = now
+    drop_inactive_picks(state)
+    state.manual_picks.append(
+        {"app_id": app_id, "game_name": game_name, "started_at": now}
+    )
+    record_assignment(state, app_id, game_name, at=now)
     state.save()
     return None

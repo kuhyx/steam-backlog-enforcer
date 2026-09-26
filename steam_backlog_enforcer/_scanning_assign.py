@@ -6,11 +6,15 @@ the 250-line cap. Leaf helpers: nothing here calls back into ``scanning``.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids
+from steam_backlog_enforcer._allowed_games import drop_inactive_picks
+from steam_backlog_enforcer._assignment_progress import (
+    last_assigned_epoch,
+    record_assignment,
+)
 from steam_backlog_enforcer._scanning_candidates import (
     _pick_next_shortest_candidate,
     _sort_key,
@@ -67,11 +71,13 @@ def _assign_chosen_game(
     state: State,
     config: Config,
 ) -> None:
-    """Save assignment, announce it, and handle install/uninstall."""
-    state.current_app_id = chosen.app_id
-    state.current_game_name = chosen.name
-    if not state.enforcement_started_at:
-        state.enforcement_started_at = datetime.now(UTC).isoformat()
+    """Save assignment, announce it, and handle install/uninstall.
+
+    Accepting a new game is the explicit choice that lets enforcement remove
+    released picks, so they are dropped here.
+    """
+    drop_inactive_picks(state)
+    record_assignment(state, chosen.app_id, chosen.name)
     state.save()
     hours_str = (
         f" (~{chosen.completionist_hours:.1f}h leisure+dlc)"
@@ -101,10 +107,12 @@ def _assign_chosen_game(
 
 
 def _clear_assignment(state: State, message: str) -> None:
-    """Say why nothing could be assigned and leave the slot empty."""
+    """Say why nothing could be assigned; keep the current game, if any.
+
+    With no replacement chosen, the game already assigned stays installed and
+    playable: only an explicit choice of another game may remove it.
+    """
     _echo(message)
-    state.current_app_id = None
-    state.current_game_name = ""
     state.save()
 
 
@@ -116,11 +124,19 @@ def _no_pick_message(confidence_skipped: int, linux_skipped: int) -> str:
 
 
 def _open_candidates(games: list[GameInfo], state: State) -> list[GameInfo]:
-    """Unfinished, unskipped games, shortest first, with cached confidence."""
+    """Unfinished, unskipped games with cached confidence, in pick order.
+
+    Least-recently-assigned first (never-assigned games lead), then shortest
+    HLTB time. A game released after one new achievement is still unfinished,
+    so without the recency key the same short game would come straight back
+    and the user would be locked onto it again.
+    """
     skip = set(state.finished_app_ids) | state.active_skipped_ids()
     candidates = [g for g in games if not g.is_complete and g.app_id not in skip]
     if candidates:
-        candidates.sort(key=_sort_key)
+        candidates.sort(
+            key=lambda g: (last_assigned_epoch(state, g.app_id), *_sort_key(g))
+        )
         _apply_cached_confidence_to_candidates(candidates)
     return candidates
 

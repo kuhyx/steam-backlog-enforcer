@@ -1,15 +1,17 @@
-"""Achievement-based retirement of finished manual picks.
+"""Achievement-based retirement of manual picks.
 
-A manual pick stops holding its slot once its app id is in
-``State.finished_app_ids`` -- that is what ``_allowed_games._pick_is_active``
-reads. Historically only ``State.current_app_id`` was ever checked for
-completion (``cmd_done``, ``do_check``), so a manual pick that was *not* the
-current assignment had no achievement-based release path at all: it sat on a
-slot until the 14-day lock expired or the user abandoned it by hand.
+A manual pick stops holding its slot once it earned one achievement since it
+was picked (``released_at`` on the pick) or reached 100% -- that is what
+``_allowed_games._pick_is_active`` reads. Historically only
+``State.current_app_id`` was ever checked (``cmd_done``, ``do_check``), so a
+manual pick that was *not* the current assignment had no achievement-based
+release path at all: it sat on a slot until the 14-day lock expired or the
+user abandoned it by hand.
 
 This module closes that gap by checking every active pick and retiring the ones
-at 100%. It deliberately stops there -- freeing a slot is not a request for a
-replacement game, so nothing here calls ``pick_next_game``.
+that met the release rule (:mod:`._assignment_progress`). It deliberately stops
+there -- freeing a slot is not a request for a replacement game, so nothing
+here calls ``pick_next_game``.
 """
 
 from __future__ import annotations
@@ -20,6 +22,11 @@ import time
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._allowed_games import active_manual_picks
+from steam_backlog_enforcer._assignment_progress import (
+    assignment_baseline,
+    newest_unlock_since,
+    release_game,
+)
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.steam_api import SteamAPIClient
 
@@ -35,21 +42,18 @@ logger = logging.getLogger(__name__)
 
 
 class _DaemonSweep:
-    """The enforce daemon's re-check gate, plus what it has retired.
+    """The enforce daemon's re-check gate.
 
-    An object rather than module-level values because rebinding those would
+    An object rather than a module-level value because rebinding that would
     need a ``global`` statement; attribute writes do not.
 
-    ``retired`` exists so the daemon can *record* a completion without
-    *evicting* the game: retiring drops a pick out of ``allowed_app_ids``, and
-    the daemon would then kill and uninstall it mid-session, seconds after the
-    last achievement popped. Unioning these ids back into the allowed set
-    defers that to a user-invoked command; the freed slot is visible at once.
+    Releasing a pick never evicts it (it stays in ``allowed_app_ids`` until
+    the user explicitly chooses another game), so the daemon may release
+    mid-session without killing the game.
     """
 
     def __init__(self) -> None:
         self.last: float | None = None
-        self.retired: set[int] = set()
 
     def due(self, now: float, ttl: float) -> bool:
         """Return whether a check is due, recording *now* when it is.
@@ -78,7 +82,8 @@ class PickProgress:
 
     ``determinable`` is ``False`` when Steam returned nothing for this app (no
     achievements, or the call failed); ``unlocked``/``total`` are 0 then, and
-    callers must read it as "unknown", never as "complete".
+    callers must read it as "unknown", never as "released". ``new_achievement``
+    names the unlock that released it below 100%.
     """
 
     app_id: int
@@ -87,40 +92,20 @@ class PickProgress:
     total: int
     retired: bool
     determinable: bool
+    new_achievement: str = ""
 
     def describe(self) -> str:
         """Return a one-line human summary for CLI output."""
         if not self.determinable:
             return f"  {self.game_name}: progress unavailable (no achievements)"
-        if self.retired:
-            return (
-                f"  {self.game_name}: {self.unlocked}/{self.total} (100%)"
-                " - COMPLETE, freeing its slot"
-            )
         pct = (self.unlocked / self.total) * 100.0 if self.total else 0.0
-        return (
-            f"  {self.game_name}: {self.unlocked}/{self.total}"
-            f" ({pct:.0f}%) - still in progress"
-        )
-
-
-def mark_finished(state: State, app_id: int) -> bool:
-    """Record *app_id* as finished, without duplicating an existing record.
-
-    The single place a completion is written, so the manual-pick sweep and the
-    ``done``/``check`` paths cannot both append the same id.
-
-    Args:
-        state: The enforcer state to mutate (not saved here).
-        app_id: The completed app id.
-
-    Returns:
-        Whether this call actually added the id.
-    """
-    if app_id in state.finished_app_ids:
-        return False
-    state.finished_app_ids.append(app_id)
-    return True
+        progress = f"  {self.game_name}: {self.unlocked}/{self.total} ({pct:.0f}%)"
+        kept = "slot freed, stays playable until you choose another game"
+        if self.retired and self.unlocked >= self.total:
+            return f"{progress} - COMPLETE, {kept}"
+        if self.retired:
+            return f"{progress} - earned '{self.new_achievement}', {kept}"
+        return f"{progress} - no new achievement since it was picked yet"
 
 
 def retire_completed_manual_picks(
@@ -129,14 +114,14 @@ def retire_completed_manual_picks(
     *,
     client: SteamAPIClient | None = None,
 ) -> list[PickProgress]:
-    """Mark every 100%-complete manual pick finished, freeing its slot.
+    """Release every manual pick that earned a new achievement, freeing its slot.
 
     Mutates and saves ``state`` only when something was actually retired. Does
     **not** assign a replacement game, uninstall anything, or touch
     ``current_app_id``: the caller decides what a freed slot means.
 
     A pick whose achievements cannot be read stays locked: for an enforcement
-    tool, Steam being unreachable must never look like completion.
+    tool, Steam being unreachable must never look like progress.
 
     Args:
         config: Enforcer configuration (for the Steam credentials).
@@ -168,17 +153,21 @@ def retire_completed_manual_picks(
             )
             continue
 
-        if game.is_complete and mark_finished(state, app_id):
+        newest = newest_unlock_since(game, assignment_baseline(state, app_id))
+        released = game.is_complete or newest is not None
+        if released:
+            release_game(state, game)
             retired_any = True
-            logger.info("Manual pick retired at 100%%: %s (AppID=%s)", name, app_id)
+            logger.info("Manual pick released: %s (AppID=%s)", name, app_id)
         results.append(
             PickProgress(
                 app_id,
                 name,
                 game.unlocked_achievements,
                 game.total_achievements,
-                retired=game.is_complete,
+                retired=released,
                 determinable=True,
+                new_achievement=newest.display_name if newest else "",
             )
         )
 
@@ -200,7 +189,7 @@ def report_completion(config: Config, state: State) -> list[PickProgress]:
     results = retire_completed_manual_picks(config, state)
     if not results:
         return []
-    _echo("\nChecking your manual picks for completion...")
+    _echo("\nChecking your manual picks for a new achievement...")
     for result in results:
         _echo(result.describe())
     return [r for r in results if r.retired]
@@ -219,8 +208,8 @@ def warn_stale_assignment(state: State, retired: list[PickProgress]) -> None:
     for pick in retired:
         if pick.app_id == state.current_app_id:
             _echo(
-                f"\nNote: {pick.game_name} is recorded as complete but is still"
-                "\n      your current assignment. Run './run.sh done' to get"
+                f"\nNote: {pick.game_name} is released but is still your"
+                "\n      current assignment. Run './run.sh done' to get"
                 "\n      your next game."
             )
             return
@@ -232,9 +221,6 @@ def retire_completed_manual_picks_throttled(
 ) -> list[PickProgress]:
     """Rate-limited :func:`retire_completed_manual_picks` for the enforce loop.
 
-    Records what it retired in :data:`daemon_sweep` so the caller can keep
-    those games in the allowed set rather than evicting them unattended.
-
     Args:
         config: Enforcer configuration.
         state: The enforcer state to inspect, mutate and save.
@@ -244,6 +230,4 @@ def retire_completed_manual_picks_throttled(
     """
     if not daemon_sweep.due(time.monotonic(), MANUAL_PICK_RECHECK_TTL_SECONDS):
         return []
-    results = retire_completed_manual_picks(config, state)
-    daemon_sweep.retired.update(r.app_id for r in results if r.retired)
-    return results
+    return retire_completed_manual_picks(config, state)

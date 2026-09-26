@@ -17,7 +17,6 @@ from steam_backlog_enforcer._enforce_steps import (
 # from here, so splitting it into _owned_apps_cache stays invisible to them.
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
 from steam_backlog_enforcer._pick_completion import (
-    daemon_sweep,
     retire_completed_manual_picks_throttled,
 )
 from steam_backlog_enforcer._playtime import playtime_tick
@@ -141,16 +140,13 @@ def _enforce_loop_iteration(
     if not steam_is_installed():
         return
 
-    # Retire manual picks that have hit 100%, at most once every
+    # Release manual picks that earned a new achievement, at most once every
     # MANUAL_PICK_RECHECK_TTL_SECONDS - this loop ticks every 3s.
     retire_completed_manual_picks_throttled(config, state)
 
-    # Record, but do not evict. A pick the daemon just retired is no longer in
-    # allowed_app_ids, so steps A and B below would kill the running process
-    # and uninstall the game - possibly seconds after the final achievement
-    # popped, mid-session. Keeping those ids allowed defers eviction to a
-    # user-invoked done/check/pick-manual, which is where it was before.
-    allowed = allowed_app_ids(state) | daemon_sweep.retired
+    # Releasing never evicts: a released pick stays in allowed_app_ids until
+    # the user explicitly chooses another game, so this is safe mid-session.
+    allowed = allowed_app_ids(state)
     if not allowed:
         return
 
@@ -232,13 +228,13 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
                 logger.warning("Failed to reload state: %s", exc)
                 time.sleep(ENFORCE_INTERVAL)
                 continue
-            state.current_app_id = fresh.current_app_id
-            state.current_game_name = fresh.current_game_name
-            state.finished_app_ids = fresh.finished_app_ids
-            # Manual picks too: the MCP pick_manual tool adds a *second* pick
-            # without touching current_app_id, so a daemon that never reloaded
-            # this list would uninstall that pick as unauthorized.
-            state.manual_picks = fresh.manual_picks
+            # Every field, not a hand-picked few: the daemon's pick sweep saves
+            # this object, and any field left stale here (cooldowns, pick
+            # release times, assignment times) would overwrite what the CLI
+            # or the MCP server wrote. The MCP pick_manual tool also adds a
+            # *second* pick without touching current_app_id, which a daemon
+            # that never reloaded manual_picks would uninstall.
+            vars(state).update(vars(fresh))
 
             _enforce_loop_iteration(config, state, session=session, demo=demo)
             time.sleep(ENFORCE_INTERVAL)

@@ -96,14 +96,14 @@ class TestPickNextGameSequential:
         assert any("Skipped G1 for 7 days" in line for line in echoed)
 
     def test_on_select_no_candidates(self) -> None:
-        """Sequential branch with no candidates clears state."""
+        """Sequential branch with no candidates keeps the current game."""
         complete = _game(app_id=1, hours=1.0, total=10, unlocked=10)
         config = Config(steam_api_key="k", steam_id="i")
         state = State(current_app_id=99, current_game_name="X")
         echoed: list[str] = []
         with self._common_patches(echoed):
             pick_next_game([complete], state, config, on_select=lambda _g: True)
-        assert state.current_app_id is None
+        assert state.current_app_id == 99
 
     def test_on_select_no_playable_branch(self) -> None:
         """Sequential branch when all candidates lack Linux compatibility."""

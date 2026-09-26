@@ -7,6 +7,7 @@ from unittest.mock import (
 
 from steam_backlog_enforcer._cmd_done_finalize import _finalize_completion
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._main_helpers import done_game
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.steam_api import GameInfo
@@ -68,7 +69,7 @@ class TestFinalizeCompletionRetries:
             patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=capture_pick),
             patch.object(State, "save"),
         ):
-            _finalize_completion(config, state, "G", 1)
+            _finalize_completion(config, state, done_game(1, "G"))
 
         assert seen[2] == 20.05
         assert seen[3] == 18.81
@@ -106,7 +107,7 @@ class TestFinalizeCompletionRetries:
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
-            _finalize_completion(config, state, "DoneGame", 1)
+            _finalize_completion(config, state, done_game(1, "DoneGame"))
 
         mock_install.assert_called_once_with(2, "Next", "sid", use_steam_protocol=True)
 
@@ -142,6 +143,6 @@ class TestFinalizeCompletionRetries:
             patch(f"{CMD_DONE_PKG}.send_notification"),
             patch.object(State, "save"),
         ):
-            _finalize_completion(config, state, "DoneGame", 1)
+            _finalize_completion(config, state, done_game(1, "DoneGame"))
 
         mock_install.assert_not_called()

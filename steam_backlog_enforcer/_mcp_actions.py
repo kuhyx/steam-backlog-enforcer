@@ -39,9 +39,9 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
     With ``confirm=False`` (the default) this performs **no** mutation and
     returns a preview of what confirming would do. Call again with
     ``confirm=True`` to apply. Applying overrides the current assignment and
-    locks all other commands for ``MANUAL_LOCK_DAYS`` days (or until 100%
-    achievements). Unlike the CLI's ``pick-manual``, this mutates **state only**
-    — it never uninstalls, installs, or hides games.
+    locks all other commands for ``MANUAL_LOCK_DAYS`` days (or until one new
+    achievement is earned in it). Unlike the CLI's ``pick-manual``, this
+    mutates **state only** — it never uninstalls, installs, or hides games.
 
     Args:
         app_id: The Steam app id to lock in (must exist in the last snapshot).
@@ -62,14 +62,15 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             "game_name": game_name,
             "effect": (
                 "Overrides the current assignment and locks all other commands "
-                f"for {MANUAL_LOCK_DAYS} days or until 100% achievements."
+                f"for {MANUAL_LOCK_DAYS} days or until you earn one new "
+                "achievement in it."
             ),
             "confirm_required": True,
         }
     config = Config.load()
     state = State.load()
-    # Free the slots of picks already at 100%, so the cap below cannot refuse
-    # on behalf of a game that is finished. Matches the CLI's pick-manual.
+    # Free the slots of picks that already earned a new achievement, so the
+    # cap below cannot refuse on behalf of them. Matches the CLI's pick-manual.
     retired = retire_completed_manual_picks(config, state)
     refused = apply_configured_pick(config, state, app_id, game_name)
     if refused is not None:

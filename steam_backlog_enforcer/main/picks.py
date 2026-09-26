@@ -140,7 +140,9 @@ def _apply_allowed_set(config: Config, state: State) -> None:
 
 
 def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
-    """Manually pick a game by Steam app_id, locking the enforcer for 2 weeks.
+    """Manually pick a game by Steam app_id, locking the enforcer.
+
+    The lock lasts 2 weeks, or until one new achievement is earned in it.
 
     Args:
         config: Enforcer configuration.
@@ -175,19 +177,21 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         f"\n  - Add it to your allowed games ({len(existing) + 1} of"
         f" {config.max_manual_picks} slot(s) used)"
         f"\n  - Lock ALL other commands for {_MANUAL_LOCK_DAYS} DAYS or until"
-        f"\n    you reach 100% achievements on every pick"
+        f"\n    you earn at least one new achievement on every pick"
         f"\n  - Leave only these commands usable:"
         f"\n    {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
         f"\n  - Stay undoable at any time via 'abandon-pick {app_id}'"
     )
-    for done_pick in retired:
+    active = active_manual_picks(state)
+    for old_pick in (p for p in state.manual_picks if p not in active):
         _echo(
-            f"  - Uninstall {done_pick.game_name} (completed, no longer an"
-            " allowed game)"
+            f"  - Replace {old_pick['game_name']} (released or expired; it stays"
+            " playable until you confirm)"
         )
     _echo()
     confirm = input(
-        f"Type YES to confirm you will play {game_name} until completion: "
+        f"Type YES to confirm you will play {game_name} until you earn a new"
+        " achievement: "
     ).strip()
     if confirm != "YES":
         _echo("Aborted.")
@@ -202,8 +206,10 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         sys.exit(1)
 
     _echo(f"\nManual pick confirmed: {game_name} (AppID={app_id})")
-    _echo(f"Lock active from now until 100% achievements or {_MANUAL_LOCK_DAYS} days.")
-    _echo("Run 'done' or 'check' once you have 100% to release the lock.\n")
+    _echo(
+        f"Lock active from now until one new achievement or {_MANUAL_LOCK_DAYS} days."
+    )
+    _echo("Run 'done' or 'check' once you earn one to release the lock.\n")
 
     # Post-assignment: mirror what _assign_chosen_game + cmd_pick do, but for
     # the whole allowed set so an earlier pick is not torn down by a later one.

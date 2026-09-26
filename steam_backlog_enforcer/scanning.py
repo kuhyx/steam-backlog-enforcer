@@ -6,12 +6,16 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._assignment_progress import (
+    release_game,
+    release_verdict,
+)
 from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
 )
-from steam_backlog_enforcer._pick_completion import mark_finished, report_completion
+from steam_backlog_enforcer._pick_completion import report_completion
 from steam_backlog_enforcer._scanning_assign import (
     _NO_CONF_MSG,
     _assign_chosen_game,
@@ -151,7 +155,8 @@ def pick_next_game(
 ) -> None:
     """Present a ranked list of eligible games and let the user pick one.
 
-    Games are ranked by shortest completionist time first.  Games with
+    Games are ranked least-recently-assigned first, then by shortest
+    completionist time.  Games with
     silver-or-worse ProtonDB ratings (or gold trending downward) are
     excluded as unplayable on Linux.
 
@@ -186,7 +191,7 @@ def pick_next_game(
 
 
 def do_check(config: Config, state: State) -> None:
-    """Check assigned game completion status; detect tampering."""
+    """Check the assigned game for a new achievement; detect tampering."""
     report_completion(config, state)
     if state.current_app_id is None:
         _echo("No game currently assigned. Run 'scan' first.")
@@ -205,12 +210,13 @@ def do_check(config: Config, state: State) -> None:
         f" ({game.completion_pct:.1f}%)"
     )
 
-    if game.is_complete:
-        _echo(f"\n  COMPLETED: {state.current_game_name}!")
-        mark_finished(state, state.current_app_id)
+    released, verdict = release_verdict(state, game)
+    _echo(f"\n  {verdict}")
+    if released:
+        release_game(state, game)
         send_notification(
-            "Game Complete!",
-            f"You finished {state.current_game_name}! Picking next game...",
+            "Moving on!",
+            f"New achievement in {state.current_game_name}! Picking next game...",
         )
 
         # Load snapshot and pick next.
@@ -219,13 +225,8 @@ def do_check(config: Config, state: State) -> None:
             games = [GameInfo.from_snapshot(d) for d in snapshot_data]
             pick_next_game(games, state, config)
         else:
-            state.current_app_id = None
-            state.current_game_name = ""
             state.save()
             _echo("  Run 'scan' to pick the next game.")
-    else:
-        remaining = game.total_achievements - game.unlocked_achievements
-        _echo(f"  {remaining} achievements remaining. Keep going!")
 
     # Tampering detection on snapshot.
     detect_tampering(config, state)

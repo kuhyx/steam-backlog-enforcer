@@ -12,6 +12,7 @@ from typing import Any
 from steam_backlog_enforcer._allowed_games import MANUAL_LOCK_DAYS
 from steam_backlog_enforcer._total_block import TotalBlockStatus
 from steam_backlog_enforcer.config import State
+from steam_backlog_enforcer.steam_api import GameInfo
 
 STARTED_AT = (datetime.now(UTC) - timedelta(days=1)).isoformat()
 
@@ -141,3 +142,22 @@ def two_pick_state() -> State:
     state.current_app_id = 200
     state.current_game_name = "SecondGame"
     return state
+
+
+def done_game(app_id: int = 1, name: str = "G") -> GameInfo:
+    """Build a 100%-complete GameInfo, as ``done`` sees a finished game.
+
+    Args:
+        app_id: Steam application id.
+        name: Game name.
+
+    Returns:
+        A GameInfo with every achievement unlocked.
+    """
+    return GameInfo(
+        app_id=app_id,
+        name=name,
+        total_achievements=10,
+        unlocked_achievements=10,
+        playtime_minutes=60,
+    )

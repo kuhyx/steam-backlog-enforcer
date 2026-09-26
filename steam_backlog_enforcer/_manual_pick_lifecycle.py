@@ -17,6 +17,7 @@ from steam_backlog_enforcer._allowed_games import (
     active_manual_picks,
     allowed_games,
 )
+from steam_backlog_enforcer._assignment_progress import record_assignment
 from steam_backlog_enforcer._total_block import get_total_block_status
 from steam_backlog_enforcer.game_install import get_installed_games, is_protected_app
 from steam_backlog_enforcer.store_blocker import is_store_blocked
@@ -67,7 +68,8 @@ def manual_pick_age_days(state: State, app_id: int) -> float | None:
 def abandon_manual_pick(state: State, app_id: int) -> bool:
     """Drop one manual pick and persist ``state``.
 
-    A pick may be abandoned at any time, however long ago it was made.
+    A pick may be abandoned at any time, however long ago it was made, and
+    also after it was released or expired (it is still installed then).
 
     Only the named pick is dropped: any other active pick keeps its own lock
     and deadline. The abandoned app id goes onto the existing skip cooldown so
@@ -83,21 +85,30 @@ def abandon_manual_pick(state: State, app_id: int) -> bool:
         ``True`` if the pick was abandoned, ``False`` if it is not an active
         pick, in which case ``state`` is untouched.
     """
-    if find_manual_pick(state, app_id) is None:
+    if all(p.get("app_id") != app_id for p in state.manual_picks):
         return False
 
     state.skip_for_days(app_id, ABANDON_COOLDOWN_DAYS)
-    state.manual_picks = [
-        p for p in active_manual_picks(state) if p.get("app_id") != app_id
-    ]
+    state.manual_picks = [p for p in state.manual_picks if p.get("app_id") != app_id]
 
     # The abandoned pick may also have been the current assignment; hand the
     # assignment to a surviving pick so the enforcer keeps guarding it, or
     # clear it so 'scan' can reassign.
     if state.current_app_id == app_id:
-        survivor = state.manual_picks[-1] if state.manual_picks else None
-        state.current_app_id = survivor["app_id"] if survivor else None
-        state.current_game_name = survivor["game_name"] if survivor else ""
+        survivors = active_manual_picks(state) or state.manual_picks
+        survivor = survivors[-1] if survivors else None
+        if survivor is None:
+            state.current_app_id = None
+            state.current_game_name = ""
+            state.current_assigned_at = ""
+        else:
+            # The survivor has been assigned since it was picked.
+            record_assignment(
+                state,
+                survivor["app_id"],
+                survivor["game_name"],
+                at=survivor.get("started_at") or None,
+            )
 
     state.save()
     return True

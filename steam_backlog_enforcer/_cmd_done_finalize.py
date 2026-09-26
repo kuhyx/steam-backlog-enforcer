@@ -1,4 +1,4 @@
-"""Finalising a completed game and re-enforcing afterwards.
+"""Moving on from a game that earned a new achievement, or re-enforcing.
 
 Split out of :mod:`steam_backlog_enforcer._cmd_done` to keep both files
 under the 250-line cap.
@@ -10,6 +10,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids
+from steam_backlog_enforcer._assignment_progress import (
+    release_game,
+    release_verdict,
+)
 from steam_backlog_enforcer._cmd_done import (
     _apply_cached_hours_to_games,
     _prompt_keep_or_skip,
@@ -18,7 +22,6 @@ from steam_backlog_enforcer._cmd_done import (
 )
 from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
-from steam_backlog_enforcer._pick_completion import mark_finished
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.enforcer import (
@@ -45,19 +48,20 @@ logger = logging.getLogger(__name__)
 def _finalize_completion(
     config: Config,
     state: State,
-    game_name: str,
-    app_id: int,
+    game: GameInfo,
 ) -> None:
-    """Mark game complete, pick next, hide non-assigned games, notify."""
-    _echo(f"\n  COMPLETED: {game_name}!")
-    mark_finished(state, app_id)
+    """Release the game, pick next, hide non-assigned games, notify.
+
+    The release (and its cooldown) is recorded before the next pick so the
+    game just played cannot be handed straight back.
+    """
+    game_name = game.name
+    release_game(state, game)
 
     snapshot_data = load_snapshot()
     _echo("\nPicking next game...")
     if not snapshot_data:
         _echo("  No snapshot found. Run 'scan' first.")
-        state.current_app_id = None
-        state.current_game_name = ""
         state.save()
         return
 
@@ -68,8 +72,9 @@ def _finalize_completion(
     _apply_cached_hours_to_games(games, hltb_cache)
     pick_next_game(games, state, config, on_select=_prompt_keep_or_skip)
 
-    if state.current_app_id is None:
-        _echo("  No more games to assign!")
+    if state.current_app_id in {None, game.app_id}:
+        # Nothing new was accepted, so the released game stays assigned.
+        _echo(f"  No new game assigned; {game_name} stays playable.")
         return
 
     hide_others_and_report(config, state)
@@ -92,8 +97,8 @@ def _finalize_completion(
         )
 
     send_notification(
-        "Game Complete!",
-        f"Finished {game_name}! Now playing: {state.current_game_name}",
+        "Moving on!",
+        f"New achievement in {game_name}! Now playing: {state.current_game_name}",
     )
     _echo(f"\nAll done! Go play {state.current_game_name}!")
 
@@ -136,11 +141,12 @@ def _enforce_on_done(config: Config, state: State) -> None:
 
 
 def cmd_done(config: Config, state: State) -> None:
-    """Check completion, pick next game, uninstall & hide.
+    """Check for a new achievement, pick next game, uninstall & hide.
 
-    All-in-one command for after finishing a game:
-    1. Verify 100% achievements on Steam.
-    2. Pick the next game (shortest HLTB leisure+dlc time).
+    All-in-one command for after making progress in a game:
+    1. Verify on Steam that at least one achievement was unlocked since the
+       game was assigned (or that it is at 100%).
+    2. Pick the next game (least recently assigned, then shortest HLTB time).
     3. Uninstall all non-assigned games.
     4. Hide all non-assigned games in the Steam library.
     5. Install the newly assigned game.
@@ -173,10 +179,10 @@ def cmd_done(config: Config, state: State) -> None:
         _echo(f"  HLTB leisure+dlc estimate: {hours:.1f} hours")
     _report_assigned_confidence(app_id, state)
 
-    if not game.is_complete:
-        remaining = game.total_achievements - game.unlocked_achievements
-        _echo(f"\n  NOT COMPLETE: {remaining} achievements remaining. Keep going!")
+    released, verdict = release_verdict(state, game)
+    _echo(f"\n  {verdict}")
+    if not released:
         _enforce_on_done(config, state)
         return
 
-    _finalize_completion(config, state, game_name, app_id)
+    _finalize_completion(config, state, game)
