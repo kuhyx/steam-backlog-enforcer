@@ -20,7 +20,7 @@ jobs:
 
       # uv with a cached wheel store installs requirements.txt in seconds;
       # plain pip took ~20 s of a ~70 s run.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements.txt
