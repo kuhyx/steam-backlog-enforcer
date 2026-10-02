@@ -7,7 +7,7 @@ description = "Enforce your Steam backlog: one game at a time, tracked with HowL
 requires-python = ">=3.14"
 dependencies = [
     "requests==2.34.2",
-    "howlongtobeatpy==1.0.23",
+    "howlongtobeatpy==1.0.24",
     # Directly imported by the package (aiohttp: _hltb_* async lookups;
     # websockets: library_hider). aiohttp was previously satisfied only
     # transitively via howlongtobeatpy and websockets was undeclared — both
