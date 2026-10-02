@@ -16,6 +16,12 @@ export function BudgetRulesCard({ rules }: Props) {
       <dl className="budget-rules-list">
         <dt>Daily budget</dt>
         <dd>{fmtDuration(rules.budget_seconds)}</dd>
+        {rules.carry_seconds > 0 && (
+          <>
+            <dt>Carried over</dt>
+            <dd>+{fmtDuration(rules.carry_seconds)} unspent from earlier free days</dd>
+          </>
+        )}
         <dt>Enforcement</dt>
         <dd>{onOff(rules.enforcement)}</dd>
         <dt>Counts launchers</dt>

@@ -158,6 +158,8 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
         # is what would let this view report a budget the daemon is not
         # enforcing. See _budget_resolve's "one seam".
         "budget_reason": rules.budget_reason,
+        # Unspent Fri-Sun time inherited by today; already inside budget_seconds.
+        "carry_seconds": rules.carry_seconds,
         "bonuses": {
             "base": rules.base_seconds,
             "workout": rules.workout_seconds,

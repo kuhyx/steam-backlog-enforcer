@@ -11,6 +11,7 @@ from dataclasses import replace
 import logging
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._gaming_days import pass_on
 from steam_backlog_enforcer._playtime_state import (
     _DELTA_CLAMP_FACTOR,
     PlaytimeRules,
@@ -79,7 +80,9 @@ def roll_over(state: PlaytimeState, *, day_key: str) -> PlaytimeState:
     """Reset *state* if the gaming day has changed.
 
     Pure. ``last_tick_at`` carries across the boundary so the first tick of the
-    new day measures a sane delta rather than restarting from zero.
+    new day measures a sane delta rather than restarting from zero, and the carry
+    ledger crosses it with the outgoing day's leftover added (see
+    ``_gaming_days``).
 
     Args:
         state: Current accounting state.
@@ -90,7 +93,17 @@ def roll_over(state: PlaytimeState, *, day_key: str) -> PlaytimeState:
     """
     if state.day_key == day_key:
         return state
-    return PlaytimeState(day_key=day_key, last_tick_at=state.last_tick_at)
+    return PlaytimeState(
+        day_key=day_key,
+        last_tick_at=state.last_tick_at,
+        carry=pass_on(
+            state.carry,
+            outgoing_day=state.day_key,
+            budget=state.budget_seconds,
+            spent=state.seconds,
+            new_day=day_key,
+        ),
+    )
 
 
 def pending_warning(state: PlaytimeState, rules: PlaytimeRules) -> int | None:

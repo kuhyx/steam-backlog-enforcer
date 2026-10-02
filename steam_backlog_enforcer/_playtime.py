@@ -33,6 +33,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._gaming_days import gaming_day_key
 from steam_backlog_enforcer._playtime_block import (
     mounted_targets,
     reconcile,
@@ -50,7 +51,6 @@ from steam_backlog_enforcer._playtime_procs import attributed_key, qualifying_pi
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeRules,
     PlaytimeState,
-    gaming_day_key,
     load_state,
     rules_for,
     save_state,
@@ -93,6 +93,13 @@ def playtime_tick(
     now = datetime.now(UTC).astimezone()
     rules = rules_for(config, demo=demo)
     state = roll_over(_state_or_recover(rules, now=now), day_key=gaming_day_key(now))
+    # Recorded every tick, total-block branch included: it is what the next
+    # 06:00 roll-over measures this day's leftover against. A high-water mark,
+    # because earners can reset at midnight -- before the gaming day ends --
+    # and a 05:59 dip must not erase the evening's earned-but-unspent time.
+    state = replace(
+        state, budget_seconds=max(state.budget_seconds, rules.budget_seconds)
+    )
 
     if is_total_block_active():
         # The total block runs `pacman -R steam` every tick; our bind mounts

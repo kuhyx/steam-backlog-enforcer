@@ -12,6 +12,13 @@ describe('BudgetRulesCard', () => {
     expect(screen.getByText(/1h 0m, 30m, 10m, 5m remaining/)).toBeInTheDocument()
     expect(screen.queryByText(/demo/)).toBeNull()
     expect(screen.queryByText('Masked now')).toBeNull()
+    expect(screen.queryByText('Carried over')).toBeNull()
+  })
+
+  it('shows time carried over from earlier free days', () => {
+    render(<BudgetRulesCard rules={makeBudgetRules({ carry_seconds: 1200 })} />)
+    expect(screen.getByText('Carried over')).toBeInTheDocument()
+    expect(screen.getByText(/\+20m unspent from earlier free days/)).toBeInTheDocument()
   })
 
   it('shows the demo mode and masked launchers when they apply', () => {

@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 import pytest
 
+from steam_backlog_enforcer._gaming_days import gaming_day_key
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeState,
-    gaming_day_key,
     load_state,
     rules_for,
     save_state,

@@ -12,13 +12,13 @@ import os
 from typing import Any
 
 from steam_backlog_enforcer._budget_view import build_budget_snapshot
+from steam_backlog_enforcer._gaming_days import gaming_day_key
 from steam_backlog_enforcer._mcp_server import (
     logger,
     mcp,
 )
 from steam_backlog_enforcer._playtime import (
     PlaytimeState,
-    gaming_day_key,
     save_state,
 )
 from steam_backlog_enforcer._playtime_block import release_block
@@ -56,6 +56,9 @@ def get_gaming_time() -> dict[str, Any]:
         "seconds_used": today["seconds_used"],
         "budget_seconds": today["budget_seconds"],
         "seconds_remaining": today["seconds_remaining"],
+        # What earned budget_seconds, Friday-Monday carry-over included.
+        "budget_reason": rules["budget_reason"],
+        "carry_seconds": rules["carry_seconds"],
         "next_warning_seconds": today["next_warning_seconds"],
         "blocked": today["blocked"],
         "enforcement": rules["enforcement"],

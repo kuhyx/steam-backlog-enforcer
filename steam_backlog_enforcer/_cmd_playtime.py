@@ -14,6 +14,7 @@ import os
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._enforce_loop import do_enforce
+from steam_backlog_enforcer._gaming_days import gaming_day_key
 from steam_backlog_enforcer._playtime_block import (
     block_targets,
     mounted_targets,
@@ -21,7 +22,6 @@ from steam_backlog_enforcer._playtime_block import (
 )
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeState,
-    gaming_day_key,
     load_state,
     rules_for,
     save_state,

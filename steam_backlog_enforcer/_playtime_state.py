@@ -1,19 +1,20 @@
 """The daily playtime budget: its state, its rules, and its persistence.
 
-A gaming "day" runs 06:00-05:59 local, so late-night sessions count against
-the day they started in. State is written atomically and re-read every tick,
-which is what lets the enforcer survive a restart mid-session.
+Gaming days and the Friday-Monday carry-over live in ``_gaming_days``. State
+is written atomically and re-read every tick, which is what lets the enforcer
+survive a restart mid-session.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._budget_resolve import resolve_budget
+from steam_backlog_enforcer._gaming_days import carry_into
 from steam_backlog_enforcer._whitelist_locking import (
     _try_set_immutable,
     unlock_for_write,
@@ -44,9 +45,6 @@ _SCHEMA_VERSION = 1
 # holds no secrets, and root ownership plus the immutable flag are what stop it
 # being rewritten.
 STATE_MODE = 0o644
-
-# The gaming day starts here, local time. 05:59 belongs to the previous day.
-_DAY_BOUNDARY_HOURS = 6
 
 # Each tick's measured delta is capped at this many tick intervals. Two is the
 # smallest value that tolerates one skipped tick without inflating the count.
@@ -96,6 +94,13 @@ class PlaytimeState:
     """
     warned_seconds: list[int] = field(default_factory=list)
     """Warning thresholds already fired during ``day_key``."""
+    budget_seconds: float = 0.0
+    """Highest budget in force during ``day_key``, carry included; ``0.0`` if unset.
+
+    What ``roll_over`` measures the outgoing day's leftover against.
+    """
+    carry: dict[str, float] = field(default_factory=dict)
+    """Day key to seconds carried into it from earlier days of the block."""
 
     def is_blocked(self) -> bool:
         """Whether the cutoff has engaged for this gaming day.
@@ -129,6 +134,7 @@ class PlaytimeRules:
     leetcode_seconds: float = 0.0
     reading_seconds: float = 0.0
     budget_reason: str = ""
+    carry_seconds: float = 0.0
 
 
 def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
@@ -151,8 +157,14 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
     # life) and _budget_view (which reloads Config per HTTP request) from
     # reporting different budgets.
     resolved = None if demo else resolve_budget(config)
+    # Carry sits on top of the 8h cap: it was earned and not spent, so it
+    # comes with no strings attached.
+    now = datetime.now().astimezone()
+    carry = 0.0 if demo else carry_into(load_state(demo=False), now)
     return PlaytimeRules(
-        budget_seconds=_DEMO_BUDGET_SECONDS if resolved is None else resolved.seconds,
+        budget_seconds=_DEMO_BUDGET_SECONDS
+        if resolved is None
+        else resolved.seconds + carry,
         warn_at=_DEMO_WARN_AT if demo else _WARN_AT,
         sigkill_after=(_DEMO_SIGKILL_AFTER_SECONDS if demo else _SIGKILL_AFTER_SECONDS),
         count_launchers=config.count_launcher_processes,
@@ -164,22 +176,14 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         workout_seconds=0.0 if resolved is None else resolved.workout_seconds,
         leetcode_seconds=0.0 if resolved is None else resolved.leetcode_seconds,
         reading_seconds=0.0 if resolved is None else resolved.reading_seconds,
-        budget_reason=("demo run" if resolved is None else resolved.reason),
+        budget_reason=(
+            "demo run"
+            if resolved is None
+            else resolved.reason
+            + (f", +{carry / 60:.0f}m carried over" if carry > 0 else "")
+        ),
+        carry_seconds=carry,
     )
-
-
-def gaming_day_key(now: datetime) -> str:
-    """Return the ``YYYY-MM-DD`` gaming day containing *now*.
-
-    The boundary is 06:00 local, so 02:00 on the 5th belongs to the 4th.
-
-    Args:
-        now: Timezone-aware local timestamp.
-
-    Returns:
-        The gaming day key.
-    """
-    return (now - timedelta(hours=_DAY_BOUNDARY_HOURS)).date().isoformat()
 
 
 def state_path(*, demo: bool) -> Path:

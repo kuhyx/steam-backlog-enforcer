@@ -234,5 +234,6 @@ class TestBuildBudgetSnapshot:
             "demo",
             "masked_launchers",
             "budget_reason",
+            "carry_seconds",
             "bonuses",
         }
