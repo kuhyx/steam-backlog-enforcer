@@ -16,14 +16,19 @@ from steam_backlog_enforcer._serve_startup import (
     ensure_port_available,
     parse_serve_args,
 )
+from steam_backlog_enforcer._store_window import (
+    DEFAULT_WINDOW_MINUTES,
+    MAX_WINDOW_MINUTES,
+    open_store_window,
+)
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer._web_build import build_frontend, frontend_is_stale
 from steam_backlog_enforcer._web_server import serve
 from steam_backlog_enforcer._whitelist import validate_reason
 from steam_backlog_enforcer._whitelist_locking import add_pending_exception
 from steam_backlog_enforcer.game_install import _echo
-from steam_backlog_enforcer.library_hider import restart_steam, unhide_all_games
-from steam_backlog_enforcer.store_blocker import block_store, unblock_store
+from steam_backlog_enforcer.library_hider import unhide_all_games
+from steam_backlog_enforcer.store_blocker import unblock_store
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
@@ -48,38 +53,34 @@ _BLOCK_GAMING_USAGE = (
 )
 
 
-def cmd_unblock(_config: Config, _state: State) -> None:
-    """Remove store blocking."""
-    if unblock_store():
-        _echo("Steam store unblocked.")
-    else:
-        _echo("Failed to unblock. Run with sudo.")
+def cmd_unblock(_config: Config, state: State, args: list[str] | None = None) -> None:
+    """Open a timed store window: unblocked now, re-blocked by the daemon after.
+
+    Usage: unblock [minutes]   (default 15, max 30)
+
+    Args:
+        _config: Unused; kept for the shared command signature.
+        state: Enforcer state; receives the window deadline.
+        args: CLI argument list after the command name.
+    """
+    raw = args[0] if args else str(DEFAULT_WINDOW_MINUTES)
+    try:
+        until = open_store_window(state, int(raw))
+    except ValueError as exc:
+        _echo(f"Usage: unblock [minutes]  (1-{MAX_WINDOW_MINUTES}): {exc}")
+        sys.exit(1)
+    except RuntimeError as exc:
+        _echo(f"Failed to unblock: {exc}")
+        sys.exit(1)
+    local = until.astimezone().strftime("%H:%M")
+    _echo(f"Steam store UNBLOCKED until {local}.")
+    _echo("The enforcer daemon keeps it open until then (even if a hosts")
+    _echo("reinstall re-blocks it) and re-blocks it afterwards.")
 
 
 def cmd_buy_dlc(config: Config, state: State) -> None:
-    """Temporarily unblock the store so the user can buy DLC."""
-    if state.current_app_id is None:
-        _echo("No game currently assigned.")
-        return
-
-    _echo(f"Current game: {state.current_game_name} (AppID={state.current_app_id})")
-    _echo("Unblocking Steam store for DLC purchase...")
-
-    if not unblock_store():
-        _echo("Failed to unblock store. Run with sudo.")
-        return
-
-    _echo("\nStore UNBLOCKED — buy your DLC now.")
-    _echo("Press Enter when you're done to re-block the store...")
-    input()
-
-    if config.block_store:
-        if block_store():
-            _echo("Store re-blocked. Restarting Steam to clear DNS cache...")
-            restart_steam()
-            _echo("Done.")
-        else:
-            _echo("Warning: failed to re-block store.")
+    """Open the default-length store window to buy a game or DLC."""
+    cmd_unblock(config, state, [])
 
 
 def cmd_reset(config: Config, state: State) -> None:

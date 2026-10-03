@@ -39,7 +39,12 @@ logger = logging.getLogger(__name__)
 
 
 def is_store_blocked() -> bool:
-    """Check if Steam Store domains are blocked in /etc/hosts."""
+    """Check if Steam Store domains are blocked in /etc/hosts or iptables."""
+    return hosts_blocks_store() or _is_iptables_blocked()
+
+
+def hosts_blocks_store() -> bool:
+    """Check /etc/hosts alone: a file read, no subprocess, safe to poll."""
     try:
         content = HOSTS_FILE.read_text(encoding="utf-8")
         # Check for at least the primary store domain.
@@ -55,8 +60,7 @@ def is_store_blocked() -> bool:
                     return True
     except OSError:
         pass
-
-    return _is_iptables_blocked()
+    return False
 
 
 def block_store() -> bool:

@@ -11,19 +11,11 @@ from pathlib import Path
 import shutil
 import subprocess
 
-# Path to the hosts install script. _REPO_ROOT resolves to $HOME (this
-# module lives two levels below it); the script itself is in the
-# linux_configuration checkout under testsAndMisc, not directly under $HOME.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-HOSTS_INSTALL_SCRIPT = (
-    _REPO_ROOT
-    / "testsAndMisc"
-    / "linux_configuration"
-    / "scripts"
-    / "periodic_background"
-    / "hosts"
-    / "install.sh"
-)
+# Path to the hosts install script. _SRC_ROOT is ~/src (this module lives two
+# levels below it); the generator moved out of testsAndMisc into its own
+# hosts-blocker repo, whose custom_entries.hosts carries the Steam Store block.
+_SRC_ROOT = Path(__file__).resolve().parents[2]
+HOSTS_INSTALL_SCRIPT = _SRC_ROOT / "hosts-blocker" / "install.sh"
 
 # iptables chain name for our blocking rules.
 IPTABLES_CHAIN = "STEAM_ENFORCER"

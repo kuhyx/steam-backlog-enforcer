@@ -125,8 +125,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
     "install": ("Install the assigned game", cmd_install),
     "hide": ("Hide all non-assigned games in library", cmd_hide),
     "unhide": ("Unhide all games in library", cmd_unhide),
-    "unblock": ("Remove store blocking", cmd_unblock),
-    "buy-dlc": ("Temporarily unblock store to buy DLC", cmd_buy_dlc),
+    "buy-dlc": ("Unblock the store for 15 min to buy a game/DLC", cmd_buy_dlc),
     "reset": ("Reset all state", cmd_reset),
     "installed": ("List installed games", cmd_installed),
     "uninstall": ("Uninstall all non-assigned games", cmd_uninstall),
@@ -141,6 +140,7 @@ COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
 # Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
 _EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
     "add-exception": "Request 24h-locked whitelist exception (use --reason)",
+    "unblock": "Unblock the store for [minutes] (default 15, max 30)",
     "serve": "Start the web UI (--port N; replaces a stale server)",
     "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
     "abandon-pick": "Undo a manual pick at any time (needs app_id)",
@@ -179,26 +179,24 @@ def _dispatch_extra_command(command: str, config: Config, state: State) -> bool:
     Returns:
         True if *command* was handled here.
     """
-    if command == "add-exception":
-        cmd_add_exception(sys.argv[2:])
-        return True
-    if command == "block-gaming":
-        cmd_block_gaming(sys.argv[2:])
-        return True
-    if command == "serve":
-        cmd_serve(sys.argv[2:])
-        return True
-    if command == "pick-manual":
-        cmd_pick_manual(config, state, sys.argv[2:])
-        return True
-    if command == "abandon-pick":
-        cmd_abandon_pick(config, state, sys.argv[2:])
-        return True
+    args = sys.argv[2:]
     if command == "enforce":
-        sys.exit(cmd_enforce(config, state, sys.argv[2:]))
+        sys.exit(cmd_enforce(config, state, args))
     if command == "gaming-unblock":
-        sys.exit(cmd_gaming_unblock(sys.argv[2:]))
-    return False
+        sys.exit(cmd_gaming_unblock(args))
+    handlers: dict[str, Callable[[], object]] = {
+        "add-exception": lambda: cmd_add_exception(args),
+        "unblock": lambda: cmd_unblock(config, state, args),
+        "block-gaming": lambda: cmd_block_gaming(args),
+        "serve": lambda: cmd_serve(args),
+        "pick-manual": lambda: cmd_pick_manual(config, state, args),
+        "abandon-pick": lambda: cmd_abandon_pick(config, state, args),
+    }
+    handler = handlers.get(command)
+    if handler is None:
+        return False
+    handler()
+    return True
 
 
 def main() -> None:

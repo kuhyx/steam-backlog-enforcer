@@ -47,6 +47,19 @@ class TestMainDispatchServe:
         mock_cmd.assert_called_once_with(["--port", "8123"])
 
 
+class TestMainDispatchUnblock:
+    def test_dispatches_unblock_with_minutes(self) -> None:
+        argv = ["prog", "unblock", "10"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{PKG}.Config.load", return_value=Config(steam_api_key="k")),
+            patch(f"{PKG}.State.load", return_value=State()),
+            patch(f"{PKG}.cmd_unblock") as mock_cmd,
+        ):
+            main()
+        assert mock_cmd.call_args.args[2] == ["10"]
+
+
 class TestMainDispatchPickManual:
     def test_dispatches_pick_manual(self) -> None:
         argv = ["prog", "pick-manual", "489830"]

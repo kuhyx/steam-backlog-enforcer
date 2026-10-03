@@ -33,7 +33,8 @@ python -m python_pkg.steam_backlog_enforcer.main setup
 | `list`      | List incomplete games from snapshot        |
 | `skip`      | Skip the currently assigned game           |
 | `enforce`   | Run enforcer (block, uninstall, kill)      |
-| `unblock`   | Remove store blocking                      |
+| `unblock [minutes]` | Unblock the store for a window (default 15, max 30); the daemon keeps it open and re-blocks after |
+| `buy-dlc`   | Same 15-minute store window, to buy a game or DLC |
 | `reset`     | Reset all state                            |
 | `installed` | List currently installed Steam games       |
 | `uninstall` | Interactively uninstall non-assigned games |

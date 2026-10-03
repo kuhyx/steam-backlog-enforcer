@@ -32,6 +32,7 @@ from steam_backlog_enforcer._steam_launch import (
     restart_steam,
     steam_is_installed,
 )
+from steam_backlog_enforcer._whitelist_locking import get_approved_exception_ids
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
@@ -81,10 +82,15 @@ def hide_other_games(
     cover games that might not yet appear in ``visibleApps`` due to
     stale MobX state.
 
+    Approved whitelist exceptions (``add-exception``) are always treated as
+    allowed, so a permanently whitelisted game such as a co-op title stays
+    visible next to the assignment instead of being hidden with the rest.
+
     Returns the total number of games hidden across all passes.
     """
     ensure_steam_debug_port()
 
+    allowed_app_ids = allowed_app_ids | get_approved_exception_ids()
     allowed_json = json.dumps(sorted(allowed_app_ids))
     extra_ids = sorted(aid for aid in owned_app_ids if aid not in allowed_app_ids)
     extra_json = json.dumps(extra_ids)

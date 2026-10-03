@@ -28,18 +28,24 @@ from steam_backlog_enforcer.config import Config
 # effect yet -- without this patch, collecting this module makes a real HTTP
 # call to the screen locker and pins RULES to whatever budget today happens to
 # have earned. Stub it explicitly so the constant is the earned budget always.
-with patch(
-    "steam_backlog_enforcer._playtime_state.resolve_budget",
-    side_effect=lambda config: BudgetResolution(
-        seconds=float(config.base_gaming_seconds)
-        + float(config.workout_bonus_seconds)
-        + float(config.leetcode_bonus_seconds)
-        + float(config.reading_bonus_seconds),
-        base_seconds=float(config.base_gaming_seconds),
-        workout_seconds=float(config.workout_bonus_seconds),
-        leetcode_seconds=float(config.leetcode_bonus_seconds),
-        reason="stubbed: fully earned",
-        reading_seconds=float(config.reading_bonus_seconds),
+# The carry is pinned for the same reason: conftest's redirects are not active
+# at import either, so rules_for would read the LIVE playtime_state.json and
+# fold whatever Fri-Mon carry it holds today into RULES.
+with (
+    patch("steam_backlog_enforcer._playtime_state.carry_into", return_value=0.0),
+    patch(
+        "steam_backlog_enforcer._playtime_state.resolve_budget",
+        side_effect=lambda config: BudgetResolution(
+            seconds=float(config.base_gaming_seconds)
+            + float(config.workout_bonus_seconds)
+            + float(config.leetcode_bonus_seconds)
+            + float(config.reading_bonus_seconds),
+            base_seconds=float(config.base_gaming_seconds),
+            workout_seconds=float(config.workout_bonus_seconds),
+            leetcode_seconds=float(config.leetcode_bonus_seconds),
+            reason="stubbed: fully earned",
+            reading_seconds=float(config.reading_bonus_seconds),
+        ),
     ),
 ):
     RULES = rules_for(Config(), demo=False)

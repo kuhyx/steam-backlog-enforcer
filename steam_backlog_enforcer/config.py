@@ -191,6 +191,8 @@ class State:
     """``str(app_id)`` → ISO time of its latest assignment (pick ordering)."""
     released_at: dict[str, str] = field(default_factory=dict)
     """``str(app_id)`` → ISO time it was released below 100% (tampering)."""
+    store_unblocked_until: str = ""
+    """ISO deadline of the open store window (``unblock``); CLI-written only."""
 
     def skip_for_days(self, app_id: int, days: int) -> None:
         """Mark ``app_id`` as skipped for ``days`` days from now (UTC)."""

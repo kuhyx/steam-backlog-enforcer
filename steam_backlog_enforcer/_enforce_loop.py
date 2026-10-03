@@ -22,6 +22,7 @@ from steam_backlog_enforcer._pick_completion import (
 from steam_backlog_enforcer._playtime import playtime_tick
 from steam_backlog_enforcer._playtime_session import PlaytimeSession, new_session
 from steam_backlog_enforcer._steam_launch import steam_is_installed
+from steam_backlog_enforcer._store_window import store_window_tick
 from steam_backlog_enforcer._total_block import (
     end_total_block_cleanup,
     enforce_total_block_tick,
@@ -131,6 +132,10 @@ def _enforce_loop_iteration(
 
     if total_block_needs_cleanup():
         end_total_block_cleanup()
+
+    # Before the Steam-installed guard: an expired window must re-block even
+    # when Steam is gone.
+    store_window_tick(config, state)
 
     # With no Steam client there is no library, no installs and no game
     # processes, so every branch below is a no-op at best - and at worst a

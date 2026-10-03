@@ -1,7 +1,11 @@
 """Tests for the main CLI: store, reset, setup, exception and block-gaming commands."""
 
+from datetime import UTC, datetime
 from unittest.mock import patch
 
+import pytest
+
+from steam_backlog_enforcer._store_window import DEFAULT_WINDOW_MINUTES
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import (
     cmd_buy_dlc,
@@ -11,76 +15,59 @@ from steam_backlog_enforcer.main import (
 )
 
 PKG = "steam_backlog_enforcer.main.misc"
+_UNTIL = datetime(2026, 10, 3, 12, 0, tzinfo=UTC)
+_FIVE_MINUTES = 5
 
 
 class TestCmdUnblock:
-    """Tests for cmd_unblock."""
+    """Tests for cmd_unblock: it opens a timed store window."""
 
-    def test_success(self) -> None:
+    def test_default_window(self) -> None:
         with (
-            patch(f"{PKG}.unblock_store", return_value=True),
-            patch(f"{PKG}._echo"),
-        ):
-            cmd_unblock(Config(), State())
-
-    def test_fail(self) -> None:
-        with (
-            patch(f"{PKG}.unblock_store", return_value=False),
+            patch(f"{PKG}.open_store_window", return_value=_UNTIL) as mock_open,
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_unblock(Config(), State())
-            assert any("Failed" in str(c) for c in mock_echo.call_args_list)
+        assert mock_open.call_args.args[1] == DEFAULT_WINDOW_MINUTES
+        assert any("UNBLOCKED until" in str(c) for c in mock_echo.call_args_list)
+
+    def test_explicit_minutes(self) -> None:
+        with (
+            patch(f"{PKG}.open_store_window", return_value=_UNTIL) as mock_open,
+            patch(f"{PKG}._echo"),
+        ):
+            cmd_unblock(Config(), State(), ["5"])
+        assert mock_open.call_args.args[1] == _FIVE_MINUTES
+
+    @pytest.mark.parametrize("raw", ["abc", "0", "31"])
+    def test_bad_minutes_exits(self, raw: str) -> None:
+        with (
+            patch(f"{PKG}._echo") as mock_echo,
+            pytest.raises(SystemExit),
+        ):
+            cmd_unblock(Config(), State(), [raw])
+        assert any("Usage" in str(c) for c in mock_echo.call_args_list)
+
+    def test_unblock_failure_exits(self) -> None:
+        with (
+            patch(f"{PKG}.open_store_window", side_effect=RuntimeError("sudo?")),
+            patch(f"{PKG}._echo") as mock_echo,
+            pytest.raises(SystemExit),
+        ):
+            cmd_unblock(Config(), State())
+        assert any("Failed" in str(c) for c in mock_echo.call_args_list)
 
 
 class TestCmdBuyDlc:
-    """Tests for cmd_buy_dlc."""
+    """cmd_buy_dlc is the default-length window, assigned game or not."""
 
-    def test_no_game(self) -> None:
-        with patch(f"{PKG}._echo") as mock_echo:
+    def test_opens_default_window(self) -> None:
+        with (
+            patch(f"{PKG}.open_store_window", return_value=_UNTIL) as mock_open,
+            patch(f"{PKG}._echo"),
+        ):
             cmd_buy_dlc(Config(), State())
-            assert any("No game" in str(c) for c in mock_echo.call_args_list)
-
-    def test_unblock_fails(self) -> None:
-        state = State(current_app_id=1, current_game_name="G")
-        with (
-            patch(f"{PKG}.unblock_store", return_value=False),
-            patch(f"{PKG}._echo"),
-        ):
-            cmd_buy_dlc(Config(), state)
-
-    def test_success_reblock(self) -> None:
-        state = State(current_app_id=1, current_game_name="G")
-        config = Config(block_store=True)
-        with (
-            patch(f"{PKG}.unblock_store", return_value=True),
-            patch(f"{PKG}.block_store", return_value=True),
-            patch(f"{PKG}.restart_steam"),
-            patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value=""),
-        ):
-            cmd_buy_dlc(config, state)
-
-    def test_reblock_fails(self) -> None:
-        state = State(current_app_id=1, current_game_name="G")
-        config = Config(block_store=True)
-        with (
-            patch(f"{PKG}.unblock_store", return_value=True),
-            patch(f"{PKG}.block_store", return_value=False),
-            patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value=""),
-        ):
-            cmd_buy_dlc(config, state)
-            assert any("Warning" in str(c) for c in mock_echo.call_args_list)
-
-    def test_no_reblock(self) -> None:
-        state = State(current_app_id=1, current_game_name="G")
-        config = Config(block_store=False)
-        with (
-            patch(f"{PKG}.unblock_store", return_value=True),
-            patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value=""),
-        ):
-            cmd_buy_dlc(config, state)
+        assert mock_open.call_args.args[1] == DEFAULT_WINDOW_MINUTES
 
 
 class TestCmdReset:
