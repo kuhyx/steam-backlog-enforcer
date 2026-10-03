@@ -6,10 +6,10 @@ bandit==1.9.4
 codespell==2.4.3
 coverage==7.16.2
 howlongtobeatpy==1.0.24
-mcp==2.2.0
+mcp==2.3.0
 mypy==2.4.0
 pre-commit==4.6.2
-pylint==4.1.1
+pylint==4.1.2
 pytest==9.1.1
 pytest-cov==7.1.0
 pytest-randomly==5.0.0

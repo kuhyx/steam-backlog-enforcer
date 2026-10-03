@@ -22,7 +22,7 @@ dependencies = [
 # dependency so the systemd/CLI system-python path stays dependency-light and
 # never has to import the MCP SDK.
 [project.optional-dependencies]
-mcp = ["mcp==2.2.0"]
+mcp = ["mcp==2.3.0"]
 
 # Explicit package discovery. Without this, setuptools' flat-layout
 # auto-discovery aborts because the repo root holds two top-level dirs
