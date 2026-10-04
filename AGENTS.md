@@ -14,3 +14,12 @@ After running tests fix all coverage gaps and issues, do not ignore unless speci
 - cmd_done completion path can pick next game from snapshot-only hours; keep it aligned with HLTB cache/refresh before pick_next_game to avoid prologue-derived stale times (e.g., A Space 0.56h while cache has ~20h).
 - HLTB renames games (e.g., "Needy Streamer Overload" → "NEEDY GIRL OVERDOSE"). The old name lives in `game_alias`. Both `game_name` and `game_alias` must be checked when matching — fixed in `_pick_best_hltb_entry`.
 - **ALWAYS clear HLTB cache and re-run `run.sh` after changing the HLTB picking/matching algorithm.** Delete `~/.config/steam_backlog_enforcer/hltb_cache.json` (entire file, not just one entry) so all games get re-matched with the new logic. Then run `./run.sh` to verify correct results. Stale cache entries from the old algorithm will persist and hide bugs otherwise.
+
+## Commands
+
+- run: `./run.sh`
+- test: `python3 -m pytest -q`
+- test-changed: `scripts/test_changed.sh`
+- lint: `pre-commit run ruff --all-files`
+- coverage: `python3 -m pytest -q`
+- coverage-gaps: `coverage-gaps coverage.lcov`
