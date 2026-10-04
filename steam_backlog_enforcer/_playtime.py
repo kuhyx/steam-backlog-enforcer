@@ -219,6 +219,12 @@ def _policy(
         reconcile(should_block=False)
         if state.is_blocked():
             state = _release_after_raise(state, rules)
+        # A raise that never reached the cutoff lifts remaining back above
+        # thresholds already fired; re-arm them or the new end comes unwarned.
+        remaining = rules.budget_seconds - state.seconds
+        rearmed = [t for t in state.warned_seconds if t >= remaining]
+        if rearmed != state.warned_seconds:
+            state = replace(state, warned_seconds=rearmed)
         return _warn(state, rules)
 
     if not state.is_blocked():

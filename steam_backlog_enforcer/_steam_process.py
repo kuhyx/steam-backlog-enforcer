@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 
 from steam_backlog_enforcer._desktop_env import desktop_user_cmd
@@ -25,7 +26,14 @@ def spawn_detached(cmd: list[str]) -> subprocess.Popen[bytes]:
     Fire-and-forget on purpose: the process must outlive the calling scope
     (Steam itself, a desktop notifier), so it is polled or reaped later rather
     than waited on in a ``with`` block here.
+
+    The unit is KillMode=control-group, so a Steam started from here used to
+    stay in the service's cgroup and a daemon restart SIGTERMed it together
+    with the running game (2026-07-26, 2026-10-02). A transient scope moves it
+    out; ``--scope`` execs in place, so the returned handle is still the child.
     """
+    if os.geteuid() == 0 and shutil.which("systemd-run"):
+        cmd = ["systemd-run", "--scope", "--quiet", "--collect", *cmd]
     return subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,

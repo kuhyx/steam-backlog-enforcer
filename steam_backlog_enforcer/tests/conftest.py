@@ -26,6 +26,7 @@ from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._isolate_reading import _isolate_reading
 from steam_backlog_enforcer.tests._no_fast_install import _no_fast_install
 from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
+from steam_backlog_enforcer.tests._no_systemd_run import _no_systemd_run
 from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
 
 # Re-exported so ruff --fix does not delete the imports above: pytest
@@ -36,6 +37,7 @@ __all__ = [
     "_isolate_playtime",
     "_isolate_reading",
     "_no_fast_install",
+    "_no_systemd_run",
     "_no_workout_http",
 ]
 

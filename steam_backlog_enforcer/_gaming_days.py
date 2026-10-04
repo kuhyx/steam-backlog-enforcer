@@ -145,3 +145,23 @@ def carry_into(stored: PlaytimeState | None, now: datetime) -> float:
         spent=stored.seconds,
         today=gaming_day_key(now),
     )
+
+
+def held_today(stored: PlaytimeState | None, now: datetime) -> float:
+    """Return the budget already granted earlier in *now*'s gaming day.
+
+    Earners reset at calendar midnight but the gaming day runs to 05:59, and a
+    cold restart starts with empty answer caches, so a live re-resolution can
+    come in lower than what was granted hours ago. ``rules_for`` holds the day
+    at this high-water mark so neither can cut a session off unwarned.
+
+    Args:
+        stored: The persisted production state, or ``None`` if unreadable.
+        now: Local timestamp for this tick.
+
+    Returns:
+        The recorded high-water budget; 0 when the state is another day's.
+    """
+    if stored is None or stored.day_key != gaming_day_key(now):
+        return 0.0
+    return stored.budget_seconds

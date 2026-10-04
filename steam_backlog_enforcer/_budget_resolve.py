@@ -19,21 +19,16 @@ bonus must not interfere with the workout" means in code.
 same as a "no". The difference is only in what gets reported: an unreadable
 LeetCode ledger raises an incident, an honest "not solved yet" does not.
 
-**Rising, in normal use -- but not guaranteed.** Every earner only ever goes
-false->true within a day, so in the ordinary case the budget starts at the floor
-and rises. That is a property of the *inputs*, not something enforced here:
-nothing persists a per-day high-water mark, so anything that changes a resolved
-answer mid-day -- changing the registry, or deploying a change onto a day
-already in progress -- lowers the budget immediately and re-prices time already
-spent. Seconds already accrued are then measured against the new, smaller
-budget, and the cutoff fires on the next tick with no warning first, because
-``warned_seconds`` records thresholds by seconds *remaining* and remaining has
-already gone negative.
-
-That was a deliberate call (2026-08-29): the alternative is a persisted
-``granted_budget_seconds`` on ``PlaytimeState`` taking ``max(resolved,
-granted)``. If a mid-day drop ever bites, that is the fix -- not a nudge to
-these numbers.
+**Rising, and held there.** Every earner only ever goes false->true within a
+day, so in the ordinary case the budget starts at the floor and rises. This
+resolution alone does not guarantee it: earners reset at calendar midnight
+while the gaming day runs to 05:59, and a cold restart resolves with empty
+answer caches, so a live answer can come in lower than one given hours ago.
+That bit twice (2026-10-03 and 2026-10-04 00:00, 8h -> 4h, unwarned cutoff).
+``PlaytimeState.budget_seconds`` is the day's high-water mark, and
+``rules_for`` applies ``max(resolved + carry, held)`` via
+``_gaming_days.held_today`` -- so the daemon, ``/api/budget`` and MCP all see
+the held figure. Only the 06:00 roll-over lowers it.
 
 **One seam.** :func:`resolve_budget` is called from ``rules_for`` and nowhere
 else, so the enforcing daemon and the read-only HTTP/MCP views resolve the same

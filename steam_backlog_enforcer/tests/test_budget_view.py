@@ -33,6 +33,7 @@ from steam_backlog_enforcer.tests._no_workout_http import earned_budget, fixed_b
 # fold whatever Fri-Mon carry it holds today into RULES.
 with (
     patch("steam_backlog_enforcer._playtime_state.carry_into", return_value=0.0),
+    patch("steam_backlog_enforcer._playtime_state.held_today", return_value=0.0),
     patch(
         "steam_backlog_enforcer._playtime_state.resolve_budget",
         side_effect=earned_budget,

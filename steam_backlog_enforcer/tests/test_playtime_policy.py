@@ -6,6 +6,7 @@ tests exercise the loop that feeds it.
 """
 
 from contextlib import ExitStack
+from dataclasses import replace
 from datetime import (
     datetime,
     timedelta,
@@ -175,10 +176,36 @@ class TestPolicyBudgetRoseMidDay:
 
     def test_an_unblocked_day_is_left_alone(self) -> None:
         """The release path must not fire on an ordinary under-budget tick."""
-        state = PlaytimeState(day_key=TODAY, seconds=100.0, warned_seconds=[3600])
+        spent = 8 * 3600 - 3000.0
+        state = PlaytimeState(day_key=TODAY, seconds=spent, warned_seconds=[3600])
         with (
             patch("steam_backlog_enforcer._playtime.reconcile"),
             patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
         ):
             out = _policy(state, _rules(), now=NOW)
         assert out.warned_seconds == [3600]
+        assert out.blocked_at == 0.0
+
+    def test_a_raise_before_the_cutoff_rearms_warnings(self) -> None:
+        """All four fired at a 5h budget, then it rose to 8h (2026-10-04).
+
+        No block ever engaged, so the release path never ran; without the
+        re-arm the new end of the day would come with no warning at all.
+        """
+        state = PlaytimeState(
+            day_key=TODAY, seconds=5 * 3600.0, warned_seconds=[3600, 1800, 600, 300]
+        )
+        with (
+            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
+            ) as mock_notify,
+        ):
+            out = _policy(state, _rules(), now=NOW)
+            mock_notify.assert_not_called()
+            drained = _policy(
+                replace(out, seconds=8 * 3600 - 3500.0), _rules(), now=NOW
+            )
+        assert out.warned_seconds == []
+        assert drained.warned_seconds == [3600]
+        mock_notify.assert_called_once()

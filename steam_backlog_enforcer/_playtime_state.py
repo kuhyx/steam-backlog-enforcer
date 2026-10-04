@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._budget_resolve import resolve_budget
-from steam_backlog_enforcer._gaming_days import carry_into
+from steam_backlog_enforcer._gaming_days import carry_into, held_today
 from steam_backlog_enforcer._whitelist_locking import (
     _try_set_immutable,
     unlock_for_write,
@@ -151,20 +151,19 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
     Returns:
         The rules governing this tick.
     """
-    # Production budget is resolved, not read straight off config: it is a
-    # floor plus a bonus per earner. Resolving it *here* rather than at each
-    # caller is what stops the daemon (which holds one Config for its whole
-    # life) and _budget_view (which reloads Config per HTTP request) from
-    # reporting different budgets.
+    # Resolved *here*, not per caller, so the daemon (one Config for life) and
+    # _budget_view (Config per request) can never report different budgets.
     resolved = None if demo else resolve_budget(config)
-    # Carry sits on top of the 8h cap: it was earned and not spent, so it
-    # comes with no strings attached.
+    # Carry sits on top of the 8h cap (earned, not spent: no strings). The
+    # day never re-prices below what it already granted -- see held_today.
     now = datetime.now().astimezone()
-    carry = 0.0 if demo else carry_into(load_state(demo=False), now)
+    stored = None if demo else load_state(demo=False)
+    carry = 0.0 if demo else carry_into(stored, now)
+    live = 0.0 if resolved is None else resolved.seconds + carry
+    held = held_today(stored, now)
+    held_note = f"; held at {held / 3600:.1f}h (earned earlier today)"
     return PlaytimeRules(
-        budget_seconds=_DEMO_BUDGET_SECONDS
-        if resolved is None
-        else resolved.seconds + carry,
+        budget_seconds=_DEMO_BUDGET_SECONDS if resolved is None else max(live, held),
         warn_at=_DEMO_WARN_AT if demo else _WARN_AT,
         sigkill_after=(_DEMO_SIGKILL_AFTER_SECONDS if demo else _SIGKILL_AFTER_SECONDS),
         count_launchers=config.count_launcher_processes,
@@ -181,6 +180,7 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
             if resolved is None
             else resolved.reason
             + (f", +{carry / 60:.0f}m carried over" if carry > 0 else "")
+            + (held_note if held > live else "")
         ),
         carry_seconds=carry,
     )

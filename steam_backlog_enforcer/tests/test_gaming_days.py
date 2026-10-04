@@ -6,7 +6,12 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from steam_backlog_enforcer._gaming_days import carry_due, carry_into, pass_on
+from steam_backlog_enforcer._gaming_days import (
+    carry_due,
+    carry_into,
+    held_today,
+    pass_on,
+)
 from steam_backlog_enforcer._playtime_budget import roll_over
 from steam_backlog_enforcer._playtime_state import PlaytimeState, rules_for
 from steam_backlog_enforcer.config import Config
@@ -116,3 +121,41 @@ class TestRulesCarry:
             "steam_backlog_enforcer._playtime_state.carry_into", return_value=1200.0
         ):
             assert rules_for(Config(), demo=True).carry_seconds == 0.0
+
+
+class TestHeldToday:
+    """The day's high-water budget, and only for the day it was recorded."""
+
+    NOW = datetime(2026, 10, 5, 0, 30, tzinfo=LOCAL)  # still gaming day SUN
+
+    def test_no_state_holds_nothing(self) -> None:
+        assert held_today(None, self.NOW) == 0.0
+
+    def test_same_gaming_day_returns_the_high_water(self) -> None:
+        stored = PlaytimeState(day_key=SUN, budget_seconds=8 * HOUR)
+        assert held_today(stored, self.NOW) == 8 * HOUR
+
+    def test_yesterdays_record_holds_nothing(self) -> None:
+        stored = PlaytimeState(day_key=SAT, budget_seconds=8 * HOUR)
+        assert held_today(stored, self.NOW) == 0.0
+
+
+class TestRulesHold:
+    """rules_for never prices the day below what it already granted."""
+
+    def test_midnight_reset_is_held_and_says_so(self) -> None:
+        with patch(
+            "steam_backlog_enforcer._playtime_state.held_today",
+            return_value=10 * HOUR,
+        ):
+            rules = rules_for(Config(), demo=False)
+        assert rules.budget_seconds == 10 * HOUR
+        assert rules.budget_reason.endswith("; held at 10.0h (earned earlier today)")
+
+    def test_a_higher_live_answer_wins_silently(self) -> None:
+        with patch(
+            "steam_backlog_enforcer._playtime_state.held_today", return_value=HOUR
+        ):
+            rules = rules_for(Config(), demo=False)
+        assert rules.budget_seconds > HOUR
+        assert "held at" not in rules.budget_reason
