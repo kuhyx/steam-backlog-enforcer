@@ -18,6 +18,7 @@ from steam_backlog_enforcer._playtime_state import (
     state_path,
 )
 from steam_backlog_enforcer.config import Config
+from steam_backlog_enforcer.tests._no_workout_http import fixed_budget
 
 PKG = "steam_backlog_enforcer._playtime"
 LOCAL = timezone(timedelta(hours=2))
@@ -162,16 +163,9 @@ class TestSaveStateImmutability:
 
 
 class TestRulesFor:
-    def test_production_budget_comes_from_config(self) -> None:
-        rules = rules_for(
-            Config(
-                base_gaming_seconds=100,
-                workout_bonus_seconds=0,
-                leetcode_bonus_seconds=0,
-                reading_bonus_seconds=0,
-            ),
-            demo=False,
-        )
+    def test_production_budget_comes_from_the_resolver(self) -> None:
+        with fixed_budget(100.0):
+            rules = rules_for(Config(), demo=False)
         assert rules.budget_seconds == 100.0
         assert rules.demo is False
 

@@ -173,6 +173,8 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
             "steam_backlog_enforcer._enforce_loop.CONFIG_FILE",
             fake_config / "config.json",
         ),
+        # Generic earners resolve their ledgers under the real home directory.
+        patch("steam_backlog_enforcer._ledger_earners.LEDGER_HOME", tmp_path),
     ):
         yield
 

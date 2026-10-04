@@ -11,14 +11,13 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import earned_time
 import pytest
 
 from steam_backlog_enforcer import _budget_view as view
 from steam_backlog_enforcer import _leetcode_bonus, _workout_budget
 from steam_backlog_enforcer._budget_resolve import (
-    READING_BASE_FROM,
     BudgetResolution,
-    base_for,
     resolve_budget,
 )
 from steam_backlog_enforcer._playtime_state import rules_for
@@ -53,16 +52,11 @@ def _clear_caches() -> Iterator[None]:
     _leetcode_bonus.reset_cache()
 
 
-def _resolve(
-    *,
-    earners: tuple[bool, bool, bool | None],
-    config: Config | None = None,
-) -> BudgetResolution:
+def _resolve(*, earners: tuple[bool, bool, bool | None]) -> BudgetResolution:
     """Resolve with the workout, LeetCode and reading answers fixed.
 
     Args:
         earners: The workout, LeetCode and reading answers.
-        config: The configuration to resolve; defaults to ``Config()``.
 
     Returns:
         The resolved budget.
@@ -73,24 +67,29 @@ def _resolve(
         patch(_LEETCODE, return_value=leetcode),
         patch(_READING, return_value=reading),
     ):
-        return resolve_budget(config or Config())
+        return resolve_budget(Config())
 
 
-class TestBaseFor:
+class TestTheBase:
     """The floor carries the old extra hour until book-guard's gate starts."""
 
     def test_the_day_before_the_cut_keeps_the_old_floor(self) -> None:
         """2026-09-30 still gets the hour that reading cannot yet earn back."""
-        assert base_for(4 * _HOUR, BEFORE_CUT) == 5 * _HOUR
+        with pin_today(BEFORE_CUT):
+            resolved = _resolve(earners=(False, False, False))
+        assert resolved.base_seconds == 5 * _HOUR
 
-    def test_the_cut_day_itself_uses_the_configured_floor(self) -> None:
-        """The boundary is exclusive: 2026-10-01 is the first 4h day."""
-        assert base_for(4 * _HOUR, READING_BASE_FROM) == 4 * _HOUR
+    def test_the_cut_day_itself_uses_the_lower_floor(self) -> None:
+        """The boundary is inclusive: 2026-10-01 is the first 4h day."""
+        with pin_today(AFTER_CUT):
+            resolved = _resolve(earners=(False, False, False))
+        assert resolved.base_seconds == 4 * _HOUR
 
-    def test_every_later_day_uses_the_configured_floor(self) -> None:
+    def test_every_later_day_uses_the_lower_floor(self) -> None:
         """No drift back to 5h once the cut has happened."""
-        later = READING_BASE_FROM + timedelta(days=400)
-        assert base_for(4 * _HOUR, later) == 4 * _HOUR
+        with pin_today(AFTER_CUT + timedelta(days=400)):
+            resolved = _resolve(earners=(False, False, False))
+        assert resolved.base_seconds == 4 * _HOUR
 
 
 class TestTheReadingTerm:
@@ -120,22 +119,6 @@ class TestTheReadingTerm:
         assert resolved.seconds == 7 * _HOUR
         assert "reading unknown (book-guard ledger unreadable)" in resolved.reason
 
-    def test_a_negative_reading_bonus_is_clamped(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Reading must never *cost* gaming time.
-
-        Args:
-            caplog: pytest's log capture.
-        """
-        with pin_today(AFTER_CUT):
-            resolved = _resolve(
-                earners=(False, False, True),
-                config=Config(reading_bonus_seconds=-3600),
-            )
-        assert resolved.seconds == 4 * _HOUR
-        assert "reading_bonus_seconds is negative" in caplog.text
-
 
 class TestTheCeiling:
     """Whatever the terms add up to, the budget never exceeds the maximum."""
@@ -153,18 +136,21 @@ class TestTheCeiling:
             resolved = _resolve(earners=(False, False, False))
         assert resolved.seconds == 5 * _HOUR
 
-    def test_a_lower_configured_ceiling_binds(self) -> None:
-        with pin_today(AFTER_CUT):
-            resolved = _resolve(
-                earners=(True, True, True),
-                config=Config(max_gaming_seconds=6 * 3600),
-            )
+    def test_a_lower_registry_ceiling_binds(self) -> None:
+        """The ceiling is the registry's, read when the budget resolves."""
+        with (
+            pin_today(AFTER_CUT),
+            # resolve() binds the ceiling from _policy by name, so patch there.
+            patch("earned_time._resolve.GAMING_CEILING_MINUTES", 6 * 60),
+        ):
+            resolved = _resolve(earners=(True, True, True))
         assert resolved.seconds == 6 * _HOUR
 
     def test_after_the_cut_a_full_day_is_exactly_the_ceiling(self) -> None:
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(True, True, True))
-        assert resolved.seconds == Config().max_gaming_seconds == 8 * _HOUR
+        ceiling = earned_time.GAMING_CEILING_MINUTES * 60
+        assert resolved.seconds == ceiling == 8 * _HOUR
 
 
 class TestReadingReachesTheRulesAndTheView:

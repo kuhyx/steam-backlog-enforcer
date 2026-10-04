@@ -1,29 +1,32 @@
 """Today's gaming budget: a floor, plus whatever today earned.
 
-The budget is a sum, not a choice between values, capped at
-``max_gaming_seconds`` (8h):
+Every number lives in the shared earner registry (``earned_time``,
+kuhyx/utils), which screen-locker reads for the shutdown time too. The budget
+is its sum, capped at the gaming ceiling (8h):
 
-    base (4h) + workout bonus (2h) + LeetCode bonus (1h) + reading bonus (1h)
+    base (4h) + workout (2h) + LeetCode (1h) + reading (1h) + ...
 
-so a day earns anything from 4h to 8h. The earners are read **independently**
--- :mod:`steam_backlog_enforcer._workout_budget`,
-:mod:`steam_backlog_enforcer._leetcode_bonus` and
-:mod:`steam_backlog_enforcer._reading_bonus` share no state and none can fail
-in a way that changes another's term. That is what "the LeetCode bonus
-must not interfere with the workout" means in code.
+The base is 5h minus every penalised earner's cut once its day arrives
+(book-guard's reading hour, from 2026-10-01). The earners are read
+**independently** -- :mod:`steam_backlog_enforcer._workout_budget`,
+:mod:`steam_backlog_enforcer._leetcode_bonus`,
+:mod:`steam_backlog_enforcer._reading_bonus` and, for any earner registered
+later, :mod:`steam_backlog_enforcer._ledger_earners` share no state and none
+can fail in a way that changes another's term. That is what "the LeetCode
+bonus must not interfere with the workout" means in code.
 
 **Fail closed.** An answer that could not be obtained contributes nothing, the
 same as a "no". The difference is only in what gets reported: an unreadable
 LeetCode ledger raises an incident, an honest "not solved yet" does not.
 
-**Rising, in normal use -- but not guaranteed.** Both earners only ever go
+**Rising, in normal use -- but not guaranteed.** Every earner only ever goes
 false->true within a day, so in the ordinary case the budget starts at the floor
 and rises. That is a property of the *inputs*, not something enforced here:
 nothing persists a per-day high-water mark, so anything that changes a resolved
-answer mid-day -- editing the config, or deploying a change onto a day already
-in progress -- lowers the budget immediately and re-prices time already spent.
-Seconds already accrued are then measured against the new, smaller budget, and
-the cutoff fires on the next tick with no warning first, because
+answer mid-day -- changing the registry, or deploying a change onto a day
+already in progress -- lowers the budget immediately and re-prices time already
+spent. Seconds already accrued are then measured against the new, smaller
+budget, and the cutoff fires on the next tick with no warning first, because
 ``warned_seconds`` records thresholds by seconds *remaining* and remaining has
 already gone negative.
 
@@ -34,20 +37,20 @@ these numbers.
 
 **One seam.** :func:`resolve_budget` is called from ``rules_for`` and nowhere
 else, so the enforcing daemon and the read-only HTTP/MCP views resolve the same
-number. The daemon holds its ``Config`` for the process lifetime while
-``_budget_view`` reloads it per request, so anything resolved at only one of
-those two sites would let the UI report a budget the daemon was not enforcing.
-Callers that want the breakdown read it off ``PlaytimeRules``, never by
+number. Callers that want the breakdown read it off ``PlaytimeRules``, never by
 resolving a second time.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import dataclass, field
+from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Final
 
+import earned_time
+
+from steam_backlog_enforcer._ledger_earners import ledger_answer
 from steam_backlog_enforcer._leetcode_bonus import leetcode_solved_today
 from steam_backlog_enforcer._reading_bonus import read_today
 from steam_backlog_enforcer._workout_budget import workout_logged_today
@@ -57,18 +60,28 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_SECONDS_PER_MINUTE: Final = 60.0
 _SECONDS_PER_HOUR: Final = 3600.0
 
-# The 5h -> 4h base cut belongs to book-guard's reading hour, and book-guard's
-# gate starts on 2026-10-01. Until then the old 5h floor stands: cutting an
-# hour a reader cannot yet earn back was a same-day loss (2026-09-26).
-READING_BASE_FROM: Final = date(2026, 10, 1)
-_PRE_READING_EXTRA: Final = 3600.0
-
-
-def base_for(configured: float, today: date) -> float:
-    """The floor for ``today``: the configured base, +1h before the cut."""
-    return configured + (_PRE_READING_EXTRA if today < READING_BASE_FROM else 0.0)
+# How each earner reads in the reason string: (earned, missed, unknown).
+# An earner registered later without an entry here gets a generic phrase.
+_PHRASES: Final[dict[str, tuple[str, str, str]]] = {
+    "workout": (
+        "workout counted",
+        "no counted workout",
+        "workout unknown (screen-locker unreachable)",
+    ),
+    "leetcode": (
+        "LeetCode solve recorded",
+        "no LeetCode solve recorded",
+        "LeetCode unknown (ledger and status API both unreadable)",
+    ),
+    "reading": (
+        "reading credited",
+        "no reading credited",
+        "reading unknown (book-guard ledger unreadable)",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -82,6 +95,8 @@ class BudgetResolution:
         leetcode_seconds: Seconds added by a LeetCode solve, or 0.
         reason: A human-readable account, for the journal and ``/api/budget``.
         reading_seconds: Seconds added by a credited reading session, or 0.
+        earned_seconds: Seconds added per earner name, every registered earner
+            included -- the generic form of the three fields above.
     """
 
     seconds: float
@@ -90,112 +105,61 @@ class BudgetResolution:
     leetcode_seconds: float
     reason: str
     reading_seconds: float = 0.0
+    earned_seconds: dict[str, float] = field(default_factory=dict)
 
 
-def _bonus_seconds(configured: int, label: str) -> float:
-    """A configured bonus, refusing a negative one.
-
-    Args:
-        configured: The configured value.
-        label: The config field name, for the error message.
-
-    Returns:
-        The bonus in seconds, clamped at zero. A negative bonus would mean
-        earning something *cost* time, which is never what was meant.
-    """
-    if configured < 0:
-        logger.error(
-            "%s is negative (%d); clamping to 0 so earning something can never "
-            "cost gaming time.",
-            label,
-            configured,
-        )
-        return 0.0
-    return float(configured)
-
-
-def _describe(*, answer: bool | None, earned: str, missed: str, unknown: str) -> str:
-    """Render one earner's answer for the reason string.
-
-    Args:
-        answer: True, False, or None for "could not check".
-        earned: Phrase for True.
-        missed: Phrase for False.
-        unknown: Phrase for None.
-
-    Returns:
-        The matching phrase.
-    """
+def _describe(name: str, label: str, answer: int | None) -> str:
+    """Render one earner's answer for the reason string."""
+    earned, missed, unknown = _PHRASES.get(
+        name, (f"{label} credited", f"no {label} credited", f"{label} unknown")
+    )
     if answer is None:
         return unknown
     return earned if answer else missed
+
+
+def _answers(config: Config) -> dict[str, bool | None]:
+    """Every registered earner's answer for today, each read independently."""
+    answers: dict[str, bool | None] = {
+        "workout": workout_logged_today(config),
+        "leetcode": leetcode_solved_today(config),
+        "reading": read_today(config),
+    }
+    for earner in earned_time.EARNERS:
+        if earner.name not in answers:
+            answers[earner.name] = ledger_answer(earner)
+    return answers
 
 
 def resolve_budget(config: Config) -> BudgetResolution:
     """Return today's gaming budget, and what earned it.
 
     Args:
-        config: Loaded user configuration.
+        config: Loaded user configuration (for the earners' transports).
 
     Returns:
         The floor plus a bonus for each of today's earners. An answer that
         could not be obtained contributes nothing, exactly as a "no" does --
         the difference is only in what gets logged and reported.
     """
-    base = base_for(
-        _bonus_seconds(config.base_gaming_seconds, "base_gaming_seconds"),
-        datetime.now().astimezone().date(),
+    # The registry is passed explicitly: _answers iterated this same tuple, so
+    # the earners asked and the earners summed can never differ.
+    day = earned_time.resolve(
+        _answers(config), datetime.now().astimezone().date(), earned_time.EARNERS
     )
-    workout = workout_logged_today(config)
-    leetcode = leetcode_solved_today(config)
-    reading = read_today(config)
-
-    workout_seconds = (
-        _bonus_seconds(config.workout_bonus_seconds, "workout_bonus_seconds")
-        if workout
-        else 0.0
+    earned = {t.earner.name: t.gaming_minutes * _SECONDS_PER_MINUTE for t in day.terms}
+    total = day.gaming_minutes * _SECONDS_PER_MINUTE
+    parts = ", ".join(
+        _describe(t.earner.name, t.earner.label, t.answer) for t in day.terms
     )
-    leetcode_seconds = (
-        _bonus_seconds(config.leetcode_bonus_seconds, "leetcode_bonus_seconds")
-        if leetcode
-        else 0.0
-    )
-    reading_seconds = (
-        _bonus_seconds(config.reading_bonus_seconds, "reading_bonus_seconds")
-        if reading
-        else 0.0
-    )
-    ceiling = _bonus_seconds(config.max_gaming_seconds, "max_gaming_seconds")
-    total = min(ceiling, base + workout_seconds + leetcode_seconds + reading_seconds)
-
-    workout_part = _describe(
-        answer=workout,
-        earned="workout counted",
-        missed="no counted workout",
-        unknown="workout unknown (screen-locker unreachable)",
-    )
-    leetcode_part = _describe(
-        answer=leetcode,
-        earned="LeetCode solve recorded",
-        missed="no LeetCode solve recorded",
-        unknown="LeetCode unknown (ledger and status API both unreadable)",
-    )
-    reading_part = _describe(
-        answer=reading,
-        earned="reading credited",
-        missed="no reading credited",
-        unknown="reading unknown (book-guard ledger unreadable)",
-    )
-    reason = (
-        f"{total / _SECONDS_PER_HOUR:.1f}h: {workout_part}, {leetcode_part}, "
-        f"{reading_part}"
-    )
+    reason = f"{total / _SECONDS_PER_HOUR:.1f}h: {parts}"
     logger.info("Gaming budget %s", reason)
     return BudgetResolution(
         seconds=total,
-        base_seconds=base,
-        workout_seconds=workout_seconds,
-        leetcode_seconds=leetcode_seconds,
+        base_seconds=day.base.gaming_minutes * _SECONDS_PER_MINUTE,
+        workout_seconds=earned.get("workout", 0.0),
+        leetcode_seconds=earned.get("leetcode", 0.0),
         reason=reason,
-        reading_seconds=reading_seconds,
+        reading_seconds=earned.get("reading", 0.0),
+        earned_seconds=earned,
     )

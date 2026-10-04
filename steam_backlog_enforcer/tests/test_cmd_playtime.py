@@ -16,6 +16,7 @@ from steam_backlog_enforcer._playtime_state import (
     save_state,
 )
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._no_workout_http import fixed_budget
 
 PKG = "steam_backlog_enforcer._cmd_playtime"
 
@@ -67,16 +68,9 @@ class TestCmdGamingStatus:
         with (
             patch(f"{PKG}._echo") as mock_echo,
             patch(f"{PKG}.mounted_targets", return_value=set()),
+            fixed_budget(500.0),
         ):
-            cmd_gaming_status(
-                Config(
-                    base_gaming_seconds=500,
-                    workout_bonus_seconds=0,
-                    leetcode_bonus_seconds=0,
-                    reading_bonus_seconds=0,
-                ),
-                State(),
-            )
+            cmd_gaming_status(Config(), State())
         output = _echoed(mock_echo)
         assert "used:" in output
         assert "100s" in output

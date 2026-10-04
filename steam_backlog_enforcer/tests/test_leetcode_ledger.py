@@ -1,11 +1,11 @@
 """Tests for _leetcode_ledger: which entries count as a solve today.
 
-The signature check is load-bearing. That module reproduces gatelock's
-canonicalisation rather than importing it, because gatelock lives in the user's
-site-packages and the enforcer runs as root. ``TestSignatureCanonicalisation``
-pins it to a fixed vector so the duplication cannot drift silently -- if
-leetcode-guard ever changes how it signs, that test fails instead of every
-credit quietly ceasing to count.
+The signature check is load-bearing. The shared reader in ``earned_time``
+reproduces gatelock's canonicalisation rather than importing it (gatelock pulls
+in tkinter, and the enforcer runs headless as root).
+``TestSignatureCanonicalisation`` pins it to a fixed vector so the duplication
+cannot drift silently -- if leetcode-guard ever changes how it signs, that test
+fails instead of every credit quietly ceasing to count.
 """
 
 from __future__ import annotations
@@ -13,10 +13,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer._leetcode_ledger import (
-    _verified,
-    read_ledger_solved_today,
-)
+import earned_time
+
+from steam_backlog_enforcer._leetcode_ledger import read_ledger_solved_today
 from steam_backlog_enforcer.tests._ledger_fixtures import (
     KEY,
     credit,
@@ -34,7 +33,7 @@ __all__ = ["key_file"]
 
 
 class TestSignatureCanonicalisation:
-    """The duplicated eight lines must keep matching gatelock's."""
+    """The shared canonicalisation must keep matching gatelock's."""
 
     def test_a_known_vector_still_verifies(self) -> None:
         """Pinned so a change in how entries are signed fails loudly here."""
@@ -53,17 +52,31 @@ class TestSignatureCanonicalisation:
             },
             "hmac": "4f6986bdb019bf28f607918ffb1b5bc79d252f887ade2e25aa83a31d1e49423e",
         }
-        assert _verified(entry, KEY) is True
+        assert earned_time.entry_signature(entry, KEY) == entry["hmac"]
 
-    def test_a_tampered_entry_fails(self) -> None:
-        """Changing any field must invalidate the signature."""
+    def test_a_tampered_entry_fails(self, tmp_path: Path, key_file: Path) -> None:
+        """Changing any field must invalidate the signature.
+
+        Args:
+            tmp_path: pytest's temporary directory.
+            key_file: The patched signing key.
+        """
+        assert key_file.exists()
         entry = credit(when=datetime.now().astimezone())
         entry["amount"] = 99
-        assert _verified(entry, KEY) is False
+        assert read_ledger_solved_today(write_ledger(tmp_path, [entry])) is False
 
-    def test_a_missing_signature_fails(self) -> None:
-        """An entry with no hmac field is not a signed entry."""
-        assert _verified({"kind": "credit"}, KEY) is False
+    def test_a_missing_signature_fails(self, tmp_path: Path, key_file: Path) -> None:
+        """An entry with no hmac field is not a signed entry.
+
+        Args:
+            tmp_path: pytest's temporary directory.
+            key_file: The patched signing key.
+        """
+        assert key_file.exists()
+        entry = credit(when=datetime.now().astimezone())
+        del entry["hmac"]
+        assert read_ledger_solved_today(write_ledger(tmp_path, [entry])) is False
 
 
 class TestReadingTheLedger:

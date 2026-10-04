@@ -107,6 +107,20 @@ class TestTheEightDays:
             == resolved.seconds
         )
 
+    def test_every_earner_is_in_the_generic_breakdown(self) -> None:
+        """``earned_seconds`` carries the same terms as the named fields."""
+        with (
+            patch(_WORKOUT, return_value=True),
+            patch(_LEETCODE, return_value=False),
+            patch(_READING, return_value=True),
+        ):
+            resolved = resolve_budget(Config())
+        assert resolved.earned_seconds == {
+            "workout": 2 * _HOUR,
+            "leetcode": 0.0,
+            "reading": _HOUR,
+        }
+
 
 class TestFailingClosed:
     """An answer that could not be obtained is worth nothing, and says so."""
@@ -159,26 +173,8 @@ class TestFailingClosed:
         assert "unknown" not in answered
 
 
-class TestMisconfiguration:
-    """Config that would invert the incentive is refused, not enforced."""
-
-    def test_a_negative_bonus_is_clamped(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Earning something must never *cost* gaming time.
-
-        Args:
-            caplog: pytest's log capture.
-        """
-        config = Config(workout_bonus_seconds=-3600)
-        with (
-            caplog.at_level(logging.ERROR),
-            patch(_WORKOUT, return_value=True),
-            patch(_LEETCODE, return_value=False),
-        ):
-            resolved = resolve_budget(config)
-        assert resolved.seconds == 4.0 * _HOUR
-        assert "workout_bonus_seconds is negative" in caplog.text
+class TestTheExplanation:
+    """The reason string and the per-earner breakdown."""
 
     def test_the_budget_is_explained(self, caplog: pytest.LogCaptureFixture) -> None:
         """A three-hour swing between days should never be silent.

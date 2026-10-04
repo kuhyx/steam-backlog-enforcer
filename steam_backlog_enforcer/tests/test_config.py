@@ -71,6 +71,28 @@ class TestConfig:
             cfg = Config.load()
             assert cfg.steam_api_key == "k"
 
+    def test_load_drops_the_retired_budget_fields(self, tmp_path: Path) -> None:
+        """A config.json written before earned_time still loads.
+
+        The budget numbers moved to the registry; a live config that still
+        carries them must not crash the daemon, and must not set anything.
+        """
+        retired = {
+            "base_gaming_seconds": 1,
+            "workout_bonus_seconds": 2,
+            "leetcode_bonus_seconds": 3,
+            "reading_bonus_seconds": 4,
+            "max_gaming_seconds": 5,
+        }
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps({"steam_api_key": "k", **retired}), encoding="utf-8"
+        )
+        with patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file):
+            cfg = Config.load()
+        assert cfg.steam_api_key == "k"
+        assert not any(hasattr(cfg, name) for name in retired)
+
 
 class TestState:
     """Tests for State dataclass."""

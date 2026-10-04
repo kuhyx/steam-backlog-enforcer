@@ -22,6 +22,7 @@ from steam_backlog_enforcer._playtime_state import (
 )
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._fake_session import fake_session
+from steam_backlog_enforcer.tests._no_workout_http import fixed_budget
 
 PKG = "steam_backlog_enforcer._playtime"
 LOCAL = timezone(timedelta(hours=2))
@@ -51,8 +52,11 @@ def quiet_tick() -> object:
         yield mocks
 
 
-def _rules(*, demo: bool = False, **cfg: object) -> object:
-    return rules_for(Config(**cfg), demo=demo)
+def _rules(*, demo: bool = False, budget: float | None = None) -> object:
+    if budget is None:
+        return rules_for(Config(), demo=demo)
+    with fixed_budget(budget):
+        return rules_for(Config(), demo=demo)
 
 
 class TestStateOrRecover:
@@ -71,12 +75,7 @@ class TestStateOrRecover:
 
     def test_fails_closed_when_state_is_gone_but_mounts_remain(self) -> None:
         """Deleting the state file must not be a way to lift the block."""
-        rules = _rules(
-            base_gaming_seconds=100,
-            workout_bonus_seconds=0,
-            leetcode_bonus_seconds=0,
-            reading_bonus_seconds=0,
-        )
+        rules = _rules(budget=100.0)
         with patch(f"{PKG}.mounted_targets", return_value={"/usr/bin/steam"}):
             out = _state_or_recover(rules, now=NOW)
         assert out.seconds == 100.0
@@ -87,15 +86,7 @@ class TestStateOrRecover:
 
         state_path(demo=False).write_text("{bad", encoding="utf-8")
         with patch(f"{PKG}.mounted_targets", return_value={"/usr/bin/steam"}):
-            out = _state_or_recover(
-                _rules(
-                    base_gaming_seconds=50,
-                    workout_bonus_seconds=0,
-                    leetcode_bonus_seconds=0,
-                    reading_bonus_seconds=0,
-                ),
-                now=NOW,
-            )
+            out = _state_or_recover(_rules(budget=50.0), now=NOW)
         assert out.is_blocked() is True
 
 

@@ -8,7 +8,6 @@ from unittest.mock import patch
 from steam_backlog_enforcer import _budget_view as view
 from steam_backlog_enforcer import _playtime_state as state_mod
 from steam_backlog_enforcer._budget_log_tail import RunningGame, SessionView
-from steam_backlog_enforcer._budget_resolve import BudgetResolution
 from steam_backlog_enforcer._budget_view import (
     CORRUPT,
     DENIED,
@@ -23,6 +22,7 @@ from steam_backlog_enforcer._budget_view import (
 from steam_backlog_enforcer._playtime_history import HistoryDay
 from steam_backlog_enforcer._playtime_state import PlaytimeState, rules_for
 from steam_backlog_enforcer.config import Config
+from steam_backlog_enforcer.tests._no_workout_http import earned_budget, fixed_budget
 
 # Built at import time, so the autouse _no_workout_http fixture is not in
 # effect yet -- without this patch, collecting this module makes a real HTTP
@@ -35,17 +35,7 @@ with (
     patch("steam_backlog_enforcer._playtime_state.carry_into", return_value=0.0),
     patch(
         "steam_backlog_enforcer._playtime_state.resolve_budget",
-        side_effect=lambda config: BudgetResolution(
-            seconds=float(config.base_gaming_seconds)
-            + float(config.workout_bonus_seconds)
-            + float(config.leetcode_bonus_seconds)
-            + float(config.reading_bonus_seconds),
-            base_seconds=float(config.base_gaming_seconds),
-            workout_seconds=float(config.workout_bonus_seconds),
-            leetcode_seconds=float(config.leetcode_bonus_seconds),
-            reason="stubbed: fully earned",
-            reading_seconds=float(config.reading_bonus_seconds),
-        ),
+        side_effect=earned_budget,
     ),
 ):
     RULES = rules_for(Config(), demo=False)
@@ -112,15 +102,8 @@ class TestBuildToday:
         assert today["blocked_at"] == 2.0
 
     def test_a_zero_budget_reads_as_fully_spent(self) -> None:
-        rules = rules_for(
-            Config(
-                base_gaming_seconds=0,
-                workout_bonus_seconds=0,
-                leetcode_bonus_seconds=0,
-                reading_bonus_seconds=0,
-            ),
-            demo=False,
-        )
+        with fixed_budget(0.0):
+            rules = rules_for(Config(), demo=False)
         today = build_today(PlaytimeState(day_key="d", seconds=0.0), rules)
         assert today["fraction_used"] == 1.0
 

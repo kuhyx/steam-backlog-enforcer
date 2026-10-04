@@ -7,12 +7,11 @@ is what registers it there.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import earned_time
 import pytest
 
 if TYPE_CHECKING:
@@ -25,7 +24,7 @@ KEY = b"0123456789abcdef0123456789abcdef"
 
 
 def sign(entry: dict[str, Any], key: bytes = KEY) -> dict[str, Any]:
-    """Attach a genuine signature to an entry.
+    """Attach a genuine signature to an entry, signed as every locker signs.
 
     Args:
         entry: The entry to sign.
@@ -34,8 +33,7 @@ def sign(entry: dict[str, Any], key: bytes = KEY) -> dict[str, Any]:
     Returns:
         The same entry with an ``hmac`` field.
     """
-    payload = json.dumps(entry, sort_keys=True, separators=(",", ":"))
-    entry["hmac"] = hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+    entry["hmac"] = earned_time.entry_signature(entry, key)
     return entry
 
 
