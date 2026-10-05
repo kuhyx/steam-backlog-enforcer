@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Final
 
+from earned_time import EARNERS
+
 from steam_backlog_enforcer._budget_games import (
     billing_label,
     history_view,
@@ -166,6 +168,19 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
             "leetcode": rules.leetcode_seconds,
             "reading": rules.reading_seconds,
         },
+        # The registry, in its order: what each earner adds today and what it
+        # would add once done. The bar renders "+<icon><size>" for every
+        # entry with nothing earned yet, so a new earner needs no bar change
+        # beyond an icon -- and no consumer hard-codes a size.
+        "earners": [
+            {
+                "name": earner.name,
+                "label": earner.label,
+                "earned_seconds": rules.earned_seconds.get(earner.name, 0.0),
+                "bonus_seconds": earner.gaming_minutes * 60,
+            }
+            for earner in EARNERS
+        ],
     }
 
 

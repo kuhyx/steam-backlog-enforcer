@@ -126,13 +126,12 @@ class PlaytimeRules:
     count_launchers: bool
     enforcement: bool
     demo: bool
-    # What earned today's budget, carried here rather than resolved a second
-    # time: _budget_view reads the breakdown off these fields, so there stays
-    # exactly one resolution site.
+    # Today's breakdown, carried so it is resolved once; earned_seconds by name.
     base_seconds: float = 0.0
     workout_seconds: float = 0.0
     leetcode_seconds: float = 0.0
     reading_seconds: float = 0.0
+    earned_seconds: dict[str, float] = field(default_factory=dict)
     budget_reason: str = ""
     carry_seconds: float = 0.0
 
@@ -175,6 +174,7 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         workout_seconds=0.0 if resolved is None else resolved.workout_seconds,
         leetcode_seconds=0.0 if resolved is None else resolved.leetcode_seconds,
         reading_seconds=0.0 if resolved is None else resolved.reading_seconds,
+        earned_seconds={} if resolved is None else dict(resolved.earned_seconds),
         budget_reason=(
             "demo run"
             if resolved is None

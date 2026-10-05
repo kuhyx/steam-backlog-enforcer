@@ -13,7 +13,7 @@ from dataclasses import replace
 from datetime import datetime
 import logging
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import earned_time
 import pytest
@@ -41,12 +41,14 @@ def _any_credit(_row: dict[str, object], _window: tuple[float, float]) -> bool:
     return True
 
 
-ANKI = earned_time.Earner(
-    name="anki",
-    label="Anki",
+# A hypothetical earner: the real registry already holds anki, so the stand-in
+# needs a name no gate uses.
+PIANO = earned_time.Earner(
+    name="piano",
+    label="Piano",
     gaming_minutes=30,
     shutdown_minutes=30,
-    ledger=".local/share/anki_guard/ledger.json",
+    ledger=".local/share/piano_guard/ledger.json",
     match=_any_credit,
 )
 
@@ -77,8 +79,8 @@ class TestLedgerAnswer:
             caplog: pytest's log capture.
         """
         with caplog.at_level(logging.WARNING):
-            assert ledger_answer(replace(ANKI, ledger=None)) is None
-        assert "Earner Anki has no ledger" in caplog.text
+            assert ledger_answer(replace(PIANO, ledger=None)) is None
+        assert "Earner Piano has no ledger" in caplog.text
 
     def test_reads_the_ledger_under_the_home_directory(self, tmp_path: Path) -> None:
         """A signed credit in ``LEDGER_HOME / earner.ledger`` counts.
@@ -86,14 +88,14 @@ class TestLedgerAnswer:
         Args:
             tmp_path: pytest's temporary directory (conftest's LEDGER_HOME).
         """
-        assert ANKI.ledger is not None
-        ledger_dir = (tmp_path / ANKI.ledger).parent
+        assert PIANO.ledger is not None
+        ledger_dir = (tmp_path / PIANO.ledger).parent
         ledger_dir.mkdir(parents=True)
         write_ledger(ledger_dir, [credit(when=datetime.now().astimezone())])
         key = tmp_path / "hmac.key"
         key.write_bytes(KEY)
         with patch(f"{_PKG}.HMAC_KEY_FILE", key):
-            assert ledger_answer(ANKI) is True
+            assert ledger_answer(PIANO) is True
 
     @pytest.mark.parametrize("answer", [True, False])
     def test_an_answer_is_cached(self, *, answer: bool) -> None:
@@ -103,28 +105,28 @@ class TestLedgerAnswer:
             answer: The answer the ledger gives.
         """
         with patch("earned_time.done_today", return_value=answer) as read:
-            assert ledger_answer(ANKI) is answer
-            assert ledger_answer(ANKI) is answer
+            assert ledger_answer(PIANO) is answer
+            assert ledger_answer(PIANO) is answer
         assert read.call_count == 1
 
     def test_a_failure_is_not_cached(self) -> None:
         with patch("earned_time.done_today", return_value=None) as read:
-            assert ledger_answer(ANKI) is None
-            assert ledger_answer(ANKI) is None
+            assert ledger_answer(PIANO) is None
+            assert ledger_answer(PIANO) is None
         assert read.call_count == 2
 
     def test_reset_cache_forces_a_reread(self) -> None:
         with patch("earned_time.done_today", return_value=True) as read:
-            ledger_answer(ANKI)
+            ledger_answer(PIANO)
             reset_cache()
-            ledger_answer(ANKI)
+            ledger_answer(PIANO)
         assert read.call_count == 2
 
 
 def _resolve(
-    *, answer: bool | None, earner: earned_time.Earner = ANKI
+    *, answer: bool | None, earner: earned_time.Earner = PIANO
 ) -> BudgetResolution:
-    """Resolve with ``earner`` registered, the three built-ins all "no".
+    """Resolve with ``earner`` registered, every real earner "no".
 
     Args:
         answer: What the extra earner's ledger says.
@@ -138,10 +140,12 @@ def _resolve(
         patch("earned_time.EARNERS", (*earned_time.EARNERS, earner)),
         patch(_WORKOUT, return_value=False),
         patch(_LEETCODE, return_value=False),
-        patch(_ANSWER, return_value=answer) as asked,
+        patch(
+            _ANSWER, side_effect=lambda asked: answer if asked is earner else False
+        ) as asked,
     ):
         resolved = resolve_budget(Config())
-    asked.assert_called_once_with(earner)
+    asked.assert_any_call(earner)
     return resolved
 
 
@@ -151,23 +155,23 @@ class TestAGenericEarnerInTheBudget:
     def test_its_credit_adds_its_term(self) -> None:
         resolved = _resolve(answer=True)
         assert resolved.seconds == 4.5 * _HOUR
-        assert resolved.earned_seconds["anki"] == 0.5 * _HOUR
-        assert resolved.reason.endswith(", Anki credited")
+        assert resolved.earned_seconds["piano"] == 0.5 * _HOUR
+        assert resolved.reason.endswith(", Piano credited")
 
     def test_no_credit_adds_nothing(self) -> None:
         resolved = _resolve(answer=False)
         assert resolved.seconds == 4 * _HOUR
-        assert resolved.earned_seconds["anki"] == 0.0
-        assert "no Anki credited" in resolved.reason
+        assert resolved.earned_seconds["piano"] == 0.0
+        assert "no Piano credited" in resolved.reason
 
     def test_unknown_adds_nothing_and_reads_differently(self) -> None:
         resolved = _resolve(answer=None)
         assert resolved.seconds == 4 * _HOUR
-        assert "Anki unknown" in resolved.reason
+        assert "Piano unknown" in resolved.reason
 
     def test_its_penalty_lowers_the_base_by_what_it_pays_back(self) -> None:
         """Penalty, then reward: skipping it costs exactly its term."""
-        penalised = replace(ANKI, penalty_from=AFTER_CUT)
+        penalised = replace(PIANO, penalty_from=AFTER_CUT)
         missed = _resolve(answer=False, earner=penalised)
         earned = _resolve(answer=True, earner=penalised)
         assert missed.base_seconds == 3.5 * _HOUR
@@ -180,8 +184,8 @@ class TestAGenericEarnerInTheBudget:
             pin_today(AFTER_CUT),
             patch(_WORKOUT, return_value=False),
             patch(_LEETCODE, return_value=False),
-            patch(_ANSWER) as asked,
+            patch(_ANSWER, return_value=False) as asked,
         ):
             resolved = resolve_budget(Config())
-        asked.assert_not_called()
-        assert set(resolved.earned_seconds) == {"workout", "leetcode", "reading"}
+        assert asked.call_args_list == [call(earned_time.ANKI)]
+        assert set(resolved.earned_seconds) == {e.name for e in earned_time.EARNERS}

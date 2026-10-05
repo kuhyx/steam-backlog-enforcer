@@ -26,6 +26,7 @@ _WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
 _LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
 _LEETCODE_HTTP = "steam_backlog_enforcer._leetcode_bonus._fetch_leetcode_today"
 _READING = "steam_backlog_enforcer._budget_resolve.read_today"
+_LEDGER = "steam_backlog_enforcer._budget_resolve.ledger_answer"
 
 _HOUR = 3600.0
 
@@ -119,6 +120,7 @@ class TestTheEightDays:
             "workout": 2 * _HOUR,
             "leetcode": 0.0,
             "reading": _HOUR,
+            "anki": 0.0,
         }
 
 
@@ -162,11 +164,16 @@ class TestFailingClosed:
             patch(_WORKOUT, return_value=False),
             patch(_LEETCODE, return_value=None),
             patch(_LEETCODE_HTTP, side_effect=OSError("refused")),
+            patch(_LEDGER, return_value=False),
         ):
             unknown = resolve_budget(Config()).reason
         _leetcode_bonus.reset_cache()
         _workout_budget.reset_cache()
-        with patch(_WORKOUT, return_value=False), patch(_LEETCODE, return_value=False):
+        with (
+            patch(_WORKOUT, return_value=False),
+            patch(_LEETCODE, return_value=False),
+            patch(_LEDGER, return_value=False),
+        ):
             answered = resolve_budget(Config()).reason
         assert unknown != answered
         assert "unknown" in unknown

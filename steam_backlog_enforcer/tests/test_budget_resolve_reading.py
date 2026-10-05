@@ -86,10 +86,14 @@ class TestTheBase:
         assert resolved.base_seconds == 4 * _HOUR
 
     def test_every_later_day_uses_the_lower_floor(self) -> None:
-        """No drift back to 5h once the cut has happened."""
+        """No drift back to 5h once the cut has happened.
+
+        A year on, later earners' cuts (Anki from 2026-10-06) are in force too.
+        """
         with pin_today(AFTER_CUT + timedelta(days=400)):
             resolved = _resolve(earners=(False, False, False))
-        assert resolved.base_seconds == 4 * _HOUR
+        later_cuts = earned_time.ANKI.gaming_minutes * 60
+        assert resolved.base_seconds == 4 * _HOUR - later_cuts
 
 
 class TestTheReadingTerm:

@@ -226,4 +226,5 @@ class TestBuildBudgetSnapshot:
             "budget_reason",
             "carry_seconds",
             "bonuses",
+            "earners",
         }
