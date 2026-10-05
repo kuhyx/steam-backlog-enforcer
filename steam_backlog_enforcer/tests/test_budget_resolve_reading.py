@@ -38,6 +38,17 @@ _READING = "steam_backlog_enforcer._budget_resolve.read_today"
 _HOUR = 3600.0
 
 
+def _later_penalised() -> list[earned_time.Earner]:
+    """Earners whose penalty starts after reading's 2026-10-01 cut."""
+    cut = earned_time.READING.penalty_from
+    assert cut is not None
+    return [
+        e
+        for e in earned_time.EARNERS
+        if e.penalty_from is not None and e.penalty_from > cut
+    ]
+
+
 @pytest.fixture(autouse=True)
 def _clear_caches() -> Iterator[None]:
     """Keep both module memos from leaking answers between tests.
@@ -88,11 +99,12 @@ class TestTheBase:
     def test_every_later_day_uses_the_lower_floor(self) -> None:
         """No drift back to 5h once the cut has happened.
 
-        A year on, later earners' cuts (Anki from 2026-10-06) are in force too.
+        A year on, every later earner's cut (Anki, Automation, ...) is in force
+        too -- summed from the registry, so a new earner needs no edit here.
         """
         with pin_today(AFTER_CUT + timedelta(days=400)):
             resolved = _resolve(earners=(False, False, False))
-        later_cuts = earned_time.ANKI.gaming_minutes * 60
+        later_cuts = 60 * sum(e.gaming_minutes for e in _later_penalised())
         assert resolved.base_seconds == 4 * _HOUR - later_cuts
 
 

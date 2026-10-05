@@ -187,5 +187,7 @@ class TestAGenericEarnerInTheBudget:
             patch(_ANSWER, return_value=False) as asked,
         ):
             resolved = resolve_budget(Config())
-        assert asked.call_args_list == [call(earned_time.ANKI)]
+        dedicated = (earned_time.WORKOUT, earned_time.LEETCODE, earned_time.READING)
+        generic = [e for e in earned_time.EARNERS if e not in dedicated]
+        assert asked.call_args_list == [call(e) for e in generic]
         assert set(resolved.earned_seconds) == {e.name for e in earned_time.EARNERS}

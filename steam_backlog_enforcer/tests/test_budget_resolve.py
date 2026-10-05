@@ -12,6 +12,7 @@ import logging
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import earned_time
 import pytest
 
 from steam_backlog_enforcer import _leetcode_bonus, _workout_budget
@@ -116,11 +117,13 @@ class TestTheEightDays:
             patch(_READING, return_value=True),
         ):
             resolved = resolve_budget(Config())
+        # Every other registered earner has no ledger here, so earns nothing.
+        others = {e.name: 0.0 for e in earned_time.EARNERS}
         assert resolved.earned_seconds == {
+            **others,
             "workout": 2 * _HOUR,
             "leetcode": 0.0,
             "reading": _HOUR,
-            "anki": 0.0,
         }
 
 
