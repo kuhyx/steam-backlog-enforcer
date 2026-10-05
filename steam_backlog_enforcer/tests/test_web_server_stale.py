@@ -57,7 +57,9 @@ class TestStaleServerRefuses:
             _running() as port,
         ):
             _get(port, "/api/budget")
-            assert _web_server._RETIRING.is_set()
+            # The 503 is sent before the latch is set, so the client can read
+            # it first: wait rather than race (flaked in CI on 25dc493).
+            assert _web_server._RETIRING.wait(timeout=5)
         self._clear_retiring()
 
     def test_a_second_refusal_does_not_stand_down_twice(
