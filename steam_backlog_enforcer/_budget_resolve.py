@@ -7,7 +7,9 @@ is its sum, capped at the gaming ceiling (8h):
     base (4h) + workout (2h) + LeetCode (1h) + reading (1h) + ...
 
 The base is 5h minus every penalised earner's cut once its day arrives
-(book-guard's reading hour, from 2026-10-01). The earners are read
+(book-guard's reading hour, from 2026-10-01) -- and, from earned_time 0.6, not
+before the day after the gate's first real credit
+(:func:`steam_backlog_enforcer._ledger_earners.first_credits`). The earners are read
 **independently** -- :mod:`steam_backlog_enforcer._workout_budget`,
 :mod:`steam_backlog_enforcer._leetcode_bonus`,
 :mod:`steam_backlog_enforcer._reading_bonus` and, for any earner registered
@@ -46,6 +48,7 @@ from typing import TYPE_CHECKING, Final
 import earned_time
 
 from steam_backlog_enforcer._ledger_earners import (
+    first_credits,
     ledger_answer,
     ledger_units,
     registry_for,
@@ -156,7 +159,14 @@ def resolve_budget(config: Config) -> BudgetResolution:
     # the earners asked and the earners summed can never differ.
     today = datetime.now().astimezone().date()
     registry = registry_for(today)
-    day = earned_time.resolve(_answers(config, registry), today, registry)
+    answers = _answers(config, registry)
+    # Maturity only delays a penalty: a gate that never paid out costs nothing.
+    first_paid = first_credits(registry, today)
+    day = (
+        earned_time.resolve(answers, today, registry)
+        if first_paid is None
+        else earned_time.resolve(answers, today, registry, first_credits=first_paid)
+    )
     earned = {t.earner.name: t.gaming_minutes * _SECONDS_PER_MINUTE for t in day.terms}
     total = day.gaming_minutes * _SECONDS_PER_MINUTE
     parts = ", ".join(

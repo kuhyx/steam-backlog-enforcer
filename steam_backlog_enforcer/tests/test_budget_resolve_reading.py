@@ -87,13 +87,13 @@ class TestTheBase:
     """The floor carries the old extra hour until book-guard's gate starts."""
 
     def test_the_day_before_the_cut_keeps_the_old_floor(self) -> None:
-        """2026-09-30 still gets the hour that reading cannot yet earn back."""
+        """The day before still gets the hour reading cannot yet earn back."""
         with pin_today(BEFORE_CUT):
             resolved = _resolve(earners=(False, False, False))
         assert resolved.base_seconds == 5 * _HOUR
 
     def test_the_cut_day_itself_uses_the_lower_floor(self) -> None:
-        """The boundary is inclusive: 2026-10-01 is the first 4h day."""
+        """The boundary is inclusive: the penalty start is the first 4h day."""
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(False, False, False))
         assert resolved.base_seconds == 4 * _HOUR

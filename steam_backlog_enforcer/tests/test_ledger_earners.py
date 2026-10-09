@@ -10,7 +10,7 @@ passes on to ``earned_time.resolve``, at call time.
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from typing import TYPE_CHECKING
 from unittest.mock import call, patch
@@ -170,8 +170,14 @@ class TestAGenericEarnerInTheBudget:
         assert "Piano unknown" in resolved.reason
 
     def test_its_penalty_lowers_the_base_by_what_it_pays_back(self) -> None:
-        """Penalty, then reward: skipping it costs exactly its term."""
-        penalised = replace(PIANO, penalty_from=AFTER_CUT)
+        """Penalty, then reward: skipping it costs exactly its term.
+
+        Confirmed the day before, so its empty ledger fails closed: penalised
+        from ``penalty_from`` all the same.
+        """
+        penalised = replace(
+            PIANO, penalty_from=AFTER_CUT, confirmed_on=AFTER_CUT - timedelta(days=1)
+        )
         missed = _resolve(answer=False, earner=penalised)
         earned = _resolve(answer=True, earner=penalised)
         assert missed.base_seconds == 3.5 * _HOUR
