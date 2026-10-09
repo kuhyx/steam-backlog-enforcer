@@ -52,7 +52,7 @@ class TestDoEnforce:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ) as mock_iter,
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(Config(), state)
         assert any("No game" in str(c) for c in mock_echo.call_args_list)
@@ -76,7 +76,7 @@ class TestDoEnforce:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ),
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(Config(), state)
 
@@ -95,7 +95,7 @@ class TestDoEnforce:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ),
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(config, state)
 
@@ -119,7 +119,7 @@ class TestDoEnforce:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=side_effect,
             ),
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(config, state)
             assert call_count == 2
@@ -147,7 +147,7 @@ class TestDoEnforce:
             patch(f"{PKG}._echo"),
             patch.object(State, "load", side_effect=load_side_effect),
             patch(f"{PKG}._enforce_loop_iteration") as mock_iter,
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(config, state)
             mock_iter.assert_not_called()
@@ -175,7 +175,7 @@ class TestStateReload:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ),
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(Config(), state)
         assert state.manual_picks == fresh.manual_picks

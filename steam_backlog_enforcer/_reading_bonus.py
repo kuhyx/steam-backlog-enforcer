@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Final
 import earned_time
 
 from steam_backlog_enforcer._leetcode_ledger import HMAC_KEY_FILE
-from steam_backlog_enforcer._status_api import AnswerCache
+from steam_backlog_enforcer._status_api import AnswerCache, file_stamp
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config
@@ -59,10 +59,13 @@ def read_ledger_read_today(path: Path) -> bool | None:
 
 def read_today(config: Config) -> bool | None:
     """Today's reading answer, memoised like the other earners."""
-    cached = _cache.fresh(_CACHE_KEY)
+    path = Path(config.book_ledger_path).expanduser()
+    # Stat before reading, so a credit landing mid-read is re-read next tick.
+    stamp = file_stamp(path)
+    cached = _cache.fresh(_CACHE_KEY, stamp=stamp)
     if cached is not None:
         return cached
-    answer = read_ledger_read_today(Path(config.book_ledger_path).expanduser())
+    answer = read_ledger_read_today(path)
     if answer is None:
         return None
-    return _cache.store(_CACHE_KEY, answer=answer)
+    return _cache.store(_CACHE_KEY, answer=answer, stamp=stamp)

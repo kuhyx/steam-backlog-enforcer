@@ -86,7 +86,7 @@ class TestDoEnforceTotalBlock:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ),
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(config, state)
         mock_setup.assert_not_called()
@@ -104,7 +104,7 @@ class TestDoEnforceTotalBlock:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ) as mock_iter,
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(config, state)
         mock_iter.assert_called_once()
@@ -125,7 +125,7 @@ class TestDoEnforceTotalBlock:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ) as mock_iter,
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(Config(), state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
@@ -184,7 +184,7 @@ class TestPlaytimeIsEnforcedFirst:
                 f"{PKG}._enforce_loop_iteration",
                 side_effect=KeyboardInterrupt,
             ) as mock_iter,
-            patch(f"{PKG}.time.sleep"),
+            patch(f"{PKG}.open_file_wake"),
         ):
             do_enforce(Config(), state, demo=True)
         assert mock_iter.call_args.kwargs["demo"] is True

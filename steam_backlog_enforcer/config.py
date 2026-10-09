@@ -96,6 +96,8 @@ class Config:
     """book-guard's signed ledger: the reading hour's only transport."""
     workout_status_url: str = "http://127.0.0.1:8770/api/status"
     """Where to ask whether today has a counted workout. Loopback only."""
+    workout_log_path: str = "~/src/screen-locker/screen_locker/log.json"
+    """screen-locker's log.json; a change re-asks that URL at once."""
     leetcode_ledger_path: str = "~/.local/share/leetcode_guard/ledger.json"
     leetcode_status_url: str = "http://127.0.0.1:8771/api/status"
     """LeetCode's transports: ledger first, this loopback URL as fallback."""

@@ -194,7 +194,8 @@ def _no_real_sleep() -> Iterator[None]:
         patch("steam_backlog_enforcer._steam_client.time.sleep", noop),
         patch("steam_backlog_enforcer._steam_launch.time.sleep", noop),
         patch("steam_backlog_enforcer._steam_api_client.time.sleep", noop),
-        patch("steam_backlog_enforcer._enforce_loop.time.sleep", noop),
+        # The loop waits on an inotify wake, not time.sleep: stub its factory.
+        patch("steam_backlog_enforcer._enforce_loop.open_file_wake", noop),
     ):
         yield
 

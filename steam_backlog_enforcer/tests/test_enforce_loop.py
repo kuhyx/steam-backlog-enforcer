@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 PKG = "steam_backlog_enforcer._enforce_loop"
+# The owned-ids cache reads its own clock; _enforce_loop no longer imports time.
+_CLOCK = "steam_backlog_enforcer._owned_apps_cache.time.time"
 ENFORCE_STEPS_PKG = "steam_backlog_enforcer._enforce_steps"
 OWNED_APPS_CACHE_PKG = "steam_backlog_enforcer._owned_apps_cache"
 
@@ -187,7 +189,7 @@ class TestOwnedIdsCacheHelpers:
         )
         with (
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_FILE", cache_file),
-            patch(f"{PKG}.time.time", return_value=10_000.0),
+            patch(_CLOCK, return_value=10_000.0),
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_TTL_SECONDS", 60),
         ):
             assert _load_owned_app_ids_cache("sid") is None
@@ -200,7 +202,7 @@ class TestOwnedIdsCacheHelpers:
         )
         with (
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_FILE", cache_file),
-            patch(f"{PKG}.time.time", return_value=10_010.0),
+            patch(_CLOCK, return_value=10_010.0),
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_TTL_SECONDS", 60),
         ):
             assert _load_owned_app_ids_cache("sid") is None
@@ -215,7 +217,7 @@ class TestOwnedIdsCacheHelpers:
         )
         with (
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_FILE", cache_file),
-            patch(f"{PKG}.time.time", return_value=10_010.0),
+            patch(_CLOCK, return_value=10_010.0),
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_TTL_SECONDS", 60),
         ):
             assert _load_owned_app_ids_cache("sid") == [1, 2]
@@ -224,7 +226,7 @@ class TestOwnedIdsCacheHelpers:
         cache_file = tmp_path / "owned.json"
         with (
             patch(f"{OWNED_APPS_CACHE_PKG}._OWNED_IDS_CACHE_FILE", cache_file),
-            patch(f"{PKG}.time.time", return_value=123.0),
+            patch(_CLOCK, return_value=123.0),
             patch(f"{OWNED_APPS_CACHE_PKG}._atomic_write") as mock_atomic,
         ):
             _save_owned_app_ids_cache("sid", [10, 20])

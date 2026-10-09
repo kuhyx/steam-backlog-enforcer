@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._bonus_incident import report_leetcode_incident
 from steam_backlog_enforcer._leetcode_ledger import read_ledger_solved_today
-from steam_backlog_enforcer._status_api import AnswerCache, get_status
+from steam_backlog_enforcer._status_api import AnswerCache, file_stamp, get_status
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config
@@ -89,18 +89,20 @@ def leetcode_solved_today(config: Config) -> bool | None:
         incident while an honest "not solved yet" does not.
     """
     url = config.leetcode_status_url
-    cached = _cache.fresh(url)
+    path = Path(config.leetcode_ledger_path).expanduser()
+    # A new credit row rewrites the ledger; its stamp drops the memo at once.
+    stamp = file_stamp(path)
+    cached = _cache.fresh(url, stamp=stamp)
     if cached is not None:
         return cached
 
-    path = Path(config.leetcode_ledger_path).expanduser()
     answer = read_ledger_solved_today(path)
     if answer is None:
         answer = _fallback_to_endpoint(url, path)
         if answer is None:
             return None
 
-    return _cache.store(url, answer=answer)
+    return _cache.store(url, answer=answer, stamp=stamp)
 
 
 def _fallback_to_endpoint(url: str, path: Path) -> bool | None:

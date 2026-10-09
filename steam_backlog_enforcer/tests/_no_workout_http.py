@@ -34,10 +34,13 @@ from steam_backlog_enforcer._budget_resolve import BudgetResolution
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from contextlib import AbstractContextManager
+    from pathlib import Path
 
     from steam_backlog_enforcer.config import Config
 
 _RESOLVER = "steam_backlog_enforcer._playtime_state.resolve_budget"
+_WORKOUT = "steam_backlog_enforcer._workout_budget"
+_LOOP = "steam_backlog_enforcer._enforce_loop"
 _MINUTE = 60.0
 
 
@@ -91,11 +94,23 @@ def fixed_budget(seconds: float) -> AbstractContextManager[object]:
 
 
 @pytest.fixture(autouse=True)
-def _no_workout_http() -> Iterator[None]:
+def _no_workout_http(tmp_path: Path) -> Iterator[None]:
     """Stop rules_for from making a real HTTP call to the screen locker.
+
+    Also points screen-locker's ``log.json`` at a tmp path, at both bindings:
+    the cache stamp must not stat the real log, and no test may ever put an
+    inotify watch on the real ``~/src/screen-locker`` directory.
+
+    Args:
+        tmp_path: pytest's temporary directory.
 
     Yields:
         None, with the budget resolver stubbed for the whole test.
     """
-    with patch(_RESOLVER, side_effect=earned_budget):
+    log = tmp_path / "screen-locker" / "log.json"
+    with (
+        patch(_RESOLVER, side_effect=earned_budget),
+        patch(f"{_WORKOUT}.workout_log_path", return_value=log),
+        patch(f"{_LOOP}.workout_log_path", return_value=log),
+    ):
         yield

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._echo import _echo
@@ -12,6 +11,7 @@ from steam_backlog_enforcer._enforce_steps import (
     _enforce_setup,
     _reinstall_missing_allowed,
 )
+from steam_backlog_enforcer._file_wake import open_file_wake
 
 # Re-exported: five modules and the test suite import get_all_owned_app_ids
 # from here, so splitting it into _owned_apps_cache stays invisible to them.
@@ -30,6 +30,7 @@ from steam_backlog_enforcer._total_block import (
     total_block_needs_cleanup,
 )
 from steam_backlog_enforcer._whitelist_locking import lock_enforcement_files
+from steam_backlog_enforcer._workout_budget import workout_log_path
 from steam_backlog_enforcer.config import (
     CONFIG_FILE,
     Config,
@@ -222,6 +223,8 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
     # One session for the whole daemon: the audit journal needs to see the
     # previous tick's record, so it cannot be rebuilt per iteration.
     session = new_session(demo=demo)
+    # A credited workout wakes the wait, so the budget moves within the tick.
+    wake = open_file_wake([workout_log_path(config)])
     try:
         while True:
             # Reload state from disk so CLI changes (e.g. new game
@@ -231,7 +234,7 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
                 fresh = State.load()
             except (json.JSONDecodeError, OSError, ValueError) as exc:
                 logger.warning("Failed to reload state: %s", exc)
-                time.sleep(ENFORCE_INTERVAL)
+                wake.wait(ENFORCE_INTERVAL)
                 continue
             # Every field, not a hand-picked few: the daemon's pick sweep saves
             # this object, and any field left stale here (cooldowns, pick
@@ -242,6 +245,6 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
             vars(state).update(vars(fresh))
 
             _enforce_loop_iteration(config, state, session=session, demo=demo)
-            time.sleep(ENFORCE_INTERVAL)
+            wake.wait(ENFORCE_INTERVAL)
     except KeyboardInterrupt:
         _echo("\nEnforcer stopped.")
