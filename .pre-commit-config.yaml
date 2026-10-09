@@ -110,7 +110,7 @@ repos:
           - --disable-error-code=list-item
         additional_dependencies:
           - types-requests
-          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.3.0#subdirectory=earned_time
+          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.4.0#subdirectory=earned_time
 
   # ===========================================================================
   # PYLINT
@@ -129,8 +129,8 @@ repos:
         # drags the score under --fail-under. `mcp` is a real runtime import
         # (steam_backlog_enforcer._mcp_server).
         additional_dependencies:
-          - aiohttp==3.14.3
-          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.3.0#subdirectory=earned_time
+          - aiohttp==3.14.4
+          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.4.0#subdirectory=earned_time
           - howlongtobeatpy==1.0.23
           - mcp==2.3.0
           - pytest
