@@ -12,9 +12,8 @@ gaining a single mutating verb.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Final
-
-from earned_time import EARNERS
 
 from steam_backlog_enforcer._budget_games import (
     billing_label,
@@ -22,6 +21,7 @@ from steam_backlog_enforcer._budget_games import (
     today_games,
 )
 from steam_backlog_enforcer._budget_log_tail import last_verdict
+from steam_backlog_enforcer._ledger_earners import registry_for
 from steam_backlog_enforcer._playtime_block import mounted_targets
 from steam_backlog_enforcer._playtime_history import load_history
 from steam_backlog_enforcer._playtime_state import (
@@ -33,6 +33,8 @@ from steam_backlog_enforcer.config import Config, State
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import earned_time
 
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 
@@ -137,6 +139,11 @@ def build_today(state: PlaytimeState, rules: PlaytimeRules) -> dict[str, Any]:
     }
 
 
+def _most(earner: earned_time.Earner) -> int:
+    """Gaming minutes a fully done day pays (earned_time >= 0.5 knows units)."""
+    return int(getattr(earner, "max_gaming_minutes", earner.gaming_minutes))
+
+
 def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
     """Compose the rules block.
 
@@ -177,9 +184,10 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
                 "name": earner.name,
                 "label": earner.label,
                 "earned_seconds": rules.earned_seconds.get(earner.name, 0.0),
-                "bonus_seconds": earner.gaming_minutes * 60,
+                # The most a full day pays: the tutor's 4 blocks, not one.
+                "bonus_seconds": _most(earner) * 60,
             }
-            for earner in EARNERS
+            for earner in registry_for(datetime.now().astimezone().date())
         ],
     }
 

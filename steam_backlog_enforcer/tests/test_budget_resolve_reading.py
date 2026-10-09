@@ -20,6 +20,7 @@ from steam_backlog_enforcer._budget_resolve import (
     BudgetResolution,
     resolve_budget,
 )
+from steam_backlog_enforcer._ledger_earners import registry_for
 from steam_backlog_enforcer._playtime_state import rules_for
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._budget_dates import (
@@ -30,6 +31,7 @@ from steam_backlog_enforcer.tests._budget_dates import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from datetime import date
 
 _WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
 _LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
@@ -38,14 +40,14 @@ _READING = "steam_backlog_enforcer._budget_resolve.read_today"
 _HOUR = 3600.0
 
 
-def _later_penalised() -> list[earned_time.Earner]:
-    """Earners whose penalty starts after reading's 2026-10-01 cut."""
+def _later_penalised(day: date) -> list[earned_time.Earner]:
+    """Earners in force on ``day`` whose penalty starts after reading's cut."""
     cut = earned_time.READING.penalty_from
     assert cut is not None
     return [
         e
-        for e in earned_time.EARNERS
-        if e.penalty_from is not None and e.penalty_from > cut
+        for e in registry_for(day)
+        if e.penalty_from is not None and cut < e.penalty_from <= day
     ]
 
 
@@ -99,12 +101,14 @@ class TestTheBase:
     def test_every_later_day_uses_the_lower_floor(self) -> None:
         """No drift back to 5h once the cut has happened.
 
-        A year on, every later earner's cut (Anki, Automation, ...) is in force
-        too -- summed from the registry, so a new earner needs no edit here.
+        A year on, every later earner's cut in force that day is applied too --
+        summed from that day's registry, so a new or waived earner needs no
+        edit here.
         """
-        with pin_today(AFTER_CUT + timedelta(days=400)):
+        day = AFTER_CUT + timedelta(days=400)
+        with pin_today(day):
             resolved = _resolve(earners=(False, False, False))
-        later_cuts = 60 * sum(e.gaming_minutes for e in _later_penalised())
+        later_cuts = 60 * sum(e.gaming_minutes for e in _later_penalised(day))
         assert resolved.base_seconds == 4 * _HOUR - later_cuts
 
 

@@ -45,7 +45,11 @@ from typing import TYPE_CHECKING, Final
 
 import earned_time
 
-from steam_backlog_enforcer._ledger_earners import ledger_answer
+from steam_backlog_enforcer._ledger_earners import (
+    ledger_answer,
+    ledger_units,
+    registry_for,
+)
 from steam_backlog_enforcer._leetcode_bonus import leetcode_solved_today
 from steam_backlog_enforcer._reading_bonus import read_today
 from steam_backlog_enforcer._workout_budget import workout_logged_today
@@ -104,25 +108,36 @@ class BudgetResolution:
 
 
 def _describe(name: str, label: str, answer: int | None) -> str:
-    """Render one earner's answer for the reason string."""
+    """Render one earner's answer (units, for a counted gate) for the reason."""
     earned, missed, unknown = _PHRASES.get(
         name, (f"{label} credited", f"no {label} credited", f"{label} unknown")
     )
     if answer is None:
         return unknown
-    return earned if answer else missed
+    if not answer:
+        return missed
+    return earned if answer == 1 else f"{earned} x{answer}"
 
 
-def _answers(config: Config) -> dict[str, bool | None]:
-    """Every registered earner's answer for today, each read independently."""
-    answers: dict[str, bool | None] = {
+def _answers(
+    config: Config, registry: tuple[earned_time.Earner, ...]
+) -> dict[str, int | bool | None]:
+    """Every registered earner's answer for today, each read independently.
+
+    A counted gate (the Automation tutor) answers with its units today.
+    """
+    answers: dict[str, int | bool | None] = {
         "workout": workout_logged_today(config),
         "leetcode": leetcode_solved_today(config),
         "reading": read_today(config),
     }
-    for earner in earned_time.EARNERS:
+    for earner in registry:
         if earner.name not in answers:
-            answers[earner.name] = ledger_answer(earner)
+            answers[earner.name] = (
+                ledger_units(earner)
+                if earner.kind == "counted"
+                else ledger_answer(earner)
+            )
     return answers
 
 
@@ -139,9 +154,9 @@ def resolve_budget(config: Config) -> BudgetResolution:
     """
     # The registry is passed explicitly: _answers iterated this same tuple, so
     # the earners asked and the earners summed can never differ.
-    day = earned_time.resolve(
-        _answers(config), datetime.now().astimezone().date(), earned_time.EARNERS
-    )
+    today = datetime.now().astimezone().date()
+    registry = registry_for(today)
+    day = earned_time.resolve(_answers(config, registry), today, registry)
     earned = {t.earner.name: t.gaming_minutes * _SECONDS_PER_MINUTE for t in day.terms}
     total = day.gaming_minutes * _SECONDS_PER_MINUTE
     parts = ", ".join(

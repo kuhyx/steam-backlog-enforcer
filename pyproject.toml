@@ -16,7 +16,7 @@ dependencies = [
     "websockets==17.2",
     # The earner registry (gaming budget terms); stdlib-only, so the root
     # daemon imports it from the desktop user's site-packages.
-    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.4.0#subdirectory=earned_time",
+    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.5.0#subdirectory=earned_time",
 ]
 
 # Optional extras. The `mcp` group is ONLY needed by the MCP server
