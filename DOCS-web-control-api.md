@@ -205,3 +205,20 @@ hard-codes it.
   `gaming_unblock{phrase}`, `gaming_reset_arm{phrase}`,
   `gaming_reset_heartbeat{pending_id}`, `gaming_reset_commit{pending_id, phrase}`,
   `gaming_reset_cancel{pending_id}`, `restart{}`. There is no `stop`.
+
+## Verification record (2026-10-10)
+
+- All 24 commands driven through the UI in headless chromium (vmbox guest
+  `sbe-g`, scratch state). `done` was verified in the guest only, never
+  live (user rule). `setup` success path: scratch HOME on the host, real
+  key → "Steam accepted the key" → dashboard. `serve` is allowed while
+  unconfigured; that is how a fresh install reaches the Setup page.
+- Live after deploy: status UI == CLI; System page demo dialog = user job,
+  cancellable; restart dialog = root, not cancellable.
+- Long ops (scratch state): check ~4x faster (tampering re-fetch 20 in
+  flight + early stop), scan −23 % once the no-achievements skip cache is
+  warm, scan cancel 71 s → 1 s, stats −1.7 s (HLTB search-URL memo).
+- Test safety: `tests/_no_real_effects.py` blocks real `os.kill`/`killpg`
+  to anything pytest did not spawn and Steam/kill argv in real `Popen`,
+  and fails any test that hits it (a stale demo test once killed the
+  live game).

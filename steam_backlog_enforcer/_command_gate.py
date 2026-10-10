@@ -26,8 +26,9 @@ if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
 
 # Usable before an API key exists: setup creates one, add-exception never
-# talks to Steam.
-UNCONFIGURED_OK: Final = frozenset({"setup", "add-exception"})
+# talks to Steam, and serve hosts the web Setup page that asks for the key
+# (refusing it left a fresh install with no way into the UI's setup).
+UNCONFIGURED_OK: Final = frozenset({"setup", "add-exception", "serve"})
 NOT_CONFIGURED_MSG: Final = "Not configured. Run 'setup' first."
 
 

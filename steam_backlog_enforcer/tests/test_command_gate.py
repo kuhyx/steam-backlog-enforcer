@@ -36,7 +36,7 @@ class TestLockReason:
             _gate.NOT_CONFIGURED_MSG
         )
 
-    @pytest.mark.parametrize("command", ["setup", "add-exception"])
+    @pytest.mark.parametrize("command", ["setup", "add-exception", "serve"])
     def test_setup_commands_need_no_key(self, command: str) -> None:
         with _block(active=False):
             assert _gate.lock_reason(command, Config(), State()) is None
