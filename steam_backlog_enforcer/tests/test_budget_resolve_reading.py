@@ -41,13 +41,19 @@ _HOUR = 3600.0
 
 
 def _later_penalised(day: date) -> list[earned_time.Earner]:
-    """Earners in force on ``day`` whose penalty starts after reading's cut."""
-    cut = earned_time.READING.penalty_from
+    """Earners in force on ``day`` whose penalty starts after reading's cut.
+
+    The start is ``penalty_start(e, None)``: no ledger is wired here, so an
+    earner nobody has confirmed (``confirmed_on`` unset) has not started its
+    penalty yet -- the same fail-closed rule the budget itself applies.
+    """
+    cut = earned_time.penalty_start(earned_time.READING, None)
     assert cut is not None
+    starts = {e.name: earned_time.penalty_start(e, None) for e in registry_for(day)}
     return [
         e
         for e in registry_for(day)
-        if e.penalty_from is not None and cut < e.penalty_from <= day
+        if (start := starts[e.name]) is not None and cut < start <= day
     ]
 
 
