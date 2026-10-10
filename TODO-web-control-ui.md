@@ -16,7 +16,8 @@ has to type `./run.sh <cmd>`. The CLI stays as backend/recovery path; bare
 - Privileged ops go through the root daemon's `ctl.sock` (SO_PEERCRED);
   the web server never gets root.
 - Friction enforced server/daemon-side (phrases, gaming-reset 300 s
-  heartbeat countdown, unblock cap, 24h exception lock). More friction, not
+  heartbeat countdown, unblock cap; exceptions are immediate since de76c65,
+  user decision 2026-10-10). More friction, not
   less.
 - must not: any way to stop/disable the enforcer (UI, CLI or socket).
   Restart only, rate-limited, after a state flush.
@@ -95,5 +96,35 @@ has to type `./run.sh <cmd>`. The CLI stays as backend/recovery path; bare
       unreachable for coverage)
 - [x] F: run.sh bare → UI (`scripts/open_ui.sh`), .desktop entry (install.sh
       `install_desktop_entry`) — opened live, WM class verified
+- [x] H screenshot pass DONE 2026-10-10 (vmbox guest `sbe-g`, shots
+      /tmp/sbe-h/shots/): all 24 commands driven through the UI. Fixed on the
+      way (uncommitted): unhide skips like hide without Steam; enforce demo
+      button was a self-link (enforce is a "screen") → runs `{demo: 1}`,
+      restart sends `{demo: 0}`, mock mirrors the real catalog; enforce spec
+      now `cancellable` (demo loops forever, had no Cancel); demo run crashed
+      consuming the root-only restart-gap marker → demo never touches it;
+      "unsupported" hint named the daemon for a server error. serve restart
+      verified under systemd-run (PID + page reload); setup verified with a
+      bad key only (real key not copied off the guest). Live: status UI ==
+      CLI; done stays guest-only (deviation from `done`, by user rule).
+      Second round: enforce dialog per preset (`enforcePreset.ts`: demo =
+      user job, cancellable, no root chip; restart = root, not cancellable;
+      mode field hidden); demo budget log → CONFIG_DIR (was root-only
+      /var/log, EACCES); `serve` exempt from the total block (refused →
+      web unit crash-looped for the whole block); gaming-reset first attempt
+      = daemon refused commit 34 ms before ready_at (host/guest clock skew +
+      instant retype) → commit unlocks 1 s after ready_at.
+- [x] user decision 2026-10-10: keep exceptions immediate; help text, DOCS
+      and mock catalog fixed.
+- [x] user confirmation → tests, coverage, pre-commit, commit, deploy
+      (`sudo ./install.sh` + daemon restart for the _ctl_gap fix)
+- [x] 2026-10-10 test leak closed: a stale `enforce --demo` test ran the real
+      demo loop on the host, read the live /proc, billed and SIGTERMed the
+      game being played and shut Steam down. New autouse guard
+      `tests/_no_real_effects.py`: os.kill/killpg only reach pytest and its
+      own spawns, real Popen refuses Steam/kill argv, an unpatched demo tick
+      fails at once, and any blocked call fails the test at teardown. Proven
+      in vmbox: the OLD test now fails in 1 s with the fake game alive; with
+      the tripwire removed the os.kill layer alone blocks the SIGTERM.
 - [ ] F2: live verification of the finished UI
 - [x] user confirmation → tests, coverage, pre-commit, commit (2026-10-10)

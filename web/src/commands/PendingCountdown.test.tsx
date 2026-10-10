@@ -39,13 +39,24 @@ describe('PendingCountdown', () => {
   it('counts down on the server’s clock', async () => {
     stubApi({ 'POST /api/pending/p1/heartbeat': pending() })
     mount()
-    expect(screen.getByText('0:30')).toBeInTheDocument()
+    // One second past ready_at: a slightly fast browser clock must not offer
+    // a commit the daemon refuses.
+    expect(screen.getByText('0:31')).toBeInTheDocument()
     expect(screen.getByText('until commit unlocks')).toBeInTheDocument()
     await tick(10_000)
-    expect(screen.getByText('0:20')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Countdown' })).toHaveAttribute('aria-valuenow', '33')
+    expect(screen.getByText('0:21')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Countdown' })).toHaveAttribute('aria-valuenow', '32')
     expect(screen.getByText(/Closing this dialog/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel countdown' })).toHaveFocus()
+  })
+
+  it('keeps the commit locked until a second after the server’s ready time', async () => {
+    stubApi({ 'POST /api/pending/p1/heartbeat': pending() })
+    mount()
+    await tick(30_000)
+    expect(screen.getByText('until commit unlocks')).toBeInTheDocument()
+    await tick(1_000)
+    expect(screen.getByText('Ready to commit')).toBeInTheDocument()
   })
 
   it('heartbeats at half the interval, and takes the server’s new ready time', async () => {
@@ -56,7 +67,7 @@ describe('PendingCountdown', () => {
     await tick(1)
     expect(mock).toHaveBeenCalledTimes(1)
     expect(screen.getByText(/Heartbeat every 5 s · last 0 s ago/)).toBeInTheDocument()
-    expect(screen.getByText('0:55')).toBeInTheDocument() // pushed out by the server
+    expect(screen.getByText('0:56')).toBeInTheDocument() // pushed out by the server
   })
 
   it('never heartbeats faster than once a second', async () => {
@@ -100,7 +111,7 @@ describe('PendingCountdown', () => {
     mount()
     window.dispatchEvent(new Event('pagehide'))
     await tick(0)
-    expect(screen.getByText('0:30')).toBeInTheDocument()
+    expect(screen.getByText('0:31')).toBeInTheDocument()
   })
 
   it('stops heartbeating and listening on unmount', async () => {

@@ -81,8 +81,11 @@ CATALOG: Final[dict[str, _Entry]] = {
     "reset": _job("system"),
     "setup": _Entry("system", "screen", mutating=True),
     # The daemon screen. Its only action is a rate-limited restart through
-    # the daemon; the 60-second demo runs as a job (params: demo=1).
-    "enforce": _Entry("system", "screen", mutating=True, privileged=True),
+    # the daemon; the 60-second demo runs as a job (params: demo=1) that
+    # loops until stopped, so the spec must say it can be cancelled.
+    "enforce": _Entry(
+        "system", "screen", mutating=True, privileged=True, cancellable=True
+    ),
     "serve": _Entry("system", "screen"),
 }
 

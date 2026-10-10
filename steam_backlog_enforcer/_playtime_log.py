@@ -29,13 +29,17 @@ import logging.handlers
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
+from steam_backlog_enforcer.config import CONFIG_DIR
+
 if TYPE_CHECKING:
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 
 logger = logging.getLogger(__name__)
 
 BUDGET_LOG_FILE: Final = Path("/var/log/steam-backlog-enforcer/budget.jsonl")
-BUDGET_DEMO_LOG_FILE: Final = Path("/var/log/steam-backlog-enforcer/budget-demo.jsonl")
+# Beside the demo state file, not in root-only /var/log: the web UI runs the
+# demo as the desktop user, and a demo record carries no enforcement weight.
+BUDGET_DEMO_LOG_FILE: Final = CONFIG_DIR / "budget-demo.jsonl"
 
 _MAX_BYTES: Final = 5 * 1024 * 1024
 _BACKUP_COUNT: Final = 5

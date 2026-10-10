@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { q } from '../../api/queries'
-import { CommandButton } from '../../commands/CommandCard'
 import { useRunner } from '../../commands/runnerContext'
 import { ago, clock } from '../../ui/format'
 import { CommandLine, ErrorNotice, Loading, Notice } from '../../ui/Notice'
@@ -49,12 +48,16 @@ export function DaemonCard() {
           className="btn btn-ghost"
           aria-disabled={limited || data.state !== 'running'}
           onClick={() => {
-            if (!limited && data.state === 'running') run('enforce', { mode: 'restart' })
+            if (!limited && data.state === 'running') run('enforce', { demo: 0 })
           }}
         >
           {limited ? `Restart available in ${clock(waitMs / 1000)}` : 'Restart daemon…'}
         </button>
-        <CommandButton name="enforce" preset={{ mode: 'demo' }} label="Demo run (enforce --demo)…" />
+        {/* enforce is a "screen" command, so CommandButton would render a link
+            back to this page; open the runner directly, as restart does. */}
+        <button type="button" className="btn btn-ghost" onClick={() => run('enforce', { demo: 1 })}>
+          Demo run (enforce --demo)…
+        </button>
       </div>
       <h3 className="h3">Journal</h3>
       <pre ref={logRef} className="journal" tabIndex={0} aria-label="Daemon journal (live)">

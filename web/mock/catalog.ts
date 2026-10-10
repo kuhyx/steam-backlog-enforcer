@@ -58,7 +58,7 @@ export const BASE: Base[] = [
   spec('unblock', 'Unblock the store for a few minutes', 'store', 'job', {
     params: [MINUTES], friction: phrase('unblock the store for {minutes} minutes'), privileged: true,
   }),
-  spec('add-exception', 'Request a 24h-locked whitelist exception', 'store', 'job', {
+  spec('add-exception', 'Whitelist a game immediately (phrase + reason)', 'store', 'job', {
     params: [APP_ID, { name: 'reason', label: 'Reason', type: 'string', required: true, help: 'Why this game must be allowed.' }],
     friction: phrase('request exception for {game_name}'),
   }),
@@ -70,12 +70,11 @@ export const BASE: Base[] = [
     friction: phrase('wipe all enforcer state'),
   }),
   spec('setup', 'First-time setup: Steam API key and Steam ID', 'system', 'screen'),
-  spec('enforce', 'Restart the enforcer daemon, or run a 60 s demo budget', 'system', 'job', {
+  spec('enforce', 'Run enforcer: block, uninstall, kill, hide (--demo for a 60s budget)', 'system', 'screen', {
     params: [{
-      name: 'mode', label: 'Mode', type: 'string', required: true, default: 'restart',
-      help: '"restart" (rate-limited: once per 10 min) or "demo" (60 s budget).',
+      name: 'demo', label: 'Demo mode (1 = 60-second budget)', type: 'int', required: false, default: 0, min: 0, max: 1,
     }],
-    privileged: true,
+    privileged: true, cancellable: true,
   }),
   spec('gaming-reset', "Reset today's gaming counter", 'gaming', 'job', {
     friction: phrase("reset today's gaming budget", 300), privileged: true,
@@ -90,7 +89,7 @@ const MANUAL_EXEMPT = new Set<CommandName>([
   'done', 'check', 'status', 'enforce', 'setup', 'serve', 'abandon-pick', 'pick-manual',
   'gaming-status', 'gaming-unblock', 'gaming-reset',
 ])
-const TOTAL_EXEMPT = new Set<CommandName>(['status', 'enforce', 'gaming-status', 'gaming-unblock'])
+const TOTAL_EXEMPT = new Set<CommandName>(['status', 'enforce', 'gaming-status', 'gaming-unblock', 'serve'])
 
 export function lockedReason(name: CommandName): string | null {
   if (world.lock === 'total' && !TOTAL_EXEMPT.has(name)) {

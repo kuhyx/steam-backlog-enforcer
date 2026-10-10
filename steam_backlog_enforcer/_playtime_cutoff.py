@@ -35,6 +35,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def reconcile_for(rules: PlaytimeRules, *, should_block: bool) -> None:
+    """Drive the real Steam-binary mounts -- never from a demo.
+
+    The mounts are the daemon's. A demo run as root used to release a real,
+    spent-budget block on every under-budget tick (the daemon re-applied it 3 s
+    later); run as the desktop user (the web UI) it failed without a word. So a
+    demo's policy runs in full except this step, which _begin_cutoff announces.
+
+    Args:
+        rules: Policy for this tick (``rules.demo`` marks a demo run).
+        should_block: Whether the launchers should currently be masked.
+    """
+    if not rules.demo:
+        reconcile(should_block=should_block)
+
+
 def _warn(state: PlaytimeState, rules: PlaytimeRules) -> PlaytimeState:
     """Fire the due warning, if any, and record that it fired.
 
@@ -83,6 +99,12 @@ def _begin_cutoff(
     )
     request_steam_shutdown()
     kill_gaming_processes(_kill_set(rules), force=False)
+    if rules.demo:
+        logger.warning(
+            "Demo: in %.0f s the real block would mask Steam's binaries; only the "
+            "daemon does that. This demo keeps killing games until you stop it.",
+            _SHUTDOWN_GRACE_SECONDS,
+        )
     return replace(state, blocked_at=now.timestamp())
 
 
@@ -104,7 +126,7 @@ def _sustain_block(
     """
     elapsed = now.timestamp() - state.blocked_at
     if elapsed >= _SHUTDOWN_GRACE_SECONDS:
-        reconcile(should_block=True)
+        reconcile_for(rules, should_block=True)
     kill_gaming_processes(_kill_set(rules), force=elapsed >= rules.sigkill_after)
     return state
 

@@ -29,19 +29,27 @@ def _echoed(mock_echo: object) -> str:
 
 class TestCmdEnforce:
     def test_runs_in_production_by_default(self) -> None:
-        with patch(f"{PKG}.do_enforce") as mock_run, patch(f"{PKG}._echo"):
+        with (
+            patch(f"{PKG}.do_enforce") as mock_run,
+            patch(f"{PKG}.run_demo") as mock_demo,
+            patch(f"{PKG}._echo"),
+        ):
             assert cmd_enforce(Config(), State(), []) == 0
-        assert mock_run.call_args.kwargs["demo"] is False
+        mock_run.assert_called_once()
+        mock_demo.assert_not_called()
 
-    def test_demo_flag_enables_demo(self) -> None:
-        with patch(f"{PKG}.do_enforce") as mock_run, patch(f"{PKG}._echo"):
+    def test_demo_flag_runs_the_budget_only_demo(self) -> None:
+        with (
+            patch(f"{PKG}.do_enforce") as mock_run,
+            patch(f"{PKG}.run_demo", return_value=0) as mock_demo,
+        ):
             assert cmd_enforce(Config(), State(), ["--demo"]) == 0
-        assert mock_run.call_args.kwargs["demo"] is True
+        mock_demo.assert_called_once()
+        mock_run.assert_not_called()
 
-    def test_demo_announces_itself(self) -> None:
-        with patch(f"{PKG}.do_enforce"), patch(f"{PKG}._echo") as mock_echo:
-            cmd_enforce(Config(), State(), ["--demo"])
-        assert "DEMO MODE" in _echoed(mock_echo)
+    def test_demo_exit_code_is_passed_on(self) -> None:
+        with patch(f"{PKG}.run_demo", return_value=1):
+            assert cmd_enforce(Config(), State(), ["--demo"]) == 1
 
     def test_unknown_flag_exits_nonzero_without_running(self) -> None:
         """A mistyped --Demo must not silently run the real 8-hour budget."""

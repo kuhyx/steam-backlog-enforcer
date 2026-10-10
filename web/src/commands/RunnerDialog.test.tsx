@@ -45,6 +45,18 @@ describe('RunnerDialog', () => {
     expect(await run('Arm countdown')).toBeInTheDocument()
   })
 
+  it('runs the enforce preset it was opened for, with no mode field to change it', async () => {
+    const demo = { name: 'demo', label: 'Demo mode', type: 'int' as const, required: false, default: 0, min: 0, max: 1 }
+    const mock = stubApi(routes([makeSpec('enforce', { kind: 'screen', params: [demo], privileged: true, cancellable: true })], { 'POST /api/jobs': makeJob({ id: 'j1' }) }))
+    open('enforce', { demo: 1 })
+    const button = await run('Run enforce')
+    expect(screen.getByText('Cancellable')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Demo mode/)).toBeNull()
+    expect(screen.queryByText('Runs as root via the daemon')).toBeNull()
+    await userEvent.click(button)
+    expect(bodiesOf(mock, 'POST /api/jobs')).toEqual([{ command: 'enforce', params: { demo: 1 } }])
+  })
+
   it('tags a state-changing command, with no countdown for an immediate one', async () => {
     stubApi(routes([makeSpec('scan', { friction: { phrase_template: 'x' } })]))
     open('scan')

@@ -117,7 +117,7 @@ const unblock: Script = async (ctx) => {
 }
 
 const enforce: Script = async (ctx) => {
-  if (ctx.params.mode === 'demo') {
+  if (ctx.params.demo === 1) {
     await walk(ctx, 'Demo enforcement (60 s budget)', ['arm', 'tick', 'tick', 'warn', 'cutoff'], 900)
     return { summary: 'Demo run finished: cutoff engaged after 60 s.' }
   }

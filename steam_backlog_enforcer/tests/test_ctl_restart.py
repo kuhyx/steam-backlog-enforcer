@@ -8,8 +8,8 @@ attribute so the redirect applies.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import time
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,9 +17,6 @@ import pytest
 from steam_backlog_enforcer import _ctl_gap, _ctl_restart
 from steam_backlog_enforcer._ctl_protocol import CtlError
 from steam_backlog_enforcer.tests._ctl_fixtures import make_ctx
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _write_last(value: object) -> None:
@@ -153,7 +150,14 @@ class TestRestartGap:
     def test_no_marker_bills_nothing(self) -> None:
         self._settle().assert_not_called()
 
-    def test_demo_never_bills_but_spends_marker(self) -> None:
+    def test_demo_never_touches_the_marker(self) -> None:
+        # The marker is the daemon's (root-only); a demo -- often the desktop
+        # user's web job -- must neither crash on it nor spend it.
         path = self._marker(json.dumps({"exited_at": time.time() - 20}))
         self._settle(demo=True).assert_not_called()
-        assert not path.exists()
+        assert path.exists()
+
+    def test_undeletable_marker_is_still_read(self) -> None:
+        self._marker(json.dumps({"exited_at": 123.0}))
+        with patch.object(Path, "unlink", side_effect=PermissionError("root")):
+            assert _ctl_gap._take_exit_time() == 123.0

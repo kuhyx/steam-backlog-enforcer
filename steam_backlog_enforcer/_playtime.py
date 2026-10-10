@@ -34,10 +34,7 @@ import time
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._gaming_days import gaming_day_key
-from steam_backlog_enforcer._playtime_block import (
-    mounted_targets,
-    reconcile,
-)
+from steam_backlog_enforcer._playtime_block import mounted_targets
 from steam_backlog_enforcer._playtime_budget import (
     accumulate,
     roll_over,
@@ -46,6 +43,7 @@ from steam_backlog_enforcer._playtime_cutoff import (
     _begin_cutoff,
     _sustain_block,
     _warn,
+    reconcile_for,
 )
 from steam_backlog_enforcer._playtime_procs import attributed_key, qualifying_pids
 from steam_backlog_enforcer._playtime_state import (
@@ -105,7 +103,7 @@ def playtime_tick(
         # The total block runs `pacman -R steam` every tick; our bind mounts
         # would make that fail EBUSY. It is strictly stronger — get out of its
         # way, and stop accruing against a budget nobody can spend.
-        reconcile(should_block=False)
+        reconcile_for(rules, should_block=False)
         save_state(state, demo=demo)
         session.history.observe(state, demo=demo)
         return
@@ -212,11 +210,11 @@ def _policy(
     if not rules.enforcement:
         # A kill switch must still release: leaving live mounts behind would
         # make "disabled" mean "permanently blocked".
-        reconcile(should_block=False)
+        reconcile_for(rules, should_block=False)
         return state
 
     if state.seconds < rules.budget_seconds:
-        reconcile(should_block=False)
+        reconcile_for(rules, should_block=False)
         if state.is_blocked():
             state = _release_after_raise(state, rules)
         # A raise that never reached the cutoff lifts remaining back above

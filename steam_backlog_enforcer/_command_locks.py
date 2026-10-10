@@ -40,6 +40,9 @@ _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
 # gaming-unblock is included because a playtime bind mount makes the total
 # block's own `pacman -R steam` fail EBUSY - it must stay reachable exactly
 # when the two collide. gaming-reset is NOT included: it shortens enforcement.
+# serve changes nothing itself (every job it starts is lock-checked on its own)
+# and refusing it took the web UI down for the whole block, crash-looping its
+# systemd unit, the first time anything restarted it.
 _TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset(
-    {"status", "enforce", "gaming-status", "gaming-unblock"}
+    {"status", "enforce", "gaming-status", "gaming-unblock", "serve"}
 )

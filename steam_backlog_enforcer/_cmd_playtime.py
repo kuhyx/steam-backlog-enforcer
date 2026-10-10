@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._enforce_demo import run_demo
 from steam_backlog_enforcer._enforce_loop import do_enforce
 from steam_backlog_enforcer._gaming_reset import reset_today
 from steam_backlog_enforcer._playtime_block import (
@@ -53,10 +54,9 @@ def cmd_enforce(config: Config, state: State, args: list[str]) -> int:
         _echo(f"Usage: enforce [{_DEMO_FLAG}]")
         return 2
 
-    demo = _DEMO_FLAG in args
-    if demo:
-        _echo("DEMO MODE: gaming budget is 60 seconds, using a separate state file.")
-    do_enforce(config, state, demo=demo)
+    if _DEMO_FLAG in args:
+        return run_demo(config)
+    do_enforce(config, state)
     return 0
 
 

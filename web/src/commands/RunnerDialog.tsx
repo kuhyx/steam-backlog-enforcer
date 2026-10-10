@@ -9,6 +9,7 @@ import { JobProgress } from '../jobs/JobProgress'
 import { Dialog } from '../ui/Dialog'
 import { CommandLine, ErrorNotice, Loading, Notice } from '../ui/Notice'
 import { commandLabel, fillPhrase, findCommand, phraseMatches } from './catalog'
+import { enforcePreset } from './enforcePreset'
 import { PendingCountdown } from './PendingCountdown'
 import { ParamsForm } from './ParamsForm'
 import { initialValues, paramError, toParams } from './params'
@@ -45,7 +46,7 @@ export function RunnerDialog({ name, preset, onClose }: Props) {
   return (
     <Dialog open title={commandLabel(name)} onClose={close} wide>
       {spec ? (
-        <Runner spec={spec} preset={preset} onClose={close} onArmed={(id) => (armed.current = id)} />
+        <Runner {...enforcePreset(spec, preset)} preset={preset} onClose={close} onArmed={(id) => (armed.current = id)} />
       ) : loadError ? (
         <ErrorNotice error={loadError} />
       ) : commands ? (
@@ -59,12 +60,14 @@ export function RunnerDialog({ name, preset, onClose }: Props) {
 
 interface RunnerProps {
   spec: CommandSpec
+  /** Params sent as-is, outside the form (see enforcePreset). */
+  fixed: Record<string, number | string>
   preset?: Record<string, number | string>
   onClose: () => void
   onArmed: (pendingId: string | null) => void
 }
 
-function Runner({ spec, preset, onClose, onArmed }: RunnerProps) {
+function Runner({ spec, fixed, preset, onClose, onArmed }: RunnerProps) {
   const { games, ctx } = useGameLookup()
   const [values, setValues] = useState(() => initialValues(spec.params, preset))
   const [typed, setTyped] = useState('')
@@ -80,7 +83,7 @@ function Runner({ spec, preset, onClose, onArmed }: RunnerProps) {
     },
   })
 
-  const params = toParams(spec.params, values)
+  const params = { ...fixed, ...toParams(spec.params, values) }
   const errors = spec.params.map((p) => paramError(p, values[p.name] ?? '', games)).filter(Boolean)
   const phrase = spec.friction ? fillPhrase(spec.friction.phrase_template, params, ctx) : null
   const countdown = spec.friction?.countdown_seconds

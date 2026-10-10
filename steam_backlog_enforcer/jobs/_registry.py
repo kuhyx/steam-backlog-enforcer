@@ -102,7 +102,11 @@ def _enforce_demo(
     if not params.get("demo"):
         command = "enforce"
         raise PrivilegedViaDaemonError(command)
-    return {"exit_code": cmd_enforce(Config.load(), State.load(), ["--demo"])}
+    code = cmd_enforce(Config.load(), State.load(), ["--demo"])
+    if code:
+        # A refused demo is a failed job, not a quiet "Succeeded".
+        raise SystemExit(code)
+    return {"exit_code": code}
 
 
 def _restore_backup(

@@ -46,6 +46,17 @@ class TestSpec:
         assert spec["friction"] is None
         assert spec["locked_reason"] is None
 
+    def test_enforce_screen_is_cancellable(self) -> None:
+        # Its demo is a job that loops until stopped; without the flag the UI
+        # offered no Cancel for it.
+        entry = _command_catalog.CATALOG["enforce"]
+        spec = _command_catalog._spec("enforce", entry, "d", None)
+        assert (spec["kind"], spec["cancellable"], spec["privileged"]) == (
+            "screen",
+            True,
+            True,
+        )
+
     def test_job_takes_flags_from_registry(self) -> None:
         flags = JobFlags(mutating=False, cancellable=True, privileged=True)
         with patch.dict(_command_catalog.JOB_FLAGS, {"scan": flags}):

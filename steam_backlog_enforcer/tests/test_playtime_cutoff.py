@@ -11,6 +11,7 @@ from steam_backlog_enforcer._playtime_cutoff import (
     _kill_set,
     _sustain_block,
     _warn,
+    reconcile_for,
 )
 from steam_backlog_enforcer._playtime_notify import (
     notify_desktop_user,
@@ -37,7 +38,7 @@ def quiet_tick() -> object:
         mocks = {
             name: stack.enter_context(patch(f"{where}.{name}"))
             for name, where in (
-                ("reconcile", PKG),
+                ("reconcile", cutoff),
                 ("request_steam_shutdown", cutoff),
                 ("kill_gaming_processes", cutoff),
                 ("notify_desktop_user", cutoff),
@@ -79,6 +80,37 @@ class TestBeginCutoff:
         mock_notify.assert_called_once()
         assert out.blocked_at == NOW.timestamp()
 
+    def test_demo_says_out_loud_that_it_will_not_mask(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        state = PlaytimeState(day_key=TODAY, seconds=60.0)
+        with (
+            patch("steam_backlog_enforcer._playtime_cutoff.request_steam_shutdown"),
+            patch("steam_backlog_enforcer._playtime_cutoff.kill_gaming_processes"),
+            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+            patch(
+                "steam_backlog_enforcer._playtime_cutoff._kill_set", return_value=set()
+            ),
+        ):
+            _begin_cutoff(state, _rules(demo=True), now=NOW)
+            assert "only the daemon does that" in caplog.text
+            caplog.clear()
+            _begin_cutoff(state, _rules(), now=NOW)
+            assert "only the daemon" not in caplog.text
+
+
+class TestReconcileFor:
+    def test_production_drives_the_mounts(self) -> None:
+        with patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as rec:
+            reconcile_for(_rules(), should_block=True)
+        rec.assert_called_once_with(should_block=True)
+
+    @pytest.mark.parametrize("should_block", [True, False])
+    def test_demo_never_touches_them(self, *, should_block: bool) -> None:
+        with patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as rec:
+            reconcile_for(_rules(demo=True), should_block=should_block)
+        rec.assert_not_called()
+
 
 class TestSustainBlock:
     def _run(
@@ -115,6 +147,11 @@ class TestSustainBlock:
     def test_no_escalation_just_before_the_threshold(self) -> None:
         _, mock_kill = self._run(29.0)
         mock_kill.assert_called_once_with({7}, force=False)
+
+    def test_demo_never_mounts_but_keeps_killing(self) -> None:
+        mock_rec, mock_kill = self._run(5.0, demo=True)
+        mock_rec.assert_not_called()
+        mock_kill.assert_called_once()
 
     def test_demo_escalates_sooner(self) -> None:
         _, mock_kill = self._run(11.0, demo=True)

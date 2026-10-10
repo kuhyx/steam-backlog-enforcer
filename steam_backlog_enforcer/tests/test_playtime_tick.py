@@ -40,7 +40,7 @@ def quiet_tick() -> object:
         mocks = {
             name: stack.enter_context(patch(f"{where}.{name}"))
             for name, where in (
-                ("reconcile", PKG),
+                ("reconcile", cutoff),
                 ("request_steam_shutdown", cutoff),
                 ("kill_gaming_processes", cutoff),
                 ("notify_desktop_user", cutoff),

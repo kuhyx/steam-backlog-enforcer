@@ -41,7 +41,7 @@ def quiet_tick() -> object:
         mocks = {
             name: stack.enter_context(patch(f"{where}.{name}"))
             for name, where in (
-                ("reconcile", PKG),
+                ("reconcile", cutoff),
                 ("request_steam_shutdown", cutoff),
                 ("kill_gaming_processes", cutoff),
                 ("notify_desktop_user", cutoff),
@@ -61,7 +61,7 @@ class TestPolicyBelowBudget:
     def test_releases_and_warns(self) -> None:
         state = PlaytimeState(day_key=TODAY, seconds=8 * 3600 - 3600)
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as mock_rec,
             patch(
                 "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
             ) as mock_notify,
@@ -74,7 +74,7 @@ class TestPolicyBelowBudget:
     def test_no_warning_when_far_from_budget(self) -> None:
         state = PlaytimeState(day_key=TODAY, seconds=0.0)
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
             patch(
                 "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
             ) as mock_notify,
@@ -111,7 +111,7 @@ class TestPolicyEnforcementDisabled:
         """Disabling must never come to mean 'blocked forever'."""
         state = PlaytimeState(day_key=TODAY, seconds=10**6)
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as mock_rec,
             patch(
                 "steam_backlog_enforcer._playtime_cutoff.request_steam_shutdown"
             ) as mock_shutdown,
@@ -142,7 +142,7 @@ class TestPolicyBudgetRoseMidDay:
     def test_the_block_is_released(self) -> None:
         """reconcile is asked to unmount, which is what re-enables gaming."""
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile") as mock_rec,
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as mock_rec,
             patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
         ):
             _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
@@ -151,7 +151,7 @@ class TestPolicyBudgetRoseMidDay:
     def test_blocked_at_is_cleared(self) -> None:
         """Otherwise the UI reports "blocked" while gaming works fine."""
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
             patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
         ):
             out = _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
@@ -163,7 +163,7 @@ class TestPolicyBudgetRoseMidDay:
         Left alone, the extra two hours would arrive with no warning at all.
         """
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
             patch(
                 "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
             ) as mock_notify,
@@ -179,7 +179,7 @@ class TestPolicyBudgetRoseMidDay:
         spent = 8 * 3600 - 3000.0
         state = PlaytimeState(day_key=TODAY, seconds=spent, warned_seconds=[3600])
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
             patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
         ):
             out = _policy(state, _rules(), now=NOW)
@@ -196,7 +196,7 @@ class TestPolicyBudgetRoseMidDay:
             day_key=TODAY, seconds=5 * 3600.0, warned_seconds=[3600, 1800, 600, 300]
         )
         with (
-            patch("steam_backlog_enforcer._playtime.reconcile"),
+            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
             patch(
                 "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
             ) as mock_notify,

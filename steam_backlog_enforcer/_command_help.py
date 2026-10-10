@@ -35,7 +35,7 @@ COMMAND_DESCRIPTIONS: Final[dict[str, str]] = {
 
 # Commands with non-standard arg handling (shown in help but not in COMMANDS).
 EXTRA_COMMAND_DESCRIPTIONS: Final[dict[str, str]] = {
-    "add-exception": "Request 24h-locked whitelist exception (use --reason)",
+    "add-exception": "Whitelist a game immediately (phrase + --reason)",
     "unblock": "Unblock the store for [minutes] (default 15, max 30)",
     "serve": "Start the web UI (--port N; replaces a stale server)",
     "pick-manual": f"Pick a game by app_id, lock enforcer for {MANUAL_LOCK_DAYS} days",

@@ -42,7 +42,7 @@ describe('DaemonCard', () => {
   it('restarts through the runner when allowed', async () => {
     show(daemon())
     await userEvent.click(await screen.findByRole('button', { name: 'Restart daemon…' }))
-    expect(run).toHaveBeenCalledWith('enforce', { mode: 'restart' })
+    expect(run).toHaveBeenCalledWith('enforce', { demo: 0 })
   })
 
   it('refuses a restart while rate-limited, showing the wait', async () => {
@@ -74,7 +74,7 @@ describe('DaemonCard', () => {
   it('offers the demo run', async () => {
     show(daemon())
     await userEvent.click(await screen.findByRole('button', { name: 'Demo run (enforce --demo)…' }))
-    expect(run).toHaveBeenCalledWith('enforce', { mode: 'demo' })
+    expect(run).toHaveBeenCalledWith('enforce', { demo: 1 })
   })
 
   it('shows loading, then a failure', async () => {

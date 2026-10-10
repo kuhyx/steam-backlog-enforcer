@@ -29,6 +29,10 @@ from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._isolate_reading import _isolate_reading
 from steam_backlog_enforcer.tests._no_fast_install import _no_fast_install
+from steam_backlog_enforcer.tests._no_real_effects import (
+    _no_live_games,
+    _no_real_effects,
+)
 from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
 from steam_backlog_enforcer.tests._no_systemd_run import _no_systemd_run
 from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
@@ -44,6 +48,8 @@ __all__ = [
     "_isolate_playtime",
     "_isolate_reading",
     "_no_fast_install",
+    "_no_live_games",
+    "_no_real_effects",
     "_no_systemd_run",
     "_no_workout_http",
 ]
@@ -227,24 +233,3 @@ def total_block_paths(tmp_path: Path) -> Iterator[Paths]:
         patch(f"{PURGE}._STEAM_REMNANT_PATHS", built.remnant_paths),
     ):
         yield built
-
-
-# ──────────────────────────────────────────────────────────────
-# Live process-table isolation
-#
-# The Steam-restart guard asks whether a game is running by scanning
-# /proc for SteamAppId. Unpatched, that reads the *developer's* real
-# process table: running the suite while playing a game made three
-# restart tests fail on 2026-08-28. Tests that care about the guard
-# patch this themselves.
-# ──────────────────────────────────────────────────────────────
-
-
-@pytest.fixture(autouse=True)
-def _no_live_games() -> Iterator[None]:
-    """Report no running games unless a test says otherwise."""
-    with patch(
-        "steam_backlog_enforcer._steam_restart_guard.get_running_steam_game_pids",
-        return_value={},
-    ):
-        yield

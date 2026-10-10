@@ -49,6 +49,14 @@ def record_exit() -> None:
         logger.warning("Cannot record the restart exit time; the gap goes unbilled")
 
 
+def _drop_marker() -> None:
+    """Delete the marker; a caller without root rights just leaves it."""
+    try:
+        RESTART_EXIT_FILE.unlink(missing_ok=True)
+    except OSError:
+        logger.debug("Cannot delete the restart exit marker", exc_info=True)
+
+
 def _take_exit_time() -> float | None:
     """Read and delete the marker; ``None`` if absent or unusable."""
     try:
@@ -57,7 +65,7 @@ def _take_exit_time() -> float | None:
     except OSError, ValueError, KeyError, TypeError:
         return None
     finally:
-        RESTART_EXIT_FILE.unlink(missing_ok=True)
+        _drop_marker()
     return float(exited) if isinstance(exited, int | float) else None
 
 
@@ -76,8 +84,12 @@ def settle_restart_gap(
         base_interval: The normal tick interval (lower bound for the widened one).
         demo: Whether this is a demo run (never settles).
     """
+    # A demo run (often the desktop user, via the web UI) must not touch the
+    # daemon's root-only marker at all, let alone consume it.
+    if demo:
+        return
     exited = _take_exit_time()
-    if demo or exited is None:
+    if exited is None:
         return
     gap = time.time() - exited
     if not 0 < gap <= MAX_GAP_SECONDS:

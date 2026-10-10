@@ -9,6 +9,13 @@ import { useNow } from '../ui/useNow'
 import { phraseMatches } from './catalog'
 import { PhraseField } from './PhraseField'
 
+/**
+ * The daemon checks `ready_at` on its own clock; unlocking the commit a
+ * second late keeps a slightly fast browser clock from offering a commit the
+ * daemon refuses (seen in vmbox: refused 34 ms early, countdown_running).
+ */
+const CLOCK_SLACK_MS = 1000
+
 interface Props {
   pending: PendingAction
   onCommitted: (job: Job) => void
@@ -53,7 +60,7 @@ export function PendingCountdown({ pending: initial, onCommitted, onCancel, onRe
   const cancel = useMutation({ mutationFn: () => api.dropPending(pending.id), onSettled: onCancel })
 
   const armed = Date.parse(pending.armed_at)
-  const ready = Date.parse(pending.ready_at)
+  const ready = Date.parse(pending.ready_at) + CLOCK_SLACK_MS
   const left = Math.max(0, (ready - now) / 1000)
   const isReady = left <= 0
   const lapsed = beatError instanceof ApiFailure && beatError.code === 'pending_lapsed'

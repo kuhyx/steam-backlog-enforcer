@@ -12,7 +12,7 @@ mirror is `web/src/api/contract.ts`; change both together or neither.
 - Privileged work goes to the **root daemon** over `/run/steam-backlog-enforcer/ctl.sock`
   (see "Control socket"). The web server never gets root.
 - **Friction lives at the trust boundary, never only in the browser.** Typed
-  phrases, countdowns, the unblock cap and the 24h exception lock are checked
+  phrases, countdowns and the unblock cap are checked
   by the server (unprivileged ops) or the daemon (privileged ops). The test:
   if `curl` can do it without the UI, it is not gated.
 - **There is no way to stop or disable the enforcer** — not in the UI, not
@@ -181,11 +181,12 @@ with explicit params, a `Progress` reporter and a `Prompter`.
 | `gaming-unblock` | `force release playtime mounts` | daemon; if unreachable the UI shows the `sudo ./run.sh gaming-unblock` fallback |
 | `abandon-pick` | `abandon {game_name}` | – |
 | `pick-manual` | `lock in {game_name}` | – |
-| `add-exception` | `request exception for {game_name}` | existing 24h lock |
+| `add-exception` | `request exception for {game_name}` | active immediately (no cooldown since de76c65); reason logged |
 | `uninstall` | `uninstall {count} games` | – |
 | `reset` | `wipe all enforcer state` | automatic timestamped backup first |
 | backup restore | `restore backup {id}` | – |
 | `enforce` restart | – | rate limit: 1 per 10 min, state flushed first |
+| `enforce` demo (`demo: 1`) | – | desktop-user job, cancellable; runs the gaming budget only and never touches the daemon's Steam-binary mounts; fails (exit 1) under a total block |
 
 `CommandSpec.friction` carries the phrase template so the UI never
 hard-codes it.

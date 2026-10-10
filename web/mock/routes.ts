@@ -68,13 +68,14 @@ on('GET', /^\/api\/jobs$/, () => listJobs())
 on('POST', /^\/api\/jobs$/, async ({ req, res }) => {
   const body = (await readJson(req)) as Partial<JobRequest>
   const spec = findSpec(String(body.command))
-  if (!spec || spec.kind !== 'job') throw new HttpError(400, 'unknown_command', `Unknown command "${body.command}".`)
+  // enforce is a "screen" in the catalog but still runs as a job, as on the real server.
+  if (!spec || (spec.kind !== 'job' && spec.name !== 'enforce')) throw new HttpError(400, 'unknown_command', `Unknown command "${body.command}".`)
   if (spec.locked_reason) throw new HttpError(409, 'locked', spec.locked_reason)
   const params = validateParams(spec, body.params)
   if (spec.privileged && world.daemon === 'unreachable') {
     throw new HttpError(503, 'daemon_unreachable', 'The root daemon is not answering on /run/steam-backlog-enforcer/ctl.sock.')
   }
-  if (spec.name === 'enforce' && params.mode === 'restart' && world.restartAvailableAt && world.restartAvailableAt > Date.now()) {
+  if (spec.name === 'enforce' && params.demo !== 1 && world.restartAvailableAt && world.restartAvailableAt > Date.now()) {
     throw new HttpError(429, 'rate_limited', 'The daemon was restarted less than 10 minutes ago.')
   }
   if (spec.friction) {

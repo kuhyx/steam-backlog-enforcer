@@ -86,6 +86,15 @@ class TestEnforceDemo:
         assert command.call_args.args[2] == ["--demo"]
         assert data == {"exit_code": 0}
 
+    def test_refused_demo_fails_the_job(self) -> None:
+        """A non-zero demo exit is a failed job, never a quiet success."""
+        with (
+            patch(_PREFIX + "cmd_enforce", return_value=1),
+            pytest.raises(SystemExit) as exc,
+        ):
+            _registry._enforce_demo({"demo": 1}, _PROGRESS, _PROMPTER)
+        assert exc.value.code == 1
+
     def test_real_enforce_goes_to_daemon(self) -> None:
         """Without ``demo`` the job refuses."""
         with pytest.raises(PrivilegedViaDaemonError):

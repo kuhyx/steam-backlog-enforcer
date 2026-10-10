@@ -20,7 +20,7 @@ const EXPLAIN: Record<FailureCode, { title: string; hint: string }> = {
   not_cancellable: { title: 'Cannot cancel', hint: 'This command cannot be stopped once started.' },
   op_failed: { title: 'Action failed', hint: 'The daemon or the job process hit an error. See the job log or the daemon journal on System.' },
   server_stale: { title: 'Server is restarting', hint: 'It was running outdated code and restarts on the current code. Retry in a few seconds.' },
-  unsupported: { title: 'Not supported here', hint: 'The enforcer daemon cannot do this in its current mode.' },
+  unsupported: { title: 'Not supported here', hint: 'Nothing supervises this process (it is not running under systemd), so a restart would be a stop.' },
   network: { title: 'Server not reachable', hint: 'Is it running? Start it with ./run.sh serve.' },
   http: { title: 'Unexpected server error', hint: 'Check the server log.' },
 }

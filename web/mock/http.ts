@@ -76,8 +76,5 @@ export function validateParams(spec: CommandSpec, raw: unknown): Record<string, 
     const v = checkParam(p, input[p.name])
     if (v !== undefined) out[p.name] = v
   }
-  if (spec.name === 'enforce' && out.mode !== 'restart' && out.mode !== 'demo') {
-    throw new HttpError(400, 'invalid_params', 'Mode must be "restart" or "demo".')
-  }
   return out
 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from steam_backlog_enforcer._steam_errors import SteamUnavailableError
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import (
     cmd_hide,
@@ -180,6 +181,18 @@ class TestCmdUnhide:
             patch(f"{PKG}._echo"),
         ):
             cmd_unhide(Config(), State())
+
+    def test_skips_without_steam_like_hide(self) -> None:
+        with (
+            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1]),
+            patch(
+                f"{PKG}.unhide_all_games",
+                side_effect=SteamUnavailableError("Steam is not installed"),
+            ),
+            patch(f"{PKG}._echo") as echo,
+        ):
+            cmd_unhide(Config(), State())
+        echo.assert_called_with("Library unhiding: skipped (Steam is not installed)")
 
     def test_unhides_zero(self) -> None:
         with (

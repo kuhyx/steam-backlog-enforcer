@@ -8,6 +8,7 @@ from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._progress import current_progress
 from steam_backlog_enforcer._prompter import confirm_phrase
+from steam_backlog_enforcer._steam_errors import SteamUnavailableError
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -127,7 +128,13 @@ def cmd_unhide(config: Config, _state: State) -> None:
         return
 
     _echo("Unhiding all games...")
-    count = unhide_all_games(owned_ids)
+    # Same contract as cmd_hide: no reachable Steam means nothing to change
+    # this time, not a failed command.
+    try:
+        count = unhide_all_games(owned_ids)
+    except SteamUnavailableError as exc:
+        _echo(f"Library unhiding: skipped ({exc})")
+        return
     _echo(f"Unhidden {count} games.")
 
     if count > 0:

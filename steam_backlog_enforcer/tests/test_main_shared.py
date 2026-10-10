@@ -200,10 +200,12 @@ class TestEnforceTotalBlockLock:
         gaming-unblock is present because a playtime bind mount makes the
         total block's own `pacman -R steam` fail EBUSY - it has to stay
         reachable exactly when the two collide. gaming-reset is deliberately
-        absent: it would shorten enforcement.
+        absent: it would shorten enforcement. serve changes nothing itself
+        (each job it starts is lock-checked) and refusing it took the web UI
+        down for the whole block.
         """
         assert (
-            frozenset({"status", "enforce", "gaming-status", "gaming-unblock"})
+            frozenset({"status", "enforce", "gaming-status", "gaming-unblock", "serve"})
             == _TOTAL_BLOCK_EXEMPT_COMMANDS
         )
         assert "gaming-reset" not in _TOTAL_BLOCK_EXEMPT_COMMANDS
