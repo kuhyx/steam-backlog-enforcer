@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from string import Formatter
 from unittest.mock import patch
 
 from steam_backlog_enforcer import _command_catalog, _command_locks
-from steam_backlog_enforcer._friction import Friction
+from steam_backlog_enforcer._command_params import PARAMS
+from steam_backlog_enforcer._ctl_context import require_phrase
+from steam_backlog_enforcer._friction import FRICTION, Friction, expected_phrase
+from steam_backlog_enforcer._web_privileged import BUY_DLC_MINUTES
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.jobs._specs import JobFlags
 from steam_backlog_enforcer.main import _shared
@@ -115,3 +119,28 @@ class TestCommandLocks:
             _command_locks._MANUAL_LOCK_EXEMPT_COMMANDS
         )
         assert "gaming-reset" not in _command_locks._TOTAL_BLOCK_EXEMPT_COMMANDS
+
+
+class TestPhrasesAreFillable:
+    """Every phrase the UI shows can be completed and is the one checked."""
+
+    def test_every_template_field_has_a_source(self) -> None:
+        # Mirrors fillPhrase in web/src/commands/catalog.ts: a field is a
+        # param, ``game_name`` from an ``app_id`` param, or ``count`` from
+        # the installed list. Anything else leaves Run disabled forever.
+        # The same two tables ``_spec`` builds each CommandSpec from.
+        for name in _command_catalog.CATALOG:
+            friction = FRICTION.get(name)
+            if friction is None:
+                continue
+            params = {p.name for p in PARAMS.get(name, ())}
+            derived = {"count"} | ({"game_name"} if "app_id" in params else set())
+            template = friction.phrase_template
+            fields = {f for _, f, _, _ in Formatter().parse(template) if f}
+            assert fields <= params | derived, name
+
+    def test_buy_dlc_phrase_is_the_unblock_the_daemon_checks(self) -> None:
+        shown = expected_phrase("buy-dlc")
+        assert shown == expected_phrase("unblock", minutes=BUY_DLC_MINUTES)
+        assert shown is not None
+        require_phrase("unblock", shown, minutes=BUY_DLC_MINUTES)

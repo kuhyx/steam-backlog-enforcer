@@ -14,6 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from steam_backlog_enforcer._store_window import DEFAULT_WINDOW_MINUTES
+
 
 @dataclass(frozen=True)
 class Friction:
@@ -30,13 +32,19 @@ class Friction:
 
 GAMING_RESET_COUNTDOWN_SECONDS: Final = 300
 
+_STORE_WINDOW_PHRASE: Final = "unblock the store for {minutes} minutes"
+
 FRICTION: Final[dict[str, Friction]] = {
     "gaming-reset": Friction(
         "reset today's gaming budget", GAMING_RESET_COUNTDOWN_SECONDS
     ),
     "block-gaming": Friction("block all gaming for {days} days"),
-    "unblock": Friction("unblock the store for {minutes} minutes"),
-    "buy-dlc": Friction("unblock the store for {minutes} minutes"),
+    "unblock": Friction(_STORE_WINDOW_PHRASE),
+    # buy-dlc takes no params: it is always the default-length window, and the
+    # daemon checks it as an ``unblock`` of that length. So its phrase is that
+    # exact sentence with the number already in it, not a ``{minutes}`` slot
+    # that nothing could fill.
+    "buy-dlc": Friction(_STORE_WINDOW_PHRASE.format(minutes=DEFAULT_WINDOW_MINUTES)),
     "gaming-unblock": Friction("force release playtime mounts"),
     "abandon-pick": Friction("abandon {game_name}"),
     "pick-manual": Friction("lock in {game_name}"),
