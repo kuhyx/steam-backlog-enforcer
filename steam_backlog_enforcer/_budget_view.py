@@ -184,7 +184,7 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
                 "name": earner.name,
                 "label": earner.label,
                 "earned_seconds": rules.earned_seconds.get(earner.name, 0.0),
-                # The most a full day pays: the tutor's 4 blocks, not one.
+                # The most a full day pays: the tutor's 60 minutes, not one.
                 "bonus_seconds": _most(earner) * 60,
             }
             for earner in registry_for(datetime.now().astimezone().date())

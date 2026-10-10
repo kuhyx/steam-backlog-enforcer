@@ -6,8 +6,9 @@ publishes HMAC-signed ``credit`` rows, so the shared reader is all it needs:
 it joins the budget with no code here.
 
 A *counted* gate (the Automation tutor, from ``earned_time.TUTOR_FROM``) pays
-per unit -- each verified 15-minute block -- so :func:`ledger_units` reads its
-unit count for the day instead of a yes/no.
+per unit -- each verified active minute (earned_time >= 0.8; a legacy
+15-minute block row counts 15) -- so :func:`ledger_units` reads its unit
+count for the day instead of a yes/no.
 
 :func:`first_credits` feeds ``earned_time.resolve`` each penalised earner's
 first real credit (earned_time >= 0.6), so a gate that never paid out costs

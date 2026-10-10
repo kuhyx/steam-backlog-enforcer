@@ -1,6 +1,6 @@
 """Tests for counted gate earners (the Automation tutor) in the gaming budget.
 
-A counted gate pays per unit -- one verified 15-minute tutor block each --
+A counted gate pays per unit -- one verified active tutor minute each --
 so :func:`ledger_units` reads its unit count for the day and
 ``resolve_budget`` turns it into gaming time through the registry. A stand-in
 counted earner is registered by patching ``earned_time.EARNERS``, which both
