@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _PKG = "steam_backlog_enforcer._web_server"
+_VIEWS_PKG = "steam_backlog_enforcer._web_views"
 _DATA_PKG = "steam_backlog_enforcer._web_games"
 # build_web_dataset itself did not move.
 _DATASET_PKG = "steam_backlog_enforcer._web_dataset"
@@ -67,7 +68,9 @@ class TestBudgetEndpoint:
 
     def test_budget_ok(self) -> None:
         with (
-            patch(f"{_PKG}.build_budget_snapshot", return_value={"ok": True}) as build,
+            patch(
+                f"{_VIEWS_PKG}.build_budget_snapshot", return_value={"ok": True}
+            ) as build,
             _running() as port,
         ):
             status, body, ctype = _get(port, "/api/budget")
@@ -79,7 +82,9 @@ class TestBudgetEndpoint:
 
     def test_demo_query_reads_the_demo_run(self) -> None:
         with (
-            patch(f"{_PKG}.build_budget_snapshot", return_value={"ok": True}) as build,
+            patch(
+                f"{_VIEWS_PKG}.build_budget_snapshot", return_value={"ok": True}
+            ) as build,
             _running() as port,
         ):
             _get(port, "/api/budget?demo=1")
@@ -87,12 +92,12 @@ class TestBudgetEndpoint:
 
     def test_budget_error(self) -> None:
         with (
-            patch(f"{_PKG}.build_budget_snapshot", side_effect=OSError("boom")),
+            patch(f"{_VIEWS_PKG}.build_budget_snapshot", side_effect=OSError("boom")),
             _running() as port,
         ):
             status, body, _ = _get(port, "/api/budget")
         assert status == 500
-        assert body == b"budget error"
+        assert json.loads(body)["error"] == "op_failed"
 
 
 class TestDatasetEndpoint:
@@ -113,12 +118,12 @@ class TestDatasetEndpoint:
 
     def test_dataset_error_returns_500(self) -> None:
         with (
-            patch(f"{_PKG}.build_web_dataset", side_effect=OSError("boom")),
+            patch(f"{_VIEWS_PKG}.build_web_dataset", side_effect=OSError("boom")),
             _running() as port,
         ):
             status, body, _ = _get(port, "/api/dataset")
         assert status == 500
-        assert b"dataset error" in body
+        assert json.loads(body)["error"] == "op_failed"
 
 
 class TestStaticServing:

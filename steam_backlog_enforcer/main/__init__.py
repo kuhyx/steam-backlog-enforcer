@@ -23,9 +23,14 @@ from steam_backlog_enforcer._cmd_playtime import (
     cmd_gaming_status,
     cmd_gaming_unblock,
 )
+from steam_backlog_enforcer._command_help import (
+    COMMAND_DESCRIPTIONS,
+    EXTRA_COMMAND_DESCRIPTIONS,
+)
 from steam_backlog_enforcer._stats import cmd_stats
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.game_install import _echo
+from steam_backlog_enforcer.main._gate import enforce_gate
 from steam_backlog_enforcer.main._registry import _make_all_commands
 from steam_backlog_enforcer.main._registry import (
     _print_usage as _print_usage_for,
@@ -45,6 +50,7 @@ from steam_backlog_enforcer.main._shared import (
     _show_total_block_lock_message,
 )
 from steam_backlog_enforcer.main.abandon import cmd_abandon_pick
+from steam_backlog_enforcer.main.exception import cmd_add_exception
 from steam_backlog_enforcer.main.install import (
     cmd_hide,
     cmd_install,
@@ -53,7 +59,6 @@ from steam_backlog_enforcer.main.install import (
     cmd_uninstall,
 )
 from steam_backlog_enforcer.main.misc import (
-    cmd_add_exception,
     cmd_block_gaming,
     cmd_buy_dlc,
     cmd_reset,
@@ -117,41 +122,34 @@ __all__ = [
     "main",
 ]
 
+_HANDLERS: dict[str, Callable[[Config, State], object]] = {
+    "scan": do_scan,
+    "check": do_check,
+    "status": cmd_status,
+    "list": cmd_list,
+    "install": cmd_install,
+    "hide": cmd_hide,
+    "unhide": cmd_unhide,
+    "buy-dlc": cmd_buy_dlc,
+    "reset": cmd_reset,
+    "installed": cmd_installed,
+    "uninstall": cmd_uninstall,
+    "setup": cmd_setup,
+    "done": cmd_done,
+    "pick": cmd_pick,
+    "stats": cmd_stats,
+    "gaming-status": cmd_gaming_status,
+    "gaming-reset": cmd_gaming_reset,
+}
+
+# Descriptions live in _command_help (the web catalog reads them too); the
+# help order is theirs.
 COMMANDS: dict[str, tuple[str, Callable[[Config, State], object]]] = {
-    "scan": ("Scan library & assign a game", do_scan),
-    "check": ("Check assigned game for a new achievement", do_check),
-    "status": ("Show current status", cmd_status),
-    "list": ("List games from snapshot", cmd_list),
-    "install": ("Install the assigned game", cmd_install),
-    "hide": ("Hide all non-assigned games in library", cmd_hide),
-    "unhide": ("Unhide all games in library", cmd_unhide),
-    "buy-dlc": ("Unblock the store for 15 min to buy a game/DLC", cmd_buy_dlc),
-    "reset": ("Reset all state", cmd_reset),
-    "installed": ("List installed games", cmd_installed),
-    "uninstall": ("Uninstall all non-assigned games", cmd_uninstall),
-    "setup": ("Run first-time setup", cmd_setup),
-    "done": ("Move on after a new achievement, pick next", cmd_done),
-    "pick": ("Manually pick your next game from candidates", cmd_pick),
-    "stats": ("Show backlog completion-time estimates", cmd_stats),
-    "gaming-status": ("Show today's gaming time and block state", cmd_gaming_status),
-    "gaming-reset": ("Reset today's gaming counter (root + YES)", cmd_gaming_reset),
+    name: (desc, _HANDLERS[name]) for name, desc in COMMAND_DESCRIPTIONS.items()
 }
 
-# Extra commands with non-standard arg handling (shown in help but not in COMMANDS).
-_EXTRA_COMMAND_DESCRIPTIONS: dict[str, str] = {
-    "add-exception": "Request 24h-locked whitelist exception (use --reason)",
-    "unblock": "Unblock the store for [minutes] (default 15, max 30)",
-    "serve": "Start the web UI (--port N; replaces a stale server)",
-    "pick-manual": f"Pick a game by app_id, lock enforcer for {_MANUAL_LOCK_DAYS} days",
-    "abandon-pick": "Undo a manual pick at any time (needs app_id)",
-    "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
-    "enforce": "Run enforcer: block, uninstall, kill, hide (--demo for a 60s budget)",
-    "gaming-unblock": "Force-release playtime bind mounts (root; recovery hatch)",
-}
-
-_ALL_COMMANDS: dict[str, str] = _make_all_commands(
-    COMMANDS, _EXTRA_COMMAND_DESCRIPTIONS
-)
+# Plus the commands with non-standard arg handling (help only, not COMMANDS).
+_ALL_COMMANDS: dict[str, str] = _make_all_commands(COMMANDS, EXTRA_COMMAND_DESCRIPTIONS)
 
 
 def _resolve_command(raw: str) -> str | None:
@@ -215,19 +213,8 @@ def main() -> None:
         _echo(f"Note: treating '{sys.argv[1]}' as '{command}'.")
 
     config = Config.load()
-
-    if command not in {"setup", "add-exception"} and not config.steam_api_key:
-        _echo("Not configured. Run 'setup' first.")
-        sys.exit(1)
-
-    state = State.load()
-
-    # Total block is the most restrictive lock - check it first.
-    _enforce_total_block_lock(command)
-
-    # Enforce the manual-pick lock before dispatching any command.
-    # This also covers add-exception (previously dispatched before state load).
-    _enforce_manual_pick_lock(command, state)
+    # Not-configured, total-block and manual-pick checks; web jobs share it.
+    state = enforce_gate(command, config)
 
     if _dispatch_extra_command(command, config, state):
         return

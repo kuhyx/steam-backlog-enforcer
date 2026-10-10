@@ -21,7 +21,7 @@ class TestPickManualCascade:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games") as mock_uninstall,
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -38,7 +38,7 @@ class TestPickManualCascade:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -56,7 +56,7 @@ class TestPickManualCascade:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -77,7 +77,7 @@ class TestPickManualCascade:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -95,7 +95,7 @@ class TestPickManualCascade:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -122,7 +122,7 @@ class TestPickManualCascade:
             patch(f"{PKG}._echo") as mock_echo,
             # The skip line is printed by the shared hide helper.
             patch("steam_backlog_enforcer.library_hider._echo", mock_echo),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),

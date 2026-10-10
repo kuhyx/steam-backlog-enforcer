@@ -18,6 +18,10 @@ from steam_backlog_enforcer._actions import (
 from steam_backlog_enforcer._allowed_games import (
     MANUAL_LOCK_DAYS as _MANUAL_LOCK_DAYS,
 )
+from steam_backlog_enforcer._command_locks import (
+    _MANUAL_LOCK_EXEMPT_COMMANDS,
+    _TOTAL_BLOCK_EXEMPT_COMMANDS,
+)
 from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer._total_block import (
     TotalBlockStatus,
@@ -31,42 +35,6 @@ if TYPE_CHECKING:
 
 _LIST_DISPLAY_LIMIT = 50
 _MIN_CLI_ARGS = 2
-
-# Commands that remain usable while the manual pick lock is active.
-# Principle: only what is needed to release the lock (done/check) or
-# that cannot change the game assignment (status, enforce, setup, serve).
-_MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
-    {
-        "done",
-        "check",
-        "status",
-        "enforce",
-        "setup",
-        "serve",
-        "abandon-pick",
-        # Allowed so a second game can be locked in alongside the first; the
-        # cap inside cmd_pick_manual is what stops this being a way out.
-        "pick-manual",
-        # The daily gaming budget is orthogonal to which game is assigned, and
-        # gaming-unblock is a recovery hatch for a stuck bind mount - locking
-        # it behind a manual pick would leave Steam masked with no way back.
-        "gaming-status",
-        "gaming-unblock",
-        "gaming-reset",
-    }
-)
-
-# Commands that remain usable while a total gaming block is active. Far
-# stricter than _MANUAL_LOCK_EXEMPT_COMMANDS: no done/pick/reset/
-# add-exception - there is no in-app way to shorten a total block.
-#
-# gaming-unblock is included because a playtime bind mount makes the total
-# block's own `pacman -R steam` fail EBUSY - it must stay reachable exactly
-# when the two collide. gaming-reset is NOT included: it shortens enforcement.
-_TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset(
-    {"status", "enforce", "gaming-status", "gaming-unblock"}
-)
-
 
 # ──────────────────────────────────────────────────────────────
 # Total gaming block lock helpers

@@ -104,7 +104,7 @@ export function PlannerView() {
           onReset={() => setFilters(defaultFilters(dataset.defaults))}
         />
 
-        <main className="content">
+        <div className="content">
           <SummaryCards
             result={result}
             filters={filters}
@@ -120,7 +120,7 @@ export function PlannerView() {
             onSearch={(s) => update({ search: s })}
             onToggleExclude={toggleExclude}
           />
-        </main>
+        </div>
       </div>
     </>
   )

@@ -17,6 +17,7 @@ from typing import Any
 
 import aiohttp
 
+from steam_backlog_enforcer._progress import gather_tracked
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ async def _fetch_batch(app_ids: list[int]) -> list[ProtonDBRating]:
     sem = asyncio.Semaphore(MAX_CONCURRENT)
     async with aiohttp.ClientSession() as session:
         tasks = [_fetch_one(session, sem, aid) for aid in app_ids]
-        results = await asyncio.gather(*tasks)
+        results = await gather_tracked("Fetching ProtonDB ratings", tasks)
         return [r for r in results if r is not None]
 
 

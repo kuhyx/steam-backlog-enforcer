@@ -18,6 +18,8 @@ from steam_backlog_enforcer._playtime_state import (
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.tests._no_workout_http import fixed_budget
 
+RESET_PKG = "steam_backlog_enforcer._gaming_reset"
+_RESET_PHRASE = "reset today's gaming budget"
 PKG = "steam_backlog_enforcer._cmd_playtime"
 
 
@@ -146,8 +148,8 @@ class TestCmdGamingReset:
         with (
             patch(f"{PKG}.os.geteuid", return_value=0),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
-            patch(f"{PKG}.release_block", return_value=["/usr/bin/steam"]),
+            patch("builtins.input", return_value=_RESET_PHRASE),
+            patch(f"{RESET_PKG}.release_block", return_value=["/usr/bin/steam"]),
         ):
             assert cmd_gaming_reset(Config(), State()) == 0
         stored = load_state(demo=False)
@@ -158,8 +160,8 @@ class TestCmdGamingReset:
         with (
             patch(f"{PKG}.os.geteuid", return_value=0),
             patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
-            patch(f"{PKG}.release_block", return_value=["/a", "/b"]),
+            patch("builtins.input", return_value=_RESET_PHRASE),
+            patch(f"{RESET_PKG}.release_block", return_value=["/a", "/b"]),
         ):
             cmd_gaming_reset(Config(), State())
         assert "Released 2 mount(s)" in _echoed(mock_echo)

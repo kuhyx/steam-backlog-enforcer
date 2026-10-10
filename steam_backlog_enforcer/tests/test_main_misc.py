@@ -1,7 +1,7 @@
 """Tests for the main CLI: store, reset, setup, exception and block-gaming commands."""
 
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -70,55 +70,67 @@ class TestCmdBuyDlc:
         assert mock_open.call_args.args[1] == DEFAULT_WINDOW_MINUTES
 
 
+_RESET_PHRASE = "wipe all enforcer state"
+
+
+def _reset(
+    state: State,
+    owned: object,
+    *,
+    typed: str = _RESET_PHRASE,
+    unhidden: int = 2,
+) -> list[str]:
+    """Run ``cmd_reset`` with *typed* as the answer; return what it printed."""
+    with (
+        patch("builtins.input", return_value=typed),
+        patch(f"{PKG}.get_all_owned_app_ids", side_effect=owned)
+        if isinstance(owned, Exception)
+        else patch(f"{PKG}.get_all_owned_app_ids", return_value=owned),
+        patch(f"{PKG}.unhide_all_games", return_value=unhidden),
+        patch(f"{PKG}._echo") as mock_echo,
+        patch.object(State, "save"),
+    ):
+        cmd_reset(Config(), state)
+    return [str(c.args[0]) for c in mock_echo.call_args_list if c.args]
+
+
 class TestCmdReset:
     """Tests for cmd_reset."""
 
     def test_normal_reset(self) -> None:
         state = State(current_app_id=1, current_game_name="G", finished_app_ids=[1])
-        with (
-            patch(f"{PKG}.unblock_store"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{PKG}.unhide_all_games", return_value=2),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "save"),
-        ):
-            cmd_reset(Config(), state)
-            assert state.current_app_id is None
-            assert state.finished_app_ids == []
+        printed = _reset(state, [1, 2])
+        assert state.current_app_id is None
+        assert state.finished_app_ids == []
+        assert "Unhidden 2 games." in printed
+
+    def test_leaves_the_store_blocked(self) -> None:
+        """Reset no longer lifts the store block: that needs ``unblock``."""
+        printed = _reset(State(current_app_id=1), [])
+        assert any("Store left blocked" in line for line in printed)
+
+    def test_wrong_phrase_aborts_and_keeps_state(self) -> None:
+        state = State(current_app_id=1)
+        printed = _reset(state, [1], typed="yes")
+        assert printed == ["Aborted."]
+        assert state.current_app_id == 1
+
+    def test_reports_the_backup_it_took(self) -> None:
+        backup = MagicMock(id="20261010T000000Z-abcdef")
+        with patch(f"{PKG}.create_backup", return_value=backup):
+            printed = _reset(State(), [])
+        assert "State backed up as 20261010T000000Z-abcdef." in printed
 
     def test_unhide_fails(self) -> None:
         state = State(current_app_id=1)
-        with (
-            patch(f"{PKG}.unblock_store"),
-            patch(
-                f"{PKG}.get_all_owned_app_ids",
-                side_effect=OSError("fail"),
-            ),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "save"),
-        ):
-            cmd_reset(Config(), state)
+        printed = _reset(state, OSError("fail"))
+        assert any("could not unhide games: fail" in line for line in printed)
+        assert state.current_app_id is None
 
     def test_unhide_returns_zero(self) -> None:
         state = State(current_app_id=1)
-        with (
-            patch(f"{PKG}.unblock_store"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
-            patch(f"{PKG}.unhide_all_games", return_value=0),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "save"),
-        ):
-            cmd_reset(Config(), state)
-
-    def test_no_owned_ids(self) -> None:
-        state = State(current_app_id=1)
-        with (
-            patch(f"{PKG}.unblock_store"),
-            patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "save"),
-        ):
-            cmd_reset(Config(), state)
+        printed = _reset(state, [1, 2], unhidden=0)
+        assert not any("Unhidden" in line for line in printed)
 
 
 class TestCmdSetup:

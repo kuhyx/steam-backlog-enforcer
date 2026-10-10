@@ -13,6 +13,7 @@ from steam_backlog_enforcer._actions import (
     find_manual_pick,
 )
 from steam_backlog_enforcer._manual_pick_lifecycle import abandon_manual_pick
+from steam_backlog_enforcer._prompter import confirm_phrase
 from steam_backlog_enforcer.game_install import (
     _echo,
     is_game_installed,
@@ -98,8 +99,9 @@ def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
     else:
         _echo("\n  - Leaves you with no assigned game (run 'scan' to get one)")
     _echo()
-    confirm = input(f"Type YES to abandon {game_name}: ").strip()
-    if confirm != "YES":
+    if not confirm_phrase(
+        "abandon-pick", f"Abandon manual pick {game_name}?", game_name=game_name
+    ):
         _echo("Aborted.")
         return
 

@@ -154,6 +154,11 @@ class TestPickNextGameGroup2:
                 "steam_backlog_enforcer._scanning_assign._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
+            # The retry messages come from the CLI prompter now.
+            patch(
+                "steam_backlog_enforcer._prompter._echo",
+                side_effect=lambda *a, **_: echoed.append(a[0]),
+            ),
             patch(
                 "steam_backlog_enforcer._scanning_assign.is_game_fully_installed",
                 return_value=True,
@@ -181,6 +186,11 @@ class TestPickNextGameGroup2:
             ),
             patch(
                 "steam_backlog_enforcer._scanning_assign._echo",
+                side_effect=lambda *a, **_: echoed.append(a[0]),
+            ),
+            # The retry messages come from the CLI prompter now.
+            patch(
+                "steam_backlog_enforcer._prompter._echo",
                 side_effect=lambda *a, **_: echoed.append(a[0]),
             ),
             patch(

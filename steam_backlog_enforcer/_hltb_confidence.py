@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import time
 
+from steam_backlog_enforcer._hltb_cached import reporting_progress_cb
 from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
     ProgressCb,
@@ -82,7 +83,9 @@ def fetch_hltb_confidence_cached(
             uncached,
             cache=cache,
             polls=polls,
-            progress_cb=progress_cb,
+            progress_cb=reporting_progress_cb(
+                "Fetching HLTB poll counts", len(uncached), progress_cb
+            ),
             count_comp=count_comp,
         )
         elapsed = time.monotonic() - t0
@@ -169,7 +172,8 @@ def fetch_hltb_detail_missing(
         )
     else:
         logger.info("Backfilling HLTB game ID for %d game(s)...", n_id)
-    elapsed = fetch_hltb_times_timed(missing, cache, polls, progress_cb, extras)
+    report = reporting_progress_cb("Fetching HLTB details", len(missing), progress_cb)
+    elapsed = fetch_hltb_times_timed(missing, cache, polls, report, extras)
 
     restore_prior_hours(cache, prior_hours)
 

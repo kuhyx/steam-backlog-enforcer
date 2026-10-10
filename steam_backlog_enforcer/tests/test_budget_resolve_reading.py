@@ -114,7 +114,7 @@ class TestTheBase:
         day = AFTER_CUT + timedelta(days=400)
         with pin_today(day):
             resolved = _resolve(earners=(False, False, False))
-        later_cuts = 60 * sum(e.gaming_minutes for e in _later_penalised(day))
+        later_cuts = 60 * sum(e.max_gaming_minutes for e in _later_penalised(day))
         assert resolved.base_seconds == 4 * _HOUR - later_cuts
 
 

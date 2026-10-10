@@ -5,83 +5,73 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from steam_backlog_enforcer._cmd_done import _prompt_keep_or_skip
+from steam_backlog_enforcer._prompter import use_prompter
+from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.tests._fake_prompter import FakePrompter
 
 CMD_DONE_PKG = "steam_backlog_enforcer._cmd_done"
+
+
+def _game(hours: float = 5.0, app_id: int = 42, name: str = "Test") -> GameInfo:
+    return GameInfo(
+        app_id=app_id,
+        name=name,
+        total_achievements=10,
+        unlocked_achievements=5,
+        playtime_minutes=60,
+        completionist_hours=hours,
+    )
+
+
+def _ask(prompter: FakePrompter, game: GameInfo | None = None) -> bool | GameInfo:
+    """Run the prompt under *prompter*, collecting nothing from the terminal."""
+    with use_prompter(prompter), patch(f"{CMD_DONE_PKG}._echo"):
+        return _prompt_keep_or_skip(game or _game(), [], State())
 
 
 class TestPromptKeepOrSkip:
     """Tests for _prompt_keep_or_skip."""
 
-    def _game(self, hours: float = 5.0) -> GameInfo:
-        return GameInfo(
-            app_id=42,
-            name="Test",
-            total_achievements=10,
-            unlocked_achievements=5,
-            playtime_minutes=60,
-            completionist_hours=hours,
-        )
+    def test_non_interactive_accepts_silently(self) -> None:
+        prompter = FakePrompter(interactive=False)
+        assert _ask(prompter) is True
+        assert prompter.asked == []
 
-    def test_non_tty_accepts_silently(self) -> None:
-        with patch(f"{CMD_DONE_PKG}.sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = False
-            assert _prompt_keep_or_skip(self._game()) is True
+    def test_keep_accepts(self) -> None:
+        assert _ask(FakePrompter(choices=["keep"])) is True
 
-    def test_yes_answers_accept(self) -> None:
-        for answer in ("y", "Y", "yes", "YES", ""):
-            with (
-                patch(f"{CMD_DONE_PKG}.sys.stdin") as mock_stdin,
-                patch(f"{CMD_DONE_PKG}._echo"),
-                patch("builtins.input", return_value=answer),
-            ):
-                mock_stdin.isatty.return_value = True
-                assert _prompt_keep_or_skip(self._game()) is True, answer
+    def test_skip_rejects(self) -> None:
+        assert _ask(FakePrompter(choices=["skip"])) is False
 
-    def test_no_answers_reject(self) -> None:
-        for answer in ("n", "N", "no", "NO"):
-            with (
-                patch(f"{CMD_DONE_PKG}.sys.stdin") as mock_stdin,
-                patch(f"{CMD_DONE_PKG}._echo"),
-                patch("builtins.input", return_value=answer),
-            ):
-                mock_stdin.isatty.return_value = True
-                assert _prompt_keep_or_skip(self._game()) is False, answer
+    def test_offers_keep_skip_and_own_pick(self) -> None:
+        prompter = FakePrompter(choices=["keep"])
+        _ask(prompter)
+        assert prompter.asked == [("  Keep this game?", ["keep", "skip", "own"])]
 
-    def test_invalid_then_yes(self) -> None:
-        echoed: list[str] = []
+    def test_own_pick_returns_the_chosen_game(self) -> None:
+        mine = _game(app_id=7, name="Mine")
+        with patch(f"{CMD_DONE_PKG}.prompt_own_pick", return_value=mine):
+            assert _ask(FakePrompter(choices=["own"])) is mine
+
+    def test_going_back_from_own_pick_asks_again(self) -> None:
+        prompter = FakePrompter(choices=["own", "skip"])
+        with patch(f"{CMD_DONE_PKG}.prompt_own_pick", return_value=None):
+            assert _ask(prompter) is False
+        assert len(prompter.asked) == 2
+
+    def test_hours_are_shown_when_known(self) -> None:
         with (
-            patch(f"{CMD_DONE_PKG}.sys.stdin") as mock_stdin,
-            patch(
-                f"{CMD_DONE_PKG}._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch("builtins.input", side_effect=["maybe", "y"]),
+            use_prompter(FakePrompter(choices=["keep"])),
+            patch(f"{CMD_DONE_PKG}._echo") as echo,
         ):
-            mock_stdin.isatty.return_value = True
-            assert _prompt_keep_or_skip(self._game()) is True
-        assert any("answer 'y' or 'n'" in line for line in echoed)
-
-    def test_eof_accepts(self) -> None:
-        with (
-            patch(f"{CMD_DONE_PKG}.sys.stdin") as mock_stdin,
-            patch(f"{CMD_DONE_PKG}._echo"),
-            patch("builtins.input", side_effect=EOFError),
-        ):
-            mock_stdin.isatty.return_value = True
-            assert _prompt_keep_or_skip(self._game()) is True
+            _prompt_keep_or_skip(_game(), [], State())
+        assert "(~5.0h leisure+dlc)" in echo.call_args_list[0].args[0]
 
     def test_zero_hours_omits_hours_string(self) -> None:
-        echoed: list[str] = []
         with (
-            patch(f"{CMD_DONE_PKG}.sys.stdin") as mock_stdin,
-            patch(
-                f"{CMD_DONE_PKG}._echo",
-                side_effect=lambda *a, **_: echoed.append(a[0]),
-            ),
-            patch("builtins.input", return_value="y"),
+            use_prompter(FakePrompter(choices=["keep"])),
+            patch(f"{CMD_DONE_PKG}._echo") as echo,
         ):
-            mock_stdin.isatty.return_value = True
-            _prompt_keep_or_skip(self._game(hours=0.0))
-        # Without hours, the printed line should not contain "~"
-        assert not any("~" in line for line in echoed if "Next pick" in line)
+            _prompt_keep_or_skip(_game(hours=0.0), [], State())
+        assert "~" not in echo.call_args_list[0].args[0]

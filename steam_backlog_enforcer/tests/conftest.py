@@ -9,8 +9,7 @@ to temporary directories.  This stops tests from accidentally:
   - Modifying /etc/hosts via the store blocker
   - Corrupting the HLTB cache on disk
   - Launching real Steam or calling real subprocess commands
-  - Deleting real ~/.steam, ~/.local/share/Steam, etc. via the total-block
-    Steam/Proton remnant purge
+  - Deleting real ~/.steam, ~/.local/share/Steam via the remnant purge
 """
 
 from __future__ import annotations
@@ -20,7 +19,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Imported for its autouse side effect: naming it here registers it.
+# Imported for the autouse side effect (naming them registers them).
+from steam_backlog_enforcer.tests._isolate_control_plane import (
+    _forget_hltb_search_url,
+    _isolate_control_plane,
+    _isolate_cover_art,
+)
 from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._isolate_reading import _isolate_reading
@@ -33,6 +37,9 @@ from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
 # registers autouse fixtures by name, so they look unused to the linter.
 __all__ = [
     "_block_real_subprocesses",
+    "_forget_hltb_search_url",
+    "_isolate_control_plane",
+    "_isolate_cover_art",
     "_isolate_incidents",
     "_isolate_playtime",
     "_isolate_reading",
@@ -185,16 +192,15 @@ def _isolate_filesystem(tmp_path: Path) -> Iterator[None]:
 def _no_real_sleep() -> Iterator[None]:
     """No-op every ``time.sleep`` used by the package.
 
-    Several modules call ``time.sleep`` for Steam-launch / install-retry /
-    rate-limit pacing.  Individual tests that need to observe sleep
-    behaviour can override these patches inside their own ``with`` block.
+    Modules call ``time.sleep`` to pace Steam launch / install retries /
+    rate limits; tests that observe sleep override these patches.
     """
     noop = MagicMock()
     with (
         patch("steam_backlog_enforcer._steam_client.time.sleep", noop),
         patch("steam_backlog_enforcer._steam_launch.time.sleep", noop),
         patch("steam_backlog_enforcer._steam_api_client.time.sleep", noop),
-        # The loop waits on an inotify wake, not time.sleep: stub its factory.
+        # The loop waits on an inotify wake, not time.sleep.
         patch("steam_backlog_enforcer._enforce_loop.open_file_wake", noop),
     ):
         yield

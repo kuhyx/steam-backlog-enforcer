@@ -71,7 +71,7 @@ class TestEnforceLoopIteration:
         )
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}._guard_installed_games", return_value=1),
+            patch(f"{PKG}.guard_installed_games", return_value=1),
             patch(f"{PKG}._echo"),
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
@@ -84,7 +84,7 @@ class TestEnforceLoopIteration:
         )
         state = State(current_app_id=1, current_game_name="G")
         with (
-            patch(f"{PKG}._guard_installed_games", return_value=0),
+            patch(f"{PKG}.guard_installed_games", return_value=0),
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_loop_iteration(config, state, session=fake_session())
@@ -103,7 +103,7 @@ class TestEnforceLoopIteration:
         with (
             patch(f"{PKG}.steam_is_installed", return_value=False),
             patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
-            patch(f"{PKG}._guard_installed_games") as mock_guard,
+            patch(f"{PKG}.guard_installed_games") as mock_guard,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
             patch(f"{ENFORCE_STEPS_PKG}.install_game") as mock_install,
         ):
@@ -135,7 +135,7 @@ class TestEnforceLoopIteration:
         state = State(current_app_id=None)
         with (
             patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
-            patch(f"{PKG}._guard_installed_games") as mock_guard,
+            patch(f"{PKG}.guard_installed_games") as mock_guard,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
         ):
             _enforce_loop_iteration(config, state, session=fake_session())

@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._progress import current_progress
+from steam_backlog_enforcer._prompter import confirm_phrase
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -60,8 +62,9 @@ def cmd_uninstall(_config: Config, state: State) -> None:
         _echo(f"  - {name} (AppID={aid})")
 
     _echo()
-    confirm = input("Type YES to confirm: ").strip()
-    if confirm != "YES":
+    if not confirm_phrase(
+        "uninstall", f"Uninstall {len(to_remove)} games?", count=len(to_remove)
+    ):
         _echo("Aborted.")
         return
 
@@ -80,6 +83,9 @@ def cmd_install(config: Config, state: State) -> None:
         return
 
     _echo(f"Installing {state.current_game_name} (AppID={state.current_app_id})...")
+    # install_game only *starts* the download (fast installer or steam://);
+    # there is no download-progress loop to report on yet.
+    current_progress().phase(f"Starting install of {state.current_game_name}")
     if install_game(
         state.current_app_id,
         state.current_game_name,

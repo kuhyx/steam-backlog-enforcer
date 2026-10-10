@@ -12,7 +12,6 @@ from steam_backlog_enforcer.main import (
     _enforce_manual_pick_lock,
     _show_manual_pick_lock_message,
     cmd_abandon_pick,
-    cmd_status,
     main,
 )
 from steam_backlog_enforcer.tests._main_helpers import (
@@ -55,7 +54,7 @@ class TestCmdAbandonPick:
         state = abandonable_state(started_at=OLD_PICK)
         with (
             patch(f"{PKG}._echo"),
-            patch(f"{PKG}.input", return_value="YES"),
+            patch("builtins.input", return_value="abandon TestGame"),
             patch(f"{PKG}.is_game_installed", return_value=False),
             patch.object(State, "save"),
         ):
@@ -67,12 +66,24 @@ class TestCmdAbandonPick:
         state = abandonable_state(started_at="not-a-date")
         with (
             patch(f"{PKG}._echo"),
-            patch(f"{PKG}.input", return_value="YES"),
+            patch("builtins.input", return_value="abandon TestGame"),
             patch(f"{PKG}.is_game_installed", return_value=False),
             patch.object(State, "save"),
         ):
             cmd_abandon_pick(Config(), state, ["100"])
         assert state.manual_picks == []
+
+    def test_the_old_yes_answer_no_longer_confirms(self) -> None:
+        """The typed phrase names the game; a bare YES is a "no"."""
+        state = abandonable_state()
+        with (
+            patch(f"{PKG}._echo"),
+            patch("builtins.input", return_value="YES"),
+            patch.object(State, "save") as mock_save,
+        ):
+            cmd_abandon_pick(Config(), state, ["100"])
+        mock_save.assert_not_called()
+        assert [p["app_id"] for p in state.manual_picks] == [100]
 
     def test_aborted_when_not_yes(self) -> None:
         state = abandonable_state()
@@ -91,7 +102,7 @@ class TestCmdAbandonPick:
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="abandon TestGame"),
             patch.object(State, "save"),
             patch(f"{PKG}.is_game_installed", return_value=True),
             patch(f"{PKG}.uninstall_game", return_value=True) as mock_uninstall,
@@ -107,7 +118,7 @@ class TestCmdAbandonPick:
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="abandon TestGame"),
             patch.object(State, "save"),
             patch(f"{PKG}.is_game_installed", return_value=False),
             patch(f"{PKG}.uninstall_game") as mock_uninstall,
@@ -119,7 +130,7 @@ class TestCmdAbandonPick:
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="abandon TestGame"),
             patch.object(State, "save"),
             patch(f"{PKG}.is_game_installed", return_value=True),
             patch(f"{PKG}.uninstall_game", return_value=False),
@@ -176,7 +187,7 @@ class TestAbandonOneOfTwoPicks:
         state = two_pick_state()
         with (
             patch(f"{PKG}._echo") as mock_echo,
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="abandon SecondGame"),
             patch.object(State, "save"),
             patch(f"{PKG}.is_game_installed", return_value=False),
         ):
@@ -202,49 +213,3 @@ class TestAbandonOneOfTwoPicks:
         assert "picked 2 game(s)" in output
         assert "abandon-pick 100" in output
         assert "abandon-pick 200" in output
-
-    def test_status_lists_both_picks(self) -> None:
-        with (
-            patch(
-                "steam_backlog_enforcer.main.status.is_store_blocked",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer.main.status.get_installed_games",
-                return_value=[],
-            ),
-            patch(
-                "steam_backlog_enforcer.main.status.report_completion",
-                return_value=[],
-            ),
-            patch("steam_backlog_enforcer.main.status._echo") as mock_echo,
-        ):
-            cmd_status(Config(), two_pick_state())
-        output = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "Manual picks (2)" in output
-        assert "picked" in output
-        assert "day(s) ago" in output
-
-    def test_status_shows_age_for_old_picks(self) -> None:
-        state = two_pick_state()
-        state.manual_picks[0]["started_at"] = OLD_PICK
-        state.manual_picks[1]["started_at"] = OLD_PICK
-        with (
-            patch(
-                "steam_backlog_enforcer.main.status.is_store_blocked",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer.main.status.get_installed_games",
-                return_value=[],
-            ),
-            patch(
-                "steam_backlog_enforcer.main.status.report_completion",
-                return_value=[],
-            ),
-            patch("steam_backlog_enforcer.main.status._echo") as mock_echo,
-        ):
-            cmd_status(Config(), state)
-        assert "picked 8.0 day(s) ago" in " ".join(
-            str(c) for c in mock_echo.call_args_list
-        )

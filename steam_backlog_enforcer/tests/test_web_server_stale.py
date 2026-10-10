@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer import _web_server
+from steam_backlog_enforcer import _web_process
 from steam_backlog_enforcer.tests.test_web_server import _PKG, _get, _running
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ class TestStaleServerRefuses:
 
     def _clear_retiring(self) -> None:
         """Reset the module-level stand-down latch between tests."""
-        _web_server._RETIRING.clear()
+        _web_process.RETIRING.clear()
 
     @pytest.mark.parametrize("route", ["/api/budget", "/api/dataset", "/"])
     def test_every_route_refuses_when_stale(self, tmp_path: Path, route: str) -> None:
@@ -59,7 +59,7 @@ class TestStaleServerRefuses:
             _get(port, "/api/budget")
             # The 503 is sent before the latch is set, so the client can read
             # it first: wait rather than race (flaked in CI on 25dc493).
-            assert _web_server._RETIRING.wait(timeout=5)
+            assert _web_process.RETIRING.wait(timeout=5)
         self._clear_retiring()
 
     def test_a_second_refusal_does_not_stand_down_twice(
@@ -70,7 +70,7 @@ class TestStaleServerRefuses:
         self._clear_retiring()
         changed = tmp_path / "changed.py"
         changed.touch()
-        _web_server._RETIRING.set()
+        _web_process.RETIRING.set()
         with (
             patch(f"{_PKG}.outdated_source", return_value=changed),
             _running() as port,

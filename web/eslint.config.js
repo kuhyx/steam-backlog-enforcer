@@ -12,11 +12,19 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
+      // `recommended` includes the React Compiler rules since plugin v6.
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
     languageOptions: {
       globals: globals.browser,
+    },
+  },
+  {
+    // The dev-only mock API and the Vite config run in Node, not the browser.
+    files: ['mock/**/*.ts', 'vite.config.ts'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ])

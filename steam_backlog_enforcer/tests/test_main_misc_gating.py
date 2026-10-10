@@ -13,33 +13,36 @@ from steam_backlog_enforcer.tests._main_helpers import (
 )
 
 PKG = "steam_backlog_enforcer.main.misc"
+EXC_PKG = "steam_backlog_enforcer.main.exception"
+_PHRASE = "request exception for AppID=440"
+_BLOCK_PHRASE = "block all gaming for 14 days"
 
 
 class TestCmdAddException:
     def test_no_args_prints_usage_and_exits(self) -> None:
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception([])
 
     def test_missing_reason_flag_exits(self) -> None:
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception(["440", "no", "flag"])
 
     def test_non_numeric_app_id_exits(self) -> None:
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception(["notanumber", "--reason", VALID_REASON])
 
     def test_reason_flag_with_no_value_exits(self) -> None:
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception(["440", "--reason"])
@@ -47,34 +50,59 @@ class TestCmdAddException:
     def test_reason_flag_last_position_with_no_value_exits(self) -> None:
         # 3 args passes the len/flag guard but --reason is last so reason_parts=[]
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception(["440", "extra", "--reason"])
 
     def test_invalid_reason_exits(self) -> None:
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception(["440", "--reason", "too short"])
 
     def test_add_pending_exception_raises_value_error(self) -> None:
         with (
-            patch(f"{PKG}._echo"),
+            patch(f"{EXC_PKG}._echo"),
+            patch("builtins.input", return_value=_PHRASE),
             patch(
-                f"{PKG}.add_pending_exception",
+                f"{EXC_PKG}.add_pending_exception",
                 side_effect=ValueError("already approved"),
             ),
             pytest.raises(SystemExit, match="1"),
         ):
             cmd_add_exception(["440", "--reason", VALID_REASON])
 
+    def test_wrong_phrase_aborts_before_adding(self) -> None:
+        with (
+            patch(f"{EXC_PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value="please"),
+            patch(f"{EXC_PKG}.add_pending_exception") as mock_add,
+            pytest.raises(SystemExit, match="1"),
+        ):
+            cmd_add_exception(["440", "--reason", VALID_REASON])
+        mock_add.assert_not_called()
+        assert mock_echo.call_args.args == ("Aborted.",)
+
+    def test_phrase_names_the_game_from_the_snapshot(self) -> None:
+        with (
+            patch(f"{EXC_PKG}._echo"),
+            patch(f"{EXC_PKG}.snapshot_game_name", return_value="Team Fortress 2"),
+            patch(
+                "builtins.input", return_value="request exception for Team Fortress 2"
+            ),
+            patch(f"{EXC_PKG}.add_pending_exception", return_value="done") as add,
+        ):
+            cmd_add_exception(["440", "--reason", VALID_REASON])
+        add.assert_called_once_with(440, VALID_REASON)
+
     def test_happy_path(self) -> None:
         with (
-            patch(f"{PKG}._echo") as mock_echo,
+            patch(f"{EXC_PKG}._echo") as mock_echo,
+            patch("builtins.input", return_value=_PHRASE),
             patch(
-                f"{PKG}.add_pending_exception",
+                f"{EXC_PKG}.add_pending_exception",
                 return_value="Exception approved for AppID 440. Active immediately.",
             ),
         ):
@@ -119,7 +147,7 @@ class TestCmdBlockGaming:
     def test_confirmed_starts_block(self) -> None:
         with (
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value=_BLOCK_PHRASE),
             patch(f"{PKG}.start_total_block", return_value=True) as mock_start,
         ):
             cmd_block_gaming(["14"])
@@ -128,7 +156,7 @@ class TestCmdBlockGaming:
     def test_start_failure_exits_nonzero(self) -> None:
         with (
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value=_BLOCK_PHRASE),
             patch(f"{PKG}.start_total_block", return_value=False),
             pytest.raises(SystemExit) as exc_info,
         ):

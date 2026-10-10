@@ -31,7 +31,7 @@ export function BudgetPanel({ demo }: Props) {
   }
 
   return (
-    <main className="content budget">
+    <div className="content budget">
       {/* A state file we cannot read must say so and still show everything we
           can read — the log, the history and the config are all reachable. */}
       {data.today === null ? (
@@ -49,6 +49,6 @@ export function BudgetPanel({ demo }: Props) {
         budgetSeconds={data.rules.budget_seconds}
       />
       <BudgetRulesCard rules={data.rules} />
-    </main>
+    </div>
   )
 }

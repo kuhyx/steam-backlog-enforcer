@@ -14,6 +14,7 @@ import shutil
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._game_names import _is_protected_name
+from steam_backlog_enforcer._progress import tracked
 from steam_backlog_enforcer._protected_apps import PROTECTED_APP_IDS
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH, _assert_not_real_steam
 from steam_backlog_enforcer._whitelist_locking import get_approved_exception_ids
@@ -148,7 +149,7 @@ def uninstall_other_games(allowed_app_ids: set[int]) -> int:
     installed = get_installed_games()
     count = 0
 
-    for app_id, name in installed:
+    for app_id, name in tracked(installed, "Uninstalling games", lambda g: g[1]):
         if app_id in allowed_app_ids:
             logger.info("KEEPING allowed game: %s (AppID=%d)", name, app_id)
             continue

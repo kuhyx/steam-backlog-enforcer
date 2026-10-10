@@ -71,6 +71,11 @@ def _atomic_write(path: Path, data: str, *, mode: int | None = None) -> None:
         raise
 
 
+# The public name, for callers outside this module. The private one predates
+# it and is still what most of the package imports (and what tests patch).
+atomic_write = _atomic_write
+
+
 def _field_names(cls: type) -> frozenset[str]:
     """The dataclass's own field names, for filtering a loaded JSON object."""
     return frozenset(f.name for f in fields(cls))

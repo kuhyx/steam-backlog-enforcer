@@ -18,9 +18,34 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_rush_cache,
     save_hltb_cache,
 )
+from steam_backlog_enforcer._progress import current_progress
 from steam_backlog_enforcer.hltb import fetch_hltb_times_timed, games_per_second
 
 logger = logging.getLogger(__name__)
+
+
+def reporting_progress_cb(
+    label: str, total: int, inner: ProgressCb | None
+) -> ProgressCb:
+    """Start a progress phase and return a callback that advances it.
+
+    The returned callback forwards to *inner* (the CLI's carriage-return meter), so
+    the terminal output is unchanged while a web job gets real steps.
+
+    Args:
+        label: Phase label shown in the UI.
+        total: Number of lookups in the phase.
+        inner: The caller's own callback, if any.
+    """
+    progress = current_progress()
+    progress.phase(label, total)
+
+    def report(done: int, total: int, found: int, name: str) -> None:
+        progress.advance(name, step=done)
+        if inner is not None:
+            inner(done, total, found, name)
+
+    return report
 
 
 # ──────────────────────────────────────────────────────────────
@@ -55,7 +80,10 @@ def fetch_hltb_times_cached(
             len(uncached),
             len(games) - len(uncached),
         )
-        elapsed = fetch_hltb_times_timed(uncached, cache, polls, progress_cb, extras)
+        report = reporting_progress_cb(
+            "Fetching HLTB times", len(uncached), progress_cb
+        )
+        elapsed = fetch_hltb_times_timed(uncached, cache, polls, report, extras)
 
         # Final save.
         save_hltb_cache(cache, polls, extras)

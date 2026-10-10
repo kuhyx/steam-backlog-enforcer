@@ -1,6 +1,6 @@
 """CLI handlers for the daily gaming budget.
 
-Every ``_echo`` / ``input`` / ``sys.exit`` for this feature lives here rather
+Every ``_echo`` / prompt / ``sys.exit`` for this feature lives here rather
 than in :mod:`steam_backlog_enforcer._playtime` or
 :mod:`steam_backlog_enforcer._playtime_block`, so the MCP server can import
 those modules' leaf helpers without any risk of writing to stdout — which is
@@ -9,24 +9,22 @@ the JSON-RPC channel.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import os
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._enforce_loop import do_enforce
-from steam_backlog_enforcer._gaming_days import gaming_day_key
+from steam_backlog_enforcer._gaming_reset import reset_today
 from steam_backlog_enforcer._playtime_block import (
     block_targets,
     mounted_targets,
     release_block,
 )
 from steam_backlog_enforcer._playtime_state import (
-    PlaytimeState,
     load_state,
     rules_for,
-    save_state,
     state_path,
 )
+from steam_backlog_enforcer._prompter import confirm_phrase
 from steam_backlog_enforcer.game_install import _echo
 
 if TYPE_CHECKING:
@@ -92,11 +90,11 @@ def cmd_gaming_status(config: Config, _state: State) -> None:
         _echo(f"  {target}")
 
 
-def cmd_gaming_reset(config: Config, _state: State) -> int:
+def cmd_gaming_reset(_config: Config, _state: State) -> int:
     """Zero today's gaming counter and lift the block.
 
     Args:
-        config: Enforcer configuration.
+        _config: Unused; required by the command dispatch signature.
         _state: Unused; required by the command dispatch signature.
 
     Returns:
@@ -107,17 +105,12 @@ def cmd_gaming_reset(config: Config, _state: State) -> int:
         return 1
 
     _echo("This resets today's gaming counter and lifts the block.")
-    if input("Type YES to confirm: ").strip() != "YES":
+    if not confirm_phrase("gaming-reset", "Reset today's gaming budget"):
         _echo("Aborted.")
         return 1
 
-    released = release_block()
-    now = datetime.now(UTC).astimezone()
-    save_state(
-        PlaytimeState(day_key=gaming_day_key(now), last_tick_at=now.timestamp()),
-        demo=rules_for(config, demo=False).demo,
-    )
-    _echo(f"Gaming counter reset. Released {len(released)} mount(s).")
+    outcome = reset_today(source="cli")
+    _echo(f"Gaming counter reset. Released {len(outcome.released)} mount(s).")
     return 0
 
 

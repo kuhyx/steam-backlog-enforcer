@@ -15,6 +15,12 @@ from steam_backlog_enforcer._assignment_progress import (
     last_assigned_epoch,
     record_assignment,
 )
+from steam_backlog_enforcer._own_pick import (
+    OWN_PICK_OPTION,
+    OWN_PICK_VALUE,
+    prompt_own_pick,
+)
+from steam_backlog_enforcer._prompter import PromptOption, current_prompter
 from steam_backlog_enforcer._scanning_candidates import (
     _pick_next_shortest_candidate,
     _sort_key,
@@ -45,24 +51,28 @@ _NO_CONF_MSG = (
 )
 
 
-def _prompt_user_pick(qualified: list[GameInfo]) -> int:
-    """Present numbered list, return 0-based index of user's choice."""
-    for i, g in enumerate(qualified, 1):
+def _prompt_user_pick(
+    qualified: list[GameInfo], games: list[GameInfo], state: State
+) -> GameInfo:
+    """Present the ranked list plus "pick my own"; return the chosen game.
+
+    Backing out of the own-game search (empty answer) shows the list again.
+    """
+    options: list[PromptOption] = []
+    for i, g in enumerate(qualified):
         hours_str = (
             f" (~{g.completionist_hours:.1f}h)" if g.completionist_hours > 0 else ""
         )
-        _echo(f"  {i}. {g.name} (AppID={g.app_id}){hours_str}")
+        label = f"{g.name} (AppID={g.app_id}){hours_str}"
+        options.append(PromptOption(value=str(i), label=label))
+    options.append(OWN_PICK_OPTION)
     while True:
-        raw = input("Select game number: ")
-        try:
-            idx = int(raw)
-        except ValueError:
-            _echo(f"Invalid input: {raw!r}")
-            continue
-        if idx < 1 or idx > len(qualified):
-            _echo(f"Out of range: {idx}")
-            continue
-        return idx - 1
+        picked = current_prompter().choice("Select game number", options)
+        if picked != OWN_PICK_VALUE:
+            return qualified[int(picked)]
+        own = prompt_own_pick(games, state)
+        if own is not None:
+            return own
 
 
 def _assign_chosen_game(
@@ -145,13 +155,14 @@ def _pick_next_game_sequential(
     games: list[GameInfo],
     state: State,
     config: Config,
-    on_select: Callable[[GameInfo], bool],
+    on_select: Callable[[GameInfo], bool | GameInfo],
 ) -> None:
     """Pick the next-shortest playable game, asking the user per candidate.
 
     ``on_select`` is called with each prospective pick. Returning ``True``
     accepts the assignment; returning ``False`` records a 7-day skip on
-    ``state`` for that game and the next candidate is evaluated.
+    ``state`` for that game and the next candidate is evaluated; returning a
+    game assigns that one instead (the user picked their own).
     """
     while True:
         candidates = _open_candidates(games, state)
@@ -168,11 +179,14 @@ def _pick_next_game_sequential(
             )
             return
 
-        if not on_select(chosen):
+        verdict = on_select(chosen)
+        if verdict is False:
             state.skip_for_days(chosen.app_id, 7)
             state.save()
             _echo(f"\n  Skipped {chosen.name} for 7 days; picking next...")
             continue
 
-        _assign_chosen_game(chosen, games, state, config)
+        _assign_chosen_game(
+            chosen if verdict is True else verdict, games, state, config
+        )
         return

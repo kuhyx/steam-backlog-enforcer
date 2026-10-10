@@ -20,6 +20,8 @@ from steam_backlog_enforcer._pick_completion import (
     report_completion,
     warn_stale_assignment,
 )
+from steam_backlog_enforcer._progress import tracked
+from steam_backlog_enforcer._prompter import confirm_phrase, current_prompter
 from steam_backlog_enforcer._snapshot import load_snapshot, snapshot_game_name
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
@@ -129,7 +131,8 @@ def _apply_allowed_set(config: Config, state: State) -> None:
         if count:
             _echo(f"  Uninstalled {count} non-allowed game(s)")
 
-    for app_id, name in allowed_games(state):
+    games = allowed_games(state)
+    for app_id, name in tracked(games, "Installing allowed games", lambda g: g[1]):
         if is_game_fully_installed(app_id):
             _echo(f"  {name} is already installed.")
             continue
@@ -149,7 +152,7 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         state: Current enforcer state.
         args: Remaining CLI args (first element should be the app_id).
     """
-    raw_id = args[0] if args else input("Enter Steam app_id: ").strip()
+    raw_id = args[0] if args else current_prompter().text("Enter Steam app_id")
 
     try:
         app_id = int(raw_id)
@@ -189,11 +192,11 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
             " playable until you confirm)"
         )
     _echo()
-    confirm = input(
-        f"Type YES to confirm you will play {game_name} until you earn a new"
-        " achievement: "
-    ).strip()
-    if confirm != "YES":
+    if not confirm_phrase(
+        "pick-manual",
+        f"Confirm you will play {game_name} until you earn a new achievement.",
+        game_name=game_name,
+    ):
         _echo("Aborted.")
         warn_stale_assignment(state, retired)
         return

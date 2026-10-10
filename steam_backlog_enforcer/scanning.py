@@ -16,6 +16,7 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_polls_cache,
 )
 from steam_backlog_enforcer._pick_completion import report_completion
+from steam_backlog_enforcer._progress import current_progress
 from steam_backlog_enforcer._scanning_assign import (
     _NO_CONF_MSG,
     _assign_chosen_game,
@@ -151,7 +152,7 @@ def pick_next_game(
     state: State,
     config: Config,
     *,
-    on_select: Callable[[GameInfo], bool] | None = None,
+    on_select: Callable[[GameInfo], bool | GameInfo] | None = None,
 ) -> None:
     """Present a ranked list of eligible games and let the user pick one.
 
@@ -181,8 +182,8 @@ def pick_next_game(
         _clear_assignment(state, _no_pick_message(confidence_skipped, linux_skipped))
         return
 
-    idx = _prompt_user_pick(qualified)
-    _assign_chosen_game(qualified[idx], games, state, config)
+    chosen = _prompt_user_pick(qualified, games, state)
+    _assign_chosen_game(chosen, games, state, config)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -200,7 +201,10 @@ def do_check(config: Config, state: State) -> None:
     client = SteamAPIClient(config.steam_api_key, config.steam_id)
     _echo(f"Checking {state.current_game_name} (AppID={state.current_app_id})...")
 
+    progress = current_progress()
+    progress.phase("Fetching achievements from Steam", 1)
     game = client.refresh_single_game(state.current_app_id, state.current_game_name)
+    progress.advance(state.current_game_name)
     if game is None:
         _echo("  Could not fetch achievement data.")
         return

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
@@ -13,6 +12,12 @@ from steam_backlog_enforcer._hltb_confidence import (
 from steam_backlog_enforcer._hltb_types import (
     load_hltb_polls_cache,
 )
+from steam_backlog_enforcer._own_pick import (
+    OWN_PICK_OPTION,
+    OWN_PICK_VALUE,
+    prompt_own_pick,
+)
+from steam_backlog_enforcer._prompter import PromptOption, current_prompter
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -24,38 +29,42 @@ if TYPE_CHECKING:
 
 _REASSIGN_REFRESH_LIMIT = 50
 _SKIP_DAYS = 7
+_KEEP = "keep"
+_SKIP = "skip"
 logger = logging.getLogger(__name__)
 
 
-def _prompt_keep_or_skip(game: GameInfo) -> bool:
+def _prompt_keep_or_skip(
+    game: GameInfo, games: list[GameInfo], state: State
+) -> bool | GameInfo:
     """Ask the user whether to keep the freshly-picked ``game``.
 
     Returns ``True`` to accept the pick, ``False`` to skip it (which the
-    caller will translate into a 7-day skip entry on ``State``). When
-    stdin is not a TTY (e.g. background daemon, piped invocation), the
-    pick is accepted silently to preserve the legacy non-interactive
-    behaviour.
+    caller will translate into a 7-day skip entry on ``State``), or the game
+    the user searched for when they pick their own instead. When no human
+    can answer (a CLI whose stdin is not a TTY: background daemon, piped
+    invocation), the pick is accepted silently to preserve the legacy
+    non-interactive behaviour. A web job always asks.
     """
-    if not sys.stdin.isatty():
+    prompter = current_prompter()
+    if not prompter.interactive:
         return True
     hours_str = ""
     if game.completionist_hours > 0:
         hours_str = f" (~{game.completionist_hours:.1f}h leisure+dlc)"
     _echo(f"\n  Next pick: {game.name} (AppID={game.app_id}){hours_str}")
+    options = [
+        PromptOption(value=_KEEP, label=f"Keep {game.name}"),
+        PromptOption(value=_SKIP, label=f"Skip it for {_SKIP_DAYS} days"),
+        OWN_PICK_OPTION,
+    ]
     while True:
-        try:
-            answer = (
-                input(f"  Keep this game? [Y/n] (n = skip for {_SKIP_DAYS} days): ")
-                .strip()
-                .lower()
-            )
-        except EOFError:
-            return True
-        if answer in {"", "y", "yes"}:
-            return True
-        if answer in {"n", "no"}:
-            return False
-        _echo("  Please answer 'y' or 'n'.")
+        answer = prompter.choice("  Keep this game?", options)
+        if answer != OWN_PICK_VALUE:
+            return answer == _KEEP
+        own = prompt_own_pick(games, state)
+        if own is not None:
+            return own
 
 
 def _backfill_polls_for_finished(

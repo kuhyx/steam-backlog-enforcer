@@ -25,7 +25,7 @@ class TestEnforceLoopIterationTotalBlock:
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}.enforce_total_block_tick") as mock_tick,
             patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
-            patch(f"{PKG}._guard_installed_games") as mock_guard,
+            patch(f"{PKG}.guard_installed_games") as mock_guard,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
         ):
             _enforce_loop_iteration(config, state, session=fake_session())

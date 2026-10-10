@@ -1,130 +1,109 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { makeBudget, makeDataset, makeGame, makeState } from './test/factories'
+import { refreshAfterJob } from './api/queries'
+import { hub } from './jobs/hub'
+import { router } from './router'
+import { makeBudget, makeDataset } from './test/factories'
+import { makeInstalled, makeJob, makeLibGame, makeSpec, makeStatus } from './test/fixtures'
+import { installEventSource, stubApi } from './test/harness'
+
+const routes = (over: Record<string, unknown> = {}) => ({
+  'GET /api/setup': { configured: true, has_api_key: true, steam_id: '76561198000000000' },
+  'GET /api/server': { stale: false, started_at: '2026-10-10T10:00:00Z', version: '1' },
+  'GET /api/daemon': { state: 'running', started_at: null, pid: 1, journal_tail: [], restart_available_at: null },
+  'GET /api/status': makeStatus(),
+  'GET /api/budget': makeBudget(),
+  'GET /api/dataset': makeDataset(),
+  'GET /api/stats': { default_summary: makeDataset().default_summary, pace_vs_hltb: null },
+  'GET /api/installed': { games: [makeInstalled()] },
+  'GET /api/library': { games: [makeLibGame()] },
+  'GET /api/backups': [],
+  'GET /api/jobs': [],
+  'GET /api/jobs/abc': makeJob({ id: 'abc', command: 'scan' }),
+  'GET /api/commands': [makeSpec('scan'), makeSpec('done')],
+  ...over,
+})
+
+// The router only follows history while a RouterProvider is mounted, so
+// awaiting router.navigate() before render would never settle: set the URL,
+// mount, then have the router read it.
+async function openAt(path: string) {
+  router.history.replace(path)
+  const view = render(<App />)
+  await act(async () => {
+    await router.load()
+  })
+  return view
+}
 
 describe('App', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-  })
+  beforeEach(installEventSource)
   afterEach(() => {
+    router.history.replace('/')
     vi.unstubAllGlobals()
   })
 
-  it('renders the planner after data loads', async () => {
-    const ds = makeDataset([makeGame({ app_id: 1, name: 'Alpha' })])
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ds }),
-    )
-    render(<App />)
-    expect(screen.getByText(/Loading your backlog/i)).toBeInTheDocument()
-    await waitFor(() =>
-      expect(
-        screen.getByRole('heading', { name: 'Backlog Completion Planner' }),
-      ).toBeInTheDocument(),
-    )
-    expect(screen.getByText(/CLI default qualifies/i)).toBeInTheDocument()
+  it('refreshes every cached view when any job ends', () => {
+    expect(hub.onTerminal).toBe(refreshAfterJob)
   })
 
-  it('shows an error when the API call fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' }),
-    )
-    render(<App />)
-    await waitFor(() =>
-      expect(screen.getByText(/Could not load data/i)).toBeInTheDocument(),
-    )
+  it('opens on the dashboard inside the shell', async () => {
+    stubApi(routes())
+    await openAt('/')
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Sections' })).toBeInTheDocument()
+    expect(await screen.findByText('Hollow Knight')).toBeInTheDocument()
   })
 
-  it('handles a non-Error rejection', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('network down'))
-    render(<App />)
-    await waitFor(() =>
-      expect(screen.getByText(/network down/i)).toBeInTheDocument(),
-    )
+  it('walks the sidebar to another section', async () => {
+    stubApi(routes())
+    await openAt('/')
+    await userEvent.click(await screen.findByRole('link', { name: /Store/ }))
+    expect(await screen.findByRole('heading', { name: 'Store' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/store')
   })
 
-  it('recomputes scope when basis changes and a game is excluded', async () => {
-    const ds = makeDataset(
-      [makeGame({ app_id: 1, name: 'Alpha' }), makeGame({ app_id: 2, name: 'Beta' })],
-      {
-        state: makeState({
-          current_game_name: 'Hollow Knight',
-          enforcement_started_at: '2026-03-04T00:00:00+00:00',
-          pace_games_per_day: 0.9,
-        }),
-      },
-    )
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ds }),
-    )
-    const user = userEvent.setup()
-    render(<App />)
-    await waitFor(() =>
-      expect(
-        screen.getByRole('heading', { name: 'Backlog Completion Planner' }),
-      ).toBeInTheDocument(),
-    )
-    // The current game appears in the header (covers the conditional branch).
-    expect(screen.getByText(/Hollow Knight/)).toBeInTheDocument()
-    expect(document.querySelector('.big')?.textContent).toBe('2')
-
-    // Switching basis promotes the Rush card to active.
-    await user.click(screen.getByRole('button', { name: 'Rush' }))
-    expect(document.querySelector('.card.active .card-title')?.textContent).toBe('Rush')
-
-    // Excluding a game drops the in-scope count.
-    await user.click(within(screen.getByRole('table')).getAllByRole('checkbox')[0])
-    expect(document.querySelector('.big')?.textContent).toBe('1')
-
-    // Re-including it restores the count (covers the toggle-off branch).
-    await user.click(within(screen.getByRole('table')).getAllByRole('checkbox')[0])
-    expect(document.querySelector('.big')?.textContent).toBe('2')
-
-    // Searching narrows the table (covers the search handler).
-    await user.type(screen.getByPlaceholderText(/Search games/i), 'Alpha')
-    expect(within(screen.getByRole('table')).queryByText('Beta')).toBeNull()
-
-    // Reset restores the full scope (covers the reset handler).
-    await user.click(screen.getByRole('button', { name: /Reset to CLI defaults/i }))
-    expect(document.querySelector('.big')?.textContent).toBe('2')
+  it('shows the library at /library', async () => {
+    stubApi(routes())
+    await openAt('/library')
+    expect(await screen.findByText('1 of 1 games')).toBeInTheDocument()
   })
 
-  it('switches to the budget tab and back', async () => {
-    const ds = makeDataset([makeGame({ app_id: 1, name: 'Alpha' })])
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(
-          url.startsWith('/api/budget')
-            ? { ok: true, json: async () => makeBudget() }
-            : { ok: true, json: async () => ds },
-        ),
-      ),
-    )
-    const user = userEvent.setup()
-    render(<App />)
-    await waitFor(() =>
-      expect(
-        screen.getByRole('heading', { name: 'Backlog Completion Planner' }),
-      ).toBeInTheDocument(),
-    )
+  describe('/gaming search', () => {
+    const modes: [string, string, string][] = [
+      ['true', '?demo=true', 'Show production budget'],
+      ['1', '?demo=1', 'Show production budget'],
+      ['"1"', '?demo=%221%22', 'Show production budget'],
+      ['anything else', '?demo=maybe', 'Show demo budget'],
+      ['absent', '', 'Show demo budget'],
+    ]
+    it.each(modes)('demo=%s', async (_label, query, link) => {
+      stubApi(routes({ 'GET /api/budget?demo=1': makeBudget() }))
+      await openAt(`/gaming${query}`)
+      expect(await screen.findByRole('link', { name: link })).toBeInTheDocument()
+    })
+  })
 
-    await user.click(screen.getByRole('tab', { name: 'Gaming budget' }))
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument(),
-    )
-    expect(screen.queryByRole('table')).toBeNull()
+  it('routes /jobs/$jobId to the job’s page', async () => {
+    stubApi(routes())
+    await openAt('/jobs/abc')
+    expect(await screen.findByRole('heading', { name: 'Scan', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('abc')).toBeInTheDocument()
+  })
 
-    await user.click(screen.getByRole('tab', { name: 'Backlog planner' }))
-    await waitFor(() =>
-      expect(
-        screen.getByRole('heading', { name: 'Backlog Completion Planner' }),
-      ).toBeInTheDocument(),
-    )
+  it('shows the not-found screen inside the shell', async () => {
+    stubApi(routes())
+    await openAt('/nope')
+    expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Sections' })).toBeInTheDocument()
+  })
+
+  it('redirects an unconfigured install to Setup', async () => {
+    stubApi(routes({ 'GET /api/setup': { configured: false, has_api_key: false, steam_id: null } }))
+    await openAt('/picks')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/setup'))
+    expect(await screen.findByText('Not configured yet')).toBeInTheDocument()
   })
 })

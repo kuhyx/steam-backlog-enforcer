@@ -64,6 +64,25 @@ install_web_user_unit() {
 
 install_web_user_unit
 
+# The desktop entry is how the UI gets opened day to day (./run.sh with no
+# arguments does the same), so it is installed with the unit that serves it.
+install_desktop_entry() {
+    local target_user home_dir dst
+    target_user="${SUDO_USER:-$USER}"
+    home_dir="$(getent passwd "$target_user" | cut -d: -f6)"
+    [[ -n $home_dir ]] || return 0
+    dst="$home_dir/.local/share/applications/steam-backlog-enforcer.desktop"
+    mkdir -p "$(dirname "$dst")"
+    sed "s|__REPO_DIR__|$SCRIPT_DIR|g" \
+        "$SCRIPT_DIR/steam-backlog-enforcer.desktop" > "$dst"
+    if [[ $EUID -eq 0 ]]; then
+        chown "$target_user" "$dst"
+    fi
+    echo "Installed desktop entry: $dst"
+}
+
+install_desktop_entry
+
 # Install systemd service (system-level, runs as root).
 #
 # Non-interactive callers (install_core_system.sh, CI, `vm run`) have no stdin,
@@ -113,6 +132,10 @@ if [[ "${ans,,}" == "y" ]]; then
     systemctl daemon-reload
     systemctl enable steam-backlog-enforcer
     echo "Service installed and enabled."
+    # The unit's RuntimeDirectory/StateDirectory (control socket, restart rate
+    # limit) are created when the service STARTS; a daemon that was already
+    # running keeps serving without ctl.sock until it is restarted.
+    echo "  Web-UI control socket: /run/steam-backlog-enforcer/ctl.sock (created on start)"
     echo "  Start now:  sudo systemctl start steam-backlog-enforcer"
     echo "  Check:      sudo systemctl status steam-backlog-enforcer"
     echo "  Logs:       sudo journalctl -u steam-backlog-enforcer -f"

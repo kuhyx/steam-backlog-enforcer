@@ -16,6 +16,19 @@ Environment=STEAM_ENFORCER_DESKTOP_USER=__DESKTOP_USER__
 Environment=DISPLAY=:0
 # Hardening: enforcer must not be easily killed.
 OOMScoreAdjust=-900
+# /run/steam-backlog-enforcer: the control socket for the web UI (ctl.sock) and
+# the playtime refusal stub (gaming-blocked, bind-mounted over /usr/bin/steam
+# while the budget is spent). Mode 0755 so the stub stays executable by
+# everyone; the socket file carries its own 0660 + SO_PEERCRED check.
+# Preserve=yes: with the default (no) systemd deletes the directory whenever the
+# unit stops, which would delete the stub out from under a live block.
+RuntimeDirectory=steam-backlog-enforcer
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+# /var/lib/steam-backlog-enforcer: root-only state of the control socket (the
+# persisted restart rate limit).
+StateDirectory=steam-backlog-enforcer
+StateDirectoryMode=0700
 # Journal backstop. Steam's srt-logger runs in this unit's cgroup and mirrors
 # Steam's console into journald; 2026-09-12 it wrote 481k "joystick FFB"
 # lines in one boot (99% of the journal) and evicted two weeks of history.

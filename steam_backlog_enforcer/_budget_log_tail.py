@@ -23,7 +23,10 @@ import json
 import logging
 from typing import Any, Final
 
-from steam_backlog_enforcer._playtime_log import budget_log_path
+from steam_backlog_enforcer._playtime_log import (
+    EVENT_MANUAL_ADJUSTMENT,
+    budget_log_path,
+)
 from steam_backlog_enforcer._playtime_procs import process_name
 
 logger = logging.getLogger(__name__)
@@ -79,7 +82,10 @@ def _last_record(*, demo: bool) -> dict[str, Any] | None:
             record = json.loads(line)
         except ValueError:
             continue
-        if isinstance(record, dict):
+        # A manual adjustment (e.g. a gaming reset) is an audit note, not a
+        # tick verdict: returning it would blank the live status until the
+        # next verdict change or heartbeat.
+        if isinstance(record, dict) and record.get("event") != EVENT_MANUAL_ADJUSTMENT:
             return record
     return None
 

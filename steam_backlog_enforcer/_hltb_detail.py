@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from typing import Any
 
 import aiohttp
@@ -27,12 +26,9 @@ from steam_backlog_enforcer._hltb_types import (
     _HLTBExtras,
     save_hltb_cache,
 )
+from steam_backlog_enforcer._progress import gather_tracked
 
 logger = logging.getLogger(__name__)
-
-_NEXT_DATA_RE = re.compile(
-    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
-)
 
 
 def _extract_base_leisure_hours(game_data: dict[str, Any]) -> float:
@@ -183,7 +179,8 @@ async def _fetch_leisure_times(
         connector=connector,
     ) as session:
         coros = [_fetch_detail_one(sem, session, r.hltb_game_id) for r in valid]
-        details = await asyncio.gather(*coros)
+        names = [r.game_name for r in valid]
+        details = await gather_tracked("Fetching HLTB detail pages", coros, names)
 
         dlc_relationships_by_app, dlc_ids = _collect_dlc_relationships(valid, details)
         dlc_hours_by_id = await _fetch_dlc_leisure_hours(sem, session, dlc_ids)
@@ -237,7 +234,7 @@ async def _fetch_dlc_leisure_hours(
         return {}
 
     coros = [_fetch_detail_one(sem, session, dlc_id) for dlc_id in dlc_ids]
-    dlc_details = await asyncio.gather(*coros)
+    dlc_details = await gather_tracked("Fetching HLTB DLC pages", coros)
 
     dlc_hours_by_id: dict[int, float] = {}
     for dlc_id, dlc_data in zip(dlc_ids, dlc_details, strict=False):

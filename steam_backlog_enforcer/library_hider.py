@@ -24,6 +24,7 @@ from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._cdp import _cdp_result_value, _evaluate_js
 from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
+from steam_backlog_enforcer._progress import current_progress
 from steam_backlog_enforcer._steam_errors import (
     SteamUnavailableError,
 )
@@ -177,10 +178,15 @@ def try_hide_other_games(
         pass ran; otherwise it explains why hiding was skipped and the count
         is 0.
     """
+    # One CDP evaluation does every pass, so there is no per-game step.
+    progress = current_progress()
+    progress.phase("Hiding games in the Steam library", 1)
     try:
         return hide_other_games(owned_app_ids, allowed_app_ids), None
     except SteamUnavailableError as exc:
         return 0, str(exc)
+    finally:
+        progress.advance(step=1)
 
 
 def unhide_all_games(owned_app_ids: list[int]) -> int:
@@ -188,6 +194,9 @@ def unhide_all_games(owned_app_ids: list[int]) -> int:
 
     Returns the number of games that were unhidden.
     """
+    # One CDP evaluation unhides everything, so the phase is a single step.
+    progress = current_progress()
+    progress.phase("Unhiding games in the Steam library", 1)
     ensure_steam_debug_port()
 
     json.dumps(sorted(owned_app_ids))
@@ -203,6 +212,7 @@ def unhide_all_games(owned_app_ids: list[int]) -> int:
     """
 
     result = _evaluate_js(js)
+    progress.advance(step=1)
     value = _cdp_result_value(result)
     parsed = json.loads(value)
     count: int = parsed["count"]

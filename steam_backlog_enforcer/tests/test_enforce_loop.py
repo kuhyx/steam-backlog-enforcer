@@ -148,7 +148,7 @@ class TestGetAllOwnedAppIds:
             result = get_all_owned_app_ids(Config(steam_api_key="k", steam_id="i"))
 
         assert result == [10, 20]
-        mock_save.assert_called_once_with("i", [10, 20])
+        mock_save.assert_called_once_with("i", [10, 20], [{"appid": 10}, {"appid": 20}])
 
 
 class TestOwnedIdsCacheHelpers:

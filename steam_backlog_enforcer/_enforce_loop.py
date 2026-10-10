@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import logging
 
-from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
+from steam_backlog_enforcer._actions import allowed_app_ids
+from steam_backlog_enforcer._ctl_control import start_control
+from steam_backlog_enforcer._ctl_gap import settle_restart_gap
 from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._enforce_guards import allowed_names, guard_installed_games
 from steam_backlog_enforcer._enforce_steps import (
     _enforce_setup,
     _reinstall_missing_allowed,
@@ -40,11 +43,6 @@ from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
     send_notification,
 )
-from steam_backlog_enforcer.game_uninstall import (
-    get_installed_games,
-    is_protected_app,
-    uninstall_game,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -58,49 +56,32 @@ __all__ = [
 ]
 
 
-def _allowed_names(state: State) -> str:
-    """Return a human-readable list of the games the user may play.
+def _reload_state(state: State) -> bool:
+    """Refresh *state* in place from disk, so CLI changes take effect at once.
+
+    Covers e.g. a new game assignment via ``done`` / ``scan`` without needing
+    to restart the daemon.
 
     Args:
-        state: Current enforcer state.
+        state: The daemon's state object, updated in place.
 
     Returns:
-        Comma-separated game names, or "your assigned game" when none is set.
+        False (after logging) if the file could not be read; *state* is then
+        left as it was.
     """
-    names = [name for _, name in allowed_games(state) if name]
-    return ", ".join(names) if names else "your assigned game"
-
-
-def _guard_installed_games(allowed: set[int]) -> int:
-    """Remove any unauthorized game manifests + files.  Runs every loop.
-
-    Args:
-        allowed: Every app id that may stay installed — the assignment plus
-            any concurrent manual picks.
-
-    Returns number of games removed this pass.
-    """
-    if not allowed:
-        return 0
-    installed = get_installed_games()
-    count = 0
-    for app_id, name in installed:
-        if app_id in allowed:
-            continue
-        if is_protected_app(app_id):
-            continue
-
-        logger.warning(
-            "Unauthorized game detected — removing: %s (AppID=%d)", name, app_id
-        )
-        if uninstall_game(app_id, name):
-            count += 1
-            send_notification(
-                "Game Removed!",
-                f"Uninstalled {name} (AppID={app_id}). "
-                f"Only your assigned game(s) are allowed.",
-            )
-    return count
+    try:
+        fresh = State.load()
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
+        logger.warning("Failed to reload state: %s", exc)
+        return False
+    # Every field, not a hand-picked few: the daemon's pick sweep saves this
+    # object, and any field left stale here (cooldowns, pick release times,
+    # assignment times) would overwrite what the CLI or the MCP server wrote.
+    # The MCP pick_manual tool also adds a *second* pick without touching
+    # current_app_id, which a daemon that never reloaded manual_picks would
+    # uninstall.
+    vars(state).update(vars(fresh))
+    return True
 
 
 def _enforce_loop_iteration(
@@ -164,12 +145,12 @@ def _enforce_loop_iteration(
             send_notification(
                 "Game Blocked!",
                 f"Killed unauthorized game (AppID={app_id}). "
-                f"Focus on {_allowed_names(state)}!",
+                f"Focus on {allowed_names(state)}!",
             )
 
     # B) Remove any newly-installed unauthorized games.
     if config.uninstall_other_games:
-        removed = _guard_installed_games(allowed)
+        removed = guard_installed_games(allowed)
         if removed > 0:
             _echo(f"  Guard removed {removed} unauthorized game(s)")
 
@@ -225,26 +206,28 @@ def do_enforce(config: Config, state: State, *, demo: bool = False) -> None:
     session = new_session(demo=demo)
     # A credited workout wakes the wait, so the budget moves within the tick.
     wake = open_file_wake([workout_log_path(config)])
+    # Root-only control socket for the web UI. Its ops take tick_lock, so they
+    # never interleave with a pass; inert (no socket) when not the real daemon.
+    control = start_control(config, demo=demo)
+    with control.tick_lock:
+        settle_restart_gap(config, session, base_interval=ENFORCE_INTERVAL, demo=demo)
     try:
         while True:
-            # Reload state from disk so CLI changes (e.g. new game
-            # assignment via ``done`` / ``scan``) take effect immediately
-            # without needing to restart the daemon.
-            try:
-                fresh = State.load()
-            except (json.JSONDecodeError, OSError, ValueError) as exc:
-                logger.warning("Failed to reload state: %s", exc)
-                wake.wait(ENFORCE_INTERVAL)
-                continue
-            # Every field, not a hand-picked few: the daemon's pick sweep saves
-            # this object, and any field left stale here (cooldowns, pick
-            # release times, assignment times) would overwrite what the CLI
-            # or the MCP server wrote. The MCP pick_manual tool also adds a
-            # *second* pick without touching current_app_id, which a daemon
-            # that never reloaded manual_picks would uninstall.
-            vars(state).update(vars(fresh))
-
-            _enforce_loop_iteration(config, state, session=session, demo=demo)
+            with control.tick_lock:
+                # Reloaded under the lock: a control-socket op that saved
+                # state a moment ago must not be overwritten by a copy read
+                # before it ran.
+                if _reload_state(state):
+                    _enforce_loop_iteration(config, state, session=session, demo=demo)
+                leave = control.flush_for_restart(
+                    config, session, interval=ENFORCE_INTERVAL, demo=demo
+                )
+            if leave:
+                # Exit cleanly: Restart=always brings the unit straight back.
+                _echo("Restart requested: state flushed, exiting.")
+                return
             wake.wait(ENFORCE_INTERVAL)
     except KeyboardInterrupt:
         _echo("\nEnforcer stopped.")
+    finally:
+        control.close()

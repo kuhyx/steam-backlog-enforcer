@@ -54,11 +54,12 @@ class TestCmdUninstall:
                 f"{PKG}.get_installed_games",
                 return_value=[(440, "TF2"), (730, "CS")],
             ),
-            patch(f"{PKG}.uninstall_other_games", return_value=1),
-            patch("builtins.input", return_value="YES"),
+            patch(f"{PKG}.uninstall_other_games", return_value=1) as mock_uninstall,
+            patch("builtins.input", return_value="uninstall 1 games"),
             patch(f"{PKG}._echo"),
         ):
             cmd_uninstall(Config(), state)
+        mock_uninstall.assert_called_once()
 
     def test_aborts(self) -> None:
         state = State(current_app_id=440)
@@ -67,11 +68,13 @@ class TestCmdUninstall:
                 f"{PKG}.get_installed_games",
                 return_value=[(440, "TF2"), (730, "CS")],
             ),
-            patch("builtins.input", return_value="no"),
+            patch("builtins.input", return_value="YES"),
+            patch(f"{PKG}.uninstall_other_games") as mock_uninstall,
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_uninstall(Config(), state)
             assert any("Aborted" in str(c) for c in mock_echo.call_args_list)
+        mock_uninstall.assert_not_called()
 
 
 class TestCmdInstall:

@@ -126,51 +126,53 @@ class TestCheckGameTampering:
         assert result is None
 
 
+def _client_showing(extra: dict[int, int]) -> MagicMock:
+    """A Steam client whose games each show ``extra[app_id]`` new unlocks (5 -> 5+n)."""
+    client = MagicMock()
+
+    def refresh(app_id: int, _name: str, _playtime: int) -> MagicMock:
+        game = MagicMock()
+        game.unlocked_achievements = 5 + extra.get(app_id, 0)
+        return game
+
+    client.refresh_single_game.side_effect = refresh
+    return client
+
+
 class TestDetectTampering:
     """Tests for detect_tampering."""
+
+    def _run(self, entries: list[dict[str, Any]], client: MagicMock) -> MagicMock:
+        with (
+            patch(f"{PKG}.load_snapshot", return_value=entries),
+            patch(f"{PKG}.SteamAPIClient", return_value=client),
+            patch(f"{PKG}._echo") as mock_echo,
+            patch(f"{PKG}.send_notification") as notify,
+        ):
+            detect_tampering(Config(steam_api_key="k", steam_id="i"), State())
+        self.notify = notify
+        return mock_echo
 
     def test_no_snapshot(self) -> None:
         with patch(f"{PKG}.load_snapshot", return_value=None):
             detect_tampering(Config(steam_api_key="k", steam_id="i"), State())
 
     def test_no_tampering(self) -> None:
-        entries = [_entry(app_id=1)]
-        with (
-            patch(f"{PKG}.load_snapshot", return_value=entries),
-            patch(f"{PKG}.SteamAPIClient"),
-            patch(f"{PKG}._check_game_tampering", return_value=None),
-            patch(f"{PKG}._echo"),
-        ):
-            detect_tampering(Config(steam_api_key="k", steam_id="i"), State())
+        mock_echo = self._run([_entry(app_id=1)], _client_showing({}))
+        mock_echo.assert_not_called()
+        self.notify.assert_not_called()
 
     def test_tampering_found(self) -> None:
         entries = [_entry(app_id=1, name="BadGame")]
-        with (
-            patch(f"{PKG}.load_snapshot", return_value=entries),
-            patch(f"{PKG}.SteamAPIClient"),
-            patch(
-                f"{PKG}._check_game_tampering",
-                return_value=("BadGame", 1, 3),
-            ),
-            patch(f"{PKG}._echo") as mock_echo,
-            patch(f"{PKG}.send_notification"),
-        ):
-            detect_tampering(Config(steam_api_key="k", steam_id="i"), State())
+        mock_echo = self._run(entries, _client_showing({1: 3}))
         assert any("TAMPERING" in str(c) for c in mock_echo.call_args_list)
+        assert any("BadGame (AppID=1): +3" in str(c) for c in mock_echo.call_args_list)
+        self.notify.assert_called_once()
 
     def test_stops_at_limit(self) -> None:
-        """Stops after _TAMPER_CHECK_LIMIT suspicious games."""
+        """Reports only the first _TAMPER_CHECK_LIMIT suspicious games."""
         entries = [_entry(app_id=i, name=f"G{i}") for i in range(10)]
-        with (
-            patch(f"{PKG}.load_snapshot", return_value=entries),
-            patch(f"{PKG}.SteamAPIClient"),
-            patch(
-                f"{PKG}._check_game_tampering",
-                return_value=("Game", 1, 1),
-            ) as mock_check,
-            patch(f"{PKG}._echo"),
-            patch(f"{PKG}.send_notification"),
-        ):
-            detect_tampering(Config(steam_api_key="k", steam_id="i"), State())
-        # Should stop after 3 (_TAMPER_CHECK_LIMIT)
-        assert mock_check.call_count == 3
+        mock_echo = self._run(entries, _client_showing(dict.fromkeys(range(10), 1)))
+        reported = [c for c in mock_echo.call_args_list if "AppID=" in str(c)]
+        assert len(reported) == 3
+        assert "G0" in str(reported[0])

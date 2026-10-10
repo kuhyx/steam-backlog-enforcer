@@ -25,7 +25,7 @@ class TestPickManualCap:
             patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -59,7 +59,7 @@ class TestPickManualCap:
             patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -82,7 +82,7 @@ class TestPickManualCap:
             patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0) as mock_uninstall,
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -105,7 +105,7 @@ class TestPickManualCap:
             patch(f"{PKG}.report_completion", return_value=[]),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=False),
@@ -121,7 +121,7 @@ class TestPickManualCap:
 
 
 class TestPickManualRetirementNotices:
-    """A pick retired by the sweep is announced before the YES prompt."""
+    """A pick retired by the sweep is announced before the typed-phrase prompt."""
 
     def test_warns_about_uninstall_and_stale_assignment(self) -> None:
         state = locked_state(app_id=100)

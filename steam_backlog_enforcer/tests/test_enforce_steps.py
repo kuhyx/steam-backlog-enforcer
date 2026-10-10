@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from steam_backlog_enforcer._enforce_loop import _guard_installed_games
+from steam_backlog_enforcer._enforce_guards import guard_installed_games
 from steam_backlog_enforcer._enforce_steps import (
     _enforce_auto_install,
     _enforce_hide_games,
@@ -17,52 +17,55 @@ from steam_backlog_enforcer.config import Config, State
 
 PKG = "steam_backlog_enforcer._enforce_loop"
 ENFORCE_STEPS_PKG = "steam_backlog_enforcer._enforce_steps"
+GUARDS_PKG = "steam_backlog_enforcer._enforce_guards"
 OWNED_APPS_CACHE_PKG = "steam_backlog_enforcer._owned_apps_cache"
 
 
 class TestGuardInstalledGames:
-    """Tests for _guard_installed_games."""
+    """Tests for guard_installed_games."""
 
     def test_removes_unauthorized(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GUARDS_PKG}.get_installed_games",
                 return_value=[(999, "Bad Game")],
             ),
-            patch(f"{PKG}.uninstall_game", return_value=True),
-            patch(f"{ENFORCE_STEPS_PKG}.send_notification"),
+            patch(f"{GUARDS_PKG}.uninstall_game", return_value=True),
+            patch(f"{GUARDS_PKG}.send_notification"),
         ):
-            assert _guard_installed_games({440}) == 1
+            assert guard_installed_games({440}) == 1
 
     def test_skips_allowed(self) -> None:
         with patch(
-            f"{PKG}.get_installed_games",
+            f"{GUARDS_PKG}.get_installed_games",
             return_value=[(440, "TF2")],
         ):
-            assert _guard_installed_games({440}) == 0
+            assert guard_installed_games({440}) == 0
 
     def test_skips_protected(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GUARDS_PKG}.get_installed_games",
                 return_value=[(228980, "Runtime")],
             ),
-            patch(f"{PKG}.is_protected_app", side_effect=lambda aid: aid == 228980),
+            patch(
+                f"{GUARDS_PKG}.is_protected_app", side_effect=lambda aid: aid == 228980
+            ),
         ):
-            assert _guard_installed_games({440}) == 0
+            assert guard_installed_games({440}) == 0
 
     def test_uninstall_fails(self) -> None:
         with (
             patch(
-                f"{PKG}.get_installed_games",
+                f"{GUARDS_PKG}.get_installed_games",
                 return_value=[(999, "Bad")],
             ),
-            patch(f"{PKG}.uninstall_game", return_value=False),
+            patch(f"{GUARDS_PKG}.uninstall_game", return_value=False),
         ):
-            assert _guard_installed_games({440}) == 0
+            assert guard_installed_games({440}) == 0
 
     def test_allowed_none_skips(self) -> None:
-        assert _guard_installed_games(set()) == 0
+        assert guard_installed_games(set()) == 0
 
 
 class TestEnforceSetup:

@@ -1,7 +1,7 @@
 """Commands that do not belong to a larger group.
 
-Store blocking, state reset, setup, whitelist exceptions, the web UI and the
-total gaming block.
+Store blocking, state reset, setup, the web UI and the total gaming block.
+``add-exception`` lives in :mod:`steam_backlog_enforcer.main.exception`.
 """
 
 from __future__ import annotations
@@ -10,8 +10,10 @@ import errno
 import sys
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._backups import create_backup
 from steam_backlog_enforcer._config_setup import interactive_setup
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._prompter import confirm_phrase
 from steam_backlog_enforcer._serve_startup import (
     ensure_port_available,
     parse_serve_args,
@@ -24,25 +26,11 @@ from steam_backlog_enforcer._store_window import (
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer._web_build import build_frontend, frontend_is_stale
 from steam_backlog_enforcer._web_server import serve
-from steam_backlog_enforcer._whitelist import validate_reason
-from steam_backlog_enforcer._whitelist_locking import add_pending_exception
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.library_hider import unhide_all_games
-from steam_backlog_enforcer.store_blocker import unblock_store
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
-
-_MIN_ADD_EXCEPTION_ARGS = 3
-_ADD_EXCEPTION_USAGE = (
-    'Usage: add-exception <app_id> --reason "<justification>"\n'
-    "  app_id   : numeric Steam application ID\n"
-    "  --reason : genuine justification (>= 5 words)\n\n"
-    "Example:\n"
-    "  add-exception 440 --reason "
-    '"TF2 is needed for a community event this weekend"\n\n'
-    "Exceptions become active immediately."
-)
 
 _BLOCK_GAMING_USAGE = (
     "Usage: block-gaming <days>\n"
@@ -84,8 +72,22 @@ def cmd_buy_dlc(config: Config, state: State) -> None:
 
 
 def cmd_reset(config: Config, state: State) -> None:
-    """Reset all state (unblock, unhide, clear assignment)."""
-    unblock_store()
+    """Reset all state (unhide, clear assignment), backed up first.
+
+    The store block is deliberately left alone. The daemon only re-blocks the
+    store at startup or when a timed window ends, so lifting it here would be
+    an open-ended window that skips ``unblock``'s 1-30 minute cap and phrase.
+
+    Args:
+        config: Loaded configuration.
+        state: State to wipe.
+    """
+    if not confirm_phrase("reset", "Wipe all enforcer state?"):
+        _echo("Aborted.")
+        return
+    backup = create_backup("before reset")
+    if backup is not None:
+        _echo(f"State backed up as {backup.id}.")
 
     # Unhide all games in the library.
     try:
@@ -108,7 +110,7 @@ def cmd_reset(config: Config, state: State) -> None:
     state.last_assigned_at = {}
     state.released_at = {}
     state.save()
-    _echo("State reset. Store unblocked.")
+    _echo("State reset. Store left blocked: open a timed window with 'unblock'.")
 
 
 def cmd_setup(_config: Config, _state: State) -> None:
@@ -144,49 +146,6 @@ def cmd_serve(args: list[str]) -> None:
         sys.exit(1)
 
 
-def cmd_add_exception(args: list[str]) -> None:
-    """Add a whitelist exception, active immediately.
-
-    Usage: add-exception <app_id> --reason "<text>"
-
-    The exception becomes active right away (no cooldown).  The reason must be
-    a genuine justification of at least 5 words with sufficient entropy.
-
-    Args:
-        args: CLI argument list after the command name.
-    """
-    if len(args) < _MIN_ADD_EXCEPTION_ARGS or "--reason" not in args:
-        _echo(_ADD_EXCEPTION_USAGE)
-        sys.exit(1)
-
-    try:
-        app_id = int(args[0])
-    except ValueError:
-        _echo(f"Error: app_id must be a number, got '{args[0]}'.")
-        sys.exit(1)
-
-    reason_idx = args.index("--reason")
-    reason_parts = args[reason_idx + 1 :]
-    if not reason_parts:
-        _echo("Error: --reason requires a value.")
-        sys.exit(1)
-    reason = " ".join(reason_parts)
-
-    # Show validation feedback before attempting to add.
-    err = validate_reason(reason)
-    if err is not None:
-        _echo(f"Invalid reason: {err}")
-        sys.exit(1)
-
-    try:
-        msg = add_pending_exception(app_id, reason)
-    except ValueError as exc:
-        _echo(f"Error: {exc}")
-        sys.exit(1)
-
-    _echo(msg)
-
-
 def cmd_block_gaming(args: list[str]) -> None:
     """Start a total gaming block for a fixed number of days.
 
@@ -220,8 +179,9 @@ def cmd_block_gaming(args: list[str]) -> None:
         f"\nsystem administration outside this tool."
     )
     _echo()
-    confirm = input(f"Type YES to confirm a {days}-day total gaming block: ").strip()
-    if confirm != "YES":
+    if not confirm_phrase(
+        "block-gaming", f"Block all gaming for {days} day(s)?", days=days
+    ):
         _echo("Aborted.")
         return
 

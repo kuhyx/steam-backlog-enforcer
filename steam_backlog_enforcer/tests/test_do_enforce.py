@@ -5,8 +5,9 @@ Split to keep every test file under the 250-line cap.
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -180,3 +181,28 @@ class TestStateReload:
             do_enforce(Config(), state)
         assert state.manual_picks == fresh.manual_picks
         assert state.finished_app_ids == [7]
+
+
+class TestRestartRequested:
+    """A control-socket ``restart`` op ends the loop cleanly."""
+
+    def test_flush_then_exit_without_waiting(self) -> None:
+        state = State(current_app_id=1, current_game_name="G")
+        control = MagicMock()
+        control.tick_lock = threading.Lock()
+        control.flush_for_restart.return_value = True
+        with (
+            patch(f"{PKG}.steam_is_installed", return_value=True),
+            patch(f"{PKG}._enforce_setup"),
+            patch(f"{PKG}._echo") as mock_echo,
+            patch(f"{PKG}.start_control", return_value=control),
+            patch(f"{PKG}.settle_restart_gap"),
+            patch.object(State, "load", return_value=state),
+            patch(f"{PKG}._enforce_loop_iteration") as mock_iter,
+            patch(f"{PKG}.open_file_wake") as wake,
+        ):
+            do_enforce(Config(), state)
+        mock_iter.assert_called_once()
+        control.flush_for_restart.assert_called_once()
+        wake.return_value.wait.assert_not_called()
+        assert any("Restart requested" in str(c) for c in mock_echo.call_args_list)

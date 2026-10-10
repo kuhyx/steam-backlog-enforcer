@@ -22,6 +22,7 @@ from steam_backlog_enforcer._cmd_done import (
 )
 from steam_backlog_enforcer._hltb_cached import fetch_hltb_times_cached
 from steam_backlog_enforcer._hltb_types import load_hltb_cache
+from steam_backlog_enforcer._progress import current_progress
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.enforcer import (
@@ -70,7 +71,12 @@ def _finalize_completion(
     skip = set(state.finished_app_ids) | state.active_skipped_ids()
     _refresh_uncached_shortlist_hours(games, hltb_cache, skip)
     _apply_cached_hours_to_games(games, hltb_cache)
-    pick_next_game(games, state, config, on_select=_prompt_keep_or_skip)
+    pick_next_game(
+        games,
+        state,
+        config,
+        on_select=lambda g: _prompt_keep_or_skip(g, games, state),
+    )
 
     if state.current_app_id in {None, game.app_id}:
         # Nothing new was accepted, so the released game stays assigned.
@@ -160,7 +166,10 @@ def cmd_done(config: Config, state: State) -> None:
     app_id = state.current_app_id
 
     _echo(f"Checking {game_name} (AppID={app_id})...")
+    progress = current_progress()
+    progress.phase("Fetching achievements from Steam", 1)
     game = client.refresh_single_game(app_id, game_name)
+    progress.advance(game_name)
     if game is None:
         _echo("  Could not fetch achievement data from Steam.")
         return

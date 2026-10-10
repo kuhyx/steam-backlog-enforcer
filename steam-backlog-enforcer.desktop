@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Steam Backlog Enforcer
+Comment=Backlog, gaming budget and enforcer controls
+Exec=__REPO_DIR__/scripts/open_ui.sh
+Icon=applications-games
+Terminal=false
+Categories=Game;
+StartupWMClass=steam-backlog-enforcer

@@ -45,7 +45,15 @@ _EXTENDED_MIN_CONFIDENCE = 3
 _USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
 
 
-def _get_hltb_search_url() -> str:
+_DEFAULT_SEARCH_URL = "https://howlongtobeat.com/api/finder"
+# Discovery scrapes the homepage and its JS bundles (~0.8 s), and one command
+# can run several HLTB batches (``stats`` runs three), so a discovered URL is
+# reused for a while. Failures are never remembered: they retry next time.
+_SEARCH_URL_TTL_SECONDS = 1800.0
+_search_url_memo: dict[str, tuple[float, str]] = {}
+
+
+def _discover_hltb_search_url() -> str:
     """Discover the current HLTB search API endpoint.
 
     Scrapes the homepage for JS bundles containing the fetch URL, walking
@@ -60,7 +68,24 @@ def _get_hltb_search_url() -> str:
             return url
     except OSError, RuntimeError, ValueError, TypeError:
         logger.debug("Failed to discover HLTB search URL, using default")
-    return "https://howlongtobeat.com/api/finder"
+    return _DEFAULT_SEARCH_URL
+
+
+def _get_hltb_search_url() -> str:
+    """Return the HLTB search endpoint, rediscovering it once it is stale."""
+    now = time.monotonic()
+    memo = _search_url_memo.get("url")
+    if memo is not None and now - memo[0] < _SEARCH_URL_TTL_SECONDS:
+        return memo[1]
+    url = _discover_hltb_search_url()
+    if url != _DEFAULT_SEARCH_URL:
+        _search_url_memo["url"] = (now, url)
+    return url
+
+
+def forget_hltb_search_url() -> None:
+    """Drop the remembered endpoint, e.g. after it stopped handing out tokens."""
+    _search_url_memo.clear()
 
 
 async def _get_auth_info(

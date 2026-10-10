@@ -41,7 +41,7 @@ class TestCmdPickManual:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", side_effect=["489830", "YES"]),
+            patch("builtins.input", side_effect=["489830", "lock in Skyrim SE"]),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -59,7 +59,7 @@ class TestCmdPickManual:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save") as mock_save,
             patch(f"{PKG}.uninstall_other_games", return_value=2) as mock_uninstall,
             patch(f"{PKG}.is_game_fully_installed", return_value=False),
@@ -89,7 +89,7 @@ class TestCmdPickManual:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -107,7 +107,7 @@ class TestCmdPickManual:
         with (
             patch(f"{PKG}._resolve_game_name", return_value="Skyrim SE"),
             patch(f"{PKG}._echo"),
-            patch("builtins.input", return_value="YES"),
+            patch("builtins.input", return_value="lock in Skyrim SE"),
             patch.object(State, "save"),
             patch(f"{PKG}.uninstall_other_games", return_value=0),
             patch(f"{PKG}.is_game_fully_installed", return_value=True),

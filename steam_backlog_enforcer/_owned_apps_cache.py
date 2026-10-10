@@ -15,7 +15,7 @@ from typing import Any
 
 from steam_backlog_enforcer._snapshot import load_snapshot
 from steam_backlog_enforcer.config import CONFIG_DIR, Config, _atomic_write
-from steam_backlog_enforcer.steam_api import SteamAPIClient
+from steam_backlog_enforcer.steam_api import SteamAPIClient, SteamAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +51,78 @@ def _load_owned_app_ids_cache(steam_id: str) -> list[int] | None:
     return [int(app_id) for app_id in raw_ids]
 
 
-def _save_owned_app_ids_cache(steam_id: str, app_ids: list[int]) -> None:
-    """Persist owned app IDs cache for this steam_id."""
-    payload = {
+def _owned_record(game: dict[str, Any]) -> dict[str, Any]:
+    """The part of a ``GetOwnedGames`` entry the web library shows."""
+    return {
+        "app_id": int(game["appid"]),
+        "name": str(game.get("name") or ""),
+        "playtime_minutes": int(game.get("playtime_forever") or 0),
+        "last_played": int(game.get("rtime_last_played") or 0),
+        # False: the game has no achievements at all (vs. not scanned yet).
+        "has_stats": bool(game.get("has_community_visible_stats")),
+    }
+
+
+def _save_owned_app_ids_cache(
+    steam_id: str, app_ids: list[int], games: list[dict[str, Any]] | None = None
+) -> None:
+    """Persist owned app IDs cache for this steam_id.
+
+    *games* (the raw API entries) adds the ``games`` records the library
+    view reads; ``app_ids`` stays as it was for the enforce loop.
+    """
+    payload: dict[str, Any] = {
         "steam_id": steam_id,
         "fetched_at": time.time(),
         "app_ids": app_ids,
     }
+    if games is not None:
+        payload["games"] = [_owned_record(g) for g in games if "appid" in g]
     _atomic_write(_OWNED_IDS_CACHE_FILE, json.dumps(payload, indent=2) + "\n")
+
+
+def owned_cache_stamp() -> tuple[int, int]:
+    """``(mtime_ns, size)`` of the cache file; ``(0, 0)`` when absent."""
+    try:
+        st = _OWNED_IDS_CACHE_FILE.stat()
+    except OSError:
+        return (0, 0)
+    return (st.st_mtime_ns, st.st_size)
+
+
+def load_owned_records(steam_id: str) -> list[dict[str, Any]] | None:
+    """Cached per-game records (name, playtime, last played), any age.
+
+    Names and play history barely change between refreshes, so the TTL that
+    guards the id list does not apply. ``None`` when no refresh has stored
+    records for this account yet.
+    """
+    try:
+        data = json.loads(_OWNED_IDS_CACHE_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError, OSError, ValueError:
+        return None
+    if not isinstance(data, dict) or str(data.get("steam_id", "")) != steam_id:
+        return None
+    games = data.get("games")
+    return games if isinstance(games, list) else None
+
+
+def refresh_owned_records(config: Config) -> list[dict[str, Any]] | None:
+    """Fetch the owned list from Steam and cache it with records.
+
+    Returns:
+        The records, or ``None`` when Steam could not be asked.
+    """
+    if not (config.steam_api_key and config.steam_id):
+        return None
+    try:
+        owned = SteamAPIClient(config.steam_api_key, config.steam_id).get_owned_games()
+    except OSError, SteamAPIError, ValueError:
+        logger.warning("Could not fetch the owned game list.")
+        return None
+    api_ids = [int(g["appid"]) for g in owned if "appid" in g]
+    _save_owned_app_ids_cache(config.steam_id, api_ids, owned)
+    return [_owned_record(g) for g in owned if "appid" in g]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -92,7 +156,7 @@ def get_all_owned_app_ids(config: Config) -> list[int]:
         client = SteamAPIClient(config.steam_api_key, config.steam_id)
         owned = client.get_owned_games()
         api_ids = [int(g["appid"]) for g in owned if "appid" in g]
-        _save_owned_app_ids_cache(config.steam_id, api_ids)
+        _save_owned_app_ids_cache(config.steam_id, api_ids, owned)
 
         merged_ids: list[int] = []
         seen: set[int] = set()

@@ -1,10 +1,13 @@
-"""Minimal read-only localhost HTTP server for the interactive web UI.
+"""Localhost HTTP server for the web UI: the control API and the React bundle.
 
-Serves the projected dataset at ``GET /api/dataset`` and the built React
-bundle (``web/dist``) as static files.  Binds to localhost only and never
-exposes secrets: the payload comes from :func:`build_web_dataset`, which reads
-the data caches but never ``config.json``.
+A thin router. Per request it, in order: checks ``Host`` (every route — the
+DNS-rebinding guard, :mod:`._web_auth`), fails closed on stale code
+(:mod:`._serve_stale`), checks ``Origin`` and the per-launch token on
+anything that is not a GET (and on the SSE stream), then hands off to a
+route from :mod:`._web_routes`, the SSE streamer (:mod:`._web_sse`) or the
+static bundle (``web/dist``, with the token injected into ``index.html``).
 
+Binds to loopback only; never serves secrets and never sends CORS headers.
 In development the Vite dev server proxies ``/api`` here; in production the
 ``serve`` command serves the built bundle and the API from one process.
 """
@@ -13,18 +16,23 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
 import logging
 import mimetypes
 from pathlib import Path
-import threading
-import time
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
-from steam_backlog_enforcer._budget_view import build_budget_snapshot
+from steam_backlog_enforcer import _web_auth, _web_process
 from steam_backlog_enforcer._serve_stale import outdated_source
-from steam_backlog_enforcer._web_dataset import build_web_dataset, dataset_to_payload
-from steam_backlog_enforcer.config import State
+from steam_backlog_enforcer._web_errors import ApiError, not_found
+from steam_backlog_enforcer._web_io import (
+    Request,
+    read_json_body,
+    send_bytes,
+    send_error,
+    send_reply,
+)
+from steam_backlog_enforcer._web_routes import EVENTS_PATH, resolve
+from steam_backlog_enforcer._web_sse import stream_job_events
 from steam_backlog_enforcer.game_install import _echo
 
 logger = logging.getLogger(__name__)
@@ -34,132 +42,178 @@ WEB_DIST = (Path(__file__).resolve().parent.parent / "web" / "dist").resolve()
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
-_API_DATASET = "/api/dataset"
-_API_BUDGET = "/api/budget"
-
-# Content types that are text but not under the ``text/`` prefix.
-_EXTRA_TEXT_TYPES = frozenset(
-    {"application/javascript", "application/json", "image/svg+xml"}
-)
+_INDEX = "index.html"
 _NOT_BUILT_MSG = b"Frontend not built. Run: cd web && npm install && npm run build"
-
-# Epoch seconds this process began, captured at import. Anything in the
-# package newer than this is code we did not load.
-_STARTED_AT = time.time()
-
-# Set once a stale server has begun standing down, so concurrent requests
-# do not each spawn a shutdown thread.
-_RETIRING = threading.Event()
-
 _STALE_MSG = (
-    b"This server is running outdated code and has stopped answering rather "
-    b"than report numbers the enforcer is not applying. Restart it: "
-    b"./run.sh serve"
+    "This server is running outdated code and has stopped answering rather "
+    "than report numbers the enforcer is not applying. It restarts on "
+    "current code by itself under systemd; otherwise run ./run.sh serve"
 )
+
+
+class WebServer(ThreadingHTTPServer):
+    """The HTTP server plus its per-launch token."""
+
+    def __init__(self, address: tuple[str, int]) -> None:
+        """Bind to *address* and mint this launch's token."""
+        super().__init__(address, _Handler)
+        self.token = _web_auth.new_token()
+
+    @property
+    def port(self) -> int:
+        """The bound port (the real one, also when bound to port 0)."""
+        return int(self.server_address[1])
 
 
 class _Handler(BaseHTTPRequestHandler):
-    """Serve the dataset JSON and the static frontend bundle (read-only)."""
+    """Route one request: auth, stale check, then API, SSE or static."""
+
+    server: WebServer
 
     def log_message(self, fmt: str, /, *args: object) -> None:
         """Route the default request log to ``logging`` at debug level."""
         logger.debug("%s - %s", self.address_string(), fmt % args)
 
     def do_GET(self) -> None:
-        """Dispatch a GET to one of the APIs or to a static file."""
-        stale = outdated_source(_STARTED_AT)
-        if stale is not None:
-            # Fail closed on every route, static included: a page served from a
-            # fresh bundle that then fetches numbers from stale code is the
-            # same lie with extra steps.
-            self._send(HTTPStatus.SERVICE_UNAVAILABLE, _STALE_MSG, "text/plain")
-            self._retire()
-            return
+        """Handle a GET."""
+        self._handle("GET")
+
+    def do_POST(self) -> None:
+        """Handle a POST."""
+        self._handle("POST")
+
+    def do_DELETE(self) -> None:
+        """Handle a DELETE."""
+        self._handle("DELETE")
+
+    def _handle(self, method: str) -> None:
+        """Run the checks, then dispatch; every refusal is a JSON error."""
         split = urlsplit(self.path)
-        if split.path == _API_DATASET:
-            self._serve_dataset()
-        elif split.path == _API_BUDGET:
-            # ``?demo=1`` reads the demo run's state and log, which is how the
-            # 60-second demo can be watched hitting its cutoff in the browser
-            # without spending a real day's budget to see it.
-            self._serve_budget(demo="demo=1" in split.query)
-        else:
-            self._serve_static(split.path)
+        try:
+            host = _web_auth.check_host(self.headers, self.server.port)
+            if self._refused_as_stale(split.path):
+                return
+            if method != "GET":
+                _web_auth.check_origin(self.headers, host)
+                token = self.headers.get(_web_auth.AUTH_HEADER)
+                _web_auth.check_token(token, self.server.token)
+            self._dispatch(method, split.path, _query(split.query))
+        except ApiError as exc:
+            send_error(self, exc)
+        except Exception:
+            logger.exception("%s %s failed", method, split.path)
+            msg = "The server failed to answer this request; see its log."
+            send_error(
+                self,
+                ApiError(
+                    msg, code="op_failed", status=HTTPStatus.INTERNAL_SERVER_ERROR
+                ),
+            )
 
-    def _retire(self) -> None:
-        """Answer this request, then stop the server so it can be replaced.
+    def _dispatch(self, method: str, path: str, query: dict[str, str]) -> None:
+        """Send the request to the SSE stream, an API route or the bundle."""
+        events = EVENTS_PATH.fullmatch(path) if method == "GET" else None
+        if events is not None:
+            # EventSource cannot send headers: the token rides in the query.
+            _web_auth.check_token(query.get(_web_auth.AUTH_QUERY), self.server.token)
+            request = Request(method, path, query, events.groups(), self.headers)
+            stream_job_events(self, request)
+            return
+        if not path.startswith("/api/"):
+            if method != "GET":
+                raise _method_not_allowed()
+            self._serve_static(path)
+            return
+        found = resolve(method, path)
+        if found is None:
+            msg = f"No such endpoint: {path}"
+            raise not_found(msg)
+        if isinstance(found, str):
+            raise _method_not_allowed()
+        route, args = found
+        body = read_json_body(self) if method != "GET" else {}
+        send_reply(self, route(Request(method, path, query, args, self.headers, body)))
 
-        Refusing to serve is only half a fix: a process that 503s forever is
-        honest and useless. Exiting hands the problem to the supervisor, and
-        ``steam-backlog-enforcer-web.service`` has ``Restart=always``, so the
-        server comes back on current code with nobody having to remember to
-        restart it. Started outside systemd it simply exits, which is still
-        better than serving numbers the enforcer is not applying.
+    def _refused_as_stale(self, path: str) -> bool:
+        """Fail closed when our own source changed since this process started.
 
-        ``shutdown`` blocks until ``serve_forever`` returns and cannot be
-        called from the thread handling a request, so it goes to its own.
+        Every route refuses, static included: a page served from a fresh
+        bundle that then fetches numbers from stale code is the same lie
+        with extra steps. ``/api/server`` is the exception, because saying
+        "I am stale" is the one answer that is still true. Either way the
+        server then stands down so the supervisor restarts it on current
+        code (``Restart=always``).
         """
-        if _RETIRING.is_set():
-            return
-        _RETIRING.set()
-        threading.Thread(target=self.server.shutdown, daemon=True).start()
-
-    def _serve_budget(self, *, demo: bool) -> None:
-        """Build and send the gaming-budget snapshot as JSON."""
-        try:
-            body = json.dumps(build_budget_snapshot(demo=demo)).encode("utf-8")
-        except OSError, ValueError, KeyError:
-            logger.exception("Failed to build budget snapshot")
-            self._send(HTTPStatus.INTERNAL_SERVER_ERROR, b"budget error", "text/plain")
-            return
-        self._send(HTTPStatus.OK, body, "application/json")
-
-    def _serve_dataset(self) -> None:
-        """Build and send the projected dataset as JSON."""
-        try:
-            payload = dataset_to_payload(build_web_dataset(State.load()))
-            body = json.dumps(payload).encode("utf-8")
-        except OSError, ValueError, KeyError:
-            logger.exception("Failed to build web dataset")
-            self._send(HTTPStatus.INTERNAL_SERVER_ERROR, b"dataset error", "text/plain")
-            return
-        self._send(HTTPStatus.OK, body, "application/json")
+        if outdated_source(_web_process.STARTED_AT) is None:
+            return False
+        if path == "/api/server":
+            send_reply(self, _web_process.health_view(_no_request(path, self)))
+        elif path.startswith("/api/"):
+            send_error(self, ApiError(_STALE_MSG, code="server_stale"))
+        else:
+            body = _STALE_MSG.encode()
+            send_bytes(
+                self, HTTPStatus.SERVICE_UNAVAILABLE, body, "text/plain; charset=utf-8"
+            )
+        _web_process.retire()
+        return True
 
     def _serve_static(self, path: str) -> None:
         """Serve a file from ``WEB_DIST`` with SPA fallback and traversal guard."""
-        rel = path.lstrip("/") or "index.html"
+        rel = path.lstrip("/") or _INDEX
         candidate = (WEB_DIST / rel).resolve()
         # Reject path traversal, then fall back to index.html for SPA routes.
         if not candidate.is_relative_to(WEB_DIST) or not candidate.is_file():
-            candidate = WEB_DIST / "index.html"
+            candidate = WEB_DIST / _INDEX
         if not candidate.is_file():
-            self._send(HTTPStatus.NOT_FOUND, _NOT_BUILT_MSG, "text/plain")
+            send_bytes(self, HTTPStatus.NOT_FOUND, _NOT_BUILT_MSG, "text/plain")
             return
         ctype, _ = mimetypes.guess_type(candidate.name)
-        self._send(HTTPStatus.OK, candidate.read_bytes(), ctype or "text/plain")
-
-    def _send(self, status: HTTPStatus, body: bytes, ctype: str) -> None:
-        """Write a complete response with the given status, body, and type."""
-        if ctype.startswith("text/") or ctype in _EXTRA_TEXT_TYPES:
+        ctype = ctype or "text/plain"
+        if ctype.startswith("text/") or ctype in _TEXT_TYPES:
             ctype = f"{ctype}; charset=utf-8"
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        body = candidate.read_bytes()
+        headers: dict[str, str] = {}
+        if candidate.name == _INDEX and candidate.parent == WEB_DIST:
+            # Carries this launch's token: never cache it.
+            body = _web_auth.inject_token(body, self.server.token)
+            headers["Cache-Control"] = "no-store"
+        send_bytes(self, HTTPStatus.OK, body, ctype, headers)
 
 
-def create_server(
-    host: str = DEFAULT_HOST, port: int = DEFAULT_PORT
-) -> ThreadingHTTPServer:
+# Content types that are text but not under the ``text/`` prefix.
+_TEXT_TYPES = frozenset({"application/javascript", "application/json", "image/svg+xml"})
+
+
+def _query(raw: str) -> dict[str, str]:
+    """The query string, first value per key."""
+    return {key: values[0] for key, values in parse_qs(raw).items()}
+
+
+def _no_request(path: str, handler: _Handler) -> Request:
+    """A bodiless GET request for *path* (for routes that ignore it)."""
+    return Request("GET", path, {}, (), handler.headers)
+
+
+def _method_not_allowed() -> ApiError:
+    """The 405 for a known path under the wrong method."""
+    msg = "Method not allowed here."
+    return ApiError(msg, code="invalid_params", status=HTTPStatus.METHOD_NOT_ALLOWED)
+
+
+def create_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> WebServer:
     """Create (but do not start) the threading HTTP server."""
-    return ThreadingHTTPServer((host, port), _Handler)
+    server = WebServer((host, port))
+    _web_process.register(server)
+    return server
 
 
 def serve(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
-    """Run the web server until interrupted with Ctrl-C."""
+    """Run the web server until interrupted (or until it stands down)."""
     server = create_server(host, port)
+    token_file = _web_auth.write_token_file(server.token, server.port)
     _echo(f"Steam Backlog Enforcer web UI: http://{host}:{port}")
+    _echo(f"Session token written to {token_file}.")
     _echo("Press Ctrl-C to stop.")
     try:
         server.serve_forever()

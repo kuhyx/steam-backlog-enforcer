@@ -22,6 +22,7 @@ from steam_backlog_enforcer._hltb_search_api import (
     _get_auth_info,
     _get_hltb_search_url,
     _pick_best_hltb_entry,
+    forget_hltb_search_url,
 )
 from steam_backlog_enforcer._hltb_types import (
     _SAVE_INTERVAL,
@@ -168,6 +169,7 @@ async def _search_batch(
         auth = await _get_auth_info(search_url, init_session)
     if auth is None:
         logger.warning("Could not get HLTB auth info, aborting fetch.")
+        forget_hltb_search_url()
         return []
     logger.info("HLTB auth token acquired.")
 
