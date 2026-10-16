@@ -18,7 +18,7 @@ COMMAND_DESCRIPTIONS: Final[dict[str, str]] = {
     "check": "Check assigned game for a new achievement",
     "status": "Show current status",
     "list": "List games from snapshot",
-    "install": "Install the assigned game",
+    "install": "Install an allowed game (fast installer first)",
     "hide": "Hide all non-assigned games in library",
     "unhide": "Unhide all games in library",
     "buy-dlc": "Unblock the store for 15 min to buy a game/DLC",

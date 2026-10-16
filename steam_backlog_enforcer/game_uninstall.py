@@ -146,17 +146,22 @@ def uninstall_other_games(allowed_app_ids: set[int]) -> int:
 
     Returns: number of games uninstalled.
     """
-    installed = get_installed_games()
-    count = 0
-
-    for app_id, name in tracked(installed, "Uninstalling games", lambda g: g[1]):
+    to_remove: list[tuple[int, str]] = []
+    kept_protected: list[str] = []
+    for app_id, name in get_installed_games():
         if app_id in allowed_app_ids:
             logger.info("KEEPING allowed game: %s (AppID=%d)", name, app_id)
-            continue
-        if is_protected_app(app_id):
-            logger.debug("Skipping protected: %s (AppID=%d)", name, app_id)
-            continue
+        elif is_protected_app(app_id):
+            kept_protected.append(name)
+        else:
+            to_remove.append((app_id, name))
+    if kept_protected:
+        logger.info("KEEPING protected: %s", ", ".join(kept_protected))
 
+    # Only removals go through the progress bar: it names the item it just
+    # finished, and naming a kept runtime there reads as "removed it".
+    count = 0
+    for app_id, name in tracked(to_remove, "Uninstalling games", lambda g: g[1]):
         logger.info("UNINSTALLING: %s (AppID=%d)", name, app_id)
         if uninstall_game(app_id, name):
             count += 1

@@ -86,7 +86,7 @@ class TestSpawnDetached:
         assert kwargs["start_new_session"] is True
         run = _fast_install._RUNS[0]
         assert run.app_id == 9
-        assert run.log_path == config.CONFIG_DIR / "fast_install.log"
+        assert run.log_path == config.CONFIG_DIR / "fast_install-1000.log"
         assert run.log_path.exists()
 
     def test_as_root_escapes_the_service_cgroup(self) -> None:

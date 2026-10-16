@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer import _fast_install
+from steam_backlog_enforcer import _fast_install, _steam_state
 
 PKG = "steam_backlog_enforcer._fast_install"
 
@@ -71,22 +71,18 @@ class TestRefusal:
 
     def test_game_running(self) -> None:
         with patch(f"{PKG}.game_is_running", return_value=True):
-            assert "game is running" in (_fast_install._refusal(1) or "")
+            assert "game is running" in (_fast_install._refusal() or "")
 
-    def test_other_update_in_progress(self) -> None:
-        with (
-            patch(f"{PKG}.game_is_running", return_value=False),
-            patch(f"{PKG}.steam_update_in_progress", return_value=True) as update,
-        ):
-            assert "download is in progress" in (_fast_install._refusal(7) or "")
-        update.assert_called_once_with(exclude_app_id=7)
-
-    def test_safe(self) -> None:
-        with (
-            patch(f"{PKG}.game_is_running", return_value=False),
-            patch(f"{PKG}.steam_update_in_progress", return_value=False),
-        ):
-            assert _fast_install._refusal(7) is None
+    def test_other_download_does_not_refuse(self) -> None:
+        # The installer closes Steam with ``steam -shutdown``, which Steam
+        # survives mid-download; another transfer is no reason to skip.
+        (_steam_state.STEAMAPPS_PATH / "appmanifest_9.acf").write_text(
+            '"AppState"\n{\n\t"BytesToDownload"\t\t"10"\n'
+            '\t"BytesDownloaded"\t\t"0"\n}\n'
+        )
+        assert _steam_state.steam_update_in_progress() is True
+        with patch(f"{PKG}.game_is_running", return_value=False):
+            assert _fast_install._refusal() is None
 
 
 class TestBuildCmd:

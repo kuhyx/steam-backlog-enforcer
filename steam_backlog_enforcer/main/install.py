@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
 from steam_backlog_enforcer._progress import current_progress
-from steam_backlog_enforcer._prompter import confirm_phrase
+from steam_backlog_enforcer._prompter import (
+    PromptOption,
+    confirm_phrase,
+    current_prompter,
+)
 from steam_backlog_enforcer._steam_errors import SteamUnavailableError
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
@@ -73,29 +77,48 @@ def cmd_uninstall(_config: Config, state: State) -> None:
     _echo(f"\nUninstalled {count} games.")
 
 
+def _pick_install_target(state: State) -> tuple[int, str] | None:
+    """The allowed game to install: the only unfinished one, or the user's pick.
+
+    Every allowed game counts, not just the assignment: a manual pick whose
+    fast install was skipped (a game was running at pick time) needs a way to
+    start it later too.
+    """
+    pending = [
+        (aid, n) for aid, n in allowed_games(state) if not is_game_fully_installed(aid)
+    ]
+    if not pending:
+        _echo("All allowed games are already installed.")
+        return None
+    if len(pending) == 1:
+        return pending[0]
+    options = [PromptOption(str(aid), name or f"AppID={aid}") for aid, name in pending]
+    picked = int(current_prompter().choice("Install which game", options))
+    return next(game for game in pending if game[0] == picked)
+
+
 def cmd_install(config: Config, state: State) -> None:
-    """Manually trigger install of the assigned game."""
-    if state.current_app_id is None:
+    """Install an allowed game, through the fast installer when it can be used.
+
+    A download Steam already started is taken over, so this is also how a
+    fast install that was skipped earlier gets started.
+    """
+    if not allowed_games(state):
         _echo("No game currently assigned. Run 'scan' first.")
         return
-
-    if is_game_fully_installed(state.current_app_id):
-        _echo(f"{state.current_game_name} is already installed.")
+    target = _pick_install_target(state)
+    if target is None:
         return
+    app_id, name = target
 
-    _echo(f"Installing {state.current_game_name} (AppID={state.current_app_id})...")
+    _echo(f"Installing {name} (AppID={app_id})...")
     # install_game only *starts* the download (fast installer or steam://);
     # there is no download-progress loop to report on yet.
-    current_progress().phase(f"Starting install of {state.current_game_name}")
-    if install_game(
-        state.current_app_id,
-        state.current_game_name,
-        config.steam_id,
-        use_steam_protocol=True,
-    ):
+    current_progress().phase(f"Starting install of {name}")
+    if install_game(app_id, name, config.steam_id, use_steam_protocol=True):
         _echo("Done!")
     else:
-        _echo("Failed to create install manifest.")
+        _echo("Failed to start the install.")
 
 
 def cmd_hide(config: Config, state: State) -> None:

@@ -10,14 +10,18 @@ Two modes, picked by whether anyone can answer a prompt:
 * **Foreground** (stdin is a terminal - ``pick-manual``, ``done``...): run to
   completion with the terminal attached, so depotdownloader's progress shows
   and a password / Steam Guard prompt can be answered.
-* **Detached** (the daemon): spawn in its own session and return. Every later
-  pass reaps it through :func:`poll_fast_installs`, which records a failure (so
-  the caller falls back to ``steam://install``) and interrupts a run whose
-  output has stalled - most likely a login prompt nobody will ever answer,
-  sitting there with Steam shut down.
+* **Detached** (no terminal): spawn in its own session. The root daemon
+  returns at once and reaps it on every later pass through
+  :func:`poll_fast_installs`, which records a failure (so the caller falls
+  back to ``steam://install``) and interrupts a run whose output has stalled -
+  most likely a login prompt nobody will ever answer, sitting there with Steam
+  shut down. Anything else (a web job) exits once its command returns, so it
+  runs that same reaper in a loop until the installer is done.
 
 The installer closes Steam to do its work, so it is refused outright while a
-game is running or another app is mid-update (the AoE2 corruption case).
+game is running. Another app mid-download is no reason to wait: the installer
+asks Steam to leave with ``steam -shutdown``, and Steam resumes the transfer
+when it comes back.
 """
 
 from __future__ import annotations
@@ -38,10 +42,7 @@ from steam_backlog_enforcer import config as _config
 from steam_backlog_enforcer._desktop_env import desktop_user_cmd, resolve_desktop_user
 from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._steam_restart_guard import game_is_running
-from steam_backlog_enforcer._steam_state import (
-    STEAMAPPS_PATH,
-    steam_update_in_progress,
-)
+from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,8 @@ _LANGUAGE = "english"
 # depotdownloader prints a line per finished chunk, so a healthy download is
 # never silent this long; a login prompt waiting on /dev/null is.
 STALL_SECONDS = 15 * 60
+# How often a waiting (non-daemon) caller reaps its run.
+_WAIT_POLL_SECONDS = 5
 
 
 @dataclass
@@ -100,14 +103,10 @@ def _steam_account_name() -> str | None:
     return match.group(1) if match else None
 
 
-def _refusal(app_id: int) -> str | None:
+def _refusal() -> str | None:
     """Why closing Steam right now would do damage, or None if it is safe."""
     if game_is_running():
         return "a game is running and closing Steam would kill it"
-    if steam_update_in_progress(exclude_app_id=app_id):
-        return (
-            "another Steam download is in progress and closing Steam could corrupt it"
-        )
     return None
 
 
@@ -181,7 +180,9 @@ def poll_fast_installs() -> None:
 
 def _spawn_detached(cmd: list[str], app_id: int) -> None:
     """Start the installer in its own session, output to a log file."""
-    log_path = _config.CONFIG_DIR / "fast_install.log"
+    # Per user: the daemon's log is root-owned, and a web job runs as the
+    # desktop user - sharing one file made every job spawn raise.
+    log_path = _config.CONFIG_DIR / f"fast_install-{os.geteuid()}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     # The unit is KillMode=control-group: restarting the daemon would SIGTERM
     # an installer left in its cgroup, skipping the `finally` that restarts
@@ -201,6 +202,18 @@ def _spawn_detached(cmd: list[str], app_id: int) -> None:
     logger.info("Started steam-game-installer for AppID=%d (log: %s)", app_id, log_path)
 
 
+def _wait_detached(app_id: int, label: str) -> bool:
+    """Reap this process's run for *app_id* until it ends; True on success."""
+    _echo(
+        f"  Fast-installing {label} with steam-game-installer (Steam will close); "
+        "waiting for it to finish..."
+    )
+    while is_fast_installing(app_id):
+        time.sleep(_WAIT_POLL_SECONDS)
+        poll_fast_installs()
+    return app_id not in _FAILED
+
+
 def fast_install(app_id: int, label: str) -> bool:
     """Install *app_id* with steam-game-installer.
 
@@ -215,7 +228,7 @@ def fast_install(app_id: int, label: str) -> bool:
     if installer is None:
         logger.warning("steam-game-installer not found; using Steam's download.")
         return False
-    reason = _refusal(app_id)
+    reason = _refusal()
     if reason is not None:
         _echo(f"  Fast install of {label} skipped: {reason}.")
         return False
@@ -223,7 +236,7 @@ def fast_install(app_id: int, label: str) -> bool:
     cmd = _build_cmd(installer, app_id, user)
     if not sys.stdin.isatty():
         _spawn_detached(cmd, app_id)
-        return True
+        return os.geteuid() == 0 or _wait_detached(app_id, label)
 
     _echo(f"  Fast-installing {label} with steam-game-installer (Steam will close)...")
     returncode = subprocess.run(cmd, check=False).returncode

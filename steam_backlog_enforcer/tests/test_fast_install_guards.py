@@ -111,10 +111,9 @@ class TestFullyInstalled:
         path.write_text('"AppState"\n{\n}\n')
         assert _steam_state.is_game_fully_installed(1) is False
 
-    def test_update_check_can_exclude_the_target(self) -> None:
+    def test_update_check_sees_a_transfer(self) -> None:
         _manifest(7, 1026, to_download=10)
         assert _steam_state.steam_update_in_progress() is True
-        assert _steam_state.steam_update_in_progress(exclude_app_id=7) is False
 
 
 class TestInstallGameFastPath:

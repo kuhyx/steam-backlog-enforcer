@@ -12,6 +12,7 @@ from steam_backlog_enforcer.game_uninstall import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 PKG = "steam_backlog_enforcer.game_install"
@@ -165,3 +166,31 @@ class TestUninstallOtherGames:
             count = uninstall_other_games({440})
         assert count == 0
         mock_uninstall.assert_not_called()
+
+
+class TestUninstallProgressNames:
+    """The progress bar names only games that are actually removed."""
+
+    def test_protected_and_allowed_never_shown(self) -> None:
+        shown: list[str] = []
+
+        def fake_tracked(
+            items: list[tuple[int, str]],
+            _label: str,
+            name: Callable[[tuple[int, str]], str],
+        ) -> Iterator[tuple[int, str]]:
+            for item in items:
+                yield item
+                shown.append(name(item))
+
+        with (
+            patch(
+                f"{GAME_UNINSTALL_PKG}.get_installed_games",
+                return_value=[(440, "TF2"), (730, "CS"), (228980, "Redist")],
+            ),
+            patch(f"{GAME_UNINSTALL_PKG}.tracked", side_effect=fake_tracked),
+            patch(f"{GAME_UNINSTALL_PKG}.uninstall_game", return_value=True),
+        ):
+            count = uninstall_other_games({440})
+        assert count == 1
+        assert shown == ["CS"]
