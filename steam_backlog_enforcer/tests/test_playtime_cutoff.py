@@ -2,6 +2,7 @@
 
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -195,6 +196,15 @@ class TestWarn:
             out = _warn(state, _rules())
         assert out.warned_seconds == [3600, 1800, 600, 300]
         assert "5 minutes" in mock_notify.call_args.args[1]
+
+    def test_a_fired_warning_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        state = PlaytimeState(seconds=8 * 3600 - 300, warned_seconds=[3600, 1800, 600])
+        with (
+            caplog.at_level(logging.INFO),
+            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+        ):
+            _warn(state, _rules())
+        assert "5 minutes" in caplog.text
 
     def test_no_op_when_nothing_is_due(self) -> None:
         state = PlaytimeState(seconds=0.0)

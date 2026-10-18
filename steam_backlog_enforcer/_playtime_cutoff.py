@@ -65,10 +65,14 @@ def _warn(state: PlaytimeState, rules: PlaytimeRules) -> PlaytimeState:
     if threshold is None:
         return state
 
-    notify_desktop_user(
-        "Gaming time running out",
-        f"{_humanise(threshold)} of today's gaming budget left.",
+    left = f"{_humanise(threshold)} of today's gaming budget left."
+    logger.info(
+        "Gaming warning: %s (billed %.0fs of %.0fs)",
+        left,
+        state.seconds,
+        rules.budget_seconds,
     )
+    notify_desktop_user("Gaming time running out", left)
     return replace(state, warned_seconds=[*state.warned_seconds, threshold])
 
 

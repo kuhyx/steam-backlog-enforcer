@@ -37,7 +37,6 @@ def _spent_state(day_key: str) -> PlaytimeState:
         last_credited_key="1",
         warned_seconds=[600],
         budget_seconds=1800.0,
-        carry={"2999-01-01": 120.0},
     )
 
 
@@ -58,7 +57,7 @@ class TestResetToday:
         assert stored is not None
         assert (stored.seconds, stored.blocked_at, stored.per_game) == (0.0, 0.0, {})
         assert (stored.last_credited_key, stored.warned_seconds) == ("", [])
-        assert (stored.budget_seconds, stored.carry) == (1800.0, {"2999-01-01": 120.0})
+        assert stored.budget_seconds == 1800.0
         assert stored.last_tick_at > 0
 
     def test_audit_record_has_the_before_picture(self) -> None:

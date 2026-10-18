@@ -28,7 +28,7 @@ while the gaming day runs to 05:59, and a cold restart resolves with empty
 answer caches, so a live answer can come in lower than one given hours ago.
 That bit twice (2026-10-03 and 2026-10-04 00:00, 8h -> 4h, unwarned cutoff).
 ``PlaytimeState.budget_seconds`` is the day's high-water mark, and
-``rules_for`` applies ``max(resolved + carry, held)`` via
+``rules_for`` applies ``max(resolved, held)`` via
 ``_gaming_days.held_today`` -- so the daemon, ``/api/budget`` and MCP all see
 the held figure. Only the 06:00 roll-over lowers it.
 
@@ -64,6 +64,8 @@ logger = logging.getLogger(__name__)
 
 _SECONDS_PER_MINUTE: Final = 60.0
 _SECONDS_PER_HOUR: Final = 3600.0
+# The last reason logged, so a long-lived daemon logs a budget only on change.
+_last_logged: Final[dict[str, str]] = {}
 
 # How each earner reads in the reason string: (earned, missed, unknown).
 # An earner registered later without an entry here gets a generic phrase.
@@ -173,7 +175,11 @@ def resolve_budget(config: Config) -> BudgetResolution:
         _describe(t.earner.name, t.earner.label, t.answer) for t in day.terms
     )
     reason = f"{total / _SECONDS_PER_HOUR:.1f}h: {parts}"
-    logger.info("Gaming budget %s", reason)
+    # The daemon resolves every tick (3 s): an unchanged answer logged each
+    # time was 25k identical journal lines a day that buried everything else.
+    if reason != _last_logged.get("reason"):
+        _last_logged["reason"] = reason
+        logger.info("Gaming budget %s", reason)
     return BudgetResolution(
         seconds=total,
         base_seconds=day.base.gaming_minutes * _SECONDS_PER_MINUTE,

@@ -142,7 +142,6 @@ export function makeBudgetRules(over: Partial<BudgetRules> = {}): BudgetRules {
     warn_at: [3600, 1800, 600, 300],
     demo: false,
     masked_launchers: [],
-    carry_seconds: 0,
     ...over,
   }
 }

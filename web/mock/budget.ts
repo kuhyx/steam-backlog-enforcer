@@ -79,7 +79,6 @@ export function budget(demo: boolean): BudgetSnapshot {
       warn_at: [3600, 1800, 600, 300],
       demo,
       masked_launchers: ['heroic', 'lutris'],
-      carry_seconds: demo ? 0 : 1200,
     },
   }
 }

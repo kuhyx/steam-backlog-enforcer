@@ -56,10 +56,9 @@ class ResetOutcome:
 def reset_today(*, source: str) -> ResetOutcome:
     """Zero today's billed time, drop the block and record the adjustment.
 
-    The earned-time bookkeeping (``carry`` from earlier free days, the day's
-    ``budget_seconds`` high-water mark) is kept: resetting spent time must not
-    also revoke time already earned. Warnings re-arm because ``seconds`` is
-    back at zero.
+    The day's ``budget_seconds`` high-water mark is kept: resetting spent
+    time must not also revoke time already earned. Warnings re-arm because
+    ``seconds`` is back at zero.
 
     The reset is written to the budget audit log as a ``manual_adjustment``
     (with what was billed before, per game); that record is the auditable

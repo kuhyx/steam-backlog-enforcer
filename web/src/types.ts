@@ -173,8 +173,6 @@ export interface BudgetRules {
   warn_at: number[]
   demo: boolean
   masked_launchers: string[]
-  /** Unspent Fri-Sun time inherited by today; already inside budget_seconds. */
-  carry_seconds: number
 }
 
 export interface BudgetSnapshot {

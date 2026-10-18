@@ -1,6 +1,6 @@
 """The daily playtime budget: its state, its rules, and its persistence.
 
-Gaming days and the Friday-Monday carry-over live in ``_gaming_days``. State
+Gaming days and the held budget live in ``_gaming_days``. State
 is written atomically and re-read every tick, which is what lets the enforcer
 survive a restart mid-session.
 """
@@ -14,7 +14,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._budget_resolve import resolve_budget
-from steam_backlog_enforcer._gaming_days import carry_into, held_today
+from steam_backlog_enforcer._gaming_days import held_today
+from steam_backlog_enforcer._playtime_legacy import without_legacy_carry
 from steam_backlog_enforcer._whitelist_locking import (
     _try_set_immutable,
     unlock_for_write,
@@ -95,12 +96,10 @@ class PlaytimeState:
     warned_seconds: list[int] = field(default_factory=list)
     """Warning thresholds already fired during ``day_key``."""
     budget_seconds: float = 0.0
-    """Highest budget in force during ``day_key``, carry included; ``0.0`` if unset.
+    """Highest budget in force during ``day_key``; ``0.0`` if unset.
 
-    What ``roll_over`` measures the outgoing day's leftover against.
+    What ``held_today`` holds the day at when a live re-resolution dips.
     """
-    carry: dict[str, float] = field(default_factory=dict)
-    """Day key to seconds carried into it from earlier days of the block."""
 
     def is_blocked(self) -> bool:
         """Whether the cutoff has engaged for this gaming day.
@@ -133,7 +132,6 @@ class PlaytimeRules:
     reading_seconds: float = 0.0
     earned_seconds: dict[str, float] = field(default_factory=dict)
     budget_reason: str = ""
-    carry_seconds: float = 0.0
 
 
 def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
@@ -153,12 +151,10 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
     # Resolved *here*, not per caller, so the daemon (one Config for life) and
     # _budget_view (Config per request) can never report different budgets.
     resolved = None if demo else resolve_budget(config)
-    # Carry sits on top of the 8h cap (earned, not spent: no strings). The
-    # day never re-prices below what it already granted -- see held_today.
+    # The day never re-prices below what it already granted -- see held_today.
     now = datetime.now().astimezone()
     stored = None if demo else load_state(demo=False)
-    carry = 0.0 if demo else carry_into(stored, now)
-    live = 0.0 if resolved is None else resolved.seconds + carry
+    live = 0.0 if resolved is None else resolved.seconds
     held = held_today(stored, now)
     held_note = f"; held at {held / 3600:.1f}h (earned earlier today)"
     return PlaytimeRules(
@@ -178,11 +174,8 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         budget_reason=(
             "demo run"
             if resolved is None
-            else resolved.reason
-            + (f", +{carry / 60:.0f}m carried over" if carry > 0 else "")
-            + (held_note if held > live else "")
+            else resolved.reason + (held_note if held > live else "")
         ),
-        carry_seconds=carry,
     )
 
 
@@ -227,7 +220,8 @@ def load_state(*, demo: bool) -> PlaytimeState | None:
         logger.warning("Playtime state at %s has an unknown schema.", path)
         return None
     known = {f.name for f in fields(PlaytimeState)}
-    return PlaytimeState(**{k: v for k, v in data.items() if k in known})
+    state = PlaytimeState(**{k: v for k, v in data.items() if k in known})
+    return without_legacy_carry(state, data.get("carry"))
 
 
 def save_state(state: PlaytimeState, *, demo: bool) -> None:

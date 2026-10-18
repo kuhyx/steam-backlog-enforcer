@@ -15,7 +15,7 @@ from unittest.mock import patch
 import earned_time
 import pytest
 
-from steam_backlog_enforcer import _leetcode_bonus, _workout_budget
+from steam_backlog_enforcer import _budget_resolve, _leetcode_bonus, _workout_budget
 from steam_backlog_enforcer._budget_resolve import resolve_budget
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._budget_dates import AFTER_CUT, pin_today
@@ -41,9 +41,11 @@ def _clear_caches() -> Iterator[None]:
     """
     _workout_budget.reset_cache()
     _leetcode_bonus.reset_cache()
+    _budget_resolve._last_logged.clear()
     yield
     _workout_budget.reset_cache()
     _leetcode_bonus.reset_cache()
+    _budget_resolve._last_logged.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -202,3 +204,20 @@ class TestTheExplanation:
         assert "no counted workout" in caplog.text
         assert "no LeetCode solve recorded" in caplog.text
         assert "no reading credited" in caplog.text
+
+    def test_an_unchanged_budget_is_logged_once(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The daemon resolves every 3 s; only a change is worth a journal line.
+
+        Args:
+            caplog: pytest's log capture.
+        """
+        with (
+            caplog.at_level(logging.INFO),
+            patch(_WORKOUT, return_value=False),
+            patch(_LEETCODE, return_value=False),
+        ):
+            resolve_budget(Config())
+            resolve_budget(Config())
+        assert caplog.text.count("Gaming budget") == 1

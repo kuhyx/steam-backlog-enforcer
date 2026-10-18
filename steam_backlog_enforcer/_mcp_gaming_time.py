@@ -56,9 +56,8 @@ def get_gaming_time() -> dict[str, Any]:
         "seconds_used": today["seconds_used"],
         "budget_seconds": today["budget_seconds"],
         "seconds_remaining": today["seconds_remaining"],
-        # What earned budget_seconds, Friday-Monday carry-over included.
+        # What earned budget_seconds.
         "budget_reason": rules["budget_reason"],
-        "carry_seconds": rules["carry_seconds"],
         "next_warning_seconds": today["next_warning_seconds"],
         "blocked": today["blocked"],
         "enforcement": rules["enforcement"],

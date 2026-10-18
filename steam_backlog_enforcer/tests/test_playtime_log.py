@@ -176,3 +176,4 @@ class TestTickJournal:
         assert record["qualifying"] == [11, 22]
         assert record["state"] == "engaged"
         assert record["remaining_seconds"] == 28700.0
+        assert record["budget_seconds"] == 28800.0

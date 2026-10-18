@@ -36,8 +36,8 @@ server: `_ctl_client.py` (results in `_ctl_types.py`, errors in `_ctl_protocol.p
 ## Gaming reset
 
 `_gaming_reset.reset_today`, shared with the CLI: zeroes billed time and per-game
-attribution, re-arms warnings, releases the mounts, keeps earned time (`carry`,
-`budget_seconds`; the old CLI path dropped both), and writes a `manual_adjustment`
+attribution, re-arms warnings, releases the mounts, keeps earned time
+(`budget_seconds`; the old CLI path dropped it), and writes a `manual_adjustment`
 record to `/var/log/steam-backlog-enforcer/budget.jsonl` (billed seconds and
 per-game breakdown before). That record is the auditable trail; the per-day
 history mirrors current billed time, so it shows the day as quiet.
@@ -55,7 +55,7 @@ whole downtime. Everything else already lives on disk after every tick:
 | Billed seconds, per-game attribution | yes | `playtime_state.json` saved every tick; the final tick bills up to the exit, the first tick of the new daemon bills the gap |
 | Cutoff / kill-grace timing | yes | `blocked_at` is persisted; `_sustain_block` measures from it |
 | Playtime mounts (the block itself) | yes | kernel mount table; `reconcile` is mountinfo-driven. `RuntimeDirectoryPreserve=yes` keeps the stub file |
-| Fired warnings, carry ledger | yes | in `PlaytimeState` |
+| Fired warnings, budget high-water | yes | in `PlaytimeState` |
 | Open store window | yes (blip) | deadline in `state.json`; startup re-blocks the store once, the first tick re-opens it |
 | Total block | yes | lock file, guard-lib |
 | Armed gaming reset | no | memory only: arm again (fails closed) |
