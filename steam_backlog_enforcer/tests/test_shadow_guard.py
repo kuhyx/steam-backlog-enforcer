@@ -129,3 +129,17 @@ def test_tick_completes_and_enforced_count_is_untouched(
     assert state.seconds == seconds
     assert state.last_tick_at == T0
     assert state.shadow_per_source == {shadow: 3.0}
+
+
+def test_errors_older_than_the_window_are_forgotten() -> None:
+    """A message that varies per tick must not grow the daemon's memory."""
+    window = _shadow.WARN_EVERY_SECONDS
+    clock = [0.0, 1.0, window + 2.0]
+    errors = [ValueError(f"char {i}") for i in range(3)]
+    with (
+        patch.object(_shadow, "read_now", side_effect=errors),
+        patch.object(_shadow.time, "monotonic", side_effect=clock),
+    ):
+        for _ in errors:
+            observe_shadow({}, stamp=T0)
+    assert list(_shadow._last_warned) == ["ValueError: char 2"]

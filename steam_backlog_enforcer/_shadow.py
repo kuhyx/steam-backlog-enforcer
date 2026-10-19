@@ -128,8 +128,12 @@ def _should_warn(exc: BaseException) -> bool:
     """Whether *exc* was not already logged within :data:`WARN_EVERY_SECONDS`."""
     key = f"{type(exc).__name__}: {exc}"
     now = time.monotonic()
-    last = _last_warned.get(key)
-    if last is not None and now - last < WARN_EVERY_SECONDS:
+    # Forget expired errors first: a message that varies per tick (a JSON
+    # offset, say) must not grow a long-lived daemon's memory without bound.
+    expired = [k for k, at in _last_warned.items() if now - at >= WARN_EVERY_SECONDS]
+    for old in expired:
+        del _last_warned[old]
+    if key in _last_warned:
         return False
     _last_warned[key] = now
     return True
