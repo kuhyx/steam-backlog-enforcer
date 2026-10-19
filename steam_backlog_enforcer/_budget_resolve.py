@@ -188,7 +188,10 @@ def resolve_budget(config: Config) -> BudgetResolution:
     first_paid = first_credits(registry, today)
     day = _price(answers, today, registry, first_paid, leisure=False)
     # The same answers, asked once: the shadow can never see a different day.
-    shadow = _price(answers, today, registry, first_paid, leisure=True)
+    # A missing answer was already warned about above; to earned_time it is
+    # the same as None, so spell it out rather than warn a second time.
+    complete = {e.name: None for e in registry} | answers
+    shadow = _price(complete, today, registry, first_paid, leisure=True)
     earned = {t.earner.name: t.gaming_minutes * _SECONDS_PER_MINUTE for t in day.terms}
     total = day.gaming_minutes * _SECONDS_PER_MINUTE
     parts = ", ".join(

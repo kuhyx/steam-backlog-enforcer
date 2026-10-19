@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -65,6 +66,19 @@ class TestShadowResolution:
     def test_the_leisure_base_is_two_hours_above_the_enforced_one(self) -> None:
         resolved = _resolve(done=False)
         assert resolved.shadow_seconds == resolved.seconds + 2 * _HOUR
+
+    def test_a_missing_answer_warns_once_not_once_per_pricing(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Enforced + shadow pricing is one resolution: one warning per earner."""
+        with (
+            caplog.at_level(logging.WARNING, logger="earned_time"),
+            patch("steam_backlog_enforcer._budget_resolve._answers", return_value={}),
+        ):
+            resolve_budget(Config())
+        warned = [r.getMessage() for r in caplog.records if "No answer" in r.message]
+        assert warned
+        assert len(warned) == len(set(warned))
 
 
 class TestHeldShadow:

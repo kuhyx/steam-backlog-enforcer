@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import logging
 from pathlib import Path
+import time
 from typing import TYPE_CHECKING, Final
 
 from leisure_watch.facts import read_now
@@ -46,6 +47,16 @@ _MAX_AGE_SECONDS: Final = 15
 FAILCLOSED_KEY: Final = "failclosed:watcher"
 
 logger = logging.getLogger(__name__)
+
+# A broken input fails every 3 s tick: one warning per distinct error per
+# window, not 1200 identical journal lines an hour.
+WARN_EVERY_SECONDS: Final = 600.0
+_last_warned: Final[dict[str, float]] = {}
+
+
+def reset_warnings() -> None:
+    """Forget which errors were logged (tests; a long-lived daemon never)."""
+    _last_warned.clear()
 
 
 @dataclass(frozen=True)
@@ -95,17 +106,33 @@ def observe_shadow(owners: dict[int, str], *, stamp: float) -> ShadowVerdict:
     Returns:
         The tick's shadow verdict; the fail-closed one if an input raised.
     """
-    # The enforce loop has no per-tick guard, so a raise here would crash-loop
-    # the daemon and stop *enforced* billing. An unreadable input bills, unpaused.
+    # The enforce loop has no per-tick guard, so a raise here -- of *any* kind:
+    # leisure_watch has raised RecursionError -- would crash-loop the daemon
+    # and stop enforced billing. An unreadable input bills, unpaused, unless
+    # the pause check itself answered "paused".
     try:
         paused = paused_by(CLAIMS_DIR)
         if paused is not None:
             return ShadowVerdict(paused_by=paused, keys=())
         fact = read_now(NOW_PATH, stamp, max_age=_MAX_AGE_SECONDS)
-    except (OSError, ValueError) as exc:
-        logger.warning("Shadow inputs unreadable (%s); failing closed.", exc)
+    except Exception as exc:  # the loop must outlive any shadow input bug
+        if _should_warn(exc):
+            logger.warning(
+                "Shadow inputs unreadable (%r); failing closed.", exc, exc_info=True
+            )
         fact = None
     return ShadowVerdict(paused_by=None, keys=shadow_keys(owners, fact))
+
+
+def _should_warn(exc: BaseException) -> bool:
+    """Whether *exc* was not already logged within :data:`WARN_EVERY_SECONDS`."""
+    key = f"{type(exc).__name__}: {exc}"
+    now = time.monotonic()
+    last = _last_warned.get(key)
+    if last is not None and now - last < WARN_EVERY_SECONDS:
+        return False
+    _last_warned[key] = now
+    return True
 
 
 def shadow_accumulate(
