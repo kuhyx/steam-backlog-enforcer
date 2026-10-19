@@ -10,10 +10,16 @@ Phase 2 on by writing a date to :func:`switch_file`.
 The leisure kill scan reads ``/proc`` through its own constant; it gets an
 empty directory (:func:`leisure_proc`), so no test can see -- or signal -- a
 live browser or player.
+
+Module-level code runs at collection, before any fixture: it wraps itself in
+:func:`collection_isolated` instead.
 """
 
 from __future__ import annotations
 
+from contextlib import ExitStack, contextmanager
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -21,10 +27,25 @@ import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 _SWITCH_NAME = "leisure_from"
 _PROC_NAME = "leisure_proc"
+# Every switch reader, by the module attribute it looks up at call time.
+_SWITCH_READERS = (
+    "earned_time._leisure.LEISURE_FROM_PATH",
+    "steam_backlog_enforcer._leisure_mode.LEISURE_FROM_PATH",
+)
+# Can never exist (/dev/null is not a directory): always the parked date.
+_NO_SWITCH = Path(os.devnull) / _SWITCH_NAME
+
+
+@contextmanager
+def collection_isolated() -> Iterator[None]:
+    """Point every switch reader at a file that cannot exist (no ``tmp_path``)."""
+    with ExitStack() as stack:
+        for target in _SWITCH_READERS:
+            stack.enter_context(patch(target, _NO_SWITCH))
+        yield
 
 
 def switch_file(tmp_path: Path) -> Path:
@@ -44,9 +65,8 @@ def _isolate_leisure(tmp_path: Path) -> Iterator[None]:
     switch.parent.mkdir(exist_ok=True)
     proc = leisure_proc(tmp_path)
     proc.mkdir(exist_ok=True)
-    with (
-        patch("earned_time._leisure.LEISURE_FROM_PATH", switch),
-        patch("steam_backlog_enforcer._leisure_mode.LEISURE_FROM_PATH", switch),
-        patch("steam_backlog_enforcer._leisure_procs._PROC", proc),
-    ):
+    with ExitStack() as stack:
+        for target in _SWITCH_READERS:
+            stack.enter_context(patch(target, switch))
+        stack.enter_context(patch("steam_backlog_enforcer._leisure_procs._PROC", proc))
         yield

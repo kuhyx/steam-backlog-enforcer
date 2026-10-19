@@ -22,6 +22,7 @@ from steam_backlog_enforcer._budget_view import (
 from steam_backlog_enforcer._playtime_history import HistoryDay
 from steam_backlog_enforcer._playtime_state import PlaytimeState, rules_for
 from steam_backlog_enforcer.config import Config
+from steam_backlog_enforcer.tests._isolate_leisure import collection_isolated
 from steam_backlog_enforcer.tests._no_workout_http import earned_budget, fixed_budget
 
 # Built at import time, so the autouse _no_workout_http fixture is not in
@@ -30,8 +31,10 @@ from steam_backlog_enforcer.tests._no_workout_http import earned_budget, fixed_b
 # have earned. Stub it explicitly so the constant is the earned budget always.
 # The held budget is pinned for the same reason: conftest's redirects are not
 # active at import either, so rules_for would read the LIVE playtime_state.json
-# and hold RULES at whatever high-water mark it records today.
+# and hold RULES at whatever high-water mark it records today. Nor would the
+# leisure switch be: the host's /etc/leisure-watch/leisure_from would price it.
 with (
+    collection_isolated(),
     patch("steam_backlog_enforcer._playtime_state.held_today", return_value=0.0),
     patch(
         "steam_backlog_enforcer._playtime_state.resolve_budget",
