@@ -85,6 +85,19 @@ class TestObserveShadow:
         assert verdict.keys == ("domain:youtube.com",)
         read.assert_called_once_with(_shadow.NOW_PATH, T0, max_age=15)
 
+    @pytest.mark.parametrize("where", ["paused_by", "read_now"])
+    def test_a_failing_input_fails_closed_instead_of_raising(self, where: str) -> None:
+        """The enforce loop has no per-tick guard: a raise would crash-loop it."""
+        with (
+            patch.object(_shadow, "paused_by", return_value=None),
+            patch.object(_shadow, "read_now", return_value=None),
+            patch.object(_shadow, where, side_effect=PermissionError("denied")),
+        ):
+            assert observe_shadow({1: "app:440"}, stamp=T0) == ShadowVerdict(
+                paused_by=None, keys=("app:440",)
+            )
+            assert observe_shadow({}, stamp=T0).keys == (FAILCLOSED_KEY,)
+
     def test_root_paths_are_the_desktop_users(self) -> None:
         assert str(_shadow.NOW_PATH) == "/run/user/1000/leisure-watch/now.json"
         assert str(_shadow.CLAIMS_DIR) == "/run/user/1000/gatelock/claims"

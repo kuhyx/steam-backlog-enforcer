@@ -24,6 +24,7 @@ Overlapping sources bill the wall clock once and split it evenly, so
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -43,6 +44,8 @@ CLAIMS_DIR: Final = Path("/run/user/1000/gatelock/claims")
 # now.json older than this is not trusted (contract C3/Q8).
 _MAX_AGE_SECONDS: Final = 15
 FAILCLOSED_KEY: Final = "failclosed:watcher"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -90,12 +93,18 @@ def observe_shadow(owners: dict[int, str], *, stamp: float) -> ShadowVerdict:
         stamp: Epoch seconds of this tick, the freshness reference.
 
     Returns:
-        The tick's shadow verdict.
+        The tick's shadow verdict; the fail-closed one if an input raised.
     """
-    paused = paused_by(CLAIMS_DIR)
-    if paused is not None:
-        return ShadowVerdict(paused_by=paused, keys=())
-    fact = read_now(NOW_PATH, stamp, max_age=_MAX_AGE_SECONDS)
+    # The enforce loop has no per-tick guard, so a raise here would crash-loop
+    # the daemon and stop *enforced* billing. An unreadable input bills, unpaused.
+    try:
+        paused = paused_by(CLAIMS_DIR)
+        if paused is not None:
+            return ShadowVerdict(paused_by=paused, keys=())
+        fact = read_now(NOW_PATH, stamp, max_age=_MAX_AGE_SECONDS)
+    except (OSError, ValueError) as exc:
+        logger.warning("Shadow inputs unreadable (%s); failing closed.", exc)
+        fact = None
     return ShadowVerdict(paused_by=None, keys=shadow_keys(owners, fact))
 
 
