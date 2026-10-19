@@ -15,17 +15,18 @@ import logging
 from pathlib import Path
 import shutil
 
+from leisure_watch.procscan import (
+    STEAM_CLIENT_PROCESS_NAMES,
+    get_pids_by_process_names,
+)
+
 from steam_backlog_enforcer._pacman import (
     is_package_installed,
     pacman_owner,
     uninstall_package,
 )
-from steam_backlog_enforcer._total_block_launchers import STEAM_CLIENT_PROCESS_NAMES
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
-from steam_backlog_enforcer.enforcer import (
-    get_pids_by_process_names,
-    kill_processes_by_name,
-)
+from steam_backlog_enforcer.enforcer import kill_processes_by_name
 
 logger = logging.getLogger(__name__)
 

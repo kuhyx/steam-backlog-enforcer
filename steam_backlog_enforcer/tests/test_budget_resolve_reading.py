@@ -115,7 +115,9 @@ class TestTheBase:
         with pin_today(day):
             resolved = _resolve(earners=(False, False, False))
         later_cuts = 60 * sum(e.max_gaming_minutes for e in _later_penalised(day))
-        assert resolved.base_seconds == 4 * _HOUR - later_cuts
+        # From earned_time 0.14 the floor itself is dated (LEISURE_FROM lifts it).
+        lift = 60 * earned_time.gaming_base_minutes_for(day) - 5 * _HOUR
+        assert resolved.base_seconds == 4 * _HOUR + lift - later_cuts
 
 
 class TestTheReadingTerm:
@@ -166,8 +168,8 @@ class TestTheCeiling:
         """The ceiling is the registry's, read when the budget resolves."""
         with (
             pin_today(AFTER_CUT),
-            # resolve() binds the ceiling from _policy by name, so patch there.
-            patch("earned_time._resolve.GAMING_CEILING_MINUTES", 6 * 60),
+            # 0.14 reads the ceiling via _leisure (dated), so patch it there.
+            patch("earned_time._leisure.GAMING_CEILING_MINUTES", 6 * 60),
         ):
             resolved = _resolve(earners=(True, True, True))
         assert resolved.seconds == 6 * _HOUR

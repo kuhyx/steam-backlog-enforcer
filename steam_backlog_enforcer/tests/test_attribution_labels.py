@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from leisure_watch.procscan import CountedProcess
+
 from steam_backlog_enforcer import _attribution_labels as labels_mod
 from steam_backlog_enforcer import _steam_state
 from steam_backlog_enforcer._attribution_labels import label_for, labels_for
-from steam_backlog_enforcer._counted_procs import CountedProcess
 
 
 def _manifest(app_id: int, name: str) -> None:

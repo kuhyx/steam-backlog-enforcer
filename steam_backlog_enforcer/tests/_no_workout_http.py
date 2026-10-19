@@ -60,6 +60,12 @@ def earned_budget(_config: Config) -> BudgetResolution:
     earned = {e.name: e.gaming_minutes * _MINUTE for e in earned_time.EARNERS}
     ceiling = earned_time.GAMING_CEILING_MINUTES * _MINUTE
     total = min(ceiling, base * _MINUTE + sum(earned.values()))
+    # Shadow (C4): the leisure base is the gaming base plus the same lift.
+    lift = earned_time.LEISURE_BASE_MINUTES - earned_time.GAMING_BASE_MINUTES
+    shadow = min(
+        earned_time.LEISURE_CEILING_MINUTES * _MINUTE,
+        (base + lift) * _MINUTE + sum(earned.values()),
+    )
     return BudgetResolution(
         seconds=total,
         base_seconds=base * _MINUTE,
@@ -68,6 +74,7 @@ def earned_budget(_config: Config) -> BudgetResolution:
         reason="stubbed: fully earned",
         reading_seconds=earned.get("reading", 0.0),
         earned_seconds=earned,
+        shadow_seconds=shadow,
     )
 
 

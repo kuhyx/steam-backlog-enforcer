@@ -14,13 +14,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from leisure_watch.procscan import get_running_steam_game_pids
+
 from steam_backlog_enforcer._steam_errors import (
     FastInstallInProgressError,
     GameInProgressError,
     SteamUpdateInProgressError,
 )
 from steam_backlog_enforcer._steam_state import steam_update_in_progress
-from steam_backlog_enforcer.enforcer import get_running_steam_game_pids
 
 logger = logging.getLogger(__name__)
 

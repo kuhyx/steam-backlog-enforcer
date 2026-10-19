@@ -19,3 +19,10 @@ class TestNewSession:
         demo = new_session(demo=True)
         assert demo.journal._log._path == log_mod.BUDGET_DEMO_LOG_FILE
         assert live.journal._log._path == log_mod.BUDGET_LOG_FILE
+
+    def test_builds_a_shadow_journal_on_the_same_trail(self) -> None:
+        from steam_backlog_enforcer._shadow_log import ShadowJournal
+
+        session = new_session()
+        assert isinstance(session.shadow, ShadowJournal)
+        assert session.shadow._log._path == log_mod.BUDGET_LOG_FILE

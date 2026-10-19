@@ -66,7 +66,6 @@ def _isolate_playtime(tmp_path: Path) -> Iterator[None]:
             "steam_backlog_enforcer._playtime_log.BUDGET_DEMO_LOG_FILE",
             tmp_path / "budget-demo.jsonl",
         ),
-        patch("steam_backlog_enforcer._playtime_procs._PROC", fake_proc),
         patch("steam_backlog_enforcer._playtime_kill._PROC", fake_proc),
         # Never let a test chattr +i a file inside tmp_path — pytest could
         # then not clean the directory up.

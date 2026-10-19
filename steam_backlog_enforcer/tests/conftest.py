@@ -28,6 +28,7 @@ from steam_backlog_enforcer.tests._isolate_control_plane import (
 from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._isolate_reading import _isolate_reading
+from steam_backlog_enforcer.tests._isolate_shadow import _isolate_shadow
 from steam_backlog_enforcer.tests._no_fast_install import _no_fast_install
 from steam_backlog_enforcer.tests._no_real_effects import (
     _no_live_games,
@@ -47,6 +48,7 @@ __all__ = [
     "_isolate_incidents",
     "_isolate_playtime",
     "_isolate_reading",
+    "_isolate_shadow",
     "_no_fast_install",
     "_no_live_games",
     "_no_real_effects",

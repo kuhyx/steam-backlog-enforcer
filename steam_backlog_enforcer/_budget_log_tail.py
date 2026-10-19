@@ -23,17 +23,20 @@ import json
 import logging
 from typing import Any, Final
 
+from leisure_watch.procscan import process_name
+
 from steam_backlog_enforcer._playtime_log import (
     EVENT_MANUAL_ADJUSTMENT,
     budget_log_path,
 )
-from steam_backlog_enforcer._playtime_procs import process_name
+from steam_backlog_enforcer._shadow_log import EVENT_SHADOW_CHANGE
 
 logger = logging.getLogger(__name__)
 
 # Enough for several records at any plausible size, small enough to read on
 # every poll without thinking about it.
 _TAIL_BYTES: Final = 64 * 1024
+_NOT_VERDICTS: Final = frozenset({EVENT_MANUAL_ADJUSTMENT, EVENT_SHADOW_CHANGE})
 
 
 @dataclass(frozen=True)
@@ -85,7 +88,8 @@ def _last_record(*, demo: bool) -> dict[str, Any] | None:
         # A manual adjustment (e.g. a gaming reset) is an audit note, not a
         # tick verdict: returning it would blank the live status until the
         # next verdict change or heartbeat.
-        if isinstance(record, dict) and record.get("event") != EVENT_MANUAL_ADJUSTMENT:
+        # A shadow verdict (C4) is leisure, not a game tick: same reasoning.
+        if isinstance(record, dict) and record.get("event") not in _NOT_VERDICTS:
             return record
     return None
 

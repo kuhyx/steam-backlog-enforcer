@@ -119,8 +119,9 @@ class Config:
     Each entry is ``{"id": ..., "label": ..., "names": [...]}``. ``None`` means
     "use the built-in defaults" (osu!lazer); an explicit ``[]`` means "none",
     which is why this is not simply an empty list. Parsed and validated by
-    :mod:`steam_backlog_enforcer._counted_procs` — the field exists here only so
-    that ``save()`` round-trips a hand-edited list instead of dropping it.
+    ``leisure_watch.procscan`` (once ``_counted_procs``) — the field exists
+    here only so that ``save()`` round-trips a hand-edited list instead of
+    dropping it.
 
     Deliberately separate from ``LAUNCHER_PROCESS_NAMES``: that frozenset is
     also the total-block kill list, so adding a game there has side effects

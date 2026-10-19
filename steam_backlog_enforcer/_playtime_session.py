@@ -21,9 +21,11 @@ from steam_backlog_enforcer._playtime_log import (
     TickJournal,
     budget_log_path,
 )
+from steam_backlog_enforcer._shadow_log import ShadowJournal
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
+    from steam_backlog_enforcer._shadow import ShadowVerdict
 
 
 class TickRecorder(Protocol):
@@ -47,12 +49,20 @@ class HistoryRecorder(Protocol):
         """Record today's running total if it has moved far enough."""
 
 
+class ShadowRecorder(Protocol):
+    """What the budget tick needs from the shadow verdict journal."""
+
+    def observe(self, verdict: ShadowVerdict, state: PlaytimeState) -> None:
+        """Record the shadow verdict if it changed."""
+
+
 @dataclass(frozen=True)
 class PlaytimeSession:
     """Per-daemon logging state."""
 
     journal: TickRecorder
     history: HistoryRecorder
+    shadow: ShadowRecorder
 
 
 def new_session(*, demo: bool = False) -> PlaytimeSession:
@@ -66,7 +76,9 @@ def new_session(*, demo: bool = False) -> PlaytimeSession:
     Returns:
         A session for this daemon run.
     """
+    log = BudgetLog(path=budget_log_path(demo=demo))
     return PlaytimeSession(
-        journal=TickJournal(BudgetLog(path=budget_log_path(demo=demo))),
+        journal=TickJournal(log),
         history=HistoryWriter(),
+        shadow=ShadowJournal(log),
     )

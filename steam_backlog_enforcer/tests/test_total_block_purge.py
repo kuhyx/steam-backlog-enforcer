@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer._total_block_launchers import LAUNCHER_PROCESS_NAMES
+from leisure_watch.procscan import LAUNCHER_PROCESS_NAMES
+
 from steam_backlog_enforcer._total_block_purge import (
     is_steam_installed,
     kill_and_uninstall_launchers,

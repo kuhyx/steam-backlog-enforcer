@@ -16,8 +16,9 @@ import contextlib
 import re
 from typing import TYPE_CHECKING, Final
 
-from steam_backlog_enforcer import _steam_state
-from steam_backlog_enforcer._counted_procs import labels_by_key, load_counted_processes
+from leisure_watch.procscan import labels_by_key, load_counted_processes
+
+from steam_backlog_enforcer import _steam_state, config
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -74,7 +75,7 @@ def label_for(key: str) -> str:
             return _steam_name(int(raw)) or key
         return key
     if key.startswith(_PROC_PREFIX):
-        return labels_by_key(load_counted_processes()).get(key, key)
+        return labels_by_key(load_counted_processes(config.CONFIG_FILE)).get(key, key)
     if key.startswith(_LAUNCHER_PREFIX):
         return key[len(_LAUNCHER_PREFIX) :]
     return key

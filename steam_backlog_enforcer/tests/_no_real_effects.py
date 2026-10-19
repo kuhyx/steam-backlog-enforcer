@@ -175,7 +175,7 @@ def _no_real_effects() -> Iterator[list[str]]:
 # Live process-table isolation
 #
 # Steam games are found by scanning the real /proc for SteamAppId
-# (enforcer.get_running_steam_game_pids hardcodes the path). Unpatched,
+# (leisure_watch.procscan scans it). Unpatched,
 # that reads the *developer's* process table: running the suite while
 # playing made three restart tests fail on 2026-08-28, and let a demo
 # loop bill and kill the live game on 2026-10-10. Tests that care
@@ -192,7 +192,7 @@ def _no_live_games() -> Iterator[None]:
             return_value={},
         ),
         patch(
-            "steam_backlog_enforcer._playtime_procs.get_running_steam_game_pids",
+            "leisure_watch.procscan._qualifying.get_running_steam_game_pids",
             return_value={},
         ),
     ):

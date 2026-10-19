@@ -17,6 +17,7 @@ from steam_backlog_enforcer._playtime_session import PlaytimeSession
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
+    from steam_backlog_enforcer._shadow import ShadowVerdict
 
 
 class StubJournal:
@@ -63,6 +64,23 @@ class StubHistory:
         self.recorded.append((state.day_key, state.seconds))
 
 
+class StubShadow:
+    """A shadow journal that keeps verdicts in memory instead of on disk."""
+
+    def __init__(self) -> None:
+        self.observed: list[ShadowVerdict] = []
+
+    def observe(self, verdict: ShadowVerdict, state: PlaytimeState) -> None:
+        """Remember *verdict*.
+
+        Args:
+            verdict: This tick's shadow verdict.
+            state: Ignored.
+        """
+        del state
+        self.observed.append(verdict)
+
+
 def fake_session() -> PlaytimeSession:
     """Build a session that never touches the log file or disk.
 
@@ -72,4 +90,5 @@ def fake_session() -> PlaytimeSession:
     return PlaytimeSession(
         journal=StubJournal(),
         history=StubHistory(),
+        shadow=StubShadow(),
     )

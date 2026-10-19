@@ -3,90 +3,13 @@
 from __future__ import annotations
 
 import subprocess
-from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from steam_backlog_enforcer.enforcer import (
     enforce_allowed_game,
-    get_running_steam_game_pids,
     kill_process,
     send_notification,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-
-class TestGetRunningPids:
-    """Tests for get_running_steam_game_pids."""
-
-    def test_finds_steam_pid(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "12345"
-        pid_dir.mkdir(parents=True)
-        environ = b"HOME=/home/user\x00SteamAppId=440\x00PATH=/usr/bin"
-        (pid_dir / "environ").write_bytes(environ)
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_running_steam_game_pids()
-            assert result == {12345: 440}
-
-    def test_skips_non_digit_entries(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        proc_dir.mkdir(parents=True)
-        (proc_dir / "self").mkdir()
-        (proc_dir / "cpuinfo").touch()
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_running_steam_game_pids()
-            assert result == {}
-
-    def test_handles_permission_error(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "99"
-        pid_dir.mkdir(parents=True)
-        # No environ file -> OSError when reading
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_running_steam_game_pids()
-            assert result == {}
-
-    def test_skips_non_digit_steam_app_id(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "100"
-        pid_dir.mkdir(parents=True)
-        environ = b"SteamAppId=notanumber\x00"
-        (pid_dir / "environ").write_bytes(environ)
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_running_steam_game_pids()
-            assert result == {}
-
-    def test_no_steam_env(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "200"
-        pid_dir.mkdir(parents=True)
-        environ = b"HOME=/home/user\x00PATH=/usr/bin\x00"
-        (pid_dir / "environ").write_bytes(environ)
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_running_steam_game_pids()
-            assert result == {}
 
 
 class TestEnforceAllowedGame:

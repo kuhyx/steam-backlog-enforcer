@@ -15,13 +15,15 @@ from pathlib import Path
 import shutil
 import signal
 
-from steam_backlog_enforcer._counted_procs import kill_target_names
-from steam_backlog_enforcer._playtime_run import _run
-from steam_backlog_enforcer._total_block_launchers import (
+from leisure_watch.procscan import (
     LAUNCHER_PROCESS_NAMES,
     STEAM_CLIENT_PROCESS_NAMES,
+    get_pids_by_process_names,
+    kill_target_names,
 )
-from steam_backlog_enforcer.enforcer import get_pids_by_process_names
+
+from steam_backlog_enforcer import config
+from steam_backlog_enforcer._playtime_run import _run
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,11 @@ def steam_and_launcher_pids() -> set[int]:
     Returns:
         The launcher and client PIDs.
     """
-    names = STEAM_CLIENT_PROCESS_NAMES | LAUNCHER_PROCESS_NAMES | kill_target_names()
+    names = (
+        STEAM_CLIENT_PROCESS_NAMES
+        | LAUNCHER_PROCESS_NAMES
+        | kill_target_names(config.CONFIG_FILE)
+    )
     return set(get_pids_by_process_names(names))
 
 

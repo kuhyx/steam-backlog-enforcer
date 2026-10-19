@@ -12,6 +12,9 @@ from dataclasses import replace
 import logging
 from typing import TYPE_CHECKING
 
+from leisure_watch.procscan import qualifying_pids
+
+from steam_backlog_enforcer import config as config_mod
 from steam_backlog_enforcer._playtime_block import (
     reconcile,
 )
@@ -22,7 +25,6 @@ from steam_backlog_enforcer._playtime_kill import (
     steam_and_launcher_pids,
 )
 from steam_backlog_enforcer._playtime_notify import _humanise, notify_desktop_user
-from steam_backlog_enforcer._playtime_procs import qualifying_pids
 from steam_backlog_enforcer._playtime_state import (
     _SHUTDOWN_GRACE_SECONDS,
     PlaytimeRules,
@@ -148,4 +150,6 @@ def _kill_set(rules: PlaytimeRules) -> set[int]:
     Returns:
         PIDs to signal.
     """
-    return set(qualifying_pids(rules)) | steam_and_launcher_pids()
+    return (
+        set(qualifying_pids(rules, config_mod.CONFIG_FILE)) | steam_and_launcher_pids()
+    )

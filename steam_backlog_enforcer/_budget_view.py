@@ -29,6 +29,7 @@ from steam_backlog_enforcer._playtime_state import (
     rules_for,
     state_path,
 )
+from steam_backlog_enforcer._shadow_view import shadow_view
 from steam_backlog_enforcer.config import Config, State
 
 if TYPE_CHECKING:
@@ -136,6 +137,7 @@ def build_today(state: PlaytimeState, rules: PlaytimeRules) -> dict[str, Any]:
         "next_warning_seconds": next_warning(state, rules),
         "warned_seconds": list(state.warned_seconds),
         "games": today_games(state),
+        "shadow": shadow_view(state),
     }
 
 

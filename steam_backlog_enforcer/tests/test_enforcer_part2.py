@@ -2,87 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from steam_backlog_enforcer.enforcer import (
     _kill_pid_by_name,
-    get_pids_by_process_names,
     kill_processes_by_name,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-
-class TestGetPidsByProcessNames:
-    """Tests for get_pids_by_process_names."""
-
-    def test_finds_matching_comm(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "12345"
-        pid_dir.mkdir(parents=True)
-        (pid_dir / "comm").write_text("lutris\n", encoding="utf-8")
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_pids_by_process_names(frozenset({"lutris"}))
-        assert result == {12345: "lutris"}
-
-    def test_no_match_returns_empty(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "12345"
-        pid_dir.mkdir(parents=True)
-        (pid_dir / "comm").write_text("bash\n", encoding="utf-8")
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_pids_by_process_names(frozenset({"lutris"}))
-        assert result == {}
-
-    def test_skips_non_digit_entries(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        proc_dir.mkdir(parents=True)
-        (proc_dir / "self").mkdir()
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_pids_by_process_names(frozenset({"lutris"}))
-        assert result == {}
-
-    def test_handles_missing_comm_file(self, tmp_path: Path) -> None:
-        proc_dir = tmp_path / "proc"
-        (proc_dir / "42").mkdir(parents=True)
-        # No comm file -> OSError when reading.
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_pids_by_process_names(frozenset({"lutris"}))
-        assert result == {}
-
-    def test_truncates_long_names_to_15_chars(self, tmp_path: Path) -> None:
-        """The kernel truncates /proc/[pid]/comm to 15 chars - matching
-        must compare against the truncated form, not the full name."""
-        proc_dir = tmp_path / "proc"
-        pid_dir = proc_dir / "777"
-        pid_dir.mkdir(parents=True)
-        # "EpicGamesLauncher" truncated to 15 chars is "EpicGamesLaunch".
-        (pid_dir / "comm").write_text("EpicGamesLaunch\n", encoding="utf-8")
-
-        with patch(
-            "steam_backlog_enforcer.enforcer.Path",
-            return_value=proc_dir,
-        ):
-            result = get_pids_by_process_names(frozenset({"EpicGamesLauncher"}))
-        assert result == {777: "EpicGamesLauncher"}
 
 
 class TestKillProcessesByName:

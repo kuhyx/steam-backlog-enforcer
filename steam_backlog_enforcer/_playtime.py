@@ -20,9 +20,12 @@ suspends, missed ticks, daemon restarts and NTP steps all behave.
 
 **Launchers are matched by cmdline, not by ``comm``.** ``/usr/bin/lutris`` is a
 ``#!/usr/bin/env python3`` script, so the kernel records its ``comm`` as
-``python3`` and the ``comm``-based scan in :mod:`enforcer` never sees it. That
-is why :func:`get_pids_by_cmdline_names` exists alongside
-``enforcer.get_pids_by_process_names`` rather than replacing it.
+``python3``. The scan (``leisure_watch.procscan``, shared with the leisure
+watcher) therefore reads argv as well as ``comm``.
+
+**Shadow leisure time rides the same tick** (:mod:`_shadow`, contract C4): it
+is measured from the same stamp and clamp, before ``accumulate``, and never
+touches an enforced field. Under a total block it is not billed.
 """
 
 from __future__ import annotations
@@ -33,6 +36,9 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from leisure_watch.procscan import attributed_key, qualifying_pids
+
+from steam_backlog_enforcer import config as config_mod
 from steam_backlog_enforcer._gaming_days import gaming_day_key
 from steam_backlog_enforcer._playtime_block import mounted_targets
 from steam_backlog_enforcer._playtime_budget import (
@@ -45,7 +51,6 @@ from steam_backlog_enforcer._playtime_cutoff import (
     _warn,
     reconcile_for,
 )
-from steam_backlog_enforcer._playtime_procs import attributed_key, qualifying_pids
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeRules,
     PlaytimeState,
@@ -53,6 +58,7 @@ from steam_backlog_enforcer._playtime_state import (
     rules_for,
     save_state,
 )
+from steam_backlog_enforcer._shadow import observe_shadow, shadow_accumulate
 from steam_backlog_enforcer._total_block import is_total_block_active
 
 if TYPE_CHECKING:
@@ -96,7 +102,11 @@ def playtime_tick(
     # because earners can reset at midnight -- before the gaming day ends --
     # and a 05:59 dip must not erase the evening's earned-but-unspent time.
     state = replace(
-        state, budget_seconds=max(state.budget_seconds, rules.budget_seconds)
+        state,
+        budget_seconds=max(state.budget_seconds, rules.budget_seconds),
+        shadow_budget_seconds=max(
+            state.shadow_budget_seconds, rules.shadow_budget_seconds
+        ),
     )
 
     if is_total_block_active():
@@ -108,9 +118,13 @@ def playtime_tick(
         session.history.observe(state, demo=demo)
         return
 
-    owners = qualifying_pids(rules)
+    owners = qualifying_pids(rules, config_mod.CONFIG_FILE)
     pids = set(owners)
 
+    shadow = observe_shadow(owners, stamp=now.timestamp())
+    state = shadow_accumulate(
+        state, stamp=now.timestamp(), interval=interval, verdict=shadow
+    )
     state = accumulate(
         state,
         now=now,
@@ -120,6 +134,7 @@ def playtime_tick(
     )
     state = _policy(state, rules, now=now)
     session.journal.observe(pids, state, rules=rules, now_monotonic=time.monotonic())
+    session.shadow.observe(shadow, state)
     save_state(state, demo=demo)
     session.history.observe(state, demo=demo)
 

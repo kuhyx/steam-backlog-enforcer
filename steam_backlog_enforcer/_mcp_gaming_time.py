@@ -66,6 +66,8 @@ def get_gaming_time() -> dict[str, Any]:
         # Which games make up seconds_used, largest first, with whatever the
         # focus probe could not attribute as a trailing "unattributed" slice.
         "games": today["games"],
+        # The shadow leisure budget (C4): shown, never enforced.
+        "shadow": today["shadow"],
     }
 
 

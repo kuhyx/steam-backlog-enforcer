@@ -58,6 +58,8 @@ from steam_backlog_enforcer._reading_bonus import read_today
 from steam_backlog_enforcer._workout_budget import workout_logged_today
 
 if TYPE_CHECKING:
+    from datetime import date
+
     from steam_backlog_enforcer.config import Config
 
 logger = logging.getLogger(__name__)
@@ -101,6 +103,9 @@ class BudgetResolution:
         reading_seconds: Seconds added by a credited reading session, or 0.
         earned_seconds: Seconds added per earner name, every registered earner
             included -- the generic form of the three fields above.
+        shadow_seconds: The same answers priced as leisure
+            (``earned_time.resolve(leisure=True)``, contract C4). Shown, never
+            enforced.
     """
 
     seconds: float
@@ -110,6 +115,23 @@ class BudgetResolution:
     reason: str
     reading_seconds: float = 0.0
     earned_seconds: dict[str, float] = field(default_factory=dict)
+    shadow_seconds: float = 0.0
+
+
+def _price(
+    answers: dict[str, int | bool | None],
+    today: date,
+    registry: tuple[earned_time.Earner, ...],
+    first_paid: dict[str, date | None] | None,
+    *,
+    leisure: bool,
+) -> earned_time.Resolution:
+    """Price one set of answers; ``leisure=False`` is exactly the old call."""
+    if first_paid is None:
+        return earned_time.resolve(answers, today, registry, leisure=leisure)
+    return earned_time.resolve(
+        answers, today, registry, first_credits=first_paid, leisure=leisure
+    )
 
 
 def _describe(name: str, label: str, answer: int | None) -> str:
@@ -164,11 +186,9 @@ def resolve_budget(config: Config) -> BudgetResolution:
     answers = _answers(config, registry)
     # Maturity only delays a penalty: a gate that never paid out costs nothing.
     first_paid = first_credits(registry, today)
-    day = (
-        earned_time.resolve(answers, today, registry)
-        if first_paid is None
-        else earned_time.resolve(answers, today, registry, first_credits=first_paid)
-    )
+    day = _price(answers, today, registry, first_paid, leisure=False)
+    # The same answers, asked once: the shadow can never see a different day.
+    shadow = _price(answers, today, registry, first_paid, leisure=True)
     earned = {t.earner.name: t.gaming_minutes * _SECONDS_PER_MINUTE for t in day.terms}
     total = day.gaming_minutes * _SECONDS_PER_MINUTE
     parts = ", ".join(
@@ -188,4 +208,5 @@ def resolve_budget(config: Config) -> BudgetResolution:
         reason=reason,
         reading_seconds=earned.get("reading", 0.0),
         earned_seconds=earned,
+        shadow_seconds=shadow.gaming_minutes * _SECONDS_PER_MINUTE,
     )
