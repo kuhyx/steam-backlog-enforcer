@@ -97,6 +97,9 @@ class PlaytimeRules:
     budget_reason: str = ""
     # The shadow leisure budget (C4), held like budget_seconds; never enforced.
     shadow_budget_seconds: float = 0.0
+    # Phase 2: the billed gaming day is on the leisure budget (set per tick by
+    # _leisure_mode.leisure_billed, never by rules_for). Only wording and kills.
+    leisure: bool = False
 
 
 def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:

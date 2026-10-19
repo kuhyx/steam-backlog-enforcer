@@ -26,6 +26,7 @@ from steam_backlog_enforcer.tests._isolate_control_plane import (
     _isolate_cover_art,
 )
 from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
+from steam_backlog_enforcer.tests._isolate_leisure import _isolate_leisure
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._isolate_reading import _isolate_reading
 from steam_backlog_enforcer.tests._isolate_shadow import _isolate_shadow
@@ -46,6 +47,7 @@ __all__ = [
     "_isolate_control_plane",
     "_isolate_cover_art",
     "_isolate_incidents",
+    "_isolate_leisure",
     "_isolate_playtime",
     "_isolate_reading",
     "_isolate_shadow",

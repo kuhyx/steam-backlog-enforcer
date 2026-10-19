@@ -16,7 +16,7 @@ dependencies = [
     "websockets==17.2",
     # The earner registry (gaming budget terms); stdlib-only, so the root
     # daemon imports it from the desktop user's site-packages.
-    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.14.0#subdirectory=earned_time",
+    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.15.0#subdirectory=earned_time",
     # The shared /proc game scan and the signed leisure facts (shadow budget,
     # contract C4); stdlib-only, imported by root from the user site like
     # earned-time.

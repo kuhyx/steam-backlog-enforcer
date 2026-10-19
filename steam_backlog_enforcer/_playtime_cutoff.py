@@ -53,6 +53,19 @@ def reconcile_for(rules: PlaytimeRules, *, should_block: bool) -> None:
         reconcile(should_block=should_block)
 
 
+_CUTOFF_BODY = {
+    False: "Daily budget used up. Steam and games are shutting down. "
+    "Unblocks at 06:00.",
+    True: "Daily leisure budget used up. Steam, games and leisure apps are "
+    "shutting down. Unblocks at 06:00.",
+}
+
+
+def _noun(rules: PlaytimeRules) -> str:
+    """What the budget is called: "Leisure" from the go-live day (Phase 2)."""
+    return "Leisure" if rules.leisure else "Gaming"
+
+
 def _warn(state: PlaytimeState, rules: PlaytimeRules) -> PlaytimeState:
     """Fire the due warning, if any, and record that it fired.
 
@@ -67,14 +80,16 @@ def _warn(state: PlaytimeState, rules: PlaytimeRules) -> PlaytimeState:
     if threshold is None:
         return state
 
-    left = f"{_humanise(threshold)} of today's gaming budget left."
+    noun = _noun(rules)
+    left = f"{_humanise(threshold)} of today's {noun.lower()} budget left."
     logger.info(
-        "Gaming warning: %s (billed %.0fs of %.0fs)",
+        "%s warning: %s (billed %.0fs of %.0fs)",
+        noun,
         left,
         state.seconds,
         rules.budget_seconds,
     )
-    notify_desktop_user("Gaming time running out", left)
+    notify_desktop_user(f"{noun} time running out", left)
     return replace(state, warned_seconds=[*state.warned_seconds, threshold])
 
 
@@ -98,11 +113,10 @@ def _begin_cutoff(
     Returns:
         The updated state.
     """
-    logger.warning("Daily gaming budget exhausted; shutting Steam down.")
-    notify_desktop_user(
-        "Gaming time is up",
-        "Daily budget used up. Steam and games are shutting down. Unblocks at 06:00.",
+    logger.warning(
+        "Daily %s budget exhausted; shutting Steam down.", _noun(rules).lower()
     )
+    notify_desktop_user(f"{_noun(rules)} time is up", _CUTOFF_BODY[rules.leisure])
     request_steam_shutdown()
     kill_gaming_processes(_kill_set(rules), force=False)
     if rules.demo:

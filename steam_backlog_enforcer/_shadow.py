@@ -23,7 +23,7 @@ Overlapping sources bill the wall clock once and split it evenly, so
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 import logging
 from pathlib import Path
 import time
@@ -67,6 +67,11 @@ class ShadowVerdict:
     """``gatelock:<app>`` / ``i3lock`` while paused, else ``None``."""
     keys: tuple[str, ...]
     """Sources billed this tick; empty = free (or paused)."""
+    fact: Now | None = field(default=None, compare=False, repr=False)
+    """The trusted watcher fact (Phase 2 kills); ``None`` if paused or untrusted.
+
+    Out of equality: ts/seq change every 5 s and the journal dedups on it.
+    """
 
     @property
     def state(self) -> str:
@@ -121,7 +126,7 @@ def observe_shadow(owners: dict[int, str], *, stamp: float) -> ShadowVerdict:
                 "Shadow inputs unreadable (%r); failing closed.", exc, exc_info=True
             )
         fact = None
-    return ShadowVerdict(paused_by=None, keys=shadow_keys(owners, fact))
+    return ShadowVerdict(paused_by=None, keys=shadow_keys(owners, fact), fact=fact)
 
 
 def _should_warn(exc: BaseException) -> bool:

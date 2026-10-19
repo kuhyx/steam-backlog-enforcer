@@ -23,9 +23,10 @@ suspends, missed ticks, daemon restarts and NTP steps all behave.
 ``python3``. The scan (``leisure_watch.procscan``, shared with the leisure
 watcher) therefore reads argv as well as ``comm``.
 
-**Shadow leisure time rides the same tick** (:mod:`_shadow`, contract C4): it
-is measured from the same stamp and clamp, before ``accumulate``, and never
-touches an enforced field. Under a total block it is not billed.
+**Shadow leisure time rides the same tick** (:mod:`_shadow`, contract C4),
+from the same stamp and clamp, before ``accumulate``; under a total block it
+is not billed. From the go-live day (:mod:`_leisure_mode`, Phase 2) its rule
+bills the enforced count too, and at 0 :mod:`_leisure_kill` ends leisure apps.
 """
 
 from __future__ import annotations
@@ -36,15 +37,13 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from leisure_watch.procscan import attributed_key, qualifying_pids
+from leisure_watch.procscan import qualifying_pids
 
 from steam_backlog_enforcer import config as config_mod
 from steam_backlog_enforcer._gaming_days import gaming_day_key
+from steam_backlog_enforcer._leisure_mode import Tick, bill_tick
 from steam_backlog_enforcer._playtime_block import mounted_targets
-from steam_backlog_enforcer._playtime_budget import (
-    accumulate,
-    roll_over,
-)
+from steam_backlog_enforcer._playtime_budget import roll_over
 from steam_backlog_enforcer._playtime_cutoff import (
     _begin_cutoff,
     _sustain_block,
@@ -125,14 +124,11 @@ def playtime_tick(
     state = shadow_accumulate(
         state, stamp=now.timestamp(), interval=interval, verdict=shadow
     )
-    state = accumulate(
-        state,
-        now=now,
-        qualifying=pids,
-        interval=interval,
-        credited_key=attributed_key(owners),
-    )
+    tick = Tick(now=now, interval=interval, owners=owners, verdict=shadow)
+    state, rules = bill_tick(state, rules, tick)
     state = _policy(state, rules, now=now)
+    if rules.leisure:
+        session.leisure.enforce(state, rules, verdict=shadow, stamp=now.timestamp())
     session.journal.observe(pids, state, rules=rules, now_monotonic=time.monotonic())
     session.shadow.observe(shadow, state)
     save_state(state, demo=demo)

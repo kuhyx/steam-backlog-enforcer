@@ -54,12 +54,45 @@ def accumulate(
     Returns:
         The updated state.
     """
+    return bill(
+        state,
+        now=now,
+        billed=bool(qualifying),
+        interval=interval,
+        credited_key=credited_key,
+    )
+
+
+def bill(
+    state: PlaytimeState,
+    *,
+    now: datetime,
+    billed: bool,
+    interval: float,
+    credited_key: str = "",
+) -> PlaytimeState:
+    """:func:`accumulate` with the "anything qualifies?" answer given directly.
+
+    The leisure budget (Phase 2) decides billing from the shadow verdict, not
+    from game PIDs; everything else -- the clamp, the first tick, a backward
+    step, the attribution -- is the same arithmetic.
+
+    Args:
+        state: Current accounting state.
+        now: Timezone-aware local timestamp for this tick.
+        billed: Whether this tick counts against the budget.
+        interval: Nominal seconds between ticks.
+        credited_key: Attribution key to charge, or ``""``.
+
+    Returns:
+        The updated state.
+    """
     stamp = now.timestamp()
     if state.last_tick_at <= 0.0:
         return replace(state, last_tick_at=stamp)
 
     delta = stamp - state.last_tick_at
-    if delta <= 0.0 or not qualifying:
+    if delta <= 0.0 or not billed:
         return replace(state, last_tick_at=stamp)
 
     credited = min(delta, interval * _DELTA_CLAMP_FACTOR)

@@ -12,9 +12,10 @@ would otherwise have caught.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
+from steam_backlog_enforcer._leisure_kill import LeisureKiller
 from steam_backlog_enforcer._playtime_history import HistoryWriter
 from steam_backlog_enforcer._playtime_log import (
     BudgetLog,
@@ -56,6 +57,20 @@ class ShadowRecorder(Protocol):
         """Record the shadow verdict if it changed."""
 
 
+class LeisureEnforcer(Protocol):
+    """What the budget tick needs from the Phase 2 leisure killer."""
+
+    def enforce(
+        self,
+        state: PlaytimeState,
+        rules: PlaytimeRules,
+        *,
+        verdict: ShadowVerdict,
+        stamp: float,
+    ) -> None:
+        """Signal leisure apps if the leisure budget is spent."""
+
+
 @dataclass(frozen=True)
 class PlaytimeSession:
     """Per-daemon logging state."""
@@ -63,6 +78,9 @@ class PlaytimeSession:
     journal: TickRecorder
     history: HistoryRecorder
     shadow: ShadowRecorder
+    # Defaulted (records nowhere) so a session built without it still kills;
+    # new_session wires it to the budget log.
+    leisure: LeisureEnforcer = field(default_factory=LeisureKiller)
 
 
 def new_session(*, demo: bool = False) -> PlaytimeSession:
@@ -81,4 +99,5 @@ def new_session(*, demo: bool = False) -> PlaytimeSession:
         journal=TickJournal(log),
         history=HistoryWriter(),
         shadow=ShadowJournal(log),
+        leisure=LeisureKiller(log),
     )
