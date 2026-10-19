@@ -17,7 +17,9 @@ Each process gets SIGTERM once, then SIGKILL every tick from 30 s after *its*
 SIGTERM -- timed per process, so an app opened an hour into the block still
 gets its 30 s. A process is its (pid, start time), so a reused pid starts
 over. Root/system processes, lockers and the enforcer itself are never
-signalled. Every SIGTERM and the first SIGKILL go to ``budget.jsonl``.
+signalled, nor -- whatever ``now.json`` says -- the desktop session
+(:mod:`_leisure_never_kill`; each refusal logged once). Every SIGTERM and the
+first SIGKILL go to ``budget.jsonl``.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ import os
 import signal
 from typing import TYPE_CHECKING, Final, Protocol
 
+from steam_backlog_enforcer._leisure_never_kill import never_kill
 from steam_backlog_enforcer._leisure_procs import (
     exe_name,
     is_browser,
@@ -45,6 +48,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 EVENT_LEISURE_KILL: Final = "leisure_kill"
+EVENT_KILL_REFUSED: Final = "leisure_kill_refused"
 SIGKILL_AFTER_SECONDS: Final = 30.0
 _KILLED_SOURCES: Final = frozenset({"focus", "media"})
 _FAILCLOSED: Final = "failclosed"
@@ -85,6 +89,7 @@ class LeisureKiller:
         self.log = log
         self._termed: dict[_Ident, float] = {}
         self._killed: set[_Ident] = set()
+        self._refused: set[_Ident] = set()
         self._last_error = ""
 
     def enforce(
@@ -152,15 +157,31 @@ class LeisureKiller:
                 if self._signal(ident[0], signal.SIGKILL, None if quiet else note):
                     self._killed.add(ident)
 
-    @staticmethod
-    def _identify(targets: dict[int, str]) -> dict[_Ident, str]:
+    def _identify(self, targets: dict[int, str]) -> dict[_Ident, str]:
         chain = own_chain()
         live: dict[_Ident, str] = {}
+        refused: set[_Ident] = set()
         for pid, key in targets.items():
             started = start_time(pid)
-            if started is not None and not is_protected(pid, chain):
+            if started is None or is_protected(pid, chain):
+                continue
+            guard = never_kill(pid)
+            if guard is None:
                 live[pid, started] = key
+                continue
+            refused.add((pid, started))
+            if (pid, started) not in self._refused:
+                self._refuse(pid, key, guard)
+        self._refused = refused
         return live
+
+    def _refuse(self, pid: int, key: str, name: str) -> None:
+        """Log, once per process, a kill the never-kill set stopped."""
+        logger.warning(
+            "Refused leisure kill of pid %d (%s): %s is never killed.", pid, key, name
+        )
+        if self.log is not None:
+            self.log.record(EVENT_KILL_REFUSED, pid=pid, key=key, name=name)
 
     def _signal(
         self, pid: int, sig: signal.Signals, note: dict[str, object] | None
