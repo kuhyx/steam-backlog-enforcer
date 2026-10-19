@@ -20,7 +20,7 @@ dependencies = [
     # The shared /proc game scan and the signed leisure facts (shadow budget,
     # contract C4); stdlib-only, imported by root from the user site like
     # earned-time.
-    "leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.1.1",
+    "leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.1.2",
 ]
 
 # Optional extras. The `mcp` group is ONLY needed by the MCP server
