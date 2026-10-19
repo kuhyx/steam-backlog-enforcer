@@ -18,10 +18,12 @@ Steam cutoff (:mod:`_playtime_cutoff`). Which pids:
 Each process gets SIGTERM once, then SIGKILL every tick from 30 s after *its*
 SIGTERM -- timed per process, so an app opened an hour into the block still
 gets its 30 s. A process is its (pid, start time), so a reused pid starts
-over. Root/system processes, lockers and the enforcer itself are never
-signalled, nor -- whatever ``now.json`` says -- the desktop session
-(:mod:`_leisure_never_kill`; each refusal logged once). Every SIGTERM and the
-first SIGKILL go to ``budget.jsonl``.
+over; a reason carrying the start time it saw (leisure-watch 0.2.1 ``start``)
+names only that process, never a later one reusing the pid. Root/system
+processes, lockers and the enforcer itself are never signalled, nor --
+whatever ``now.json`` says -- the desktop session (:mod:`_leisure_never_kill`;
+each refusal logged once). Every SIGTERM and the first SIGKILL go to
+``budget.jsonl``.
 """
 
 from __future__ import annotations
@@ -43,7 +45,7 @@ from steam_backlog_enforcer._leisure_procs import (
 )
 
 if TYPE_CHECKING:
-    from leisure_watch.facts import Now
+    from leisure_watch.facts import Now, Reason
 
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
     from steam_backlog_enforcer._shadow import ShadowVerdict
@@ -69,9 +71,9 @@ class KillLog(Protocol):
         """Append one record."""
 
 
-def fact_targets(fact: Now) -> dict[int, str]:
-    """Pids a trusted *fact* says must end, to the reason key that named them."""
-    found: dict[int, str] = {}
+def _picks(fact: Now) -> dict[int, Reason]:
+    """Pids a trusted *fact* says must end, to the (first) reason naming them."""
+    found: dict[int, Reason] = {}
     for reason in fact.reasons:
         if reason.pid is None:
             continue
@@ -79,8 +81,26 @@ def fact_targets(fact: Now) -> dict[int, str]:
         if failclosed or (
             reason.source in _KILLED_SOURCES and not is_browser(reason.pid)
         ):
-            found.setdefault(reason.pid, reason.key)
+            found.setdefault(reason.pid, reason)
     return found
+
+
+def fact_targets(fact: Now) -> dict[int, str]:
+    """Pids a trusted *fact* says must end, to the reason key that named them."""
+    return {pid: reason.key for pid, reason in _picks(fact).items()}
+
+
+def _start(reason: Reason) -> int | None:
+    # Optional from leisure-watch 0.2.1; absent (0.2.0) or unusable = unknown.
+    start = getattr(reason, "start", None)
+    usable = isinstance(start, int) and not isinstance(start, bool)
+    return start if usable else None
+
+
+def fact_starts(fact: Now) -> dict[int, int]:
+    """Per target pid, the start time its reason saw (when it carries one)."""
+    starts = {pid: _start(reason) for pid, reason in _picks(fact).items()}
+    return {pid: start for pid, start in starts.items() if start is not None}
 
 
 class LeisureKiller:
@@ -143,13 +163,15 @@ class LeisureKiller:
             return
         if verdict.paused_by is not None:
             return
+        starts: dict[int, int] = {}
         if verdict.fact is None:
             if untrusted_for < UNTRUSTED_SWEEP_AFTER:
                 return
             targets, why = sweep_targets(), "now.json untrusted"
         else:
             targets, why = fact_targets(verdict.fact), "now.json"
-        live = self._identify(targets)
+            starts = fact_starts(verdict.fact)
+        live = self._identify(targets, starts)
         self._termed = {i: t for i, t in self._termed.items() if i in live}
         self._killed &= set(live)
         base = {
@@ -179,13 +201,17 @@ class LeisureKiller:
             self._untrusted_since = stamp
         return stamp - self._untrusted_since
 
-    def _identify(self, targets: dict[int, str]) -> dict[_Ident, str]:
+    def _identify(
+        self, targets: dict[int, str], starts: dict[int, int]
+    ) -> dict[_Ident, str]:
         chain = own_chain()
         live: dict[_Ident, str] = {}
         refused: set[_Ident] = set()
         for pid, key in targets.items():
             started = start_time(pid)
-            if started is None or is_protected(pid, chain):
+            if started is None or starts.get(pid, started) != started:
+                continue  # gone, or the pid now belongs to another process
+            if is_protected(pid, chain):
                 continue
             guard = never_kill(pid)
             if guard is None:
