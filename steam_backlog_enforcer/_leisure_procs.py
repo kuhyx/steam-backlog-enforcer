@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 from typing import Final
 
 from leisure_watch.facts import DESKTOP_UID
@@ -42,7 +43,13 @@ BROWSER_FAMILIES: Final = (
     "mullvad-browser",
 )
 MEDIA_PLAYERS: Final = ("mpv", "vlc", "totem", "freetube")
-_WSG_NAMES: Final = frozenset({"wsg_grabber", "wsg-grabber"})
+_WSG: Final = "wsg_grabber"
+# An interpreter by exe basename (python, python3, python3.14), and its
+# options that take a separate value, so the script after them is found.
+_PYTHON: Final = re.compile(r"python[0-9.]*")
+_OPTS_WITH_VALUE: Final = frozenset({"-W", "-X", "--check-hash-based-pycs"})
+# An updated binary's exe link (the package manager replaced the file).
+_DELETED: Final = " (deleted)"
 # Headless `wsg-grabber scrape` never counts as leisure (Q7): never swept.
 _WSG_HEADLESS: Final = "scrape"
 # A process whose argv names one of these -- or any ancestor's does -- is a
@@ -77,12 +84,20 @@ def _read(pid: int, name: str) -> str | None:
         return None
 
 
+def exe_path(pid: int) -> str:
+    """The pid's binary, without an update's `` (deleted)``; ``""`` if unreadable."""
+    try:
+        return str((_PROC / str(pid) / "exe").readlink()).removesuffix(_DELETED)
+    except OSError:
+        return ""
+
+
 def exe_name(pid: int) -> str:
     """Lower-case basename of the pid's binary (``comm`` if exe is unreadable)."""
-    try:
-        return (_PROC / str(pid) / "exe").readlink().name.lower()
-    except OSError:
-        return (_read(pid, "comm") or "").strip().lower()
+    path = exe_path(pid)
+    if path:
+        return Path(path).name.lower()
+    return (_read(pid, "comm") or "").strip().lower()
 
 
 def argv(pid: int) -> tuple[str, ...]:
@@ -129,14 +144,33 @@ def is_browser(pid: int) -> bool:
     return _family(exe_name(pid), BROWSER_FAMILIES)
 
 
-def _arg_names(pid: int) -> set[str]:
-    # "/x/leetcode_guard_tray.py" -> leetcode_guard_tray; "-m screen_locker._web"
+def _stem(arg: str) -> str:
+    # "/x/leetcode_guard_tray.py" -> leetcode_guard_tray; "screen_locker._web"
     # -> screen_locker; "book-guard" -> book_guard.
-    names = set()
-    for arg in argv(pid):
-        stem = Path(arg).name.lower().removesuffix(".py").partition(".")[0]
-        names.add(stem.replace("-", "_"))
-    return names
+    stem = Path(arg).name.lower().removesuffix(".py").partition(".")[0]
+    return stem.replace("-", "_")
+
+
+def _arg_names(pid: int) -> set[str]:
+    return {_stem(arg) for arg in argv(pid)}
+
+
+def script_of(pid: int) -> tuple[str, tuple[str, ...]] | None:
+    """What a Python interpreter runs: (script or ``-m`` module stem, its args).
+
+    ``None`` for any other binary, ``-c`` code or a bare interpreter.
+    """
+    if not _PYTHON.fullmatch(exe_name(pid)):
+        return None
+    args = argv(pid)[1:]
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        if args[i] == "-c":
+            return None
+        if args[i] == "-m":
+            return (_stem(args[i + 1]), args[i + 2 :]) if args[i + 1 :] else None
+        i += 2 if args[i] in _OPTS_WITH_VALUE else 1
+    return (_stem(args[i]), args[i + 1 :]) if i < len(args) else None
 
 
 def _ancestry(pid: int) -> list[int]:
@@ -173,11 +207,16 @@ def is_protected(pid: int, chain: set[int]) -> bool:
 
 
 def _wsg_reviewer(pid: int) -> bool:
-    args = argv(pid)
-    for i, arg in enumerate(args):
-        if Path(arg).name in _WSG_NAMES:
-            return args[i + 1 : i + 2] != (_WSG_HEADLESS,)
-    return False
+    # Only the program actually run: a path naming the repo (git -C, pytest,
+    # an editor) is not the reviewer.
+    if _stem(exe_name(pid)) == _WSG:
+        rest = argv(pid)[1:]
+    else:
+        script = script_of(pid)
+        if script is None or script[0] != _WSG:
+            return False
+        rest = script[1]
+    return rest[:1] != (_WSG_HEADLESS,)
 
 
 def sweep_targets() -> dict[int, str]:
