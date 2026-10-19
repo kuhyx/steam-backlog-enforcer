@@ -8,9 +8,11 @@ Steam cutoff (:mod:`_playtime_cutoff`). Which pids:
   every ``failclosed`` reason's pid -- a browser that is not reporting (another
   browser, an unreported private window) has nothing redirecting it.
   ``game`` reasons belong to the Steam path.
-* **Untrusted** (stale, missing, badly signed, unreadable): every browser,
-  media player and wsg-grabber reviewer (:func:`_leisure_procs.sweep_targets`)
-  until the watcher is fresh again.
+* **Untrusted** (stale, missing, badly signed, unreadable) for 30 s in a row:
+  every browser, media player and wsg-grabber reviewer
+  (:func:`_leisure_procs.sweep_targets`) until the watcher is fresh again. One
+  stale moment (resume from sleep, a watcher restart) kills nothing: a trusted
+  or paused tick, or a gap between ticks (a suspend), restarts the window.
 * **Paused** (a locker grab is held): nothing; the lock is not a stale watcher.
 
 Each process gets SIGTERM once, then SIGKILL every tick from 30 s after *its*
@@ -25,6 +27,7 @@ first SIGKILL go to ``budget.jsonl``.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import signal
 from typing import TYPE_CHECKING, Final, Protocol
@@ -50,6 +53,9 @@ logger = logging.getLogger(__name__)
 EVENT_LEISURE_KILL: Final = "leisure_kill"
 EVENT_KILL_REFUSED: Final = "leisure_kill_refused"
 SIGKILL_AFTER_SECONDS: Final = 30.0
+UNTRUSTED_SWEEP_AFTER: Final = 30.0
+# Ticks are 3 s apart; a longer gap (suspend, a stalled loop) is not "in a row".
+_MAX_TICK_GAP: Final = 10.0
 _KILLED_SOURCES: Final = frozenset({"focus", "media"})
 _FAILCLOSED: Final = "failclosed"
 
@@ -90,6 +96,8 @@ class LeisureKiller:
         self._termed: dict[_Ident, float] = {}
         self._killed: set[_Ident] = set()
         self._refused: set[_Ident] = set()
+        self._untrusted_since: float | None = None
+        self._last_stamp = -math.inf
         self._last_error = ""
 
     def enforce(
@@ -128,6 +136,7 @@ class LeisureKiller:
     ) -> None:
         if not rules.leisure or rules.demo or not rules.enforcement:
             return
+        untrusted_for = self._untrusted_for(verdict, stamp)
         if state.seconds < rules.budget_seconds:
             self._termed.clear()
             self._killed.clear()
@@ -135,6 +144,8 @@ class LeisureKiller:
         if verdict.paused_by is not None:
             return
         if verdict.fact is None:
+            if untrusted_for < UNTRUSTED_SWEEP_AFTER:
+                return
             targets, why = sweep_targets(), "now.json untrusted"
         else:
             targets, why = fact_targets(verdict.fact), "now.json"
@@ -156,6 +167,17 @@ class LeisureKiller:
                 quiet = ident in self._killed
                 if self._signal(ident[0], signal.SIGKILL, None if quiet else note):
                     self._killed.add(ident)
+
+    def _untrusted_for(self, verdict: ShadowVerdict, stamp: float) -> float:
+        """Seconds ``now.json`` has been untrusted in a row, as of this tick."""
+        gap = stamp - self._last_stamp
+        self._last_stamp = stamp
+        if verdict.fact is not None or verdict.paused_by is not None:
+            self._untrusted_since = None
+            return 0.0
+        if self._untrusted_since is None or not 0.0 <= gap <= _MAX_TICK_GAP:
+            self._untrusted_since = stamp
+        return stamp - self._untrusted_since
 
     def _identify(self, targets: dict[int, str]) -> dict[_Ident, str]:
         chain = own_chain()

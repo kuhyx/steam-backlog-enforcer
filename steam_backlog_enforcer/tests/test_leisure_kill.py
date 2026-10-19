@@ -146,9 +146,9 @@ class TestEnforce:
         self, proc: Path, kill: MagicMock
     ) -> None:
         add_proc(proc, FakeProc(41, exe="/usr/bin/mpv", uid=0))
-        LeisureKiller(StubLog()).enforce(
-            _SPENT, _RULES, verdict=_verdict(None), stamp=1.0
-        )
+        killer = LeisureKiller(StubLog())
+        for stamp in range(0, 31, 3):  # untrusted for the whole 30 s window
+            killer.enforce(_SPENT, _RULES, verdict=_verdict(None), stamp=stamp)
         assert sorted(c.args[0] for c in kill.call_args_list) == [10, 20, 30]
 
     def test_paused_is_not_stale(self, proc: Path, kill: MagicMock) -> None:
@@ -229,8 +229,8 @@ class TestEnforce:
     ) -> None:
         killer = LeisureKiller(None)
         with patch.object(_leisure_kill, "sweep_targets", side_effect=RecursionError):
-            for _ in range(2):
-                killer.enforce(_SPENT, _RULES, verdict=_verdict(None), stamp=0.0)
+            for stamp in range(0, 34, 3):  # sweeps (and fails) at 30 and 33
+                killer.enforce(_SPENT, _RULES, verdict=_verdict(None), stamp=stamp)
         assert sum("Leisure kill failed" in r.message for r in caplog.records) == 1
 
     def test_a_failed_sigkill_is_retried_and_logged_once_delivered(
