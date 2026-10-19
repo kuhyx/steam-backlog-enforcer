@@ -7,7 +7,7 @@ codespell==2.4.3
 coverage==7.16.2
 earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.15.0#subdirectory=earned_time
 howlongtobeatpy==1.0.24
-leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.1.2
+leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.0
 mcp==2.3.0
 mypy==2.4.0
 pre-commit==4.7.0
