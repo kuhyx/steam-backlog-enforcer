@@ -5,13 +5,13 @@ on: ``READING.penalty_from``, delayed by maturity (0.6.0) to the day after
 ``confirmed_on`` when no credit is on record. A budget test that reads the
 real clock would change its answer on that day, so every such test pins the
 date on one side of the cut.
-The module asks ``datetime.now().astimezone().date()``, so that chain is what
-the pin answers.
+The module asks ``datetime.now().astimezone()``, so that chain is what the
+pin answers (at noon, so the gaming day is the same date).
 """
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -40,5 +40,7 @@ def pin_today(day: date) -> AbstractContextManager[object]:
         A patch context manager replacing the module's ``datetime`` binding.
     """
     clock = MagicMock()
-    clock.now.return_value.astimezone.return_value.date.return_value = day
+    # A real aware noon: the module also takes the 06:00 gaming day from it.
+    noon = datetime.combine(day, time(12)).astimezone()
+    clock.now.return_value.astimezone.return_value = noon
     return patch("steam_backlog_enforcer._budget_resolve.datetime", clock)

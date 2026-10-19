@@ -1,9 +1,10 @@
 """Autouse isolation of the Phase-2 leisure switch and the leisure kill scan.
 
-The switch file ``/etc/leisure-watch/leisure_from`` is read twice per tick:
-by ``earned_time`` itself (``is_leisure``, looked up at call time from
-``earned_time._leisure``) and by the enforcer's gate, which passes its own
-constant explicitly. Both point at an absent file under ``tmp_path``, so no
+The switch file ``/etc/leisure-watch/leisure_from`` is read per tick by
+``earned_time`` itself (``is_leisure``, looked up at call time from
+``earned_time._leisure``), by the enforcer's billing gate and by its budget
+pricing, which pass their own constants explicitly. All point at an absent
+file under ``tmp_path``, so no
 test ever reads the real one and every test starts dormant. A test turns
 Phase 2 on by writing a date to :func:`switch_file`.
 
@@ -34,6 +35,7 @@ _PROC_NAME = "leisure_proc"
 _SWITCH_READERS = (
     "earned_time._leisure.LEISURE_FROM_PATH",
     "steam_backlog_enforcer._leisure_mode.LEISURE_FROM_PATH",
+    "steam_backlog_enforcer._budget_resolve.LEISURE_FROM_PATH",
 )
 # Can never exist (/dev/null is not a directory): always the parked date.
 _NO_SWITCH = Path(os.devnull) / _SWITCH_NAME

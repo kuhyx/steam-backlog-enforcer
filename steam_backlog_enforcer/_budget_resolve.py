@@ -41,12 +41,13 @@ resolving a second time.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 import logging
 from typing import TYPE_CHECKING, Final
 
 import earned_time
 
+from steam_backlog_enforcer._gaming_days import gaming_day_key
 from steam_backlog_enforcer._ledger_earners import (
     first_credits,
     ledger_answer,
@@ -58,8 +59,6 @@ from steam_backlog_enforcer._reading_bonus import read_today
 from steam_backlog_enforcer._workout_budget import workout_logged_today
 
 if TYPE_CHECKING:
-    from datetime import date
-
     from steam_backlog_enforcer.config import Config
 
 logger = logging.getLogger(__name__)
@@ -68,6 +67,9 @@ _SECONDS_PER_MINUTE: Final = 60.0
 _SECONDS_PER_HOUR: Final = 3600.0
 # The last reason logged, so a long-lived daemon logs a budget only on change.
 _last_logged: Final[dict[str, str]] = {}
+# Passed explicitly: ``leisure_active``'s default is bound at import, so this
+# module constant is what a test redirects (as ``_leisure_mode`` does).
+LEISURE_FROM_PATH: Final = earned_time.LEISURE_FROM_PATH
 
 # How each earner reads in the reason string: (earned, missed, unknown).
 # An earner registered later without an entry here gets a generic phrase.
@@ -126,7 +128,11 @@ def _price(
     *,
     leisure: bool,
 ) -> earned_time.Resolution:
-    """Price one set of answers; ``leisure=False`` is exactly the old call."""
+    """Price one set of answers: ``leisure`` True = leisure, False = pre-leisure.
+
+    Always explicit (earned_time 0.16.0): ``False`` forces pre-leisure pricing,
+    it no longer means "by the switch file".
+    """
     if first_paid is None:
         return earned_time.resolve(answers, today, registry, leisure=leisure)
     return earned_time.resolve(
@@ -168,6 +174,16 @@ def _answers(
     return answers
 
 
+def leisure_priced(now: datetime) -> bool:
+    """Whether the 06:00 gaming day holding *now* is priced as leisure.
+
+    The same question billing asks (``_leisure_mode.leisure_on`` of the billed
+    day), so 00:00-05:59 on the go-live date stays pre-leisure, like its bill.
+    """
+    day = date.fromisoformat(gaming_day_key(now))
+    return bool(earned_time.leisure_active(day, LEISURE_FROM_PATH))
+
+
 def resolve_budget(config: Config) -> BudgetResolution:
     """Return today's gaming budget, and what earned it.
 
@@ -181,12 +197,13 @@ def resolve_budget(config: Config) -> BudgetResolution:
     """
     # The registry is passed explicitly: _answers iterated this same tuple, so
     # the earners asked and the earners summed can never differ.
-    today = datetime.now().astimezone().date()
+    now = datetime.now().astimezone()
+    today = now.date()
     registry = registry_for(today)
     answers = _answers(config, registry)
     # Maturity only delays a penalty: a gate that never paid out costs nothing.
     first_paid = first_credits(registry, today)
-    day = _price(answers, today, registry, first_paid, leisure=False)
+    day = _price(answers, today, registry, first_paid, leisure=leisure_priced(now))
     # The same answers, asked once: the shadow can never see a different day.
     # A missing answer was already warned about above; to earned_time it is
     # the same as None, so spell it out rather than warn a second time.
