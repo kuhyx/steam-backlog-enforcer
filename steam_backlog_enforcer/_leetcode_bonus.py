@@ -20,10 +20,9 @@ rather than a permission problem -- this daemon runs as root, so it already has
 strictly more access than the endpoint does. Both carry the same staleness (see
 below); the fallback is not a fresher source.
 
-**Known staleness, accepted.** leetcode-guard only writes credits from its lock
-window's poll loop, so a *voluntary extra* solve made after the day is settled
-never reaches the ledger and earns nothing. The bonus tracks what the day's
-gate run recorded.
+**Staleness.** leetcode-guard's one-minute harvester credits a solve within
+about a minute, even with no lock window up. A day paid ahead from banked
+credits counts like a solve (``earned_time`` >= 0.17.0, kuhy 2026-10-23).
 
 Reading and verifying the ledger itself lives in
 :mod:`steam_backlog_enforcer._leetcode_ledger`; this module owns the two
@@ -60,7 +59,8 @@ def _fetch_leetcode_today(url: str) -> bool:
         url: The status endpoint, e.g. ``http://127.0.0.1:8771/api/status``.
 
     Returns:
-        Whether an accepted submission is recorded for today.
+        Whether an accepted submission is recorded for today, or today was
+        paid from banked credits.
 
     Raises:
         OSError: The endpoint could not be reached.
@@ -73,7 +73,9 @@ def _fetch_leetcode_today(url: str) -> bool:
         # The server answered, but said it could not look. That is not a "no".
         msg = f"leetcode-guard could not check: {block.get('reason', 'no reason')}"
         raise ValueError(msg)
-    return bool(block["solved_today"])
+    # A day paid ahead from banked credits earns the hour like a solve
+    # (leetcode-guard >= 2026-10-23); an older server has no such field.
+    return bool(block["solved_today"]) or bool(block.get("settled_by_credit"))
 
 
 def leetcode_solved_today(config: Config) -> bool | None:

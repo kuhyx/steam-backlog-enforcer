@@ -13,10 +13,10 @@ dependencies = [
     # transitively via howlongtobeatpy and websockets was undeclared — both
     # are declared here so a clean install imports the package.
     "aiohttp==3.14.5",
-    "websockets==17.2",
+    "websockets==17.3",
     # The earner registry (gaming budget terms); stdlib-only, so the root
     # daemon imports it from the desktop user's site-packages.
-    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.16.0#subdirectory=earned_time",
+    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.17.0#subdirectory=earned_time",
     # The shared /proc game scan and the signed leisure facts (shadow budget,
     # contract C4); stdlib-only, imported by root from the user site like
     # earned-time.

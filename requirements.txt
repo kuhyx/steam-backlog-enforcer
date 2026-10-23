@@ -4,8 +4,8 @@
 aiohttp==3.14.5
 bandit==1.9.4
 codespell==2.4.3
-coverage==7.16.2
-earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.16.0#subdirectory=earned_time
+coverage==7.17.0
+earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.17.0#subdirectory=earned_time
 howlongtobeatpy==1.0.24
 leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.1
 mcp==2.3.0
@@ -19,6 +19,6 @@ pytest-sugar==1.1.1
 pytest-timeout==2.4.0
 pytest-xdist==3.8.0
 requests==2.34.2
-ruff==0.17.1
+ruff==0.17.2
 types-requests==2.33.0.20261006
-websockets==17.2
+websockets==17.3

@@ -140,3 +140,24 @@ class TestFetchLeetcodeToday:
                 )
                 is True
             )
+
+    @pytest.mark.parametrize(
+        ("block", "expected"),
+        [
+            ({"solved_today": False, "settled_by_credit": True}, True),
+            ({"solved_today": False, "settled_by_credit": False}, False),
+            # A leetcode-guard older than the field: the solve alone decides.
+            ({"solved_today": False}, False),
+        ],
+    )
+    def test_a_day_paid_from_banked_credit_counts(
+        self, block: dict[str, bool], *, expected: bool
+    ) -> None:
+        """Working ahead earns the hour (kuhy, 2026-10-23)."""
+        payload = json.dumps({"leetcode": {"checked": True, **block}}).encode()
+        with patch(f"{_API}.http.client.HTTPConnection") as conn:
+            resp = conn.return_value.getresponse.return_value
+            resp.status = 200
+            resp.read.return_value = payload
+            url = "http://127.0.0.1:8771/api/status"
+            assert _leetcode_bonus._fetch_leetcode_today(url) is expected
