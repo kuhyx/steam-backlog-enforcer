@@ -95,6 +95,15 @@ def _add_exception(
     return {"app_id": params["app_id"]}
 
 
+def _pick(
+    params: Mapping[str, ParamValue], _progress: Progress, _prompter: Prompter
+) -> JobResult:
+    """``pick [--replace]``: the web checkbox becomes the CLI flag."""
+    state = State.load()
+    cmd_pick(Config.load(), state, ["--replace"] if params.get("replace") else [])
+    return _assignment(state)
+
+
 def _enforce_demo(
     params: Mapping[str, ParamValue], _progress: Progress, _prompter: Prompter
 ) -> JobResult:
@@ -145,7 +154,7 @@ HANDLERS: dict[str, JobHandler] = {
     "check": _cli(do_check),
     "scan": _cli(do_scan),
     "done": _cli(cmd_done),
-    "pick": _cli(cmd_pick),
+    "pick": _pick,
     "pick-manual": _with_args(cmd_pick_manual, "app_id"),
     "abandon-pick": _with_args(cmd_abandon_pick, "app_id"),
     "install": _cli(cmd_install),

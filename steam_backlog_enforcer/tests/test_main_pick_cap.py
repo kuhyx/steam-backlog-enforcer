@@ -123,7 +123,7 @@ class TestPickManualCap:
 class TestPickManualRetirementNotices:
     """A pick retired by the sweep is announced before the typed-phrase prompt."""
 
-    def test_warns_about_uninstall_and_stale_assignment(self) -> None:
+    def test_lists_kept_games_and_stale_assignment(self) -> None:
         state = locked_state(app_id=100)
         state.current_app_id = 200
         state.current_game_name = "Finished"
@@ -146,7 +146,8 @@ class TestPickManualRetirementNotices:
         ):
             cmd_pick_manual(Config(max_manual_picks=2), state, ["489830"])
         output = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "Replace Finished (released or expired" in output
+        # The retired game is kept now, not replaced: it stays installed.
+        assert "they stay installed: Finished, TestGame" in output
         assert "Aborted." in output
         # Abort leaves the finished game as the assignment, so say so.
         note = " ".join(str(c) for c in mock_note.call_args_list)

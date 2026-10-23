@@ -12,6 +12,7 @@ contract's ``PendingAction``.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Final
 
@@ -68,6 +69,7 @@ def daemon_view(_request: Request) -> Reply:
                 "pid": None,
                 "journal_tail": [],
                 "restart_available_at": None,
+                "fast_installs": [],
             }
         )
     except CtlError as exc:
@@ -83,6 +85,7 @@ def daemon_view(_request: Request) -> Reply:
             "pid": info.pid,
             "journal_tail": journal,
             "restart_available_at": info.restart_available_at,
+            "fast_installs": [asdict(run) for run in info.fast_installs],
         }
     )
 

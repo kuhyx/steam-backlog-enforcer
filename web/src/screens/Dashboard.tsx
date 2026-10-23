@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import type { StatusPayload } from '../api/contract'
+import type { FastInstallRun, StatusPayload } from '../api/contract'
 import { q } from '../api/queries'
 import { CommandButton } from '../commands/CommandCard'
 import { commandLabel } from '../commands/catalog'
@@ -30,6 +30,29 @@ function StatusCard({ s }: { s: StatusPayload }) {
           ],
         ]}
       />
+    </Card>
+  )
+}
+
+function fastInstallLine(r: FastInstallRun): string {
+  const where = r.percent === null ? r.phase : `${Math.floor(r.percent)}% (${r.phase})`
+  return `Fast-installing ${r.name} — ${where}`
+}
+
+/** Daemon-started fast installs; a web job shows its own in the job view. */
+function FastInstalls() {
+  const { data } = useQuery(q.daemon)
+  const runs = data?.fast_installs ?? []
+  if (!runs.length) return null
+  return (
+    <Card title="Fast install">
+      {runs.map((r) => (
+        <div key={r.app_id}>
+          <p>{fastInstallLine(r)}</p>
+          <ProgressBar fraction={r.percent === null ? null : Math.floor(r.percent) / 100} label={`${r.name} download`} />
+          <p className="field-help">{fmtDuration(r.elapsed_seconds)} elapsed</p>
+        </div>
+      ))}
     </Card>
   )
 }
@@ -94,6 +117,7 @@ export function Dashboard() {
         {error ? <Card title="Assignment"><ErrorNotice error={error} /></Card> : data ? <StatusCard s={data} /> : <Card title="Assignment"><Loading what="status" /></Card>}
         <BudgetGlance />
       </div>
+      <FastInstalls />
       <RecentJobs />
     </>
   )

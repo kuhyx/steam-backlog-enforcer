@@ -104,12 +104,12 @@ class TestReleasedPicksStayPlayable:
         assert [p["app_id"] for p in dropped] == [2]
         assert [p["app_id"] for p in state.manual_picks] == [3]
 
-    def test_new_manual_pick_replaces_released_ones(self) -> None:
+    def test_new_manual_pick_keeps_released_ones(self) -> None:
         state = State(current_app_id=2, manual_picks=[pick(2, released_at=STARTED_AT)])
         with patch.object(State, "save"):
             assert apply_manual_pick(state, 4, "G4", max_picks=1) is None
-        assert allowed_app_ids(state) == {4}
-        assert state.current_assigned_at == state.manual_picks[0]["started_at"]
+        assert allowed_app_ids(state) == {2, 4}
+        assert state.current_assigned_at == state.manual_picks[-1]["started_at"]
 
     def test_released_pick_can_be_abandoned(self) -> None:
         state = State(

@@ -39,7 +39,13 @@ export const BASE: Base[] = [
   spec('check', 'Check assigned game for a new achievement', 'backlog', 'job', { mutating: false }),
   spec('scan', 'Scan library & assign a game', 'backlog', 'job', { cancellable: true }),
   spec('done', 'Move on after a new achievement, pick next', 'backlog', 'job'),
-  spec('pick', 'Manually pick your next game from candidates', 'backlog', 'job', { cancellable: true }),
+  spec('pick', 'Pick another game from candidates (keeps current; --replace swaps)', 'backlog', 'job', {
+    cancellable: true,
+    params: [{
+      name: 'replace', label: 'Replace current games (uninstalls them)', type: 'bool', required: false, default: 0,
+      help: 'Leave unchecked to keep playing them alongside the new pick.',
+    }],
+  }),
   spec('pick-manual', 'Pick a game by app_id, lock enforcer for 14 days', 'backlog', 'job', {
     params: [APP_ID], friction: phrase('lock in {game_name}'),
   }),

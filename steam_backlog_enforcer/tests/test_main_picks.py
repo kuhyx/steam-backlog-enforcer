@@ -144,7 +144,9 @@ class TestCmdPick:
         config = Config(steam_api_key="k", steam_id="i")
         state = State()
 
-        def capture_pick(games: list[GameInfo], *_args: object) -> None:
+        def capture_pick(
+            games: list[GameInfo], *_args: object, **_kwargs: object
+        ) -> None:
             captured_games.append(list(games))
 
         with (

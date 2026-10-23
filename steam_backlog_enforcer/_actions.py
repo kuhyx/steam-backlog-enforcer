@@ -15,9 +15,12 @@ from typing import TYPE_CHECKING, Any
 from steam_backlog_enforcer._allowed_games import (
     active_manual_picks,
     allowed_games,
-    drop_inactive_picks,
 )
 from steam_backlog_enforcer._assignment_progress import record_assignment
+from steam_backlog_enforcer._pick_keep import (
+    allowed_cap_refusal,
+    keep_outgoing_assignment,
+)
 
 # Marks these two as an intentional re-export (they're imported from
 # _allowed_games above, not defined here) -- without this, mypy's
@@ -120,18 +123,23 @@ def apply_manual_pick(
     its interactive ``YES`` confirmation. Keeping this state-only means an
     automated caller (the MCP server) can never wipe installed games.
 
-    Picking is an explicit choice of another game, so released, finished and
-    expired picks are dropped here (and enforcement may then remove them).
+    The games already allowed are kept, like plain ``pick``: released,
+    finished and expired picks stay, and the outgoing assignment is parked as
+    a released pick. So the pick is refused when it would push the allowed
+    set over ``max_picks + 1`` (:func:`allowed_cap_refusal`). Re-picking a
+    kept game turns its entry back into an active pick instead of adding one.
 
     Args:
         state: The enforcer state to mutate and save.
         app_id: The Steam app id to lock in.
         game_name: Human-readable name for the picked game.
-        max_picks: How many picks may be active at once.
+        max_picks: How many picks may be active at once; the allowed set
+            may hold one more game (the assignment).
 
     Returns:
         ``None`` on success, or a message explaining why the pick was refused
-        (already picked, or no slots left), in which case nothing was saved.
+        (already picked, no active slot left, or the allowed set is full), in
+        which case nothing was changed.
     """
     active = active_manual_picks(state)
 
@@ -145,8 +153,15 @@ def apply_manual_pick(
             f"(cap is {max_picks}): {names}."
         )
 
+    refused = allowed_cap_refusal(state, max_picks, adding=app_id)
+    if refused is not None:
+        return refused
+
     now = datetime.now(UTC).isoformat()
-    drop_inactive_picks(state)
+    # A kept entry for this game is replaced by the active one, not doubled.
+    state.manual_picks = [p for p in state.manual_picks if p.get("app_id") != app_id]
+    if state.current_app_id != app_id:
+        keep_outgoing_assignment(state)
     state.manual_picks.append(
         {"app_id": app_id, "game_name": game_name, "started_at": now}
     )

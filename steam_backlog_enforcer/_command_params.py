@@ -19,7 +19,7 @@ from steam_backlog_enforcer._store_window import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-ParamType = Literal["int", "string", "app_id"]
+ParamType = Literal["int", "string", "app_id", "bool"]
 ParamValue = int | str
 
 
@@ -54,6 +54,17 @@ class ParamSpec:
 _APP_ID = ParamSpec("app_id", "Steam app id", "app_id", min=1)
 
 PARAMS: Final[dict[str, tuple[ParamSpec, ...]]] = {
+    # Unchecked keeps the games already allowed; checked is `pick --replace`.
+    "pick": (
+        ParamSpec(
+            "replace",
+            "Replace current games (uninstalls them)",
+            "bool",
+            required=False,
+            default=0,
+            help="Leave unchecked to keep playing them alongside the new pick.",
+        ),
+    ),
     "pick-manual": (_APP_ID,),
     "abandon-pick": (_APP_ID,),
     "add-exception": (
@@ -106,6 +117,13 @@ def _coerce(spec: ParamSpec, raw: object) -> ParamValue:
             msg = f"{spec.name} must be a non-empty string"
             raise InvalidParamsError(msg)
         return raw.strip()
+    if spec.type == "bool":
+        # A checkbox; carried as 0/1 so ParamValue stays int | str.
+        # True/False are ints too, so this accepts true, false, 0 and 1.
+        if isinstance(raw, int) and raw in (0, 1):
+            return int(raw)
+        msg = f"{spec.name} must be true or false"
+        raise InvalidParamsError(msg)
     # bool is an int subclass in Python; true/false is never a count.
     if isinstance(raw, bool) or not isinstance(raw, (int, str)):
         msg = f"{spec.name} must be a whole number"

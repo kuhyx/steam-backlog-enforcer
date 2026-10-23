@@ -57,6 +57,7 @@ export function makeStatus(over: Partial<StatusPayload> = {}): StatusPayload {
     total_block: { active: false, days_remaining: 0, until: null },
     manual_pick_locked: false,
     manual_picks: [],
+    kept_picks: [],
     ...over,
   }
 }

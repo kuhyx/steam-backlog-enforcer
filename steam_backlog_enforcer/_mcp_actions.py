@@ -38,7 +38,8 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
 
     With ``confirm=False`` (the default) this performs **no** mutation and
     returns a preview of what confirming would do. Call again with
-    ``confirm=True`` to apply. Applying overrides the current assignment and
+    ``confirm=True`` to apply. Applying makes it the current assignment
+    (the games already allowed stay, up to the cap) and
     locks all other commands for ``MANUAL_LOCK_DAYS`` days (or until one new
     achievement is earned in it). Unlike the CLI's ``pick-manual``, this
     mutates **state only** — it never uninstalls, installs, or hides games.
@@ -61,7 +62,8 @@ def pick_manual(app_id: int, *, confirm: bool = False) -> dict[str, Any]:
             "app_id": app_id,
             "game_name": game_name,
             "effect": (
-                "Overrides the current assignment and locks all other commands "
+                "Makes it the current assignment (the games already allowed "
+                "stay, up to the cap) and locks all other commands "
                 f"for {MANUAL_LOCK_DAYS} days or until you earn one new "
                 "achievement in it."
             ),

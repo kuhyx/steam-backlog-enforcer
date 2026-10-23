@@ -22,6 +22,7 @@ from steam_backlog_enforcer._ctl_protocol import (
 from steam_backlog_enforcer._ctl_types import (
     BlockResult,
     DaemonInfo,
+    FastInstallInfo,
     PendingReset,
     ResetResult,
     StoreWindow,
@@ -125,7 +126,24 @@ class TestTypedWrappers:
     def test_status_no_restart_time(self) -> None:
         data = {"state": "running", "started_at": "t", "pid": 4}
         with self._call(data):
-            assert _ctl_client.status().restart_available_at is None
+            info = _ctl_client.status()
+        assert info.restart_available_at is None
+        assert info.fast_installs == ()  # an older daemon sends none
+
+    def test_status_fast_installs(self) -> None:
+        run = {
+            "app_id": 7,
+            "name": "G",
+            "phase": "downloading depot 1/8",
+            "percent": 46.9,
+            "elapsed_seconds": 60,
+        }
+        data = {"state": "running", "started_at": "t", "pid": 4, "fast_installs": [run]}
+        with self._call(data):
+            info = _ctl_client.status()
+        assert info.fast_installs == (
+            FastInstallInfo(7, "G", "downloading depot 1/8", 46.9, 60),
+        )
 
     def test_journal_tail(self) -> None:
         with self._call({"lines": ["a", 2]}) as call:

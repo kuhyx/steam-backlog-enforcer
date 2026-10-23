@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._actions import (
     ABANDON_COOLDOWN_DAYS as _ABANDON_COOLDOWN_DAYS,
 )
 from steam_backlog_enforcer._actions import (
     active_manual_picks,
-    find_manual_pick,
 )
 from steam_backlog_enforcer._manual_pick_lifecycle import abandon_manual_pick
 from steam_backlog_enforcer._prompter import confirm_phrase
@@ -54,19 +53,26 @@ def _abandon_pick_target(state: State, args: list[str]) -> int | None:
         _echo(f"Error: app_id must be a number, got '{args[0]}'.")
         return None
 
-    picks = active_manual_picks(state)
+    # Every stored pick, not only active ones: a released pick, or a game
+    # 'pick' kept, is still installed and is what 'pick' points users at.
+    picks = state.manual_picks
     if not picks:
-        _echo("No manual pick is active — nothing to abandon.")
+        _echo("No manual pick or kept game — nothing to abandon.")
         return None
 
-    if find_manual_pick(state, app_id) is None:
+    if _stored_pick(state, app_id) is None:
         listed = ", ".join(f"{p['game_name']} (AppID={p['app_id']})" for p in picks)
         _echo(
-            f"Error: AppID={app_id} is not one of your manual picks.\nActive: {listed}."
+            f"Error: AppID={app_id} is not one of your manual picks.\nYours: {listed}."
         )
         return None
 
     return app_id
+
+
+def _stored_pick(state: State, app_id: int) -> dict[str, Any] | None:
+    """Return the stored pick for *app_id*, active, released or kept."""
+    return next((p for p in state.manual_picks if p.get("app_id") == app_id), None)
 
 
 def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
@@ -81,7 +87,7 @@ def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
     if app_id is None:
         sys.exit(1)
 
-    pick = find_manual_pick(state, app_id)
+    pick = _stored_pick(state, app_id)
     game_name = str(pick["game_name"]) if pick else ""
 
     others = [p for p in active_manual_picks(state) if p["app_id"] != app_id]
@@ -96,6 +102,9 @@ def cmd_abandon_pick(_config: Config, state: State, args: list[str]) -> None:
     if others:
         kept = ", ".join(f"{p['game_name']} (AppID={p['app_id']})" for p in others)
         _echo(f"\n  Your other pick(s) stay locked in: {kept}")
+    elif state.current_app_id not in (None, app_id):
+        # A kept game is not the assignment, so abandoning it leaves one.
+        _echo(f"\n  - {state.current_game_name} stays assigned")
     else:
         _echo("\n  - Leaves you with no assigned game (run 'scan' to get one)")
     _echo()

@@ -71,6 +71,16 @@ def cmd_status(config: Config, state: State) -> None:
             _echo(f"  {pick['game_name']} (AppID={pick['app_id']}){since}")
         _echo("\n[MANUAL PICK LOCK is active — most commands are blocked]")
 
+    # Released/expired picks and games 'pick' kept: allowed, but no lock.
+    kept = [p for p in state.manual_picks if p not in picks]
+    if kept:
+        _echo(f"\nKept games, no lock ({len(kept)}):")
+        for pick in kept:
+            _echo(
+                f"  {pick.get('game_name', '')} (AppID={pick['app_id']})"
+                f" — 'abandon-pick {pick['app_id']}' removes it"
+            )
+
 
 def cmd_list(_config: Config, state: State) -> None:
     """List games from the last snapshot."""

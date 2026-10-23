@@ -135,6 +135,7 @@ def status_payload(state: State) -> dict[str, Any]:
         if state.current_app_id
         else None
     )
+    active = active_manual_picks(state)
     return {
         "current_app_id": state.current_app_id,
         "current_game_name": state.current_game_name or None,
@@ -153,6 +154,9 @@ def status_payload(state: State) -> dict[str, Any]:
                 **pick,
                 "age_days": manual_pick_age_days(state, pick["app_id"]),
             }
-            for pick in active_manual_picks(state)
+            for pick in active
         ],
+        # Released, expired or parked by 'pick': still allowed and installed,
+        # but holding no lock; 'abandon-pick' removes them.
+        "kept_picks": [{**p} for p in state.manual_picks if p not in active],
     }

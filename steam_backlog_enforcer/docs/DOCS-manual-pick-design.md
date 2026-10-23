@@ -79,11 +79,21 @@ past its own 14-day deadline.
     so freeing a slot cannot hand you an unrequested extra game.
   - Releasing never evicts. A released, finished or expired pick stays in
     `State.manual_picks`, and therefore in `allowed_app_ids`, installed and
-    playable for as long as the user wants. Only an explicit choice of another
-    game — a new `pick-manual`, or accepting the next assignment in
-    `done`/`check`/`pick`/`scan` — calls `drop_inactive_picks`, after which
+    playable for as long as the user wants. Only an explicit replacement —
+    `pick --replace`, or accepting the next assignment in
+    `done`/`check`/`scan` — calls `drop_inactive_picks`, after which
     enforcement may remove them. `abandon-pick` works on them too. When no
     replacement is accepted, the current game stays assigned.
+  - Plain `pick` and `pick-manual` keep them (changed 2026-10-23): the
+    outgoing assignment is parked as a released pick too
+    (`_pick_keep.keep_outgoing_assignment`), so both commands only ever add a
+    game. Both share one cap, `_pick_keep.allowed_cap_refusal`: at most
+    `max_manual_picks + 1` games allowed, refused (naming every game and its
+    `abandon-pick <id>`) before the list or the confirmation prompt. Picking
+    a game that is already allowed adds nothing and always fits; `pick-manual`
+    on a kept game turns its entry back into an active pick, never a second
+    entry. The active-pick cap (`max_manual_picks` locked at once) still
+    applies on top.
   - `mark_finished` is the single writer of `finished_app_ids`, so the sweep
     and `done`/`check` cannot both record the same completion.
 

@@ -1,0 +1,100 @@
+Run log: /home/kuhy/.local/state/steam-game-installer/run-20261022-211022-1086940.log
+Confirmed: Baldur's Gate 3 (appid 1086940, matched by flag)
+Install target: /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3
+Shutting down the Steam client...
+Steam exited after 3s.
+Downloading via depotdownloader (fast path)...
+Connecting to Steam3... Done!
+Logging 'steam_user' into Steam3...
+ Done!
+Using Steam3 suggested CellID: 38
+Got 2146 licenses for account!
+Got AppInfo for 1086940
+Using app branch: 'public'.
+Got AppInfo for 228980
+Got depot key for 228989 result: OK
+Got depot key for 228990 result: OK
+Got depot key for 1086941 result: OK
+Got depot key for 1086942 result: OK
+Got depot key for 1419652 result: OK
+Got depot key for 1419653 result: OK
+Depot 1419655 is not available from this account.
+Got depot key for 2378500 result: OK
+Got depot key for 2330358 result: OK
+
+Processing depot 228989
+Downloading depot 228989 manifest
+Manifest 5753583882400741046 (06/30/2026 23:39:35)
+Processing depot 228990
+Downloading depot 228990 manifest
+Manifest 1829726630299308803 (02/18/2013 21:47:57)
+Processing depot 1086941
+Downloading depot 1086941 manifest
+Manifest 8253106406752983615 (09/21/2026 20:03:27)
+Processing depot 1086942
+Downloading depot 1086942 manifest
+Manifest 17875152607970122 (09/10/2020 10:06:04)
+Processing depot 1419652
+Downloading depot 1419652 manifest
+Manifest 1625295449847783523 (09/21/2026 20:04:37)
+Processing depot 1419653
+Downloading depot 1419653 manifest
+Manifest 3221749745104422496 (09/21/2026 20:04:48)
+Processing depot 2378500
+Downloading depot 2378500 manifest
+Manifest 6453229909780803137 (08/08/2023 10:54:38)
+Processing depot 2330358
+Downloading depot 2330358 manifest
+Manifest 7444994150796633975 (08/26/2025 13:58:18)
+Downloading depot 228989
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/Microsoft Visual C++ 2022 x86.cmd
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/installscript.vdf
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/VC_redist.x86.exe
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/VC_redist.x64.exe
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/Microsoft Visual C++ 2022 x64.cmd
+ 46.90% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/Microsoft Visual C++ 2022 x64.cmd (657.13 Mbit/s)
+ 46.90% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/Microsoft Visual C++ 2022 x86.cmd (641.92 Mbit/s)
+ 59.16% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/installscript.vdf (673.62 Mbit/s)
+ 95.92% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/VC_redist.x64.exe (762.02 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/vcredist/2022/VC_redist.x86.exe (452.17 Mbit/s)
+Depot 228989 - Downloaded 25108528 bytes (25674515 bytes uncompressed)
+Downloading depot 228990
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/DirectX/Jun2010/Apr2005_d3dx9_25_x64.cab
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/DirectX/Jun2010/Apr2005_d3dx9_25_x86.cab
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/DirectX/Jun2010/Apr2006_d3dx9_30_x64.cab
+ 98.04% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/DirectX/Jun2010/Nov2008_d3dx9_40_x64.cab (902.96 Mbit/s)
+ 98.98% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/DirectX/Jun2010/Nov2008_d3dx10_40_x86.cab (910.11 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/_CommonRedist/DirectX/Jun2010/Mar2009_d3dx9_41_x64.cab (912.52 Mbit/s)
+Depot 228990 - Downloaded 100658080 bytes (102931551 bytes uncompressed)
+Downloading depot 1086941
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/EngineShaders.pak
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/DiceSet01.pak
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/DiceSet03.pak
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/DiceSet02.pak
+ 92.49% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Models.pak (931.36 Mbit/s)
+ 96.02% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/SharedSounds.pak (931.27 Mbit/s)
+ 99.35% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Localization/Voice.pak (931.18 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Gustav.pak (931.16 Mbit/s)
+Depot 1086941 - Downloaded 127976565376 bytes (154767161103 bytes uncompressed)
+Downloading depot 1086942
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Localization/language.lsx
+ 99.91% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/DigitalDeluxe/OST/WAV Format/32 Baldur's Gate 3 OST - The Legacy Of Bhaal.wav (925.53 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/DigitalDeluxe/OST/WAV Format/38 Baldur's Gate 3 OST - Old Time Battles - Part II.wav (921.57 Mbit/s)
+Depot 2378500 - Downloaded 2868626208 bytes (3700167797 bytes uncompressed)
+Downloading depot 2330358
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Editor/Config/AllSpark/ComponentDefinition.xcd
+Pre-allocating /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Editor/Config/AllSpark/ModuleDefinition.xmd
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/Shared/Story/RawFiles/Goals/_Trade.txt (352.87 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/Shared/Story/RawFiles/Goals/__Shared_Campaign.txt (352.86 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/SharedDev/Story/RawFiles/Goals/_Doppelgangers.txt (352.86 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/Shared/Story/RawFiles/Goals/__GLOBAL_Dialogs.txt (352.86 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/Shared/Story/RawFiles/Goals/__AAA_FirstGoal.txt (352.86 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Mods/SharedDev/Story/RawFiles/Goals/Respec.txt (352.85 Mbit/s)
+100.00% /home/kuhy/.local/share/Steam/steamapps/common/Baldurs Gate 3/Data/Projects/GustavDev/thumbnail.png (352.64 Mbit/s)
+Depot 2330358 - Downloaded 1098084960 bytes (11227179410 bytes uncompressed)
+Total downloaded: 132328691216 bytes (170530942667 bytes uncompressed) from 8 depots
+Disconnected from Steam
+Checking for owned DLC with depots of its own...
+No /home/kuhy/.local/share/Steam/steamapps/appmanifest_1086940.acf exists, so there is nothing to finish. This tool only ever patches a manifest Steam or steamcmd already wrote; it never fabricates one. Re-run without --skip-steamcmd so steamcmd creates it (it writes one even when it crashes).
+Run log (send this): /home/kuhy/.local/state/steam-game-installer/run-20261022-211022-1086940.log
+Restarting the Steam client...

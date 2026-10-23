@@ -37,6 +37,21 @@ describe('Picks', () => {
     expect(screen.getByText('Hollow Knight', { selector: 'strong' })).toBeInTheDocument()
   })
 
+  it('lists kept games under the active picks, each abandonable', async () => {
+    stubApi({
+      'GET /api/commands': SPECS,
+      'GET /api/status': makeStatus({
+        manual_picks: [{ app_id: 5, name: 'Five', age_days: 3 }],
+        kept_picks: [{ app_id: 7, name: 'Seven' }],
+      }),
+    })
+    renderRouted(<Picks />)
+    expect(await screen.findByText('Seven')).toBeInTheDocument()
+    expect(screen.getByText(/kept · no lock · 7/)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Abandon…' })).toHaveLength(2)
+    expect(screen.queryByText(/No manual picks/)).toBeNull()
+  })
+
   it('invites locking in a game when there are none', async () => {
     stubApi({ 'GET /api/commands': SPECS, 'GET /api/status': makeStatus({ current_game_name: null }) })
     renderRouted(<Picks />)

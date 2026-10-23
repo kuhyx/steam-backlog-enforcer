@@ -56,4 +56,20 @@ describe('ParamsForm', () => {
     render(<Harness disabled />)
     expect(screen.getByLabelText('Note')).toBeDisabled()
   })
+
+  it('renders a bool as an unchecked checkbox that toggles 0/1', async () => {
+    const box: ParamSpec[] = [{ name: 'replace', label: 'Replace', type: 'bool', required: false, default: 0 }]
+    function BoxHarness() {
+      const [values, setValues] = useState<ParamValues>({ replace: '0' })
+      return <ParamsForm specs={box} values={values} onChange={setValues} games={[]} showErrors disabled={false} />
+    }
+    render(<BoxHarness />)
+    const input = screen.getByLabelText('Replace')
+    expect(input).toHaveAttribute('type', 'checkbox')
+    expect(input).not.toBeChecked()
+    await userEvent.click(input)
+    expect(input).toBeChecked()
+    await userEvent.click(input)
+    expect(input).not.toBeChecked()
+  })
 })

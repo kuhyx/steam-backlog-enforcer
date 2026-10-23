@@ -18,6 +18,26 @@ export function ParamsForm({ specs, values, onChange, games, showErrors, disable
       {specs.map((p, i) => {
         const id = `${base}-${p.name}`
         const raw = values[p.name] ?? ''
+        if (p.type === 'bool') {
+          return (
+            <div className="form-field" key={p.name}>
+              <label className="check" htmlFor={id}>
+                <input
+                  id={id}
+                  type="checkbox"
+                  checked={raw === '1'}
+                  disabled={disabled}
+                  aria-describedby={`${id}-help`}
+                  onChange={(e) => onChange({ ...values, [p.name]: e.target.checked ? '1' : '0' })}
+                />
+                {p.label}
+              </label>
+              <p id={`${id}-help`} className="field-help">
+                {p.help ?? ' '}
+              </p>
+            </div>
+          )
+        }
         const err = paramError(p, raw, games)
         const game = p.type === 'app_id' ? games.find((g) => g.app_id === Number(raw)) : undefined
         return (

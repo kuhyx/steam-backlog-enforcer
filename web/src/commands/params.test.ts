@@ -14,6 +14,10 @@ describe('paramError', () => {
     expect(paramError(spec({ required: false }), '', [])).toBeNull()
   })
 
+  it('never flags a checkbox', () => {
+    expect(paramError(spec({ type: 'bool', required: false, default: 0 }), '1', [])).toBeNull()
+  })
+
   it('accepts any text for a string', () => {
     expect(paramError(spec({ type: 'string' }), 'anything', [])).toBeNull()
   })
@@ -50,6 +54,12 @@ describe('toParams', () => {
 
   it('converts, applies defaults and omits empties', () => {
     expect(toParams(specs, { a: '', b: ' hi ', c: '42' })).toEqual({ a: 7, b: 'hi', c: 42 })
+  })
+
+  it('sends a checkbox as 0/1', () => {
+    const box = [spec({ name: 'r', type: 'bool', required: false, default: 0 })]
+    expect(toParams(box, { r: '1' })).toEqual({ r: 1 })
+    expect(toParams(box, {})).toEqual({ r: 0 })
   })
 
   it('keeps a typed int', () => {

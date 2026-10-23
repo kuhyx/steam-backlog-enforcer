@@ -44,6 +44,10 @@ def status_view(_request: Request) -> Reply:
     payload = status_payload(State.load())
     payload["assigned_game_installed"] = bool(payload["assigned_game_installed"])
     payload["manual_picks"] = [_manual_pick(p) for p in payload["manual_picks"]]
+    payload["kept_picks"] = [
+        {"app_id": p["app_id"], "name": p.get("game_name") or str(p["app_id"])}
+        for p in payload.get("kept_picks", [])
+    ]
     return ok(payload)
 
 

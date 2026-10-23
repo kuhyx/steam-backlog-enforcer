@@ -9,7 +9,12 @@ import pytest
 
 from steam_backlog_enforcer import _web_daemon
 from steam_backlog_enforcer._ctl_protocol import CtlError, DaemonUnreachableError
-from steam_backlog_enforcer._ctl_types import DaemonInfo, PendingReset, ResetResult
+from steam_backlog_enforcer._ctl_types import (
+    DaemonInfo,
+    FastInstallInfo,
+    PendingReset,
+    ResetResult,
+)
 from steam_backlog_enforcer._web_errors import ApiError
 from steam_backlog_enforcer.jobs._view import list_jobs
 from steam_backlog_enforcer.tests._web_request import make_request, payload_of
@@ -45,6 +50,7 @@ class TestDaemonView:
         with patch(f"{_CLIENT}.status", side_effect=DaemonUnreachableError):
             reply = _web_daemon.daemon_view(make_request())
         assert payload_of(reply)["state"] == "unreachable"
+        assert payload_of(reply)["fast_installs"] == []
 
     def test_status_refusal_is_an_error(self) -> None:
         with (
@@ -67,7 +73,26 @@ class TestDaemonView:
             "pid": 77,
             "journal_tail": ["a", "b"],
             "restart_available_at": None,
+            "fast_installs": [],
         }
+
+    def test_fast_installs_pass_through(self) -> None:
+        run = FastInstallInfo(7, "G", "downloading depot 3/8", 46.9, 60)
+        info = DaemonInfo("running", "t", 77, None, fast_installs=(run,))
+        with (
+            patch(f"{_CLIENT}.status", return_value=info),
+            patch(f"{_CLIENT}.journal_tail", return_value=[]),
+        ):
+            reply = _web_daemon.daemon_view(make_request())
+        assert payload_of(reply)["fast_installs"] == [
+            {
+                "app_id": 7,
+                "name": "G",
+                "phase": "downloading depot 3/8",
+                "percent": 46.9,
+                "elapsed_seconds": 60,
+            }
+        ]
 
     @pytest.mark.parametrize(
         "failure", [DaemonUnreachableError(), CtlError("busy", "m")]

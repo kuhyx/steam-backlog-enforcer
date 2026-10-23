@@ -13,6 +13,7 @@ import contextlib
 import logging
 import os
 import subprocess
+import time
 from typing import TYPE_CHECKING, Final
 
 from steam_backlog_enforcer._ctl_context import (
@@ -24,6 +25,7 @@ from steam_backlog_enforcer._ctl_context import (
 from steam_backlog_enforcer._ctl_protocol import OP_FAILED, CtlError
 from steam_backlog_enforcer._ctl_reset import RESET_OPS
 from steam_backlog_enforcer._ctl_restart import RESTART_OPS, restart_available_at
+from steam_backlog_enforcer._fast_install_progress import fast_install_status
 from steam_backlog_enforcer._playtime_block import release_block
 from steam_backlog_enforcer._store_window import MAX_WINDOW_MINUTES, open_store_window
 from steam_backlog_enforcer._total_block import (
@@ -56,12 +58,19 @@ def op_ping(_ctx: CtlContext, _args: dict[str, object]) -> dict[str, object]:
 
 
 def op_status(ctx: CtlContext, _args: dict[str, object]) -> dict[str, object]:
-    """The daemon's state, start time, pid and when a restart is next allowed."""
+    """The daemon's state, start time, pid, next restart and fast installs.
+
+    ``fast_installs`` are the steam-game-installer runs the daemon started,
+    as of the enforce loop's last read of their log: this thread never reads
+    the file. It rides on ``status`` rather than a file of its own because the
+    web server runs as the desktop user and a root-owned file is no use to it.
+    """
     return {
         "state": "restarting" if ctx.restart_event.is_set() else "running",
         "started_at": ctx.started_at.isoformat(),
         "pid": os.getpid(),
         "restart_available_at": restart_available_at(),
+        "fast_installs": fast_install_status(time.monotonic()),
     }
 
 

@@ -172,7 +172,7 @@ function Runner({ spec, fixed, preset, onClose, onArmed }: RunnerProps) {
         </ErrorNotice>
       )}
       <div className="actions">
-        <button type="submit" className={phrase ? 'btn btn-danger' : 'btn btn-primary'} disabled={!canSubmit || start.isPending} autoFocus={!phrase && spec.params.length === 0}>
+        <button type="submit" className={phrase ? 'btn btn-danger' : 'btn btn-primary'} disabled={!canSubmit || start.isPending} autoFocus={!phrase && spec.params.every((p) => p.type === 'bool')}>
           {start.isPending ? 'Starting…' : countdown ? 'Arm countdown' : `Run ${spec.name}`}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onClose}>

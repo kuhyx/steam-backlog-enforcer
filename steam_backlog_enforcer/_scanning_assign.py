@@ -20,6 +20,7 @@ from steam_backlog_enforcer._own_pick import (
     OWN_PICK_VALUE,
     prompt_own_pick,
 )
+from steam_backlog_enforcer._pick_keep import keep_outgoing_assignment
 from steam_backlog_enforcer._prompter import PromptOption, current_prompter
 from steam_backlog_enforcer._scanning_candidates import (
     _pick_next_shortest_candidate,
@@ -80,13 +81,24 @@ def _assign_chosen_game(
     games: list[GameInfo],
     state: State,
     config: Config,
+    *,
+    keep: bool = False,
 ) -> None:
     """Save assignment, announce it, and handle install/uninstall.
 
-    Accepting a new game is the explicit choice that lets enforcement remove
-    released picks, so they are dropped here.
+    Replacing (the default, and what ``done``/``check`` do) is the explicit
+    choice that lets enforcement remove released picks, so they are dropped
+    here. With ``keep`` (plain ``pick``) nothing is dropped and the outgoing
+    assignment is parked as a released pick, so it stays allowed and the
+    uninstall below spares it.
     """
-    drop_inactive_picks(state)
+    if keep:
+        if chosen.app_id in allowed_app_ids(state):
+            _echo(f"\n{chosen.name} (AppID={chosen.app_id}) is already allowed.")
+            return
+        keep_outgoing_assignment(state)
+    else:
+        drop_inactive_picks(state)
     record_assignment(state, chosen.app_id, chosen.name)
     state.save()
     hours_str = (

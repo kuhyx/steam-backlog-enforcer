@@ -26,6 +26,7 @@ from steam_backlog_enforcer._ctl_protocol import (
 from steam_backlog_enforcer._ctl_types import (
     BlockResult,
     DaemonInfo,
+    FastInstallInfo,
     PendingReset,
     ResetResult,
     StoreWindow,
@@ -130,15 +131,29 @@ def ping() -> None:
     call("ping")
 
 
+def _fast_install_info(run: dict[str, object]) -> FastInstallInfo:
+    """One ``status.fast_installs`` entry, typed."""
+    percent = run.get("percent")
+    return FastInstallInfo(
+        app_id=int(cast("int", run["app_id"])),
+        name=str(run["name"]),
+        phase=str(run["phase"]),
+        percent=None if percent is None else float(cast("float", percent)),
+        elapsed_seconds=int(cast("int", run["elapsed_seconds"])),
+    )
+
+
 def status() -> DaemonInfo:
-    """The daemon's state, start time, pid and next-restart time."""
+    """The daemon's state, start time, pid, next-restart time and fast installs."""
     data = call("status")
     until = data.get("restart_available_at")
+    runs = cast("list[dict[str, object]]", data.get("fast_installs") or [])
     return DaemonInfo(
         state=str(data["state"]),
         started_at=str(data["started_at"]),
         pid=int(cast("int", data["pid"])),
         restart_available_at=str(until) if until else None,
+        fast_installs=tuple(map(_fast_install_info, runs)),
     )
 
 

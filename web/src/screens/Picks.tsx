@@ -7,6 +7,7 @@ import { Actions, Card, PageHead } from '../ui/Page'
 /** Everything that changes which game is assigned. */
 export function Picks() {
   const { data, error } = useQuery(q.status)
+  const none = data !== undefined && data.manual_picks.length === 0 && data.kept_picks.length === 0
   return (
     <>
       <PageHead
@@ -23,7 +24,7 @@ export function Picks() {
       <Card title="Manual picks">
         {error && <ErrorNotice error={error} />}
         {!data && !error && <Loading what="status" />}
-        {data && data.manual_picks.length === 0 && (
+        {none && (
           <Empty>No manual picks. "Lock in a game" adds one and locks most commands for 14 days.</Empty>
         )}
         <ul className="rows">
@@ -35,8 +36,17 @@ export function Picks() {
               <CommandButton name="abandon-pick" preset={{ app_id: p.app_id }} label="Abandon…" tone="danger" />
             </li>
           ))}
+          {/* Released, expired or kept by "Pick…": still installed and playable. */}
+          {data?.kept_picks.map((p) => (
+            <li key={p.app_id} className="row">
+              <span className="grow">
+                <strong>{p.name}</strong> <span className="muted">· kept · no lock · {p.app_id}</span>
+              </span>
+              <CommandButton name="abandon-pick" preset={{ app_id: p.app_id }} label="Abandon…" tone="danger" />
+            </li>
+          ))}
         </ul>
-        {data && data.manual_picks.length === 0 && (
+        {none && (
           <div className="actions">
             <CommandButton name="abandon-pick" label="Abandon a pick by app id…" />
           </div>

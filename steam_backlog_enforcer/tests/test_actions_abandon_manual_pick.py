@@ -197,11 +197,11 @@ class TestApplyManualPickCap:
         assert refused is not None
         assert "already one of your manual picks" in refused
 
-    def test_prunes_finished_entries(self) -> None:
-        """Test prunes finished entries."""
+    def test_keeps_finished_entries(self) -> None:
+        """A finished pick stays allowed: a new pick no longer drops it."""
         state = State(manual_picks=[_pick(440, "TF2")], finished_app_ids=[440])
         assert apply_manual_pick(state, 620, "Portal 2", max_picks=2) is None
-        assert [p["app_id"] for p in state.manual_picks] == [620]
+        assert [p["app_id"] for p in state.manual_picks] == [440, 620]
 
     def test_slots_left(self) -> None:
         """Test slots left."""

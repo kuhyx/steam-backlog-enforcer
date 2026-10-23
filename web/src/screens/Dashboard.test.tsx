@@ -5,8 +5,18 @@ import { makeJob, makeSpec, makeStatus } from '../test/fixtures'
 import { apiError, renderRouted, stubApi } from '../test/harness'
 import { Dashboard } from './Dashboard'
 
+const daemon = (fast_installs: unknown[] = []) => ({
+  state: 'running',
+  started_at: null,
+  pid: 1,
+  journal_tail: [],
+  restart_available_at: null,
+  fast_installs,
+})
+const bg3 = { app_id: 1086940, name: "Baldur's Gate 3", phase: 'downloading depot 3/8', percent: 46.9, elapsed_seconds: 312 }
 const base = (over: Record<string, unknown> = {}) => ({
   'GET /api/status': makeStatus(),
+  'GET /api/daemon': daemon(),
   'GET /api/budget': makeBudget(),
   'GET /api/jobs': [],
   'GET /api/commands': [makeSpec('done'), makeSpec('install'), makeSpec('pick'), makeSpec('scan'), makeSpec('check')],
@@ -64,6 +74,27 @@ describe('Dashboard', () => {
     it('explains a failed load', async () => {
       show({ 'GET /api/status': apiError(500, 'op_failed', 'status broke') })
       expect(await screen.findByText('status broke')).toBeInTheDocument()
+    })
+  })
+
+  describe('fast install', () => {
+    it('shows a daemon-started run with its depot percent', async () => {
+      show({ 'GET /api/daemon': daemon([bg3]) })
+      expect(await screen.findByText("Fast-installing Baldur's Gate 3 — 46% (downloading depot 3/8)")).toBeInTheDocument()
+      expect(screen.getByRole('progressbar', { name: "Baldur's Gate 3 download" })).toHaveAttribute('aria-valuenow', '46')
+      expect(screen.getByText('5m elapsed')).toBeInTheDocument()
+    })
+
+    it('shows the phase alone before a percent is known', async () => {
+      show({ 'GET /api/daemon': daemon([{ ...bg3, phase: 'shutting Steam down', percent: null, elapsed_seconds: 12 }]) })
+      expect(await screen.findByText("Fast-installing Baldur's Gate 3 — shutting Steam down")).toBeInTheDocument()
+      expect(screen.getByRole('progressbar', { name: "Baldur's Gate 3 download" })).toHaveClass('bar-indeterminate')
+    })
+
+    it('stays out of the way when nothing is installing', async () => {
+      show()
+      expect(await screen.findByText('Hollow Knight')).toBeInTheDocument()
+      expect(screen.queryByText(/Fast-installing/)).not.toBeInTheDocument()
     })
   })
 

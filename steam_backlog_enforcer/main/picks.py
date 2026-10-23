@@ -20,6 +20,11 @@ from steam_backlog_enforcer._pick_completion import (
     report_completion,
     warn_stale_assignment,
 )
+from steam_backlog_enforcer._pick_keep import (
+    allowed_cap_refusal,
+    keep_refusal,
+    kept_alongside,
+)
 from steam_backlog_enforcer._progress import tracked
 from steam_backlog_enforcer._prompter import confirm_phrase, current_prompter
 from steam_backlog_enforcer._snapshot import load_snapshot, snapshot_game_name
@@ -42,8 +47,28 @@ if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
 
 
-def cmd_pick(config: Config, state: State) -> None:
-    """Manually pick a new game from the shortest-first candidate list."""
+def cmd_pick(config: Config, state: State, args: list[str] | None = None) -> None:
+    """Pick another game from the shortest-first candidate list.
+
+    The games already allowed stay installed and playable next to the new
+    one, up to the cap (refused before the list is shown). ``--replace``
+    swaps them all for the new game and uninstalls them instead.
+
+    Args:
+        config: Enforcer configuration.
+        state: Current enforcer state.
+        args: Remaining CLI args: nothing, or ``--replace``.
+    """
+    unknown = [a for a in args or [] if a != "--replace"]
+    if unknown:
+        _echo(f"Unknown argument(s): {' '.join(unknown)}\nUsage: pick [--replace]")
+        sys.exit(1)
+    keep = "--replace" not in (args or [])
+    refusal = keep_refusal(config, state) if keep else None
+    if refusal is not None:
+        _echo(f"Error: {refusal}")
+        sys.exit(1)
+
     snapshot_data = load_snapshot()
     if not snapshot_data:
         _echo("No snapshot found. Run 'scan' first.")
@@ -55,7 +80,7 @@ def cmd_pick(config: Config, state: State) -> None:
         if game.app_id in hltb_cache:
             game.completionist_hours = hltb_cache[game.app_id]
 
-    pick_next_game(games, state, config)
+    pick_next_game(games, state, config, keep=keep)
 
     if state.current_app_id is not None:
         hide_others_and_report(config, state)
@@ -84,12 +109,15 @@ def _resolve_game_name(config: Config, app_id: int) -> str | None:
     return None
 
 
-def _report_pick_slots(config: Config, state: State) -> list[dict[str, object]]:
-    """Show which manual picks are already locked in; exit if the cap is full.
+def _report_pick_slots(
+    config: Config, state: State, app_id: int
+) -> list[dict[str, object]]:
+    """Show which manual picks are already locked in; exit if a cap is full.
 
     Args:
         config: Enforcer configuration (for ``max_manual_picks``).
         state: Current enforcer state.
+        app_id: The game about to be picked (an allowed one adds nothing).
 
     Returns:
         The currently-active manual picks.
@@ -107,7 +135,10 @@ def _report_pick_slots(config: Config, state: State) -> list[dict[str, object]]:
             f"\ncan be abandoned at any time."
         )
         sys.exit(1)
-
+    refusal = allowed_cap_refusal(state, config.max_manual_picks, adding=app_id)
+    if refusal is not None:
+        _echo(f"\nError: {refusal}")
+        sys.exit(1)
     return existing
 
 
@@ -146,6 +177,7 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
     """Manually pick a game by Steam app_id, locking the enforcer.
 
     The lock lasts 2 weeks, or until one new achievement is earned in it.
+    Already-allowed games stay installed, up to the cap (checked pre-prompt).
 
     Args:
         config: Enforcer configuration.
@@ -173,7 +205,7 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
 
     retired = report_completion(config, state)
 
-    existing = _report_pick_slots(config, state)
+    existing = _report_pick_slots(config, state, app_id)
 
     _echo(
         f"\nWARNING: Picking this game will:"
@@ -185,12 +217,9 @@ def cmd_pick_manual(config: Config, state: State, args: list[str]) -> None:
         f"\n    {', '.join(sorted(_MANUAL_LOCK_EXEMPT_COMMANDS))}"
         f"\n  - Stay undoable at any time via 'abandon-pick {app_id}'"
     )
-    active = active_manual_picks(state)
-    for old_pick in (p for p in state.manual_picks if p not in active):
-        _echo(
-            f"  - Replace {old_pick['game_name']} (released or expired; it stays"
-            " playable until you confirm)"
-        )
+    kept = kept_alongside(state, app_id)
+    if kept:
+        _echo(f"  - Keep these allowed, they stay installed: {', '.join(kept)}")
     _echo()
     if not confirm_phrase(
         "pick-manual",

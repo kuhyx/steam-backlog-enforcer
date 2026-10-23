@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer import _fast_install
+from steam_backlog_enforcer import _fast_install, _fast_install_progress
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -39,6 +39,7 @@ def _no_fast_install(tmp_path: Path) -> Iterator[None]:
     fake_steamapps.mkdir(exist_ok=True)
     _fast_install._RUNS.clear()
     _fast_install._FAILED.clear()
+    _fast_install_progress._TRACKERS.clear()
     patches = [patch(name, return_value=False) for name in _RUNNING_BINDINGS]
     patches += [
         # Absolute, so `home / _INSTALLER` resolves here and never under ~.
@@ -54,3 +55,4 @@ def _no_fast_install(tmp_path: Path) -> Iterator[None]:
             p.stop()
         _fast_install._RUNS.clear()
         _fast_install._FAILED.clear()
+        _fast_install_progress._TRACKERS.clear()

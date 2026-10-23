@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer import _ctl_ops
+from steam_backlog_enforcer import _ctl_ops, _fast_install_progress
 from steam_backlog_enforcer._ctl_protocol import CtlError
 from steam_backlog_enforcer.tests._ctl_fixtures import make_ctx
 
@@ -34,6 +34,24 @@ class TestSimpleOps:
         assert data["started_at"] == "2026-01-01T00:00:00+00:00"
         assert data["restart_available_at"] is None
         assert isinstance(data["pid"], int)
+
+    def test_status_reports_fast_installs(self, tmp_path: Path) -> None:
+        log = tmp_path / "log"
+        log.write_bytes(b"Shutting down the Steam client...\r\n")
+        _fast_install_progress.track(7, "G", log, offset=0, now=0.0)
+        _fast_install_progress.poll_trackers({7})
+        with patch.object(_ctl_ops, "restart_available_at", return_value=None):
+            data = _ctl_ops.op_status(make_ctx(), {})
+        runs = data["fast_installs"]
+        assert isinstance(runs, list)
+        (run,) = runs
+        assert run["name"] == "G"
+        assert run["phase"] == "shutting Steam down"
+        assert run["percent"] is None
+
+    def test_status_without_fast_installs(self) -> None:
+        with patch.object(_ctl_ops, "restart_available_at", return_value=None):
+            assert _ctl_ops.op_status(make_ctx(), {})["fast_installs"] == []
 
     def test_status_restarting(self) -> None:
         ctx = make_ctx()

@@ -50,7 +50,7 @@ mirror is `web/src/api/contract.ts`; change both together or neither.
 | GET | `/api/commands` | – | `CommandSpec[]` — server-driven catalog |
 | GET | `/api/setup` | – | `SetupStatus` (configured flags, no secrets) |
 | POST | `/api/setup` | `SetupRequest` | `SetupStatus` (validated live against Steam) |
-| GET | `/api/daemon` | – | `DaemonStatus` (state, uptime, journal tail) |
+| GET | `/api/daemon` | – | `DaemonStatus` (state, uptime, journal tail, fast installs) |
 | GET | `/api/server` | – | `ServerHealth` (stale?, started_at, version) |
 | POST | `/api/server/restart` | – | `202`; the user unit restarts the process |
 | GET | `/api/backups` | – | `StateBackup[]` |
@@ -205,6 +205,9 @@ hard-codes it.
   `gaming_unblock{phrase}`, `gaming_reset_arm{phrase}`,
   `gaming_reset_heartbeat{pending_id}`, `gaming_reset_commit{pending_id, phrase}`,
   `gaming_reset_cancel{pending_id}`, `restart{}`. There is no `stop`.
+- `status` also lists the daemon's live steam-game-installer runs as
+  `fast_installs: [{app_id, name, phase, percent, elapsed_seconds}]`, read
+  from its log by the enforce loop; `percent` is the current depot's, or null.
 
 ## Verification record (2026-10-10)
 

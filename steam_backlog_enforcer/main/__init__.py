@@ -187,6 +187,9 @@ def _dispatch_extra_command(command: str, config: Config, state: State) -> bool:
         "unblock": lambda: cmd_unblock(config, state, args),
         "block-gaming": lambda: cmd_block_gaming(args),
         "serve": lambda: cmd_serve(args),
+        # Also in COMMANDS (help order, direct callers), but only here does
+        # it see argv, so --replace is honoured.
+        "pick": lambda: cmd_pick(config, state, args),
         "pick-manual": lambda: cmd_pick_manual(config, state, args),
         "abandon-pick": lambda: cmd_abandon_pick(config, state, args),
     }

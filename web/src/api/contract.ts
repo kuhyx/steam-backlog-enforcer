@@ -47,7 +47,8 @@ export type CommandCategory = 'backlog' | 'library' | 'gaming' | 'store' | 'syst
 export interface ParamSpec {
   name: string
   label: string
-  type: 'int' | 'string' | 'app_id'
+  /** `bool` is a checkbox, sent as 0/1. */
+  type: 'int' | 'string' | 'app_id' | 'bool'
   required: boolean
   min?: number
   max?: number
@@ -101,6 +102,13 @@ export interface StatusPayload {
   total_block: { active: boolean; days_remaining: number; until: string | null }
   manual_pick_locked: boolean
   manual_picks: ManualPickInfo[]
+  /** Released/expired picks and games `pick` kept: allowed, no lock. */
+  kept_picks: KeptPickInfo[]
+}
+
+export interface KeptPickInfo {
+  app_id: number
+  name: string
 }
 
 export interface StatsPayload {
@@ -156,6 +164,17 @@ export interface SetupRequest {
 
 export type DaemonState = 'running' | 'restarting' | 'unreachable'
 
+/** A steam-game-installer run the root daemon started, read from its log. */
+export interface FastInstallRun {
+  app_id: number
+  name: string
+  /** e.g. `shutting Steam down`, `downloading depot 3/8`, `finishing manifest`. */
+  phase: string
+  /** The current depot's percent; null until depotdownloader reports one. */
+  percent: number | null
+  elapsed_seconds: number
+}
+
 export interface DaemonStatus {
   state: DaemonState
   started_at: string | null
@@ -163,6 +182,11 @@ export interface DaemonStatus {
   journal_tail: string[]
   /** ISO time before which `restart` is rate-limited, or null. */
   restart_available_at: string | null
+  /**
+   * Empty when none is running or the daemon is unreachable; absent from a
+   * web server older than this UI (the window the `stale` health flag covers).
+   */
+  fast_installs?: FastInstallRun[]
 }
 
 export interface ServerHealth {

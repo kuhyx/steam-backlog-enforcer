@@ -76,6 +76,12 @@ const pick: Script = async (ctx) => {
   }
   ctx.progress(2, 2, 'Assigning', gameName(Number(chosen)))
   await ctx.sleep(700)
+  // Mirrors _pick_keep: unchecked parks the outgoing game; replace drops all.
+  const old = world.currentAppId
+  if (Number(ctx.params.replace)) world.keptPicks = []
+  else if (old !== null && !world.keptPicks.includes(old) && !world.manualPicks.some((p) => p.app_id === old)) {
+    world.keptPicks.push(old)
+  }
   world.currentAppId = Number(chosen)
   return { summary: `Assigned ${gameName(Number(chosen))}.` }
 }
@@ -177,6 +183,7 @@ export const SCRIPTS: Partial<Record<CommandName, Script>> = {
   'abandon-pick': async (ctx) => {
     await ctx.sleep(800)
     world.manualPicks = world.manualPicks.filter((p) => p.app_id !== Number(ctx.params.app_id))
+    world.keptPicks = world.keptPicks.filter((id) => id !== Number(ctx.params.app_id))
     return { summary: `Abandoned ${gameName(Number(ctx.params.app_id))}.` }
   },
   'add-exception': async (ctx) => {

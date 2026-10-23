@@ -6,6 +6,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._assignment_progress import (
     release_game,
     release_verdict,
@@ -153,6 +154,7 @@ def pick_next_game(
     config: Config,
     *,
     on_select: Callable[[GameInfo], bool | GameInfo] | None = None,
+    keep: bool = False,
 ) -> None:
     """Present a ranked list of eligible games and let the user pick one.
 
@@ -165,12 +167,20 @@ def pick_next_game(
     bypassed: the function instead presents the shortest playable
     candidate to ``on_select`` (typically a yes/no prompt) and, if the
     callback rejects it, records a 7-day skip and re-evaluates.
+
+    ``keep`` (plain ``pick``) adds the chosen game next to the ones already
+    allowed instead of replacing them, so those are not offered again. The
+    sequential path (``done``/``check``) always replaces.
     """
     if on_select is not None:
         _pick_next_game_sequential(games, state, config, on_select)
         return
 
-    candidates = _open_candidates(games, state)
+    # Offering an allowed game in keep mode would be a no-op "pick"; the
+    # ranked list and the own-game search both draw from this pool.
+    allowed = allowed_app_ids(state) if keep else set()
+    pool = [g for g in games if g.app_id not in allowed]
+    candidates = _open_candidates(pool, state)
     if not candidates:
         _clear_assignment(state, _NO_CONF_MSG)
         return
@@ -182,8 +192,8 @@ def pick_next_game(
         _clear_assignment(state, _no_pick_message(confidence_skipped, linux_skipped))
         return
 
-    chosen = _prompt_user_pick(qualified, games, state)
-    _assign_chosen_game(chosen, games, state, config)
+    chosen = _prompt_user_pick(qualified, pool, state)
+    _assign_chosen_game(chosen, games, state, config, keep=keep)
 
 
 # ──────────────────────────────────────────────────────────────

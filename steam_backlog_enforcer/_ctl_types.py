@@ -10,6 +10,21 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class FastInstallInfo:
+    """A steam-game-installer run the daemon started, as far as its log tells.
+
+    ``percent`` is the current depot's (``None`` until one is known); ``phase``
+    names the depot, e.g. ``downloading depot 3/8``.
+    """
+
+    app_id: int
+    name: str
+    phase: str
+    percent: float | None
+    elapsed_seconds: int
+
+
+@dataclass(frozen=True)
 class DaemonInfo:
     """The daemon's own account of itself (``status``)."""
 
@@ -17,6 +32,8 @@ class DaemonInfo:
     started_at: str
     pid: int
     restart_available_at: str | None
+    # Empty from a daemon too old to report them.
+    fast_installs: tuple[FastInstallInfo, ...] = ()
 
 
 @dataclass(frozen=True)

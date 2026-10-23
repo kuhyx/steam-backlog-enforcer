@@ -12,7 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer import _fast_install, config
+from steam_backlog_enforcer import _fast_install, _fast_install_progress, config
+from steam_backlog_enforcer._progress import use_progress
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -26,15 +27,21 @@ def _ready(tmp_path: Path) -> Path:
     return installer
 
 
-def _fake_spawn(*returncodes: int | None) -> MagicMock:
-    """A ``_spawn_detached`` that registers a run answering *returncodes*."""
+def _fake_spawn(*returncodes: int | None, log_text: bytes | None = None) -> MagicMock:
+    """A ``_spawn_detached`` that registers a run answering *returncodes*.
 
-    def spawn(_cmd: list[str], app_id: int) -> None:
+    With *log_text*, the run also gets a log holding it, tracked from byte 0.
+    """
+
+    def spawn(_cmd: list[str], app_id: int, label: str = "") -> None:
         proc = MagicMock(pid=4321)
         proc.poll.side_effect = list(returncodes)
-        _fast_install._RUNS.append(
-            _fast_install._DetachedRun(app_id, proc, config.CONFIG_DIR / "x.log")
-        )
+        log = config.CONFIG_DIR / "x.log"
+        if log_text is not None:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_bytes(log_text)
+            _fast_install_progress.track(app_id, label, log, offset=0, now=0.0)
+        _fast_install._RUNS.append(_fast_install._DetachedRun(app_id, proc, log))
 
     return MagicMock(side_effect=spawn)
 
@@ -62,6 +69,18 @@ class TestJobWaitsForInstaller:
         assert self._install(tmp_path, _fake_spawn(None, 3), 1000) is False
         assert {7} == _fast_install._FAILED
 
+    def test_progress_is_reported_while_waiting(self, tmp_path: Path) -> None:
+        text = b"Shutting down the Steam client...\r\nDownloading via depot\r\n"
+        text += b"Processing depot 1\r\nDownloading depot 1\r\n"
+        text += b" 46.90% /x/a.pak (657.13 Mbit/s)\r\n"
+        progress = MagicMock()
+        with use_progress(progress):
+            assert self._install(tmp_path, _fake_spawn(None, 0, log_text=text), 1000)
+        progress.phase.assert_called_with(
+            "Fast-installing G: downloading depot 1/1", 100
+        )
+        progress.advance.assert_called_with("G", step=46)
+
     def test_daemon_returns_at_once(self, tmp_path: Path) -> None:
         assert self._install(tmp_path, _fake_spawn(), 0) is True
         assert _fast_install.is_fast_installing(7)
@@ -82,3 +101,17 @@ class TestLogIsPerUser:
             _fast_install._spawn_detached(["run.sh"], 9)
         popen.assert_called_once()
         assert _fast_install._RUNS[0].log_path != daemon_log
+
+    def test_progress_starts_at_the_current_end(self) -> None:
+        config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        log = config.CONFIG_DIR / "fast_install-1000.log"
+        log.write_bytes(b"Restarting the Steam client...\r\n")  # the last run
+        with (
+            patch(f"{PKG}.os.geteuid", return_value=1000),
+            patch(f"{PKG}.subprocess.Popen"),
+        ):
+            _fast_install._spawn_detached(["run.sh"], 9, "G")
+        _fast_install_progress.poll_trackers({9})
+        progress = _fast_install_progress.progress_of(9, now=0.0)
+        assert progress is not None
+        assert progress.phase == _fast_install_progress.STARTING

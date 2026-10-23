@@ -35,6 +35,8 @@ export interface World {
   storeBlockedUntil: number | null
   totalBlockUntil: number | null
   manualPicks: { app_id: number; picked_at: number }[]
+  /** Games `pick` kept: allowed, no lock. */
+  keptPicks: number[]
   installed: InstalledGame[]
   backups: StateBackup[]
   journal: string[]
@@ -57,6 +59,7 @@ export const world: World = {
   storeBlockedUntil: null,
   totalBlockUntil: null,
   manualPicks: [],
+  keptPicks: [],
   installed: makeInstalled(1145360),
   backups: [
     { id: '20261009-221504', created_at: iso(now - DAY), reason: 'before reset', size_bytes: 48_211 },
@@ -106,6 +109,7 @@ export function status(): StatusPayload {
       name: gameName(p.app_id),
       age_days: Math.floor((t - p.picked_at) / DAY),
     })),
+    kept_picks: world.keptPicks.map((id) => ({ app_id: id, name: gameName(id) })),
   }
 }
 
@@ -163,6 +167,7 @@ export function daemonStatus(): DaemonStatus {
     journal_tail: reachable ? world.journal.slice(-60) : [],
     restart_available_at:
       world.restartAvailableAt !== null && world.restartAvailableAt > t ? iso(world.restartAvailableAt) : null,
+    fast_installs: [],
   }
 }
 

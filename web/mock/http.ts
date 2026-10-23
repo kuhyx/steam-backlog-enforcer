@@ -60,6 +60,7 @@ function checkParam(p: ParamSpec, raw: unknown): number | string | undefined {
   }
   if (p.type === 'string') return String(raw)
   const n = Number(raw)
+  if (p.type === 'bool' && n !== 0 && n !== 1) throw new HttpError(400, 'invalid_params', `${p.label} must be true or false.`)
   if (!Number.isInteger(n)) throw new HttpError(400, 'invalid_params', `${p.label} must be a whole number.`)
   if (p.min !== undefined && n < p.min) throw new HttpError(400, 'invalid_params', `${p.label} must be at least ${p.min}.`)
   if (p.max !== undefined && n > p.max) throw new HttpError(400, 'invalid_params', `${p.label} must be at most ${p.max}.`)

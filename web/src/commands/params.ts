@@ -11,6 +11,8 @@ export interface GameOption {
 
 /** Error text for one field, or null when the value is acceptable. */
 export function paramError(p: ParamSpec, raw: string, games: GameOption[]): string | null {
+  // A checkbox is always '0' or '1'; there is nothing to get wrong.
+  if (p.type === 'bool') return null
   const v = raw.trim()
   if (v === '') return p.required && p.default === undefined ? `${p.label} is required.` : null
   if (p.type === 'string') return null

@@ -27,7 +27,7 @@ COMMAND_DESCRIPTIONS: Final[dict[str, str]] = {
     "uninstall": "Uninstall all non-assigned games",
     "setup": "Run first-time setup",
     "done": "Move on after a new achievement, pick next",
-    "pick": "Manually pick your next game from candidates",
+    "pick": "Pick another game from candidates (keeps current; --replace swaps)",
     "stats": "Show backlog completion-time estimates",
     "gaming-status": "Show today's gaming time and block state",
     "gaming-reset": "Reset today's gaming counter (root + phrase)",

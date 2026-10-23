@@ -24,8 +24,8 @@ def _pick_is_active(state: State, pick: dict[str, Any]) -> bool:
     """Return ``True`` if *pick* still holds the lock and a pick slot.
 
     An inactive pick is *not* evicted: it stays in ``state.manual_picks``, and
-    so installed and playable, until the user explicitly chooses another game
-    (:func:`drop_inactive_picks`).
+    so installed and playable, until the user explicitly replaces it
+    (:func:`drop_inactive_picks`) or abandons it.
 
     A pick stops being active once it earned a new achievement since it was
     picked (``released_at``), once its game is 100% finished, or once
@@ -75,9 +75,10 @@ def drop_inactive_picks(state: State) -> list[dict[str, Any]]:
     """Forget every pick that no longer holds the lock; return the dropped ones.
 
     Released, finished and expired picks stay installed and playable for as
-    long as the user wants. Only an explicit choice of another game (a new
-    manual pick, or accepting the next assignment) calls this and so lets
-    enforcement remove them. Does not save.
+    long as the user wants. Only an explicit replacement (``pick --replace``,
+    or accepting the next assignment in ``done``/``check``/``scan``) calls
+    this and so lets enforcement remove them; plain ``pick`` and
+    ``pick-manual`` keep them. Does not save.
 
     Args:
         state: The enforcer state to mutate.
@@ -96,7 +97,7 @@ def allowed_games(state: State) -> list[tuple[int, str]]:
 
     That is the current assignment plus every stored manual pick, including
     released and expired ones: a game is only removed once the user has
-    explicitly chosen something else.
+    explicitly replaced or abandoned it.
 
     Args:
         state: The loaded enforcer state.
