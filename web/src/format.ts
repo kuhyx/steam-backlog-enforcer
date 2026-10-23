@@ -62,3 +62,20 @@ export function fmtAgo(iso: string, now: Date = new Date()): string {
   if (seconds < 10) return 'just now'
   return `${fmtDuration(seconds)} ago`
 }
+
+// Largest first; weeks are the top unit because months vary in length.
+const REMAINING_UNITS: [string, number][] = [['w', 604_800], ['d', 86_400], ['h', 3600], ['m', 60], ['s', 1]]
+
+/** Time left as its two largest units: "2w 2d", "2d 14h", "2h 20m", "5m 7s", "45s".
+ *  Rounds up, so it reads "0s" only once the time is actually up. */
+export function fmtRemaining(seconds: number): string {
+  const left = Math.max(0, Math.ceil(seconds))
+  for (let i = 0; i < REMAINING_UNITS.length - 1; i += 1) {
+    const [name, size] = REMAINING_UNITS[i]
+    if (left >= size) {
+      const [subName, subSize] = REMAINING_UNITS[i + 1]
+      return `${Math.floor(left / size)}${name} ${Math.floor((left % size) / subSize)}${subName}`
+    }
+  }
+  return `${left}s`
+}

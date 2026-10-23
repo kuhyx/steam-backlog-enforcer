@@ -45,7 +45,7 @@ class TestLockReason:
         with _block(active=True):
             reason = _gate.lock_reason("scan", _CONFIGURED, State())
         assert reason is not None
-        assert "Total gaming block active (3.5 day(s) left)" in reason
+        assert "Total gaming block active (3d 12h left)" in reason
         assert "Allowed:" in reason
 
     def test_exempt_commands_pass_the_total_block(self) -> None:

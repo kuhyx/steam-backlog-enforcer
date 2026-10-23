@@ -29,7 +29,7 @@ class TestRunDemo:
         ):
             assert run_demo(Config()) == EXIT_REFUSED
         tick.assert_not_called()
-        assert "Demo cannot start: total gaming block active (2.0 day(s) left)" in (
+        assert "Demo cannot start: total gaming block active (2d 0h left)" in (
             _echoed(echo)
         )
 
@@ -62,6 +62,4 @@ class TestRunDemo:
         ):
             assert run_demo(Config()) == EXIT_REFUSED
         tick.assert_called_once()
-        assert "Demo stopped: total gaming block active (1.0 day(s) left)" in (
-            _echoed(echo)
-        )
+        assert "Demo stopped: total gaming block active (1d 0h left)" in (_echoed(echo))

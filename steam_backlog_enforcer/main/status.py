@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from steam_backlog_enforcer._actions import active_manual_picks
 from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer._pick_completion import report_completion
+from steam_backlog_enforcer._remaining import fmt_remaining
 from steam_backlog_enforcer._snapshot import require_snapshot_games
 from steam_backlog_enforcer._total_block import get_total_block_status
 from steam_backlog_enforcer.game_install import (
@@ -31,7 +32,8 @@ def cmd_status(config: Config, state: State) -> None:
         _echo("*** TOTAL GAMING BLOCK ACTIVE ***")
         if total_block.until is not None:
             _echo(f"Blocked until: {total_block.until.strftime('%Y-%m-%d %H:%M UTC')}")
-            _echo(f"Days remaining: {total_block.days_remaining:.1f}\n")
+            left = fmt_remaining(total_block.days_remaining * 86400)
+            _echo(f"Time remaining: {left}\n")
 
     if state.current_app_id:
         _echo(

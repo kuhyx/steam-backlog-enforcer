@@ -20,6 +20,7 @@ from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._enforce_loop import ENFORCE_INTERVAL
 from steam_backlog_enforcer._playtime import playtime_tick
 from steam_backlog_enforcer._playtime_session import new_session
+from steam_backlog_enforcer._remaining import fmt_remaining
 from steam_backlog_enforcer._total_block import (
     get_total_block_status,
     is_total_block_active,
@@ -40,9 +41,9 @@ def _refuse_under_total_block(when: str) -> int:
     Returns:
         The exit code to leave with.
     """
-    days = get_total_block_status().days_remaining
+    left = fmt_remaining(get_total_block_status().days_remaining * 86400)
     _echo(
-        f"Demo {when}: total gaming block active ({days:.1f} day(s) left). "
+        f"Demo {when}: total gaming block active ({left} left). "
         "Steam is uninstalled and the budget is not counted, so there is "
         "nothing for a demo budget to run against."
     )

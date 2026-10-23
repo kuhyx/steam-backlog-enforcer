@@ -17,6 +17,7 @@ from steam_backlog_enforcer._command_locks import (
     _MANUAL_LOCK_EXEMPT_COMMANDS,
     _TOTAL_BLOCK_EXEMPT_COMMANDS,
 )
+from steam_backlog_enforcer._remaining import fmt_remaining
 from steam_backlog_enforcer._total_block import (
     get_total_block_status,
     is_total_block_active,
@@ -47,11 +48,9 @@ def lock_reason(command: str, config: Config, state: State | None) -> str | None
     if command not in UNCONFIGURED_OK and not config.steam_api_key:
         return NOT_CONFIGURED_MSG
     if is_total_block_active() and command not in _TOTAL_BLOCK_EXEMPT_COMMANDS:
-        days = get_total_block_status().days_remaining
+        left = fmt_remaining(get_total_block_status().days_remaining * 86400)
         allowed = ", ".join(sorted(_TOTAL_BLOCK_EXEMPT_COMMANDS))
-        return (
-            f"Total gaming block active ({days:.1f} day(s) left). Allowed: {allowed}."
-        )
+        return f"Total gaming block active ({left} left). Allowed: {allowed}."
     if (
         state is not None
         and is_manual_pick_locked(state)

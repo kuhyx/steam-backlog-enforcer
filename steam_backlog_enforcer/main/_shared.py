@@ -23,6 +23,7 @@ from steam_backlog_enforcer._command_locks import (
     _TOTAL_BLOCK_EXEMPT_COMMANDS,
 )
 from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
+from steam_backlog_enforcer._remaining import fmt_remaining
 from steam_backlog_enforcer._total_block import (
     TotalBlockStatus,
     get_total_block_status,
@@ -49,7 +50,7 @@ def _show_total_block_lock_message(status: TotalBlockStatus) -> None:
 
     if status.until is not None:
         _echo(f"\nBlocked until: {status.until.strftime('%Y-%m-%d %H:%M UTC')}")
-        _echo(f"Days remaining: {status.days_remaining:.1f}")
+        _echo(f"Time remaining: {fmt_remaining(status.days_remaining * 86400)}")
 
     _echo(
         "\nSteam has been uninstalled, all known game/launcher processes are"

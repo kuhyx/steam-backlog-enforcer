@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeBudget, makeBudgetToday } from '../test/factories'
 import { makeJob, makeSpec, makeStatus } from '../test/fixtures'
@@ -62,8 +62,31 @@ describe('Dashboard', () => {
       expect(await screen.findByText('Nothing assigned')).toBeInTheDocument()
       expect(fact('Installed')).toHaveTextContent('No — install it from Library')
       expect(fact('Store')).toHaveTextContent('Unblocked')
-      expect(fact('Total block')).toHaveTextContent('5 days left')
+      expect(fact('Total block')).toHaveTextContent('5d 0h left')
       expect(fact('Manual picks')).toHaveTextContent('Alpha (2 d), Beta (9 d)')
+    })
+
+    it('counts the total block down from until, every second', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true, now: Date.parse('2026-10-23T10:00:00Z') })
+      try {
+        show({
+          'GET /api/status': makeStatus({
+            total_block: { active: true, days_remaining: 0, until: '2026-10-23T11:08:02Z' },
+          }),
+        })
+        expect(await screen.findByText('1h 8m left')).toBeInTheDocument()
+        // The jump alone re-renders nothing; the 1 s tick picks it up, then
+        // every further tick takes exactly one second off.
+        act(() => vi.setSystemTime(Date.parse('2026-10-23T11:07:58Z')))
+        expect(fact('Total block')).toHaveTextContent('1h 8m left')
+        act(() => vi.advanceTimersByTime(1000))
+        const first = Number(/^(\d)s left$/.exec(fact('Total block').textContent ?? '')?.[1])
+        expect([3, 4]).toContain(first)
+        act(() => vi.advanceTimersByTime(1000))
+        expect(fact('Total block')).toHaveTextContent(`${first - 1}s left`)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('shows loading, then an error', async () => {

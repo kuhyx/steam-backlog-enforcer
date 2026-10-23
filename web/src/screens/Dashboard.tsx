@@ -4,11 +4,20 @@ import type { FastInstallRun, StatusPayload } from '../api/contract'
 import { q } from '../api/queries'
 import { CommandButton } from '../commands/CommandCard'
 import { commandLabel } from '../commands/catalog'
-import { fmtDuration } from '../format'
+import { fmtDuration, fmtRemaining } from '../format'
 import { ProgressBar, StateBadge } from '../jobs/ProgressBar'
 import { ago } from '../ui/format'
 import { Empty, ErrorNotice, Loading } from '../ui/Notice'
 import { Card, Facts, PageHead } from '../ui/Page'
+import { useNow } from '../ui/useNow'
+
+/** Ticks every second from `until`; the server's `days_remaining` (rounded to
+ *  0.1 d) is only the fallback when no end time is known. */
+function TotalBlockLeft({ block }: { block: StatusPayload['total_block'] }) {
+  const now = useNow(1000)
+  const seconds = block.until ? (Date.parse(block.until) - now) / 1000 : block.days_remaining * 86_400
+  return <span className="text-danger">{fmtRemaining(seconds)} left</span>
+}
 
 function StatusCard({ s }: { s: StatusPayload }) {
   return (
@@ -22,7 +31,7 @@ function StatusCard({ s }: { s: StatusPayload }) {
           ['Installed games', s.installed_count],
           [
             'Total block',
-            s.total_block.active ? <span className="text-danger">{s.total_block.days_remaining} days left</span> : 'Off',
+            s.total_block.active ? <TotalBlockLeft block={s.total_block} /> : 'Off',
           ],
           [
             'Manual picks',

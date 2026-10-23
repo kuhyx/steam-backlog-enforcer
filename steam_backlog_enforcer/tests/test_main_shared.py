@@ -133,7 +133,7 @@ class TestShowTotalBlockLockMessage:
             _show_total_block_lock_message(ACTIVE_STATUS)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "TOTAL GAMING BLOCK ACTIVE" in output
-        assert "Days remaining" in output
+        assert "Time remaining: 23h 2m" in output
 
     def test_lists_exempt_commands(self) -> None:
         with patch(f"{PKG}._echo") as mock_echo:

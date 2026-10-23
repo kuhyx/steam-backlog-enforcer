@@ -7,6 +7,7 @@ import {
   fmtHours,
   fmtHoursPrecise,
   fmtPlaytime,
+  fmtRemaining,
   isoDate,
 } from './format'
 
@@ -87,5 +88,27 @@ describe('fmtAgo', () => {
   it('handles a missing or unparsable timestamp', () => {
     expect(fmtAgo('', now)).toBe('unknown')
     expect(fmtAgo('not a date', now)).toBe('unknown')
+  })
+})
+
+describe('fmtRemaining', () => {
+  const H = 3600
+  const D = 24 * H
+  it('shows the two largest units, weeks down to seconds', () => {
+    expect(fmtRemaining(16 * D)).toBe('2w 2d')
+    expect(fmtRemaining(2 * D + 14 * H)).toBe('2d 14h')
+    expect(fmtRemaining(2 * H + 20 * 60)).toBe('2h 20m')
+    expect(fmtRemaining(5 * 60 + 7)).toBe('5m 7s')
+    expect(fmtRemaining(45)).toBe('45s')
+  })
+  it('keeps a zero second unit and caps at weeks', () => {
+    expect(fmtRemaining(2 * D)).toBe('2d 0h')
+    expect(fmtRemaining(60 * D)).toBe('8w 4d')
+  })
+  it('rounds up so it reaches 0s only when the time is up', () => {
+    expect(fmtRemaining(H + 8 * 60 + 0.3)).toBe('1h 8m')
+    expect(fmtRemaining(59.2)).toBe('1m 0s')
+    expect(fmtRemaining(0)).toBe('0s')
+    expect(fmtRemaining(-5)).toBe('0s')
   })
 })

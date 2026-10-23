@@ -138,7 +138,7 @@ class TestCmdStatusTotalBlock:
             cmd_status(Config(), State())
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "TOTAL GAMING BLOCK ACTIVE" in output
-        assert "Days remaining" in output
+        assert "Time remaining: 23h 2m" in output
 
     def test_no_total_block_section_when_inactive(self) -> None:
         with (
@@ -166,7 +166,7 @@ class TestCmdStatusTotalBlock:
             cmd_status(Config(), State())
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "TOTAL GAMING BLOCK ACTIVE" in output
-        assert "Days remaining" not in output
+        assert "Time remaining" not in output
 
 
 # ──────────────────────────────────────────────────────────────
