@@ -85,6 +85,11 @@ def _download_and_recognize(
 ) -> int:
     logger = log.logger
 
+    # First thing with Steam closed: whatever happens next, Steam resumes onto
+    # this field, and a stub written from the display name ("Baldur's Gate 3")
+    # would point it at a folder the download never fills.
+    manifest_write.ensure_installdir_correct(library, metadata.appid, install_target)
+
     if staged is not None:
         log.section("Adopting Steam's staged download")
         logger.info(
@@ -125,24 +130,24 @@ def _download_and_recognize(
         return 1
 
     logger.info("Checking for owned DLC with depots of its own...")
-    dlc_depots = dlc.download_owned(
+    dlc_plan = dlc.download_owned(
         metadata.appid, install_target, username, language, args.max_downloads, log
     )
-    if dlc_depots is None:
+    if dlc_plan is None:
         logger.info("Run log (send this): %s", log.path)
         return 1
     # Downloaded DLC is part of this install now: the finish gate must find its
-    # depot cached, and the manifest must credit it to its DLC app.
-    depot_plan.required |= set(dlc_depots)
-    depot_plan.dlc.update(dlc_depots)
+    # depot cached at its public gid, and the manifest must credit it to its
+    # DLC app.
+    depot_plan.required |= dlc_plan.required
+    depot_plan.dlc.update(dlc_plan.dlc)
+    depot_plan.manifests.update(dlc_plan.manifests)
 
     log.section("depotdownloader cache")
     for depot_id, mid in sorted(
         recognize.discover_cached_depot_manifests(install_target).items()
     ):
         logger.debug("depot %s -> manifest %s", depot_id, mid)
-
-    manifest_write.ensure_installdir_correct(library, metadata.appid, install_target)
 
     if not args.skip_steamcmd:
         logger.info("Reconciling with steamcmd (validate)...")

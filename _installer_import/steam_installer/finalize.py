@@ -52,6 +52,7 @@ def finish(
         app_state=app_state,
         required_depots=depot_plan.required,
         expected_build_id=expected_build_id,
+        expected_manifests=depot_plan.manifests,
     )
     if problems:
         # Fail closed. Writing StateFlags=4 here is what previously turned a
@@ -76,6 +77,16 @@ def finish(
         install_dir=target,
         now_unix=int(time.time()),
         dlc_depots=depot_plan.dlc,
+        # Proven depot by depot, so it outranks whatever the manifest says.
+        build_id=(
+            expected_build_id
+            if finish_check.build_proven(
+                recognize.discover_cached_depot_manifests(target),
+                depot_plan.required,
+                depot_plan.manifests,
+            )
+            else None
+        ),
     )
     log.file_contents("Manifest after manual finish", written)
 

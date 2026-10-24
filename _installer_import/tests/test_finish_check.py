@@ -157,3 +157,52 @@ def test_gate_blocks_before_staging_is_destroyed(tmp_path, monkeypatch):
         expected_build_id="999",
     )
     assert any("nothing to record as installed" in p for p in problems)
+
+
+def _bg3_dir(tmp_path, gid="8253106406752983615"):
+    install_dir = tmp_path / "Baldurs Gate 3"
+    cache_dir = install_dir / ".DepotDownloader"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / f"1086941_{gid}.manifest").write_bytes(b"x")
+    (install_dir / "Gustav.pak").write_bytes(b"x" * 1000)
+    return install_dir
+
+
+def test_cached_public_manifests_prove_the_build(tmp_path, monkeypatch):
+    """The enforcer's stub manifest says build 0, and Steam never ran to fill
+    in TargetBuildID. Every depot holding the public branch's manifest *is*
+    the current build, so that is no reason to refuse."""
+    monkeypatch.setattr("steam_installer.recognize.steam_client_pids", lambda: [])
+    problems = check_ready_to_finish(
+        install_dir=_bg3_dir(tmp_path),
+        app_state={"buildid": "0", "TargetBuildID": "0"},
+        required_depots={"1086941"},
+        expected_build_id="25605617",
+        expected_manifests={"1086941": "8253106406752983615"},
+    )
+    assert problems == []
+
+
+def test_a_stale_depot_manifest_is_refused(tmp_path, monkeypatch):
+    monkeypatch.setattr("steam_installer.recognize.steam_client_pids", lambda: [])
+    problems = check_ready_to_finish(
+        install_dir=_bg3_dir(tmp_path, gid="111"),
+        app_state={"buildid": "25605617"},
+        required_depots={"1086941"},
+        expected_build_id="25605617",
+        expected_manifests={"1086941": "8253106406752983615"},
+    )
+    assert any("1086941" in p and "stale" in p for p in problems)
+
+
+def test_a_proven_build_still_needs_a_buildid_to_record(tmp_path, monkeypatch):
+    """Matching gids prove the content, but the manifest needs a number."""
+    monkeypatch.setattr("steam_installer.recognize.steam_client_pids", lambda: [])
+    problems = check_ready_to_finish(
+        install_dir=_bg3_dir(tmp_path),
+        app_state={"buildid": "0"},
+        required_depots={"1086941"},
+        expected_build_id=None,
+        expected_manifests={"1086941": "8253106406752983615"},
+    )
+    assert any("no buildid to record" in p for p in problems)

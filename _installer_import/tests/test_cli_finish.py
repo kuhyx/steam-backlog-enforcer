@@ -8,6 +8,7 @@ from steam_installer import (
     appinfo,
     cli,
     recognize,
+    vdf,
 )
 
 from _cli_helpers import ARGV, _stub_download, _stub_steamcmd
@@ -116,3 +117,44 @@ def test_module_is_runnable_as_a_script(coverage_subprocess_env):
     )
     assert result.returncode == 0
     assert "--skip-steamcmd" in result.stdout
+
+
+def test_a_stub_manifest_is_finished_with_the_proven_build(steam, monkeypatch):
+    """The enforcer's stub says build 0 and Steam never ran to fill it in. The
+    cached depot manifest matching the public branch proves the current build,
+    which is what the finished manifest must record (BG3, 2026-10-23)."""
+    library, install_dir = steam
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    manifest.write_text(
+        vdf.dumps("AppState", {"appid": "1771300", "StateFlags": "1026", "buildid": "0"})
+    )
+    (gid,) = recognize.discover_cached_depot_manifests(install_dir).values()
+    monkeypatch.setattr(
+        appinfo,
+        "get_depot_plan",
+        lambda appid, language: appinfo.DepotPlan(
+            {"1771303"}, {"228989"}, manifests={"1771303": gid}
+        ),
+    )
+    _stub_download(monkeypatch)
+
+    assert cli.main([*ARGV, "--skip-steamcmd"]) == 0
+    app_state = vdf.parse(manifest.read_text())["AppState"]
+    assert (app_state["StateFlags"], app_state["buildid"]) == ("4", "23914554")
+
+
+def test_the_install_folder_is_corrected_even_when_the_download_fails(
+    steam, monkeypatch
+):
+    """The enforcer's stub names the folder after the display name ("Baldur's
+    Gate 3", not "Baldurs Gate 3"). Steam resumes onto whatever the manifest
+    says, so it is fixed as soon as Steam is closed, not only on success."""
+    library, _ = steam
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    state = recognize.read_app_state(manifest)
+    state["installdir"] = "Kingdom Come: Deliverance II"
+    manifest.write_text(vdf.dumps("AppState", state))
+    _stub_download(monkeypatch, returncode=2)
+
+    assert cli.main([*ARGV, "--skip-steamcmd"]) == 1
+    assert recognize.read_app_state(manifest)["installdir"] == "KingdomComeDeliverance2"

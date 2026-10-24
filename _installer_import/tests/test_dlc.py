@@ -15,11 +15,14 @@ from steam_installer import appinfo, cli, depotdl, deps, dlc, recognize, runlog,
 
 pytestmark = pytest.mark.usefixtures("cli_logs")
 
+# Every real depot that has content ships a manifest on the public branch.
+_PUB = {"manifests": {"public": {"gid": "1"}}}
+
 GAME = {
     "extended": {"listofdlc": "2060310,2138330,2441600"},
     "depots": {
-        "1091501": {"config": {"oslist": "windows"}},
-        "2060310": {"dlcappid": "2060310", "config": {"oslist": "windows"}},
+        "1091501": {"config": {"oslist": "windows"}, **_PUB},
+        "2060310": {"dlcappid": "2060310", "config": {"oslist": "windows"}, **_PUB},
     },
 }
 DLC_BLOCKS = {
@@ -28,8 +31,8 @@ DLC_BLOCKS = {
     # Its own depot, tagged with its own id -- exactly what it installs.
     2138330: {
         "depots": {
-            "2138330": {"dlcappid": "2138330", "config": {"oslist": "windows"}},
-            "2138331": {"config": {"oslist": "windows", "language": "german"}},
+            "2138330": {"dlcappid": "2138330", "config": {"oslist": "windows"}, **_PUB},
+            "2138331": {"config": {"oslist": "windows", "language": "german"}, **_PUB},
         }
     },
     2441600: {"common": {"name": "Pre-Order Bonus"}},
@@ -45,7 +48,7 @@ def _app_info(monkeypatch, game=GAME, dlc_blocks=DLC_BLOCKS):
 
 def test_only_dlc_with_depots_of_its_own_needs_a_run(monkeypatch):
     _app_info(monkeypatch)
-    assert appinfo.get_dlc_plans(1091500) == {2138330: {"2138330"}}
+    assert appinfo.get_dlc_plans(1091500) == {2138330: {"2138330": "1"}}
 
 
 @pytest.mark.parametrize("game", [{}, {"extended": "scalar"}, {"extended": {}}])
@@ -57,7 +60,7 @@ def test_a_game_without_dlc_needs_no_lookup(monkeypatch, game):
 
 def test_a_game_with_no_depot_list_still_finds_its_dlc(monkeypatch):
     _app_info(monkeypatch, game={"extended": {"listofdlc": "2138330"}})
-    assert appinfo.get_dlc_plans(1091500) == {2138330: {"2138330"}}
+    assert appinfo.get_dlc_plans(1091500) == {2138330: {"2138330": "1"}}
 
 
 def test_depot_plan_tags_the_games_own_dlc_depots(monkeypatch):
@@ -128,7 +131,9 @@ def run_log(tmp_path, monkeypatch):
 
 def _download_owned(monkeypatch, run_log, tmp_path, outcomes):
     monkeypatch.setattr(
-        appinfo, "get_dlc_plans", lambda appid, language: {7: {"70"}, 8: {"80"}}
+        appinfo,
+        "get_dlc_plans",
+        lambda appid, language: {7: {"70": "g70"}, 8: {"80": "g80"}},
     )
     monkeypatch.setattr(
         depotdl, "download_dlc", lambda dlc_appid, **kw: outcomes[dlc_appid]
@@ -137,9 +142,10 @@ def _download_owned(monkeypatch, run_log, tmp_path, outcomes):
 
 
 def test_owned_dlc_is_returned_and_unowned_skipped(monkeypatch, run_log, tmp_path):
-    assert _download_owned(monkeypatch, run_log, tmp_path, {7: True, 8: None}) == {
-        "70": "7"
-    }
+    plan = _download_owned(monkeypatch, run_log, tmp_path, {7: True, 8: None})
+    assert (plan.required, plan.dlc) == ({"70"}, {"70": "7"})
+    # Its public gid too, so the finish check can prove the DLC's build.
+    assert plan.manifests == {"70": "g70"}
 
 
 def test_a_failed_dlc_download_aborts(monkeypatch, run_log, tmp_path):
@@ -158,7 +164,7 @@ def test_downloaded_dlc_is_required_and_credited_to_its_app(steam, monkeypatch):
     manifest.write_text(vdf.dumps("AppState", state))
     _stub_download(monkeypatch)
     _stub_steamcmd(monkeypatch, returncode=8)
-    monkeypatch.setattr(dlc, "download_owned", lambda *a: {"2138330": "2138330"})
+    monkeypatch.setattr(dlc, "download_owned", lambda *a: _dlc_plan("100389"))
 
     assert cli.main(ARGV) == 0
 
@@ -168,17 +174,47 @@ def test_downloaded_dlc_is_required_and_credited_to_its_app(steam, monkeypatch):
     assert "DlcDownloads" not in state
 
 
+def _dlc_plan(gid):
+    return appinfo.DepotPlan(
+        {"2138330"}, set(), {"2138330": "2138330"}, {"2138330": gid}
+    )
+
+
+def test_a_stub_with_own_app_dlc_finishes_with_the_proven_build(steam, monkeypatch):
+    """Base game and its own-app DLC both match the public branch: a build-0
+    stub is finished, the DLC's gid coming from the DLC's own app info."""
+    library, install_dir = steam
+    (install_dir / ".DepotDownloader" / "2138330_100389.manifest").write_bytes(b"x")
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    manifest.write_text(vdf.dumps("AppState", {"appid": "1771300", "buildid": "0"}))
+    monkeypatch.setattr(
+        appinfo,
+        "get_depot_plan",
+        lambda appid, language: appinfo.DepotPlan(
+            {"1771303"}, set(), manifests={"1771303": "1999516201078544527"}
+        ),
+    )
+    _stub_download(monkeypatch)
+    monkeypatch.setattr(dlc, "download_owned", lambda *a: _dlc_plan("100389"))
+
+    assert cli.main([*ARGV, "--skip-steamcmd"]) == 0
+    assert recognize.read_app_state(manifest)["buildid"] == "23914554"
+
+
 def test_a_failed_dlc_download_leaves_the_manifest_alone(steam, monkeypatch):
     library, _ = steam
     manifest = library.steamapps / "appmanifest_1771300.acf"
-    before = manifest.read_text()
+    before = recognize.read_app_state(manifest)
     _stub_download(monkeypatch)
     monkeypatch.setattr(dlc, "download_owned", lambda *a: None)
 
     assert cli.main(ARGV) == 1
-    assert manifest.read_text() == before
+    # Only the folder name is fixed up front; nothing claims an install.
+    after = recognize.read_app_state(manifest)
+    assert after.pop("installdir") == "KingdomComeDeliverance2"
+    assert after == before
 
 
 def test_a_dlc_with_a_malformed_depot_section_is_skipped(monkeypatch):
     _app_info(monkeypatch, dlc_blocks={**DLC_BLOCKS, 2441600: {"depots": "scalar"}})
-    assert appinfo.get_dlc_plans(1091500) == {2138330: {"2138330"}}
+    assert appinfo.get_dlc_plans(1091500) == {2138330: {"2138330": "1"}}

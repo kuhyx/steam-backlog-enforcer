@@ -26,16 +26,17 @@ def download_owned(
     language: str,
     max_downloads: int,
     log: runlog.RunLog,
-) -> dict[str, str] | None:
+) -> appinfo.DepotPlan | None:
     """Download every owned DLC of `appid` that has depots of its own.
 
     Returns:
-        depot id -> DLC app id for each DLC depot now downloaded, or None if a
-        DLC download failed for a reason other than not owning it.
+        The DLC depots now downloaded -- each credited to its DLC app, with
+        its public gid -- or None if a DLC download failed for a reason other
+        than not owning it.
     """
     logger = log.logger
     plans = appinfo.get_dlc_plans(appid, language)
-    downloaded: dict[str, str] = {}
+    downloaded = appinfo.DepotPlan(required=set(), shared=set())
     for dlc_appid, depots in sorted(plans.items()):
         log.section(f"depotdownloader DLC {dlc_appid}")
         outcome = depotdl.download_dlc(
@@ -56,5 +57,7 @@ def download_owned(
             )
             return None
         logger.info("Downloaded DLC %d (depots %s).", dlc_appid, sorted(depots))
-        downloaded.update(dict.fromkeys(depots, str(dlc_appid)))
+        downloaded.required |= set(depots)
+        downloaded.dlc.update(dict.fromkeys(depots, str(dlc_appid)))
+        downloaded.manifests.update(depots)
     return downloaded

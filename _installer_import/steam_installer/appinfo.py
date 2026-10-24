@@ -9,6 +9,10 @@ from dataclasses import dataclass, field
 from steam_installer import vdf
 
 
+# depotdownloader is never given -branch, so it always fetches this one.
+PUBLIC_BRANCH = "public"
+
+
 class AppInfoError(Exception):
     pass
 
@@ -34,6 +38,9 @@ class DepotPlan:
     # depot id -> the DLC app it belongs to. Steam writes that dlcappid into
     # InstalledDepots, and a DLC depot recorded without it is not credited.
     dlc: dict[str, str] = field(default_factory=dict)
+    # depot id -> the manifest gid the public branch ships, for every depot in
+    # the app's list. A cached depot manifest matching it proves the build.
+    manifests: dict[str, str] = field(default_factory=dict)
 
     @property
     def all_expected(self) -> set[str]:
@@ -147,13 +154,25 @@ def get_depot_plan(
     for depot_id, entry in depots.items():
         if isinstance(entry, dict) and isinstance(entry.get("dlcappid"), str):
             plan.dlc[depot_id] = entry["dlcappid"]
+        gid = _public_gid(entry)
+        if gid is not None:
+            plan.manifests[depot_id] = gid
     return plan
+
+
+def _public_gid(entry: object) -> str | None:
+    """The manifest gid a depot ships on the public branch, if it ships one."""
+    manifests = entry.get("manifests") if isinstance(entry, dict) else None
+    public = manifests.get(PUBLIC_BRANCH) if isinstance(manifests, dict) else None
+    gid = public.get("gid") if isinstance(public, dict) else None
+    return gid if isinstance(gid, str) else None
 
 
 def get_dlc_plans(
     appid: int, language: str = "english", os_name: str = "windows"
-) -> dict[int, set[str]]:
-    """DLC app id -> the depots it installs itself, for DLC with depots of its own.
+) -> dict[int, dict[str, str]]:
+    """DLC app id -> {depot: public gid} it installs itself, for DLC with depots
+    of its own.
 
     Some DLC (Cyberpunk 2077's Phantom Liberty, app 2138330, ~25 GB) keeps its
     content under its own app id rather than in the game's depot list, so a
@@ -168,13 +187,14 @@ def get_dlc_plans(
         return {}
     game_depots = app_block.get("depots", {})
     game_depot_ids = set(game_depots) if isinstance(game_depots, dict) else set()
-    plans: dict[int, set[str]] = {}
+    plans: dict[int, dict[str, str]] = {}
     for dlc_id, dlc_block in _fetch_app_blocks(dlc_ids).items():
         depots = dlc_block.get("depots", {})
         if not isinstance(depots, dict):
             continue
-        own = _plan_from_depots(dlc_id, depots, language, os_name).required
-        own -= game_depot_ids
+        plan = _plan_from_depots(dlc_id, depots, language, os_name)
+        # Every required depot has a public gid: the plan only takes those.
+        own = {d: _public_gid(depots[d]) for d in plan.required - game_depot_ids}
         if own:
             plans[dlc_id] = own
     return plans
@@ -197,6 +217,10 @@ def _plan_from_depots(
         # depots carry its own id as dlcappid, and are exactly what it installs.
         dlc_owner = entry.get("dlcappid")
         if (dlc_owner and dlc_owner != str(appid)) or entry.get("optional") == "1":
+            continue
+        # A placeholder (BG3 lists 1419654 as `{}`): no manifest on the branch
+        # depotdownloader fetches means nothing to download, so never missing.
+        if _public_gid(entry) is None:
             continue
         config = entry.get("config", {})
         config = config if isinstance(config, dict) else {}

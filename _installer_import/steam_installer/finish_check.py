@@ -16,6 +16,7 @@ def check_ready_to_finish(
     app_state: dict,
     required_depots: set[str],
     expected_build_id: str | None,
+    expected_manifests: dict[str, str] | None = None,
 ) -> list[str]:
     """Reasons the manifest must NOT be hand-finished. Empty list means go ahead.
 
@@ -57,6 +58,28 @@ def check_ready_to_finish(
             f"{install_dir}/{recognize.DEPOTDOWNLOADER_DIR} -- the download did not finish"
         )
 
+    expected_manifests = expected_manifests or {}
+    stale = sorted(
+        depot
+        for depot in required_depots & set(cached) & set(expected_manifests)
+        if cached[depot] != expected_manifests[depot]
+    )
+    if stale:
+        problems.append(
+            f"depot(s) {', '.join(stale)} hold a manifest the public branch no "
+            "longer ships -- stale content"
+        )
+    if build_proven(cached, required_depots, expected_manifests):
+        # The manifest's buildid only ever stood in for this proof. A stub
+        # (StateFlags 1026, buildid 0) that Steam never got to fill in is no
+        # reason to refuse content that matches the current build depot by depot.
+        if expected_build_id is None:
+            problems.append(
+                "could not determine the current public build from app info, "
+                "so there is no buildid to record"
+            )
+        return problems + _content_and_steam_problems(install_dir)
+
     buildid = app_state.get("buildid")
     target = app_state.get("TargetBuildID")
     if not (buildid and buildid != "0") and not (target and target != "0"):
@@ -78,6 +101,22 @@ def check_ready_to_finish(
             f"{expected_build_id} -- content is for a different build"
         )
 
+    return problems + _content_and_steam_problems(install_dir)
+
+
+def build_proven(
+    cached: dict[str, str], required_depots: set[str], expected: dict[str, str]
+) -> bool:
+    """Whether every required depot holds the manifest the public branch ships."""
+    return bool(required_depots) and all(
+        depot in expected and cached.get(depot) == expected[depot]
+        for depot in required_depots
+    )
+
+
+def _content_and_steam_problems(install_dir: Path) -> list[str]:
+    """The checks that hold however the build was established."""
+    problems: list[str] = []
     # Cache *filenames* are not content. Without this, an install dir holding
     # only `.DepotDownloader/<id>_<id>.manifest` and no game files passes every
     # other check and gets written as StateFlags=4 with SizeOnDisk=0.

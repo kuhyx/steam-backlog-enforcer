@@ -72,6 +72,7 @@ def finish_manifest_manually(
     install_dir: Path,
     now_unix: int,
     dlc_depots: dict[str, str] | None = None,
+    build_id: str | None = None,
 ) -> Path:
     """Patch appmanifest_<appid>.acf to StateFlags=4 using only verified-known values.
 
@@ -81,6 +82,8 @@ def finish_manifest_manually(
 
     `dlc_depots` maps a DLC depot to its DLC app id. Steam's own manifests
     record each DLC depot with that `dlcappid`, so it is written the same way.
+    `build_id`, when given, is a build the caller proved from the cached depot
+    manifests; it replaces the one Steam or steamcmd recorded.
     """
     manifest_path = library.steamapps / f"appmanifest_{appid}.acf"
     if not manifest_path.is_file():
@@ -107,7 +110,7 @@ def finish_manifest_manually(
     # never falls through to TargetBuildID, leaving a stale/wrong buildid.
     existing_buildid = app_state.get("buildid")
     buildid = existing_buildid if existing_buildid and existing_buildid != "0" else None
-    buildid = buildid or app_state.get("TargetBuildID") or "0"
+    buildid = build_id or buildid or app_state.get("TargetBuildID") or "0"
 
     # A shared depot (e.g. Steamworks Common Redistributables) is installed once
     # under its owning app and only referenced here. Listing it in

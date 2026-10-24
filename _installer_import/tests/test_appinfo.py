@@ -7,17 +7,20 @@ def _app_block(monkeypatch, block):
     monkeypatch.setattr(appinfo, "_fetch_app_block", lambda appid: block)
 
 
+# Every real depot that has content ships a manifest on the public branch.
+_PUB = {"manifests": {"public": {"gid": "1"}}}
+
 # Shape taken from a real `app_info_print 1771300`: 12 depots, of which an
 # english/windows install only ever fetches three.
 KCD2_DEPOTS = {
-    "228989": {"depotfromapp": "228980", "config": {"oslist": "windows"}},
-    "1771302": {"config": {"oslist": "windows"}},
-    "1771303": {"config": {"oslist": "windows"}},
-    "1771304": {"dlcappid": "3406020", "config": {"oslist": "windows"}},
-    "1771305": {"config": {"oslist": "windows", "language": "czech"}},
-    "1771306": {"config": {"oslist": "windows", "language": "english"}},
-    "1771307": {"config": {"oslist": "windows", "language": "french"}},
-    "4075290": {"dlcappid": "4075290"},
+    "228989": {"depotfromapp": "228980", "config": {"oslist": "windows"}, **_PUB},
+    "1771302": {"config": {"oslist": "windows"}, **_PUB},
+    "1771303": {"config": {"oslist": "windows"}, **_PUB},
+    "1771304": {"dlcappid": "3406020", "config": {"oslist": "windows"}, **_PUB},
+    "1771305": {"config": {"oslist": "windows", "language": "czech"}, **_PUB},
+    "1771306": {"config": {"oslist": "windows", "language": "english"}, **_PUB},
+    "1771307": {"config": {"oslist": "windows", "language": "french"}, **_PUB},
+    "4075290": {"dlcappid": "4075290", **_PUB},
     "branches": {"public": {"buildid": "23914554"}},
 }
 
@@ -42,14 +45,14 @@ def test_get_depot_plan_switches_language(monkeypatch):
 def test_get_depot_plan_excludes_other_os(monkeypatch):
     _app_block(
         monkeypatch,
-        {"depots": {"10": {"config": {"oslist": "linux"}}, "11": {"config": {}}}},
+        {"depots": {"10": {"config": {"oslist": "linux"}, **_PUB}, "11": {"config": {}, **_PUB}}},
     )
     plan = appinfo.get_depot_plan(1771300, os_name="windows")
     assert plan.required == {"11"}
 
 
 def test_get_depot_plan_skips_optional_depots(monkeypatch):
-    _app_block(monkeypatch, {"depots": {"10": {"optional": "1"}, "11": {}}})
+    _app_block(monkeypatch, {"depots": {"10": {"optional": "1", **_PUB}, "11": _PUB}})
     assert appinfo.get_depot_plan(1771300).required == {"11"}
 
 
@@ -234,3 +237,4 @@ def test_get_build_id_returns_none_when_buildid_not_a_string(monkeypatch):
         appinfo.subprocess, "run", lambda cmd, **kw: _FakeCompleted(text)
     )
     assert appinfo.get_build_id(1) is None
+
