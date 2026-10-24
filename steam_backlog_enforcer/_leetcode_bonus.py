@@ -21,8 +21,13 @@ strictly more access than the endpoint does. Both carry the same staleness (see
 below); the fallback is not a fresher source.
 
 **Staleness.** leetcode-guard's one-minute harvester credits a solve within
-about a minute, even with no lock window up. A day paid ahead from banked
-credits counts like a solve (``earned_time`` >= 0.17.0, kuhy 2026-10-23).
+about a minute, even with no lock window up.
+
+**What earns (``earned_time`` >= 0.18.0, kuhy 2026-10-24).** Only today's
+signed ``leetcode`` charge -- the day paid in full -- earns the hour; one solve
+of a multi-credit day does not. The exception is a day the gate stands down
+(free or sick): there one verified solve earns. ``gate_off`` is read live from
+leetcode-guard's endpoint, and an unreadable answer means the gate is on.
 
 Reading and verifying the ledger itself lives in
 :mod:`steam_backlog_enforcer._leetcode_ledger`; this module owns the two
@@ -59,8 +64,8 @@ def _fetch_leetcode_today(url: str) -> bool:
         url: The status endpoint, e.g. ``http://127.0.0.1:8771/api/status``.
 
     Returns:
-        Whether an accepted submission is recorded for today, or today was
-        paid from banked credits.
+        Whether today was paid in full from verified credits, or -- on a day
+        the gate stands down -- whether a submission was accepted.
 
     Raises:
         OSError: The endpoint could not be reached.
@@ -73,9 +78,38 @@ def _fetch_leetcode_today(url: str) -> bool:
         # The server answered, but said it could not look. That is not a "no".
         msg = f"leetcode-guard could not check: {block.get('reason', 'no reason')}"
         raise ValueError(msg)
-    # A day paid ahead from banked credits earns the hour like a solve
-    # (leetcode-guard >= 2026-10-23); an older server has no such field.
-    return bool(block["solved_today"]) or bool(block.get("settled_by_credit"))
+    # One solve of a five-credit day is not a done day (kuhy, 2026-10-24):
+    # only the charge that pays the price earns, unless the gate stands down
+    # today. An older server has neither field, which reads as "no hour".
+    if block.get("gate_off") is True:
+        return bool(block["solved_today"])
+    return bool(block.get("settled_by_credit"))
+
+
+def gate_off_now(url: str) -> bool:
+    """Whether leetcode-guard says its gate stands down today (free or sick).
+
+    This root daemon has neither the free-day nor the sick-day pool, so it
+    asks the endpoint, live, every time the memo misses. Anything but an
+    explicit ``true`` -- an unreachable server, an older one without the
+    field -- means the gate is on: one solve then earns nothing.
+
+    Args:
+        url: The status endpoint.
+
+    Returns:
+        The published ``leetcode.gate_off``, or False when it cannot be read.
+    """
+    try:
+        return get_status(url)["leetcode"].get("gate_off") is True
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        logger.warning(
+            "Could not ask %s whether the LeetCode gate is off (%s); "
+            "treating it as on, so only a fully paid day earns",
+            url,
+            exc,
+        )
+        return False
 
 
 def leetcode_solved_today(config: Config) -> bool | None:
@@ -98,7 +132,7 @@ def leetcode_solved_today(config: Config) -> bool | None:
     if cached is not None:
         return cached
 
-    answer = read_ledger_solved_today(path)
+    answer = read_ledger_solved_today(path, gate_off=gate_off_now(url))
     if answer is None:
         answer = _fallback_to_endpoint(url, path)
         if answer is None:

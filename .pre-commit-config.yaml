@@ -110,8 +110,8 @@ repos:
           - --disable-error-code=list-item
         additional_dependencies:
           - types-requests
-          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.17.0#subdirectory=earned_time
-          - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.2
+          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.18.0#subdirectory=earned_time
+          - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.3
 
   # ===========================================================================
   # PYLINT
@@ -131,8 +131,8 @@ repos:
         # (steam_backlog_enforcer._mcp_server).
         additional_dependencies:
           - aiohttp==3.14.5
-          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.17.0#subdirectory=earned_time
-          - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.2
+          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.18.0#subdirectory=earned_time
+          - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.3
           - howlongtobeatpy==1.0.24
           - mcp==2.3.0
           - pytest

@@ -6,6 +6,10 @@ in tkinter, and the enforcer runs headless as root).
 ``TestSignatureCanonicalisation`` pins it to a fixed vector so the duplication
 cannot drift silently -- if leetcode-guard ever changes how it signs, that test
 fails instead of every credit quietly ceasing to count.
+
+Every read here passes ``gate_off=True``: these pin how a credit row is
+parsed, which only decides on a day the gate stands down. On any other day
+only the paid-in-full charge earns (``test_leetcode_paid_day.py``).
 """
 
 from __future__ import annotations
@@ -64,7 +68,10 @@ class TestSignatureCanonicalisation:
         assert key_file.exists()
         entry = credit(when=datetime.now().astimezone())
         entry["amount"] = 99
-        assert read_ledger_solved_today(write_ledger(tmp_path, [entry])) is False
+        assert (
+            read_ledger_solved_today(write_ledger(tmp_path, [entry]), gate_off=True)
+            is False
+        )
 
     def test_a_missing_signature_fails(self, tmp_path: Path, key_file: Path) -> None:
         """An entry with no hmac field is not a signed entry.
@@ -76,7 +83,10 @@ class TestSignatureCanonicalisation:
         assert key_file.exists()
         entry = credit(when=datetime.now().astimezone())
         del entry["hmac"]
-        assert read_ledger_solved_today(write_ledger(tmp_path, [entry])) is False
+        assert (
+            read_ledger_solved_today(write_ledger(tmp_path, [entry]), gate_off=True)
+            is False
+        )
 
 
 class TestReadingTheLedger:
@@ -91,7 +101,7 @@ class TestReadingTheLedger:
         """
         assert key_file.exists()
         ledger = write_ledger(tmp_path, [credit(when=datetime.now().astimezone())])
-        assert read_ledger_solved_today(ledger) is True
+        assert read_ledger_solved_today(ledger, gate_off=True) is True
 
     def test_a_credit_yesterday_does_not(self, tmp_path: Path, key_file: Path) -> None:
         """Yesterday's solve bought yesterday's hour, not today's.
@@ -103,7 +113,7 @@ class TestReadingTheLedger:
         assert key_file.exists()
         yesterday = datetime.now().astimezone() - timedelta(days=1)
         ledger = write_ledger(tmp_path, [credit(when=yesterday)])
-        assert read_ledger_solved_today(ledger) is False
+        assert read_ledger_solved_today(ledger, gate_off=True) is False
 
     def test_charges_and_seen_entries_do_not_count(
         self, tmp_path: Path, key_file: Path
@@ -141,7 +151,10 @@ class TestReadingTheLedger:
                 }
             ),
         ]
-        assert read_ledger_solved_today(write_ledger(tmp_path, rows)) is False
+        assert (
+            read_ledger_solved_today(write_ledger(tmp_path, rows), gate_off=True)
+            is False
+        )
 
     def test_a_forged_credit_does_not_count(
         self, tmp_path: Path, key_file: Path
@@ -155,7 +168,10 @@ class TestReadingTheLedger:
         assert key_file.exists()
         forged = credit(when=datetime.now().astimezone())
         forged["hmac"] = "00" * 32
-        assert read_ledger_solved_today(write_ledger(tmp_path, [forged])) is False
+        assert (
+            read_ledger_solved_today(write_ledger(tmp_path, [forged]), gate_off=True)
+            is False
+        )
 
     def test_a_missing_submitted_at_falls_back_to_the_day_key(
         self, tmp_path: Path, key_file: Path
@@ -179,7 +195,10 @@ class TestReadingTheLedger:
                 "detail": {"source": "leetcode"},
             }
         )
-        assert read_ledger_solved_today(write_ledger(tmp_path, [entry])) is True
+        assert (
+            read_ledger_solved_today(write_ledger(tmp_path, [entry]), gate_off=True)
+            is True
+        )
 
     def test_an_unparsable_submitted_at_is_reported(
         self, tmp_path: Path, key_file: Path, caplog: pytest.LogCaptureFixture
@@ -196,5 +215,8 @@ class TestReadingTheLedger:
         entry = credit(when=now, entry_id="ac:3")
         entry["detail"]["submitted_at"] = "not-a-number"
         entry = sign({k: v for k, v in entry.items() if k != "hmac"})
-        assert read_ledger_solved_today(write_ledger(tmp_path, [entry])) is True
+        assert (
+            read_ledger_solved_today(write_ledger(tmp_path, [entry]), gate_off=True)
+            is True
+        )
         assert "unparsable submitted_at" in caplog.text

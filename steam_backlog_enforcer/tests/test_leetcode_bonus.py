@@ -128,7 +128,14 @@ class TestFetchLeetcodeToday:
     def test_a_good_answer_is_read(self) -> None:
         """The happy path returns the flag."""
         payload = json.dumps(
-            {"leetcode": {"checked": True, "solved_today": True, "reason": "1"}}
+            {
+                "leetcode": {
+                    "checked": True,
+                    "solved_today": True,
+                    "settled_by_credit": True,
+                    "reason": "1",
+                }
+            }
         ).encode()
         with patch(f"{_API}.http.client.HTTPConnection") as conn:
             resp = conn.return_value.getresponse.return_value
