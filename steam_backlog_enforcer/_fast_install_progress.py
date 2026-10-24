@@ -40,6 +40,7 @@ from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._progress import current_progress
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 STARTING: Final = "starting"
@@ -146,6 +147,9 @@ class InstallTracker:
 # Live detached runs of this process by app id, with the name to show. The
 # enforce loop polls them; ctl connection threads read snapshots.
 _TRACKERS: dict[int, tuple[str, InstallTracker]] = {}
+# Failed runs by app id: (name, reason). The daemon has no job to print a
+# failure to, so it stays listed until a new run or the game is installed.
+_FAILURES: dict[int, tuple[str, str]] = {}
 _LOCK = threading.Lock()
 
 
@@ -153,13 +157,25 @@ def track(app_id: int, name: str, log_path: Path, *, offset: int, now: float) ->
     """Start following a run just spawned with its output at *offset* of the log."""
     with _LOCK:
         _TRACKERS[app_id] = (name, InstallTracker(log_path, offset=offset, started=now))
+        _FAILURES.pop(app_id, None)
 
 
-def poll_trackers(live: set[int]) -> None:
-    """Read new log lines of the *live* runs and forget every other one."""
+def mark_failed(app_id: int, reason: str) -> None:
+    """List *app_id*'s run as failed with *reason*, under its tracked name."""
+    with _LOCK:
+        entry = _TRACKERS.get(app_id)
+        _FAILURES[app_id] = (entry[0] if entry else f"AppID={app_id}", reason)
+
+
+def poll_trackers(
+    live: set[int], installed: Callable[[int], bool] = lambda _app_id: False
+) -> None:
+    """Read the *live* runs' new lines; drop other runs and *installed* failures."""
     with _LOCK:
         for app_id in [aid for aid in _TRACKERS if aid not in live]:
             del _TRACKERS[app_id]
+        for app_id in [aid for aid in _FAILURES if installed(aid)]:
+            del _FAILURES[app_id]
         for _name, tracker in _TRACKERS.values():
             tracker.poll()
 
@@ -172,9 +188,15 @@ def progress_of(app_id: int, now: float) -> InstallProgress | None:
 
 
 def fast_install_status(now: float) -> list[dict[str, object]]:
-    """Every tracked run as the ctl ``status`` op reports it (no file I/O)."""
+    """Every tracked and failed run as the ctl ``status`` op reports it (no I/O)."""
     with _LOCK:
         entries = [(aid, name, t.snapshot(now)) for aid, (name, t) in _TRACKERS.items()]
+        failed = [
+            {"app_id": aid, "name": name, "phase": "failed", "percent": None}
+            | {"elapsed_seconds": 0, "error": reason}
+            for aid, (name, reason) in _FAILURES.items()
+            if aid not in _TRACKERS
+        ]
     return [
         {
             "app_id": app_id,
@@ -182,9 +204,10 @@ def fast_install_status(now: float) -> list[dict[str, object]]:
             "phase": snap.phase,
             "percent": None if snap.percent is None else round(snap.percent, 2),
             "elapsed_seconds": snap.elapsed_seconds,
+            "error": None,
         }
         for app_id, name, snap in entries
-    ]
+    ] + failed
 
 
 class WaitReporter:

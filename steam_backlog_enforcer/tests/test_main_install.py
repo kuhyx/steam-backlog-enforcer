@@ -112,6 +112,19 @@ class TestCmdInstall:
         ):
             cmd_install(Config(steam_id="i"), state)
 
+    def test_failed_fast_install_never_says_done(self) -> None:
+        """Steam's fallback download started, but the fast one failed: "Done!"
+        after the "Failed: ..." line was the success the BG3 job showed."""
+        state = State(current_app_id=1, current_game_name="G")
+        with (
+            patch(f"{PKG}.is_game_fully_installed", return_value=False),
+            patch(f"{PKG}.install_game", return_value=True),
+            patch(f"{PKG}.fast_install_failure", return_value="exit 1"),
+            patch(f"{PKG}._echo") as echo,
+        ):
+            cmd_install(Config(steam_id="i"), state)
+        echo.assert_called_with("Steam's own download was started instead.")
+
 
 class TestCmdHide:
     """Tests for cmd_hide."""

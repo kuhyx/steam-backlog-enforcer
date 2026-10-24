@@ -205,9 +205,12 @@ hard-codes it.
   `gaming_unblock{phrase}`, `gaming_reset_arm{phrase}`,
   `gaming_reset_heartbeat{pending_id}`, `gaming_reset_commit{pending_id, phrase}`,
   `gaming_reset_cancel{pending_id}`, `restart{}`. There is no `stop`.
-- `status` also lists the daemon's live steam-game-installer runs as
-  `fast_installs: [{app_id, name, phase, percent, elapsed_seconds}]`, read
-  from its log by the enforce loop; `percent` is the current depot's, or null.
+- `status` also lists the daemon's steam-game-installer runs as
+  `fast_installs: [{app_id, name, phase, percent, elapsed_seconds, error}]`,
+  read from its log by the enforce loop; `percent` is the current depot's, or
+  null. A failed run stays listed with `phase: "failed"` and `error` set to
+  the installer's own ERROR lines until a new run starts or the game is fully
+  installed; `error` is null while a run is live.
 
 ## Verification record (2026-10-10)
 

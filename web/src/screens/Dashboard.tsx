@@ -55,13 +55,21 @@ function FastInstalls() {
   if (!runs.length) return null
   return (
     <Card title="Fast install">
-      {runs.map((r) => (
-        <div key={r.app_id}>
-          <p>{fastInstallLine(r)}</p>
-          <ProgressBar fraction={r.percent === null ? null : Math.floor(r.percent) / 100} label={`${r.name} download`} />
-          <p className="field-help">{fmtDuration(r.elapsed_seconds)} elapsed</p>
-        </div>
-      ))}
+      {runs.map((r) =>
+        r.error ? (
+          // The daemon has no job to report to: a failure stays here until Steam finishes.
+          <div key={r.app_id}>
+            <p className="text-danger">{`Fast install of ${r.name} failed: ${r.error}`}</p>
+            <p className="field-help">Steam&apos;s own download took over.</p>
+          </div>
+        ) : (
+          <div key={r.app_id}>
+            <p>{fastInstallLine(r)}</p>
+            <ProgressBar fraction={r.percent === null ? null : Math.floor(r.percent) / 100} label={`${r.name} download`} />
+            <p className="field-help">{fmtDuration(r.elapsed_seconds)} elapsed</p>
+          </div>
+        ),
+      )}
     </Card>
   )
 }

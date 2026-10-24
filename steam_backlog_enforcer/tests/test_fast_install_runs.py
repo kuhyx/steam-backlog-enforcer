@@ -34,13 +34,13 @@ class TestPollFastInstalls:
         _run(1, 0, tmp_path / "log")
         _fast_install.poll_fast_installs()
         assert _fast_install._RUNS == []
-        assert set() == _fast_install._FAILED
+        assert not _fast_install._FAILED
 
     def test_failure_is_remembered(self, tmp_path: Path) -> None:
         _run(2, 3, tmp_path / "log")
         _fast_install.poll_fast_installs()
         assert _fast_install._RUNS == []
-        assert {2} == _fast_install._FAILED
+        assert {2} == set(_fast_install._FAILED)
 
     def test_live_and_chatty_is_left_alone(self, tmp_path: Path) -> None:
         log = tmp_path / "log"
@@ -123,8 +123,8 @@ class TestFastInstall:
         return installer
 
     def test_previously_failed_goes_straight_to_fallback(self) -> None:
-        _fast_install._FAILED.add(7)
-        with patch(f"{PKG}._installer_path") as find:
+        _fast_install._FAILED[7] = "exit 1"
+        with patch(f"{PKG}.installer_path") as find:
             assert _fast_install.fast_install(7, "G") is False
         find.assert_not_called()
 
@@ -134,7 +134,7 @@ class TestFastInstall:
 
     def test_refused(self, tmp_path: Path) -> None:
         with (
-            patch(f"{PKG}._installer_path", return_value=self._ready(tmp_path)),
+            patch(f"{PKG}.installer_path", return_value=self._ready(tmp_path)),
             patch(f"{PKG}._refusal", return_value="a game is running"),
             patch(f"{PKG}._echo") as echo,
             patch(f"{PKG}.subprocess.run") as run,
@@ -145,7 +145,7 @@ class TestFastInstall:
 
     def test_no_terminal_spawns_detached(self, tmp_path: Path) -> None:
         with (
-            patch(f"{PKG}._installer_path", return_value=self._ready(tmp_path)),
+            patch(f"{PKG}.installer_path", return_value=self._ready(tmp_path)),
             patch(f"{PKG}._refusal", return_value=None),
             patch(f"{PKG}.sys.stdin.isatty", return_value=False),
             patch(f"{PKG}._spawn_detached") as spawn,
@@ -157,23 +157,23 @@ class TestFastInstall:
 
     def test_terminal_runs_in_foreground(self, tmp_path: Path) -> None:
         with (
-            patch(f"{PKG}._installer_path", return_value=self._ready(tmp_path)),
+            patch(f"{PKG}.installer_path", return_value=self._ready(tmp_path)),
             patch(f"{PKG}._refusal", return_value=None),
             patch(f"{PKG}.sys.stdin.isatty", return_value=True),
             patch(f"{PKG}._echo"),
             patch(f"{PKG}.subprocess.run", return_value=MagicMock(returncode=0)),
         ):
             assert _fast_install.fast_install(7, "G") is True
-        assert set() == _fast_install._FAILED
+        assert not _fast_install._FAILED
 
     def test_foreground_failure_falls_back(self, tmp_path: Path) -> None:
         with (
-            patch(f"{PKG}._installer_path", return_value=self._ready(tmp_path)),
+            patch(f"{PKG}.installer_path", return_value=self._ready(tmp_path)),
             patch(f"{PKG}._refusal", return_value=None),
             patch(f"{PKG}.sys.stdin.isatty", return_value=True),
             patch(f"{PKG}._echo") as echo,
             patch(f"{PKG}.subprocess.run", return_value=MagicMock(returncode=2)),
         ):
             assert _fast_install.fast_install(7, "G") is False
-        assert {7} == _fast_install._FAILED
+        assert {7} == set(_fast_install._FAILED)
         assert "exit 2" in echo.call_args.args[0]

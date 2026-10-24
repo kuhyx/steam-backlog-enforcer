@@ -140,6 +140,7 @@ def _fast_install_info(run: dict[str, object]) -> FastInstallInfo:
         phase=str(run["phase"]),
         percent=None if percent is None else float(cast("float", percent)),
         elapsed_seconds=int(cast("int", run["elapsed_seconds"])),
+        error=None if run.get("error") is None else str(run["error"]),
     )
 
 

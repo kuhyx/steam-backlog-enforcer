@@ -91,6 +91,7 @@ class TestDaemonView:
                 "phase": "downloading depot 3/8",
                 "percent": 46.9,
                 "elapsed_seconds": 60,
+                "error": None,
             }
         ]
 

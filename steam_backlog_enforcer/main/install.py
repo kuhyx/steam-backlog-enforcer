@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_app_ids, allowed_games
 from steam_backlog_enforcer._enforce_loop import get_all_owned_app_ids
+from steam_backlog_enforcer._fast_install import fast_install_failure
 from steam_backlog_enforcer._progress import current_progress
 from steam_backlog_enforcer._prompter import (
     PromptOption,
@@ -115,10 +116,13 @@ def cmd_install(config: Config, state: State) -> None:
     # install_game only *starts* the download (fast installer or steam://);
     # there is no download-progress loop to report on yet.
     current_progress().phase(f"Starting install of {name}")
-    if install_game(app_id, name, config.steam_id, use_steam_protocol=True):
+    if not install_game(app_id, name, config.steam_id, use_steam_protocol=True):
+        _echo("Failed to start the install.")
+    elif fast_install_failure(app_id) is None:
         _echo("Done!")
     else:
-        _echo("Failed to start the install.")
+        # The fast install already printed its "Failed: ..." line.
+        _echo("Steam's own download was started instead.")
 
 
 def cmd_hide(config: Config, state: State) -> None:

@@ -22,6 +22,8 @@ class FastInstallInfo:
     phase: str
     percent: float | None
     elapsed_seconds: int
+    # Why the run failed (``phase`` is then ``failed``); None while it runs.
+    error: str | None = None
 
 
 @dataclass(frozen=True)

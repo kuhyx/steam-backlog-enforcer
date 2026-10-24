@@ -51,13 +51,13 @@ class TestJobWaitsForInstaller:
 
     def _install(self, tmp_path: Path, spawn: MagicMock, euid: int) -> bool:
         with (
-            patch(f"{PKG}._installer_path", return_value=_ready(tmp_path)),
+            patch(f"{PKG}.installer_path", return_value=_ready(tmp_path)),
             patch(f"{PKG}._refusal", return_value=None),
             patch(f"{PKG}.sys.stdin.isatty", return_value=False),
             patch(f"{PKG}.os.geteuid", return_value=euid),
             patch(f"{PKG}._spawn_detached", spawn),
             patch(f"{PKG}.time.sleep"),
-            patch(f"{PKG}._echo"),
+            patch(f"{PKG}._echo") as self.echo,
         ):
             return _fast_install.fast_install(7, "G")
 
@@ -67,7 +67,18 @@ class TestJobWaitsForInstaller:
 
     def test_failure_falls_back(self, tmp_path: Path) -> None:
         assert self._install(tmp_path, _fake_spawn(None, 3), 1000) is False
-        assert {7} == _fast_install._FAILED
+        assert {7} == set(_fast_install._FAILED)
+
+    def test_failure_is_an_error_line_with_the_reason(self, tmp_path: Path) -> None:
+        """A job turns a line starting "Failed" into its failed verdict."""
+        log = b"Refusing to mark G as installed:\nRestarting the Steam client...\n"
+        with patch(f"{PKG}._fip.current_progress"):
+            self._install(tmp_path, _fake_spawn(None, 1, log_text=log), 1000)
+        echoed = [c.args[0] for c in self.echo.call_args_list]
+        assert any(
+            line.startswith("Failed: fast install of G") and "exit 1" in line
+            for line in echoed
+        ), echoed
 
     def test_progress_is_reported_while_waiting(self, tmp_path: Path) -> None:
         text = b"Shutting down the Steam client...\r\nDownloading via depot\r\n"

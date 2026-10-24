@@ -154,6 +154,7 @@ class TestRegistry:
                 "phase": "downloading depot 1/8",
                 "percent": 59.16,
                 "elapsed_seconds": 60,
+                "error": None,
             }
         ]
 

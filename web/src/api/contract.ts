@@ -173,6 +173,8 @@ export interface FastInstallRun {
   /** The current depot's percent; null until depotdownloader reports one. */
   percent: number | null
   elapsed_seconds: number
+  /** Why the run failed (`phase` is then `failed`); null while it runs. */
+  error?: string | null
 }
 
 export interface DaemonStatus {

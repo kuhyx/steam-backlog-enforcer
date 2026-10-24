@@ -27,29 +27,29 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 import os
-from pathlib import Path
-import pwd
-import re
 import shutil
 import signal
 import subprocess
 import sys
 import time
+from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer import _fast_install_progress as _fip
 from steam_backlog_enforcer import config as _config
-from steam_backlog_enforcer._desktop_env import desktop_user_cmd, resolve_desktop_user
+from steam_backlog_enforcer._desktop_env import resolve_desktop_user
 from steam_backlog_enforcer._echo import _echo
+from steam_backlog_enforcer._fast_install_cmd import build_cmd, installer_path
+from steam_backlog_enforcer._fast_install_failure import failure_reason
 from steam_backlog_enforcer._steam_restart_guard import game_is_running
-from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
+from steam_backlog_enforcer._steam_state import is_game_fully_installed
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_INSTALLER = Path("src", "steam-game-installer", "run.sh")
 _INSTALLER_LOG = "~/.local/state/steam-game-installer/latest.log"
-# Depot content only: the app itself is ours to choose, the language is not
-# worth a prompt nobody is there to answer.
-_LANGUAGE = "english"
 # depotdownloader prints a line per finished chunk, so a healthy download is
 # never silent this long; a login prompt waiting on /dev/null is.
 STALL_SECONDS = 15 * 60
@@ -67,39 +67,10 @@ class _DetachedRun:
 
 
 _RUNS: list[_DetachedRun] = []
-# Apps whose installer run failed in this process. They go straight to the
-# steam:// fallback from then on, so a broken login cannot close Steam on
-# every 3-second pass.
-_FAILED: set[int] = set()
-
-
-def _installer_path(user: str | None) -> Path | None:
-    """steam-game-installer's ``run.sh`` in the desktop user's home, if present.
-
-    Resolved from the passwd entry rather than ``Path.home()``: the daemon runs
-    as root, and the installer, its venv and its credentials are per-user.
-    """
-    try:
-        home = Path(pwd.getpwnam(user).pw_dir) if user else Path.home()
-    except KeyError:
-        return None
-    path = home / _INSTALLER
-    return path if path.is_file() else None
-
-
-def _steam_account_name() -> str | None:
-    """The account Steam itself last signed in with, from ``loginusers.vdf``.
-
-    Read from Steam's own state rather than a copy in the enforcer config, so
-    it cannot drift from the account that actually owns the games.
-    """
-    path = STEAMAPPS_PATH.parent / "config" / "loginusers.vdf"
-    try:
-        content = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    match = re.search(r'"AccountName"\s+"([^"]+)"', content)
-    return match.group(1) if match else None
+# Apps whose installer run failed in this process, with the reason. They go
+# straight to the steam:// fallback from then on, so a broken login cannot
+# close Steam on every 3-second pass.
+_FAILED: dict[int, str] = {}
 
 
 def _refusal() -> str | None:
@@ -109,30 +80,14 @@ def _refusal() -> str | None:
     return None
 
 
-def _build_cmd(installer: Path, app_id: int, user: str | None) -> list[str]:
-    """The installer invocation, dropped to the desktop user when root."""
-    cmd = [
-        str(installer),
-        # install.sh reaches for yay; dependencies are installed once, by hand.
-        "--no-deps",
-        "--appid",
-        str(app_id),
-        "--yes",
-        "--language",
-        _LANGUAGE,
-        # Finishes the manifest from depotdownloader's own data, under the same
-        # fail-closed checks: no second login, no 70 GB re-hash by steamcmd.
-        "--skip-steamcmd",
-    ]
-    account = _steam_account_name()
-    if account:
-        cmd += ["--username", account]
-    return desktop_user_cmd(cmd, user)
-
-
 def is_fast_installing(app_id: int) -> bool:
     """Whether this process has a live detached installer run for *app_id*."""
     return any(run.app_id == app_id for run in _RUNS)
+
+
+def fast_install_failure(app_id: int) -> str | None:
+    """Why this process's installer run for *app_id* failed, if it did."""
+    return _FAILED.get(app_id)
 
 
 def _stalled(run: _DetachedRun) -> bool:
@@ -167,15 +122,16 @@ def poll_fast_installs() -> None:
         if returncode == 0:
             logger.info("steam-game-installer finished AppID=%d.", run.app_id)
             continue
-        _FAILED.add(run.app_id)
+        _FAILED[run.app_id] = failure_reason(run.log_path, returncode)
+        _fip.mark_failed(run.app_id, _FAILED[run.app_id])
         logger.warning(
-            "steam-game-installer failed for AppID=%d (exit %d); falling back "
-            "to Steam's own download. Log: %s",
+            "steam-game-installer failed for AppID=%d: %s. Falling back to "
+            "Steam's own download. Log: %s",
             run.app_id,
-            returncode,
+            _FAILED[run.app_id],
             run.log_path,
         )
-    _fip.poll_trackers({run.app_id for run in _RUNS})
+    _fip.poll_trackers({run.app_id for run in _RUNS}, is_game_fully_installed)
 
 
 def _spawn_detached(cmd: list[str], app_id: int, label: str = "") -> None:
@@ -211,11 +167,25 @@ def _wait_detached(app_id: int, label: str) -> bool:
         time.sleep(_WAIT_POLL_SECONDS)
         poll_fast_installs()
         reporter.report(time.monotonic())
-    return app_id not in _FAILED
+    if app_id not in _FAILED:
+        return True
+    # "Failed" first: a job takes such a line as its verdict, so the run can
+    # no longer end on a full progress bar and "Succeeded".
+    _echo(
+        f"Failed: fast install of {label}: {_FAILED[app_id]}. Steam's own "
+        f"download takes over (log: {_INSTALLER_LOG})."
+    )
+    return False
 
 
-def fast_install(app_id: int, label: str) -> bool:
+def fast_install(
+    app_id: int, label: str, prepare: Callable[[], object] = lambda: None
+) -> bool:
     """Install *app_id* with steam-game-installer.
+
+    *prepare* runs once the run is sure to start, before it does: the
+    installer only finishes a manifest it finds, so this is where a fresh
+    install gets one.
 
     Returns:
         True if the game was installed (foreground) or the run was started
@@ -224,7 +194,7 @@ def fast_install(app_id: int, label: str) -> bool:
     if app_id in _FAILED:
         return False
     user = resolve_desktop_user()
-    installer = _installer_path(user)
+    installer = installer_path(user)
     if installer is None:
         logger.warning("steam-game-installer not found; using Steam's download.")
         return False
@@ -233,7 +203,8 @@ def fast_install(app_id: int, label: str) -> bool:
         _echo(f"  Fast install of {label} skipped: {reason}.")
         return False
 
-    cmd = _build_cmd(installer, app_id, user)
+    cmd = build_cmd(installer, app_id, user)
+    prepare()
     if not sys.stdin.isatty():
         _spawn_detached(cmd, app_id, label)
         return os.geteuid() == 0 or _wait_detached(app_id, label)
@@ -242,9 +213,9 @@ def fast_install(app_id: int, label: str) -> bool:
     returncode = subprocess.run(cmd, check=False).returncode
     if returncode == 0:
         return True
-    _FAILED.add(app_id)
+    _FAILED[app_id] = f"exit {returncode}"
     _echo(
-        f"  steam-game-installer failed (exit {returncode}); falling back to "
-        f"Steam's own download. Log: {_INSTALLER_LOG}"
+        f"Failed: fast install of {label} (exit {returncode}, reasons above). "
+        f"Steam's own download takes over (log: {_INSTALLER_LOG})."
     )
     return False

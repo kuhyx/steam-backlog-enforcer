@@ -145,6 +145,14 @@ class TestTypedWrappers:
             FastInstallInfo(7, "G", "downloading depot 1/8", 46.9, 60),
         )
 
+    def test_status_failed_fast_install(self) -> None:
+        run = {"app_id": 7, "name": "G", "phase": "failed", "percent": None}
+        run |= {"elapsed_seconds": 0, "error": "exit 1"}
+        data = {"state": "running", "started_at": "t", "pid": 4, "fast_installs": [run]}
+        with self._call(data):
+            info = _ctl_client.status()
+        assert info.fast_installs[0].error == "exit 1"
+
     def test_journal_tail(self) -> None:
         with self._call({"lines": ["a", 2]}) as call:
             assert _ctl_client.journal_tail(9) == ["a", "2"]

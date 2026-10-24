@@ -114,6 +114,14 @@ describe('Dashboard', () => {
       expect(screen.getByRole('progressbar', { name: "Baldur's Gate 3 download" })).toHaveClass('bar-indeterminate')
     })
 
+    it('keeps a failed daemon run on screen with its reason', async () => {
+      const failed = { ...bg3, phase: 'failed', percent: null, elapsed_seconds: 0, error: 'Refusing to mark it as installed' }
+      show({ 'GET /api/daemon': daemon([failed]) })
+      expect(await screen.findByText("Fast install of Baldur's Gate 3 failed: Refusing to mark it as installed")).toHaveClass('text-danger')
+      expect(screen.getByText("Steam's own download took over.")).toBeInTheDocument()
+      expect(screen.queryByRole('progressbar', { name: "Baldur's Gate 3 download" })).not.toBeInTheDocument()
+    })
+
     it('stays out of the way when nothing is installing', async () => {
       show()
       expect(await screen.findByText('Hollow Knight')).toBeInTheDocument()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 import logging
 import os
 import shutil
@@ -168,7 +169,10 @@ def install_game(
     if ready is not None:
         return ready
 
-    if fast_install(app_id, label):
+    # The installer only finishes a manifest it finds: queue a fresh install first.
+    if fast_install(
+        app_id, label, partial(_queue_download, app_id, game_name, steam_id)
+    ):
         return True
     # Steam already has a download of its own going: let it carry on, rather
     # than overwrite its manifest with the fabricated one below.
@@ -181,6 +185,16 @@ def install_game(
             return True
         logger.debug("steam:// protocol failed; falling back to manifest")
 
+    if not _queue_download(app_id, game_name, steam_id):
+        return False
+    _ensure_steam_running()  # so it picks the manifest up
+    return True
+
+
+def _queue_download(app_id: int, game_name: str, steam_id: str) -> bool:
+    """Make Steam download *app_id* with a minimal appmanifest; False if unwritable."""
+    if is_game_installed(app_id):
+        return True
     # Build a minimal appmanifest.  StateFlags 1026 = UpdateRequired (2) +
     # UpdateStarted (1024), which tells Steam "this app needs downloading".
     manifest_content = (
@@ -219,7 +233,6 @@ def install_game(
     )
 
     manifest_path = STEAMAPPS_PATH / f"appmanifest_{app_id}.acf"
-
     try:
         with manifest_path.open("w", encoding="utf-8") as fh:
             fh.write(manifest_content)
@@ -230,13 +243,8 @@ def install_game(
         if os.geteuid() == 0 and real_user and real_user != "root":
             uid, gid = _get_uid_gid_for_user(real_user)
             os.chown(manifest_path, uid, gid)
-
-        logger.info("Created appmanifest for %s — Steam will auto-download", label)
+        logger.info("Created appmanifest for %s — Steam will auto-download", game_name)
     except OSError:
-        logger.exception("Failed to create appmanifest for %s", label)
+        logger.exception("Failed to create appmanifest for %s", game_name)
         return False
-
-    # Make sure Steam is running so it picks up the manifest.
-    _ensure_steam_running()
-
     return True
