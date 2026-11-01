@@ -7,6 +7,8 @@ custom elements. TanStack Router and React Query go away.
 `steam_backlog_enforcer._web_server` keeps serving `web/dist` on
 127.0.0.1:8000, with its per-launch token.
 
+**Order: this repo migrates LAST, after every other repo.**
+
 ## steps
 1. Do `~/src/utils/web_ui/TODO-astro-port.md` first. Then add `@kuhyx/web-ui`
    at the new tag, for `tokens.css` only.
