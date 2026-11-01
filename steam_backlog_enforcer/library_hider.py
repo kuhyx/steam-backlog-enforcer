@@ -20,6 +20,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
 from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._cdp import _cdp_result_value, _evaluate_js
 from steam_backlog_enforcer._echo import _echo
@@ -86,12 +87,15 @@ def hide_other_games(
     Approved whitelist exceptions (``add-exception``) are always treated as
     allowed, so a permanently whitelisted game such as a co-op title stays
     visible next to the assignment instead of being hidden with the rest.
+    So are owned games with zero achievements (see ``zero_achievement_ids``).
 
     Returns the total number of games hidden across all passes.
     """
     ensure_steam_debug_port()
 
-    allowed_app_ids = allowed_app_ids | get_approved_exception_ids()
+    allowed_app_ids = (
+        allowed_app_ids | get_approved_exception_ids() | zero_achievement_ids()
+    )
     allowed_json = json.dumps(sorted(allowed_app_ids))
     extra_ids = sorted(aid for aid in owned_app_ids if aid not in allowed_app_ids)
     extra_json = json.dumps(extra_ids)

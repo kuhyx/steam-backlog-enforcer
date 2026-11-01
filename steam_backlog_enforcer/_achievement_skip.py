@@ -11,6 +11,10 @@ achievements at all. A game is skipped only while all three hold:
 
 So a game that later gains achievements without gaining the flag is still
 picked up, at the latest that long after.
+
+The same cache doubles as the *always allowed* list (:func:`zero_achievement_ids`):
+an owned game Steam answered "no achievements" for is never uninstalled, hidden
+or killed as unauthorized. Only the daily budget still applies to it.
 """
 
 from __future__ import annotations
@@ -136,3 +140,64 @@ def record_scan(
         _atomic_write(_cache_file(), json.dumps(payload, indent=2) + "\n")
     except OSError:
         logger.warning("Could not save %s", _cache_file(), exc_info=True)
+
+
+# (file stamps, ids) of the last derivation; the derivation reads three files.
+_memo: dict[str, Any] = {}
+
+
+def _stamp(path: Path) -> tuple[str, int, int]:
+    """``(path, mtime_ns, size)``; zeros when absent, so a new file changes it."""
+    try:
+        st = path.stat()
+    except OSError:
+        return (str(path), 0, 0)
+    return (str(path), st.st_mtime_ns, st.st_size)
+
+
+def _derive_zero_ids() -> frozenset[int]:
+    """Cache keys for the configured account minus anything in the snapshot.
+
+    Fails closed: a missing or corrupt file, another account, an unknown
+    account or an unreadable snapshot all give the empty set.
+    """
+    try:
+        steam_id = json.loads(config.CONFIG_FILE.read_text(encoding="utf-8"))[
+            "steam_id"
+        ]
+    except OSError, ValueError, KeyError, TypeError:
+        return frozenset()
+    if not isinstance(steam_id, str) or not steam_id:
+        return frozenset()
+    confirmed = set(_load_checked(steam_id))
+    if not config.SNAPSHOT_FILE.exists():
+        return frozenset(confirmed)
+    try:
+        # Only games with achievements are ever snapshotted, so one that is in
+        # it contradicts the cache and is enforced.
+        in_snapshot = {int(entry["app_id"]) for entry in load_snapshot() or []}
+    except OSError, ValueError, KeyError, TypeError:
+        return frozenset()
+    return frozenset(confirmed - in_snapshot)
+
+
+def zero_achievement_ids() -> frozenset[int]:
+    """Owned games Steam confirmed have zero achievements: always allowed.
+
+    Presence in the cache is enough (no recheck age): only a scan that finds
+    achievements removes an entry, so the game is never dropped mid-session
+    for want of a rescan. Memoized on the files' stamps because the enforce
+    loop asks once per installed or running game every few seconds.
+
+    Returns:
+        The allowed app ids; empty whenever the status is unknown.
+    """
+    key = tuple(
+        _stamp(path)
+        for path in (_cache_file(), config.CONFIG_FILE, config.SNAPSHOT_FILE)
+    )
+    if _memo.get("key") != key:
+        _memo["key"] = key
+        _memo["ids"] = _derive_zero_ids()
+    ids: frozenset[int] = _memo["ids"]
+    return ids

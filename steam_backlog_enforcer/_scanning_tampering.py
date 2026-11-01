@@ -13,6 +13,7 @@ from itertools import islice
 import logging
 from typing import TYPE_CHECKING, Any
 
+from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
 from steam_backlog_enforcer._allowed_games import allowed_games
 from steam_backlog_enforcer._assignment_progress import iso_to_epoch
 from steam_backlog_enforcer._progress import current_progress
@@ -56,6 +57,7 @@ def _legitimately_played(state: State) -> set[int]:
     exempt = {app_id for app_id, _ in allowed_games(state)}
     exempt.update(state.finished_app_ids)
     exempt.update(get_approved_exception_ids())
+    exempt.update(zero_achievement_ids())
     exempt.update(
         pick["app_id"] for pick in state.manual_picks if pick.get("app_id") is not None
     )

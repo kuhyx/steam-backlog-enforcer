@@ -13,6 +13,7 @@ import re
 import shutil
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
 from steam_backlog_enforcer._game_names import _is_protected_name
 from steam_backlog_enforcer._progress import tracked
 from steam_backlog_enforcer._protected_apps import PROTECTED_APP_IDS
@@ -173,7 +174,10 @@ def is_protected_app(app_id: int) -> bool:
     """Return True if *app_id* must never be uninstalled.
 
     Combines the hardcoded Steam infrastructure set with any app IDs that
-    have been approved via the time-locked exception mechanism.
+    have been approved via the exception mechanism, and with owned games Steam
+    confirmed have zero achievements (nothing to complete, so always allowed;
+    the gaming-time budget still applies to them). Unknown status is not
+    protected. This one test also gates the unauthorized-game kill.
 
     Args:
         app_id: Steam application ID to check.
@@ -181,4 +185,8 @@ def is_protected_app(app_id: int) -> bool:
     Returns:
         True if the app should be left alone by the enforcer.
     """
-    return app_id in PROTECTED_APP_IDS or app_id in get_approved_exception_ids()
+    return (
+        app_id in PROTECTED_APP_IDS
+        or app_id in get_approved_exception_ids()
+        or app_id in zero_achievement_ids()
+    )
