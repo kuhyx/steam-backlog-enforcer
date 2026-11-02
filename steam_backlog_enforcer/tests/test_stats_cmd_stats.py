@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import patch
+
+import pytest
 
 from steam_backlog_enforcer._stats import (
     _GameTimes,
@@ -12,7 +15,18 @@ from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.protondb import ProtonDBRating
 from steam_backlog_enforcer.steam_api import GameInfo
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 _PKG = "steam_backlog_enforcer._stats"
+
+
+@pytest.fixture(autouse=True)
+def _no_live_refresh() -> Iterator[None]:
+    """cmd_stats must not hit Steam or HLTB: unmocked, each test cost ~2 s."""
+    refresh = f"{_PKG}._refresh_recently_played_completions"
+    with patch(refresh, lambda g, _c: g), patch(f"{_PKG}._print_worst_example"):
+        yield
 
 
 def _game(
