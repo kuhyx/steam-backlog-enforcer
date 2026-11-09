@@ -1,0 +1,13 @@
+---
+// `/jobs/` lists the job history; `/jobs/?id=<id>` shows one job live.
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/jobs.css'
+---
+
+<Shell title="Jobs">
+  <jobs-page></jobs-page>
+</Shell>
+
+<script>
+  import '../../sections/jobs'
+</script>

@@ -43,5 +43,5 @@ export function toParams(specs: ParamSpec[], values: ParamValues): Record<string
 }
 
 export function initialValues(specs: ParamSpec[], preset: Record<string, number | string> = {}): ParamValues {
-  return Object.fromEntries(specs.map((p) => [p.name, String(preset[p.name] ?? p.default ?? '')]))
+  return Object.fromEntries(specs.map((p) => [p.name, String((p.name in preset ? preset[p.name] : undefined) ?? p.default ?? '')]))
 }

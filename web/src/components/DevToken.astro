@@ -1,0 +1,25 @@
+---
+// Dev only: the token meta the Python server injects into every built page.
+// `pnpm dev:mock` sets SBE_DEV_TOKEN; `pnpm dev` reads the running server's
+// token file on each request, so a restarted server's token arrives on reload.
+// In `astro build` this renders nothing: the server injects the real one.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { TOKEN_META } from '../api/contract'
+
+function devToken(): string | null {
+  if (!import.meta.env.DEV) return null
+  if (process.env.SBE_DEV_TOKEN) return process.env.SBE_DEV_TOKEN
+  const port = process.env.SBE_PORT ?? '8000'
+  const runtime = process.env.XDG_RUNTIME_DIR ?? `/run/user/${String(process.getuid?.() ?? 0)}`
+  const file = join(runtime, 'steam-backlog-enforcer', `web-${port}.token`)
+  try {
+    return readFileSync(file, 'utf8').trim()
+  } catch {
+    console.warn(`[sbe] no token at ${file}: is ./run.sh serve running on port ${port}? Mutating requests will fail.`)
+    return null
+  }
+}
+const token = devToken()
+---
+{token && <meta name={TOKEN_META} content={token} />}

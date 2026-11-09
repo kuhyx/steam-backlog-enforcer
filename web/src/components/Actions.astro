@@ -1,0 +1,12 @@
+---
+// A titled grid of <command-card>s (was ui/Page.tsx Actions).
+interface Props {
+  title?: string
+}
+const { title = 'Actions' } = Astro.props
+---
+
+<section class="actions-block" aria-label={title}>
+  <h2>{title}</h2>
+  <div class="cmd-grid"><slot /></div>
+</section>

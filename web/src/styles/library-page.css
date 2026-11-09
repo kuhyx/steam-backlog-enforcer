@@ -1,0 +1,2 @@
+/* Library page wrappers: the elements only host content. */
+library-view, uninstall-card, installed-table { display: contents; }

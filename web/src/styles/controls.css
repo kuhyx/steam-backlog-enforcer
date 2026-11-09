@@ -34,6 +34,9 @@
 .form-field { display: flex; flex-direction: column; gap: var(--space-1); max-width: var(--measure); }
 .field-label { font-size: var(--text-label); letter-spacing: var(--tracking-label); font-weight: 600; }
 .field-help { font-size: var(--text-label); color: var(--text-muted); margin: 0; min-height: 1.5em; }
+/* Validation and phrase status keep their tone over the muted help colour. */
+.field-help.text-danger { color: var(--danger); }
+.field-help.text-success { color: var(--success); }
 .input {
   font: inherit;
   font-size: var(--text-body);

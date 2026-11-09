@@ -1,0 +1,2 @@
+/* Gaming page custom elements: layout belongs to the content they render. */
+budget-mode-link, budget-panel { display: contents; }

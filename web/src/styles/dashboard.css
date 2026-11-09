@@ -1,0 +1,2 @@
+/* Dashboard custom elements wrap cards laid out by .grid-2 and the page column. */
+dashboard-status, budget-glance, fast-installs, recent-jobs, block-countdown, backlog-overview { display: contents; }

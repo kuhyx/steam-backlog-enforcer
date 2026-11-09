@@ -24,13 +24,10 @@ describe('sortGames', () => {
   const d = g({ app_id: 4, name: 'Delta', last_played: null, hltb_hours: null, achievements_total: 0 })
   const names = (key: Parameters<typeof sortGames>[1]) => sortGames([c, a, d, b], key).map((x) => x.name)
 
-  it('sorts by name', () => expect(names('name')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']))
-  it('sorts recent first, never-played last', () =>
-    expect(names('recent')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']))
-  it('sorts by completion descending, unknown last', () =>
-    expect(names('completion')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']))
-  it('sorts shortest HLTB first, unknown last', () =>
-    expect(names('hltb')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']))
+  it('sorts by name', () => { expect(names('name')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']); })
+  it('sorts recent first, never-played last', () => { expect(names('recent')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']); })
+  it('sorts by completion descending, unknown last', () => { expect(names('completion')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']); })
+  it('sorts shortest HLTB first, unknown last', () => { expect(names('hltb')).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta']); })
 
   it('does not mutate its input', () => {
     const input = [b, a]

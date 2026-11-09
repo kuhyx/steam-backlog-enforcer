@@ -80,7 +80,7 @@ export function fillPhrase(
   const text = template.replace(/\{(\w+)\}/g, (whole, key: string) => {
     let value: string | null = null
     if (key in params && params[key] !== '') value = String(params[key])
-    else if (key === 'game_name' && params.app_id !== undefined) value = ctx.gameName(Number(params.app_id))
+    else if (key === 'game_name' && 'app_id' in params) value = ctx.gameName(Number(params.app_id))
     else if (key === 'count' && ctx.installed) {
       value = String(ctx.installed.filter((g) => !g.assigned && !g.protected).length)
     }

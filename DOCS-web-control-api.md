@@ -3,7 +3,7 @@
 The web UI replaces `run.sh` as the primary way to drive the enforcer. Every
 CLI command is reachable from the UI; the CLI stays as the backend, the
 systemd entry point and the recovery path. This file is the frozen contract
-between the Python server, the root daemon and the React app. The TypeScript
+between the Python server, the root daemon and the Astro web UI. The TypeScript
 mirror is `web/src/api/contract.ts`; change both together or neither.
 
 ## Trust model
@@ -26,13 +26,13 @@ mirror is `web/src/api/contract.ts`; change both together or neither.
 - A per-launch token (32 random bytes, hex) is written to
   `$XDG_RUNTIME_DIR/steam-backlog-enforcer/web-<port>.token` (mode 0600; one
   file per port, so a second server never clobbers the live one's) and
-  injected into `index.html` as `<meta name="sbe-token" content="…">`.
+  injected into every served `.html` page as `<meta name="sbe-token" content="…">`.
   Mutating requests send it as `X-SBE-Token`; `EventSource` sends it as
   `?token=`. Missing or wrong token → `403 bad_token`; the UI then reloads
   the page once (at most once per 30 s) to pick up a restarted server's token.
-- Dev (`npm run dev`): Vite proxies `/api` to `127.0.0.1:8000` (`SBE_PORT`
-  overrides) with `Host` and `Origin` rewritten to that origin, and injects
-  the token meta from that port's token file (serve only, never in a build).
+- Dev (`pnpm dev`): Astro proxies `/api` to `127.0.0.1:8000` (`SBE_PORT`
+  overrides) with `Host` and `Origin` rewritten to that origin, and renders
+  the token meta from that port's token file (dev only, never in a build).
 - Secrets (`steam_api_key`) are write-only: accepted by `POST /api/setup`,
   never returned by any endpoint.
 

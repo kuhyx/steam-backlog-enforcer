@@ -72,7 +72,7 @@ class JobHub {
   private live = new Map<string, LiveJob>()
   private streams = new Map<string, Stream>()
   private listeners = new Set<() => void>()
-  onTerminal: (id: string) => void = () => {}
+  onTerminal: (id: string) => void = () => undefined
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
@@ -110,7 +110,9 @@ class JobHub {
     const url = `${ENDPOINTS.jobEvents(id)}?token=${encodeURIComponent(sessionToken())}&after=${live.lastSeq}`
     const source = new EventSource(url)
     s.source = source
-    const onEvent = (msg: MessageEvent<string>) => this.ingest(id, msg.data)
+    const onEvent = (msg: MessageEvent<string>) => {
+      this.ingest(id, msg.data)
+    }
     source.onmessage = onEvent
     for (const t of EVENT_TYPES) source.addEventListener(t, onEvent)
     source.onopen = () => {
@@ -124,7 +126,9 @@ class JobHub {
       const state = this.get(id).state
       if (state && TERMINAL.has(state)) return
       if (s.refs > 0) {
-        s.retry = setTimeout(() => this.open(id, s), s.backoff)
+        s.retry = setTimeout(() => {
+          this.open(id, s)
+        }, s.backoff)
         s.backoff = Math.min(s.backoff * 2, 10_000)
       }
     }

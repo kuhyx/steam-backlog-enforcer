@@ -1,0 +1,2 @@
+/* Jobs page: the custom elements only wrap content. */
+jobs-page, job-list, job-detail { display: contents; }

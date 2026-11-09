@@ -1,0 +1,10 @@
+---
+// Any address with no page (the server serves this with a real 404).
+import PageHead from '../components/PageHead.astro'
+import Shell from '../layouts/Shell.astro'
+---
+
+<Shell title="Not found">
+  <PageHead title="Not found" sub="There is no screen at this address." />
+  <div class="actions"><a href="/" class="btn btn-primary">Back to the dashboard</a></div>
+</Shell>

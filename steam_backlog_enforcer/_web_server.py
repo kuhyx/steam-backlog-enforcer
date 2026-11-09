@@ -5,7 +5,7 @@ DNS-rebinding guard, :mod:`._web_auth`), fails closed on stale code
 (:mod:`._serve_stale`), checks ``Origin`` and the per-launch token on
 anything that is not a GET (and on the SSE stream), then hands off to a
 route from :mod:`._web_routes`, the SSE streamer (:mod:`._web_sse`) or the
-static bundle (``web/dist``, with the token injected into ``index.html``).
+static bundle (``web/dist``, with the token injected into every ``.html`` page).
 
 Binds to loopback only; never serves secrets and never sends CORS headers.
 In development the Vite dev server proxies ``/api`` here; in production the
@@ -43,7 +43,8 @@ WEB_DIST = (Path(__file__).resolve().parent.parent / "web" / "dist").resolve()
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 _INDEX = "index.html"
-_NOT_BUILT_MSG = b"Frontend not built. Run: cd web && npm install && npm run build"
+_NOT_FOUND_PAGE = "404.html"
+_NOT_BUILT_MSG = b"Frontend not built. Run: cd web && pnpm install && pnpm build"
 _STALE_MSG = (
     "This server is running outdated code and has stopped answering rather "
     "than report numbers the enforcer is not applying. It restarts on "
@@ -159,12 +160,17 @@ class _Handler(BaseHTTPRequestHandler):
         return True
 
     def _serve_static(self, path: str) -> None:
-        """Serve a file from ``WEB_DIST`` with SPA fallback and traversal guard."""
-        rel = path.lstrip("/") or _INDEX
-        candidate = (WEB_DIST / rel).resolve()
-        # Reject path traversal, then fall back to index.html for SPA routes.
-        if not candidate.is_relative_to(WEB_DIST) or not candidate.is_file():
-            candidate = WEB_DIST / _INDEX
+        """Serve a file from ``WEB_DIST``: one static page per directory.
+
+        ``/library`` and ``/library/`` serve ``library/index.html``; anything
+        unknown (or escaping the bundle) gets ``404.html`` with status 404.
+        Every ``.html`` page carries this launch's token and is never cached.
+        """
+        status = HTTPStatus.OK
+        candidate = _resolve_static(path)
+        if candidate is None:
+            status = HTTPStatus.NOT_FOUND
+            candidate = WEB_DIST / _NOT_FOUND_PAGE
         if not candidate.is_file():
             send_bytes(self, HTTPStatus.NOT_FOUND, _NOT_BUILT_MSG, "text/plain")
             return
@@ -174,11 +180,25 @@ class _Handler(BaseHTTPRequestHandler):
             ctype = f"{ctype}; charset=utf-8"
         body = candidate.read_bytes()
         headers: dict[str, str] = {}
-        if candidate.name == _INDEX and candidate.parent == WEB_DIST:
+        if candidate.suffix == ".html":
             # Carries this launch's token: never cache it.
             body = _web_auth.inject_token(body, self.server.token)
             headers["Cache-Control"] = "no-store"
-        send_bytes(self, HTTPStatus.OK, body, ctype, headers)
+        send_bytes(self, status, body, ctype, headers)
+
+
+def _resolve_static(path: str) -> Path | None:
+    """The bundle file for URL *path*, or None when it has none.
+
+    A directory resolves to its ``index.html``; a path escaping ``WEB_DIST``
+    resolves to nothing, never to the file it points at.
+    """
+    candidate = (WEB_DIST / path.lstrip("/")).resolve()
+    if not candidate.is_relative_to(WEB_DIST):
+        return None
+    if candidate.is_dir():
+        candidate /= _INDEX
+    return candidate if candidate.is_file() else None
 
 
 # Content types that are text but not under the ``text/`` prefix.

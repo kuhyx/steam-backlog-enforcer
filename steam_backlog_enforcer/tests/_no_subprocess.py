@@ -100,7 +100,7 @@ def _block_real_subprocesses() -> Iterator[None]:
             "steam_backlog_enforcer._fast_install.subprocess.Popen",
             noop_popen,
         ),
-        # A real `npm run build` here would rewrite web/dist/index.html, which
+        # A real `pnpm build` here would rewrite web/dist/index.html, which
         # then perturbs frontend_is_stale() for every later test in the run.
         patch(
             "steam_backlog_enforcer._web_build.subprocess.run",

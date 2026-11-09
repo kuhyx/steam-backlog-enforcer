@@ -1,0 +1,17 @@
+---
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/backlog.css'
+---
+
+<Shell title="Backlog">
+  <PageHead title="Backlog" sub="Completion estimates (stats) and every candidate game (list), with the interactive planner." />
+  <backlog-stats></backlog-stats>
+  <div class="planner-wrap">
+    <game-table></game-table>
+  </div>
+</Shell>
+
+<script>
+  import '../../sections/backlog/index'
+</script>

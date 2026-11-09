@@ -32,7 +32,7 @@ def web(tmp_path: Path) -> Iterator[Path]:
     with (
         patch.object(_web_build, "WEB_DIR", root),
         patch.object(_web_build, "_BUILT_MARKER", root / "dist" / "index.html"),
-        patch.object(_web_build, "_SOURCE_DIR", root / "src"),
+        patch.object(_web_build, "_SOURCE_DIRS", (root / "src", root / "public")),
         patch.object(
             _web_build,
             "_SOURCE_FILES",
@@ -88,6 +88,12 @@ class TestFrontendIsStale:
         _touch(web / "src" / "nested" / "app.tsx", 2000.0)
         assert _web_build.frontend_is_stale() is True
 
+    def test_newer_public_asset_is_stale(self, web: Path) -> None:
+        # public/ is copied verbatim into dist/: a new favicon needs a build.
+        _touch(web / "dist" / "index.html", 1000.0)
+        _touch(web / "public" / "favicon.svg", 2000.0)
+        assert _web_build.frontend_is_stale() is True
+
     def test_all_sources_older_is_current(self, web: Path) -> None:
         _touch(web / "package.json", 1000.0)
         _touch(web / "src" / "app.tsx", 1000.0)
@@ -105,36 +111,52 @@ class TestFrontendIsStale:
     def test_missing_src_dir_still_checks_flat_sources(self, web: Path) -> None:
         _touch(web / "dist" / "index.html", 1000.0)
         _touch(web / "index.html", 2000.0)
-        with patch.object(_web_build, "_SOURCE_DIR", web / "absent"):
+        with patch.object(_web_build, "_SOURCE_DIRS", (web / "absent",)):
             assert _web_build.frontend_is_stale() is True
+
+
+class TestSourceFiles:
+    """The watched build inputs match the Astro layout."""
+
+    def test_astro_inputs_are_watched_and_vite_ones_are_gone(self) -> None:
+        names = {path.name for path in _web_build._SOURCE_FILES}
+        assert {
+            "astro.config.mjs",
+            "package.json",
+            "pnpm-lock.yaml",
+            "pnpm-workspace.yaml",
+        } <= names
+        assert {path.name for path in _web_build._SOURCE_DIRS} == {"src", "public"}
+        assert not names & {"vite.config.ts", "tsconfig.app.json", "index.html"}
 
 
 class TestBuildFrontend:
     """Tests for build_frontend. subprocess is never actually executed."""
 
-    def test_missing_npm_explains_and_fails(self, web: Path) -> None:
+    def test_missing_pnpm_explains_and_fails(self, web: Path) -> None:
         with (
             patch(f"{_PKG}.shutil.which", return_value=None),
             patch(f"{_PKG}._echo") as echo,
         ):
             assert _web_build.build_frontend() is False
-        assert "npm was not found" in echo.call_args[0][0]
+        assert "pnpm was not found" in echo.call_args[0][0]
+        assert "npm install" not in echo.call_args[0][0].replace("pnpm install", "")
 
     def test_successful_build_returns_true(self, web: Path) -> None:
         run = MagicMock(return_value=MagicMock(returncode=0))
         with (
-            patch(f"{_PKG}.shutil.which", return_value="/usr/bin/npm"),
+            patch(f"{_PKG}.shutil.which", return_value="/usr/bin/pnpm"),
             patch(f"{_PKG}.subprocess.run", run),
             patch(f"{_PKG}._echo"),
         ):
             assert _web_build.build_frontend() is True
-        assert run.call_args[0][0] == ["/usr/bin/npm", "run", "build"]
+        assert run.call_args[0][0] == ["/usr/bin/pnpm", "build"]
         assert run.call_args[1]["cwd"] == web
 
     def test_failed_build_prints_output_and_returns_false(self, web: Path) -> None:
         result = MagicMock(returncode=1, stdout=" out \n", stderr=" err \n")
         with (
-            patch(f"{_PKG}.shutil.which", return_value="/usr/bin/npm"),
+            patch(f"{_PKG}.shutil.which", return_value="/usr/bin/pnpm"),
             patch(f"{_PKG}.subprocess.run", return_value=result),
             patch(f"{_PKG}._echo") as echo,
         ):
@@ -147,7 +169,7 @@ class TestBuildFrontend:
     def test_timeout_propagates(self, web: Path) -> None:
         # A hung build must not be swallowed into "bundle is fine".
         with (
-            patch(f"{_PKG}.shutil.which", return_value="/usr/bin/npm"),
+            patch(f"{_PKG}.shutil.which", return_value="/usr/bin/pnpm"),
             patch(
                 f"{_PKG}.subprocess.run",
                 side_effect=subprocess.TimeoutExpired("npm", 1),

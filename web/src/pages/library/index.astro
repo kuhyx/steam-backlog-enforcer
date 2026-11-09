@@ -1,0 +1,22 @@
+---
+import Actions from '../../components/Actions.astro'
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/library-page.css'
+---
+
+<Shell title="Library">
+  <PageHead title="Library" sub="Every game you own, and what is installed." />
+  <Actions>
+    <command-card name="install" label="Install assigned"></command-card>
+    <uninstall-card></uninstall-card>
+    <command-card name="hide" label="Hide others"></command-card>
+    <command-card name="unhide" label="Unhide all"></command-card>
+  </Actions>
+  <library-view></library-view>
+</Shell>
+
+<script>
+  import '../../library/gameBrowser'
+  import '../../sections/library'
+</script>

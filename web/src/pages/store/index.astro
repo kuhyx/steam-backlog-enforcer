@@ -1,0 +1,20 @@
+---
+import Actions from '../../components/Actions.astro'
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/store.css'
+---
+
+<Shell title="Store">
+  <PageHead title="Store" sub="The Steam store is blocked by default. Every way through it is capped and logged." />
+  <store-notice></store-notice>
+  <Actions>
+    <command-card name="unblock" label="Unblock…"></command-card>
+    <command-card name="buy-dlc" label="Buy DLC…"></command-card>
+    <command-card name="add-exception" label="Request exception…"></command-card>
+  </Actions>
+</Shell>
+
+<script>
+  import '../../sections/store'
+</script>

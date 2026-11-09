@@ -20,6 +20,9 @@ repos:
         args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
       - id: check-yaml
+        # pnpm 12 writes pnpm-lock.yaml as two YAML documents (the pinned
+        # packageManager's own lock, then the project lock); parse both.
+        args: [--allow-multiple-documents]
       - id: check-json
       - id: check-toml
       - id: check-added-large-files
@@ -177,7 +180,7 @@ repos:
     hooks:
       - id: vitest-coverage
         name: vitest with 100% coverage enforcement
-        entry: npm --prefix web run coverage
+        entry: pnpm --dir web coverage
         language: system
         files: ^web/src/
         pass_filenames: false

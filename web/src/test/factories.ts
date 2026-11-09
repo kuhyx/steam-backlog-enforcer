@@ -58,6 +58,7 @@ export function makeState(over: Partial<WebStateInfo> = {}): WebStateInfo {
     current_app_id: null,
     current_game_name: '',
     games_done: 0,
+    games_done_since_start: 0,
     days_elapsed: 0,
     enforcement_started_at: '',
     pace_games_per_day: 0,

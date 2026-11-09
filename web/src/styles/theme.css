@@ -1,0 +1,18 @@
+/* This app ships dark only (the budget charts are tuned for ink): undo the
+ * light override in @kuhyx/web-ui tokens.css with its own dark values, and
+ * dark surfaces take no shadow at all; elevation is a fill step. */
+:root {
+  color-scheme: dark;
+  --shadow-1: none;
+  --shadow-2: none;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #211d1b;
+    --surface-1: #2b2624;
+    --surface-2: #38312e;
+    --border: #463e3a;
+    --text: #eceae9;
+    --text-muted: #aaa09a;
+  }
+}

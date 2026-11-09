@@ -106,8 +106,11 @@ kbd {
 .palette-btn kbd { margin-left: var(--space-2); }
 
 @media (max-width: 800px) {
-  .shell { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: var(--space-2); }
+  /* One column: the nav row keeps its own height (no stretched band) and
+   * scrolls sideways inside the viewport instead of widening the page. */
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .topbar { flex-wrap: wrap; padding: var(--space-2) var(--space-3); }
+  .sidebar { min-width: 0; position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: var(--space-2); }
   .brand { display: none; }
   .nav { flex-direction: row; overflow-x: auto; }
   .nav-link kbd { display: none; }
@@ -184,3 +187,10 @@ kbd {
 
 /* Keep keyboard-focused elements clear of the sticky top bar (operability rule 4). */
 html { scroll-padding-top: calc(var(--space-6) + var(--space-3)); }
+
+/* Slot wrappers that must not add a flex/grid gap of their own. */
+.contents { display: contents; }
+/* Custom elements are layout-transparent wrappers around their content. */
+command-button, command-card, health-badges, stale-banner, job-indicator,
+command-palette, runner-dialog { display: contents; }
+manual-picks, picks-sub { display: contents; }

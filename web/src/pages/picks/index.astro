@@ -1,0 +1,21 @@
+---
+import Actions from '../../components/Actions.astro'
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+---
+
+<Shell title="Picks">
+  <PageHead title="Picks"><picks-sub slot="sub"></picks-sub></PageHead>
+  <Actions>
+    <command-card name="check" label="Check"></command-card>
+    <command-card name="done" label="Done" tone="primary"></command-card>
+    <command-card name="pick" label="Pick…"></command-card>
+    <command-card name="scan" label="Scan"></command-card>
+    <command-card name="pick-manual" label="Lock in a game…"></command-card>
+  </Actions>
+  <manual-picks></manual-picks>
+</Shell>
+
+<script>
+  import '../../sections/picks'
+</script>

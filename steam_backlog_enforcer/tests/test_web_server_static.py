@@ -40,7 +40,9 @@ def dist(tmp_path: Path) -> Iterator[Path]:
     (root / "noext").write_text("plain", "utf-8")
     sub = root / "sub"
     sub.mkdir()
-    (sub / "index.html").write_text("<html>SUB</html>", "utf-8")
+    (sub / "index.html").write_text("<html><head></head>SUB</html>", "utf-8")
+    (sub / "page.html").write_text("<html>PAGE</html>", "utf-8")
+    (root / "404.html").write_text("<html><head></head>MISSING</html>", "utf-8")
     (tmp_path / "secret.txt").write_text("top secret", "utf-8")
     with patch(f"{_PKG}.WEB_DIST", root):
         yield root
@@ -93,18 +95,35 @@ class TestStatic:
     def test_unknown_extension_is_plain_text(self) -> None:
         assert _get("/noext")[2] == "text/plain; charset=utf-8"
 
-    def test_a_nested_index_is_served_without_a_token(self) -> None:
-        _, body, _, cache, _ = _get("/sub/index.html")
-        assert (body, cache) == (b"<html>SUB</html>", "")
+    @pytest.mark.parametrize("path", ["/sub", "/sub/", "/sub/index.html", "/sub/?id=7"])
+    def test_a_directory_serves_its_own_index_with_a_token(self, path: str) -> None:
+        status, body, ctype, cache, token = _get(path)
+        assert (status, b"SUB" in body) == (200, True)
+        assert f'content="{token}"'.encode() in body
+        assert (ctype, cache) == ("text/html; charset=utf-8", "no-store")
 
-    def test_spa_route_falls_back_to_index(self) -> None:
-        status, body, _, _, _ = _get("/library/42")
-        assert (status, b"INDEX" in body) == (200, True)
+    def test_every_html_file_carries_the_token_and_is_not_cached(self) -> None:
+        status, body, _, cache, token = _get("/sub/page.html")
+        assert (status, cache) == (200, "no-store")
+        assert f'content="{token}"'.encode() in body
 
-    def test_path_traversal_gets_the_index_not_the_file(self) -> None:
+    def test_unknown_route_is_the_404_page_with_a_token(self) -> None:
+        status, body, _, cache, token = _get("/library/42")
+        assert (status, b"MISSING" in body, cache) == (404, True, "no-store")
+        assert f'content="{token}"'.encode() in body
+
+    def test_path_traversal_gets_the_404_page_not_the_file(self) -> None:
         status, body, _, _, _ = _get("/..%2Fsecret.txt")
-        assert status == 200
+        assert (status, b"MISSING" in body) == (404, True)
         assert b"top secret" not in body
+
+    def test_unknown_route_without_a_404_page_is_not_built(self, dist: Path) -> None:
+        (dist / "404.html").unlink()
+        status, body, _, _, _ = _get("/nope")
+        assert (status, body) == (404, _web_server._NOT_BUILT_MSG)
+
+    def test_not_built_message_names_pnpm(self) -> None:
+        assert b"pnpm install && pnpm build" in _web_server._NOT_BUILT_MSG
 
     def test_unbuilt_frontend_is_a_404(self, tmp_path: Path) -> None:
         with patch(f"{_PKG}.WEB_DIST", (tmp_path / "missing").resolve()):

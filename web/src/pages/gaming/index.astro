@@ -1,0 +1,22 @@
+---
+import Actions from '../../components/Actions.astro'
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/gaming.css'
+---
+
+<Shell title="Gaming">
+  <PageHead title="Gaming" sub="Today's budget, what is billing right now, and the last two weeks.">
+    <budget-mode-link></budget-mode-link>
+  </PageHead>
+  <Actions>
+    <command-card name="gaming-reset" label="Reset today…"></command-card>
+    <command-card name="block-gaming" label="Block gaming…"></command-card>
+    <command-card name="gaming-unblock" label="Release mounts…"></command-card>
+  </Actions>
+  <budget-panel></budget-panel>
+</Shell>
+
+<script>
+  import '../../sections/gaming/panel'
+</script>

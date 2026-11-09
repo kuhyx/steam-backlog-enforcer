@@ -14,7 +14,7 @@ describe('JobHub', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
-    hub.onTerminal = () => {}
+    hub.onTerminal = () => undefined
   })
 
   it('reports an empty job before anything arrives', () => {

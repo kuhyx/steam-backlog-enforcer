@@ -1,0 +1,21 @@
+---
+// A titled box (was ui/Page.tsx Card); `aside` slot sits beside the title.
+interface Props {
+  title?: string
+  class?: string
+}
+const { title, class: extra = '' } = Astro.props
+const hasHead = Boolean(title) || Astro.slots.has('aside')
+---
+
+<section class={`box ${extra}`.trim()} aria-label={title}>
+  {
+    hasHead && (
+      <div class="box-head">
+        {title && <h2>{title}</h2>}
+        <slot name="aside" />
+      </div>
+    )
+  }
+  <slot />
+</section>

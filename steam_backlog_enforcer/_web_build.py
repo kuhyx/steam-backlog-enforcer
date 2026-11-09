@@ -18,26 +18,26 @@ from steam_backlog_enforcer.game_install import _echo
 WEB_DIR = (Path(__file__).resolve().parent.parent / "web").resolve()
 _BUILT_MARKER = WEB_DIR / "dist" / "index.html"
 
-# Everything whose change invalidates the built bundle. Anything under src,
-# plus the build configuration itself - a vite/tsconfig edit changes the
-# output even when not one line of src moved.
-_SOURCE_DIR = WEB_DIR / "src"
+# Everything whose change invalidates the built bundle. Anything under src
+# (pages, styles, scripts) or public (copied verbatim into dist), plus the
+# build configuration itself - an astro/tsconfig edit or a dependency bump
+# changes the output even when not one line of src moved.
+_SOURCE_DIRS = (WEB_DIR / "src", WEB_DIR / "public")
 _SOURCE_FILES = (
-    WEB_DIR / "index.html",
+    WEB_DIR / "astro.config.mjs",
     WEB_DIR / "package.json",
-    WEB_DIR / "vite.config.ts",
+    WEB_DIR / "pnpm-lock.yaml",
+    WEB_DIR / "pnpm-workspace.yaml",
     WEB_DIR / "tsconfig.json",
-    WEB_DIR / "tsconfig.app.json",
-    WEB_DIR / "tsconfig.node.json",
 )
 
 _BUILD_TIMEOUT_SECONDS = 600
 
-_NPM_MISSING = (
-    "npm was not found on PATH, so the stale web bundle cannot be rebuilt.\n"
-    "npm is installed via nvm here, which only puts it on an interactive\n"
-    "shell's PATH - a systemd unit or cron job will not see it. Either run\n"
-    "serve from a normal shell, or build once by hand: cd web && npm run build"
+_PNPM_MISSING = (
+    "pnpm was not found on PATH, so the stale web bundle cannot be rebuilt.\n"
+    "A systemd unit or cron job may not see a pnpm installed per user.\n"
+    "Either run serve from a normal shell, or build once by hand:\n"
+    "cd web && pnpm install && pnpm build"
 )
 
 
@@ -59,26 +59,27 @@ def frontend_is_stale() -> bool:
     if built == 0.0:
         return WEB_DIR.is_dir()
     sources = list(_SOURCE_FILES)
-    if _SOURCE_DIR.is_dir():
-        sources.extend(path for path in _SOURCE_DIR.rglob("*") if path.is_file())
+    for source_dir in _SOURCE_DIRS:
+        if source_dir.is_dir():
+            sources.extend(path for path in source_dir.rglob("*") if path.is_file())
     return any(_mtime(path) > built for path in sources)
 
 
 def build_frontend() -> bool:
-    """Run ``npm run build`` in ``web/``.
+    """Run ``pnpm build`` in ``web/``.
 
     Returns:
         True if the bundle was rebuilt, False if the build failed (the
         captured output is printed either way).
     """
-    npm = shutil.which("npm")
-    if npm is None:
-        _echo(_NPM_MISSING)
+    pnpm = shutil.which("pnpm")
+    if pnpm is None:
+        _echo(_PNPM_MISSING)
         return False
 
     _echo("Frontend sources changed - rebuilding web/dist ...", flush=True)
     result = subprocess.run(
-        [npm, "run", "build"],
+        [pnpm, "build"],
         cwd=WEB_DIR,
         capture_output=True,
         text=True,

@@ -1,0 +1,14 @@
+---
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/setup.css'
+---
+
+<Shell title="Setup">
+  <PageHead title="Setup" sub="Connect the enforcer to your Steam account. Both values are checked live against Steam." />
+  <setup-form></setup-form>
+</Shell>
+
+<script>
+  import '../../sections/setup'
+</script>

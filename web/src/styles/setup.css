@@ -1,0 +1,2 @@
+/* Setup page: the form element only wraps its notices and card. */
+setup-form { display: contents; }

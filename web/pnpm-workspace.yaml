@@ -1,0 +1,13 @@
+# pnpm build-script allowlist: esbuild links its platform binary in a
+# postinstall (Vite, under Astro, depends on it).
+allowBuilds:
+  esbuild: true
+  sharp: false
+minimumReleaseAgeExclude:
+  - astro@7.4.7
+# A peer range admits @emnapi 2.0.0-beta.2, whose runtime crashes
+# @astrojs/check on exit ("bridge.deleteEnv is not a function"); hold the
+# newest stable 1.x until 2.0 is final.
+overrides:
+  '@emnapi/core': 1.11.3
+  '@emnapi/runtime': 1.11.3

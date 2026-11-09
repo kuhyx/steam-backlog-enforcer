@@ -127,7 +127,7 @@ class TestDatasetEndpoint:
 
 
 class TestStaticServing:
-    """Tests for static-file serving + SPA fallback + traversal guard."""
+    """Tests for static-file serving, the 404 page and the traversal guard."""
 
     def test_serves_index(self, tmp_path: Path) -> None:
         dist = _make_dist(tmp_path)
@@ -152,19 +152,19 @@ class TestStaticServing:
         assert "image/png" in ctype
         assert "charset" not in ctype
 
-    def test_spa_fallback_to_index(self, tmp_path: Path) -> None:
-        dist = _make_dist(tmp_path)
+    def test_unknown_route_gets_the_404_page(self, tmp_path: Path) -> None:
+        dist = _make_dist(tmp_path, files={"404.html": b"<html>MISSING</html>"})
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
-            status, body, _ = _get(port, "/some/spa/route")
-        assert status == 200
-        assert b"INDEX" in body
+            status, body, _ = _get(port, "/some/unknown/route")
+        assert status == 404
+        assert b"MISSING" in body
 
     def test_path_traversal_blocked(self, tmp_path: Path) -> None:
-        dist = _make_dist(tmp_path)
+        dist = _make_dist(tmp_path, files={"404.html": b"<html>MISSING</html>"})
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, body, _ = _get(port, "/../../../../../../etc/passwd")
-        assert status == 200
-        assert b"INDEX" in body  # fell back to index, did not serve the secret
+        assert status == 404
+        assert b"MISSING" in body  # got the 404 page, not the secret
         assert b"root:" not in body
 
     def test_not_built_returns_404(self, tmp_path: Path) -> None:

@@ -1,0 +1,4 @@
+/* System page: the cards' custom elements only wrap their .box. */
+server-card, setup-card, daemon-card, backups-card { display: contents; }
+/* .grid-2's 22rem minimum is wider than a 390 px phone's content box. */
+.grid-2.system-pair { grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }

@@ -1,0 +1,25 @@
+---
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+import '../../styles/system.css'
+---
+
+<Shell title="System">
+  <PageHead
+    title="System"
+    sub="The root daemon, this web server, state backups and setup. There is no way to stop the enforcer."
+  />
+  <div class="grid-2 system-pair">
+    <server-card></server-card>
+    <setup-card></setup-card>
+  </div>
+  <daemon-card></daemon-card>
+  <backups-card></backups-card>
+</Shell>
+
+<script>
+  import '../../sections/system/serverCard'
+  import '../../sections/system/setupCard'
+  import '../../sections/system/daemonCard'
+  import '../../sections/system/backupsCard'
+</script>

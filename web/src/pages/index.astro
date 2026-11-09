@@ -1,0 +1,29 @@
+---
+import PageHead from '../components/PageHead.astro'
+import Shell from '../layouts/Shell.astro'
+import '../styles/dashboard.css'
+import '../styles/gaming.css'
+---
+
+<Shell title="Dashboard">
+  <PageHead title="Dashboard" sub="What the enforcer is doing right now.">
+    <command-button name="done" label="I got an achievement" tone="primary"></command-button>
+    <command-button name="install" label="Install assigned"></command-button>
+    <command-button name="pick" label="Pick next"></command-button>
+    <command-button name="scan" label="Scan"></command-button>
+  </PageHead>
+  <div class="grid-2">
+    <dashboard-status></dashboard-status>
+    <budget-glance></budget-glance>
+  </div>
+  <fast-installs></fast-installs>
+  <budget-panel></budget-panel>
+  <backlog-overview></backlog-overview>
+  <recent-jobs></recent-jobs>
+</Shell>
+
+<script>
+  import '../sections/dashboard'
+  import '../sections/gaming/panel'
+  import '../sections/overview'
+</script>

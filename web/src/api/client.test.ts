@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOKEN_META } from './contract'
 import { api, ApiFailure, request, sessionToken, startJob } from './client'
-import { apiError, bodiesOf, Reply, stubApi } from '../test/harness'
+import { apiError, bodiesOf, Reply, stubApi, type Handler } from '../test/harness'
 import { makeJob, makePending } from '../test/fixtures'
 
 function setToken(token: string | null) {
-  document.head.querySelectorAll(`meta[name="${TOKEN_META}"]`).forEach((m) => m.remove())
+  document.head.querySelectorAll(`meta[name="${TOKEN_META}"]`).forEach((m) => {
+    m.remove()
+  })
   if (token !== null) {
     const m = document.createElement('meta')
     m.name = TOKEN_META
@@ -15,7 +17,9 @@ function setToken(token: string | null) {
 }
 
 describe('sessionToken', () => {
-  afterEach(() => setToken(null))
+  afterEach(() => {
+    setToken(null)
+  })
   it('reads the meta tag, empty when absent', () => {
     expect(sessionToken()).toBe('')
     setToken('abc')
@@ -24,7 +28,9 @@ describe('sessionToken', () => {
 })
 
 describe('request', () => {
-  beforeEach(() => setToken('tok'))
+  beforeEach(() => {
+    setToken('tok')
+  })
   afterEach(() => {
     setToken(null)
     sessionStorage.clear()
@@ -76,7 +82,7 @@ describe('request', () => {
     const reload = vi.fn()
     beforeEach(() => {
       reload.mockClear()
-      vi.stubGlobal('location', { ...window.location, reload })
+      vi.stubGlobal('location', { href: window.location.href, reload })
     })
 
     it('reloads once, then not again inside the guard window', async () => {
@@ -107,7 +113,7 @@ describe('api', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('hits every endpoint with the right verb and path', async () => {
-    const routes: Record<string, unknown> = {}
+    const routes: Record<string, Handler> = {}
     const keys = [
       'GET /api/status', 'GET /api/stats', 'GET /api/installed', 'GET /api/library', 'GET /api/commands',
       'GET /api/setup', 'POST /api/setup', 'GET /api/daemon', 'GET /api/server', 'POST /api/server/restart',

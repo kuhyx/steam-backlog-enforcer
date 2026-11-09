@@ -103,20 +103,20 @@ export const api = {
   saveSetup: (req: SetupRequest) => request<SetupStatus>('POST', ENDPOINTS.setup, req),
   daemon: () => get<DaemonStatus>(ENDPOINTS.daemon),
   server: () => get<ServerHealth>(ENDPOINTS.server),
-  restartServer: () => request<void>('POST', ENDPOINTS.serverRestart),
+  restartServer: () => request<undefined>('POST', ENDPOINTS.serverRestart),
   backups: () => get<StateBackup[]>(ENDPOINTS.backups),
   restoreBackup: (id: string, phrase: string) =>
     request<Job>('POST', ENDPOINTS.backupRestore(encodeURIComponent(id)), { confirm_phrase: phrase }),
   jobs: () => get<Job[]>(ENDPOINTS.jobs),
   job: (id: string) => get<Job>(ENDPOINTS.job(id)),
-  answer: (id: string, answer: PromptAnswer) => request<void>('POST', ENDPOINTS.jobAnswer(id), answer),
-  cancelJob: (id: string) => request<void>('POST', ENDPOINTS.jobCancel(id)),
+  answer: (id: string, answer: PromptAnswer) => request<undefined>('POST', ENDPOINTS.jobAnswer(id), answer),
+  cancelJob: (id: string) => request<undefined>('POST', ENDPOINTS.jobCancel(id)),
   heartbeat: (id: string) => request<PendingAction>('POST', ENDPOINTS.pendingHeartbeat(id)),
   commit: (id: string, phrase: string) =>
     request<Job>('POST', ENDPOINTS.pendingCommit(id), { confirm_phrase: phrase }),
   /** `keepalive` lets the DELETE survive the page being closed. */
   dropPending: (id: string, keepalive = false) =>
-    request<void>('DELETE', ENDPOINTS.pending(id), undefined, keepalive),
+    request<undefined>('DELETE', ENDPOINTS.pending(id), undefined, keepalive),
 }
 
 /** POST /api/jobs: 201 → Job, 202 → PendingAction (countdown commands). */
