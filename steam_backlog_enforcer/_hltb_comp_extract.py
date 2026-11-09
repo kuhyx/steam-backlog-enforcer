@@ -13,6 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
+from steam_backlog_enforcer._hltb_failures import (
+    detail_status_failed,
+    exc_reason,
+    record_failure,
+    status_reason,
+)
+from steam_backlog_enforcer._hltb_pacing import pause_after_request
 from steam_backlog_enforcer._hltb_page_parse import (
     _as_positive_int,
     _parse_game_page,
@@ -110,10 +117,16 @@ async def _fetch_detail_one(
                 if resp.status == HTTPStatus.OK:
                     html = await resp.text()
                     return _parse_game_page(html)
+                if not detail_status_failed(resp.status):
+                    return None  # no such page: a real answer, not a failure
+                reason = status_reason(resp.status)
         except (TimeoutError, aiohttp.ClientError) as exc:
-            logger.debug(
-                "HLTB detail fetch failed for game_id=%d: %s",
-                hltb_game_id,
-                exc,
-            )
+            reason = exc_reason(exc)
+        finally:
+            await pause_after_request()
+        # The caller keeps the cached hours when this returns None.
+        logger.warning(
+            "HLTB detail fetch failed for game_id=%d (%s)", hltb_game_id, reason
+        )
+        record_failure(f"detail {reason}")
     return None

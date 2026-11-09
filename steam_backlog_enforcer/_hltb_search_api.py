@@ -15,6 +15,7 @@ from typing import Any
 import aiohttp
 from howlongtobeatpy.HTMLRequests import HTMLRequests
 
+from steam_backlog_enforcer._hltb_failures import exc_reason, status_reason
 from steam_backlog_enforcer._hltb_matching import (
     _find_best_extended,
     _find_exact_match,
@@ -91,14 +92,20 @@ def forget_hltb_search_url() -> None:
 async def _get_auth_info(
     search_url: str,
     session: aiohttp.ClientSession,
+    failures: list[str] | None = None,
 ) -> _AuthInfo | None:
-    """Fetch the HLTB auth token and honeypot key/val (one GET request)."""
+    """Fetch the HLTB auth token and honeypot key/val (one GET request).
+
+    On failure returns ``None`` and, when *failures* is given, appends why
+    (``HTTP 429``, ``timeout``, ...) so the caller can report it.
+    """
     init_url = search_url + "/init"
     ts = int(time.time() * 1000)
     headers = {
         "User-Agent": _USER_AGENT,
         "referer": "https://howlongtobeat.com/",
     }
+    reason = "no token"
     try:
         async with session.get(
             init_url,
@@ -108,15 +115,19 @@ async def _get_auth_info(
             if resp.status == HTTPStatus.OK:
                 data = await resp.json()
                 token: str | None = data.get("token")
-                if token is None:
-                    return None
-                return _AuthInfo(
-                    token=token,
-                    hp_key=data.get("hpKey", ""),
-                    hp_val=data.get("hpVal", ""),
-                )
-    except TimeoutError, aiohttp.ClientError:
-        logger.warning("Failed to get HLTB auth token")
+                if token is not None:
+                    return _AuthInfo(
+                        token=token,
+                        hp_key=data.get("hpKey", ""),
+                        hp_val=data.get("hpVal", ""),
+                    )
+            else:
+                reason = status_reason(resp.status)
+    except (TimeoutError, aiohttp.ClientError, ValueError) as exc:
+        reason = exc_reason(exc)
+    logger.warning("Failed to get HLTB auth token (%s)", reason)
+    if failures is not None:
+        failures.append(reason)
     return None
 
 

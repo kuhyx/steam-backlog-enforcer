@@ -5,14 +5,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
+from steam_backlog_enforcer._hltb_confidence import refresh_confidence
 from steam_backlog_enforcer._hltb_types import (
-    _HLTBExtras,
-    load_hltb_cache,
     load_hltb_count_comp_cache,
     load_hltb_polls_cache,
-    restore_prior_hours,
-    save_hltb_cache,
 )
 from steam_backlog_enforcer._polls_reporting import (
     _backfill_polls_for_finished,
@@ -105,27 +101,8 @@ def _refresh_candidate_confidence_batch(
     else:
         _echo(f"  Refreshing HLTB confidence for {len(refresh_slice)} candidate(s)...")
 
-    cache = load_hltb_cache()
-    polls = load_hltb_polls_cache()
-    count_comp = load_hltb_count_comp_cache()
-    app_ids = [game.app_id for game in refresh_slice]
-    names = [(game.app_id, game.name) for game in refresh_slice]
-    prior_hours = {aid: cache.get(aid, -1) for aid in app_ids}
-
-    for aid in app_ids:
-        cache.pop(aid, None)
-        polls.pop(aid, None)
-        count_comp.pop(aid, None)
-    save_hltb_cache(cache, polls, _HLTBExtras(count_comp=count_comp))
-
-    fetch_hltb_confidence_cached(names)
-
-    refreshed_hours = load_hltb_cache()
-    refreshed_polls = load_hltb_polls_cache()
-    refreshed_count_comp = load_hltb_count_comp_cache()
-    restore_prior_hours(refreshed_hours, prior_hours)
-    save_hltb_cache(
-        refreshed_hours, refreshed_polls, _HLTBExtras(count_comp=refreshed_count_comp)
+    _, refreshed_polls, refreshed_count_comp = refresh_confidence(
+        [(game.app_id, game.name) for game in refresh_slice]
     )
 
     for game in refresh_slice:

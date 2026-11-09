@@ -6,6 +6,9 @@ import asyncio
 from typing import TYPE_CHECKING, Any, Self
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from steam_backlog_enforcer._hltb_failures import HLTBUnavailableError
 from steam_backlog_enforcer._hltb_search import (
     _fetch_batch,
     _SearchCtx,
@@ -73,9 +76,9 @@ class TestFetchBatchHltb:
                 new_callable=AsyncMock,
                 return_value=None,
             ),
+            pytest.raises(HLTBUnavailableError, match="nothing refreshed"),
         ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
-            assert results == []
+            asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
 
 
 class TestPickBestEntry:

@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from steam_backlog_enforcer._hltb_failures import reset_failures
 from steam_backlog_enforcer._hltb_search_api import forget_hltb_search_url
 
 if TYPE_CHECKING:
@@ -65,16 +66,8 @@ def _isolate_cover_art(tmp_path: Path) -> Iterator[None]:
         yield
 
 
-@pytest.fixture(autouse=True)
-def _forget_hltb_search_url() -> Iterator[None]:
-    """Start every test without a remembered HLTB search endpoint.
-
-    ``_get_hltb_search_url`` memoises a discovered URL for half an hour; a
-    value left behind by one test would hide the discovery path in the next.
-    """
-    forget_hltb_search_url()
-    yield
-    forget_hltb_search_url()
+async def _no_pause(_seconds: float) -> None:
+    """Stand-in for the HLTB pacing sleep."""
 
 
 @pytest.fixture(autouse=True)
@@ -83,7 +76,13 @@ def _forget_hltb_search_url() -> Iterator[None]:
 
     ``_get_hltb_search_url`` memoises a discovered URL for half an hour; a
     value left behind by one test would hide the discovery path in the next.
+    The HLTB failure tally and its shared circuit breaker are reset too: a
+    breaker tripped by one test would make the next one skip every lookup.
+    The per-request HLTB pacing pause is dropped so tests never wait on it.
     """
     forget_hltb_search_url()
-    yield
+    reset_failures()
+    with patch("steam_backlog_enforcer._hltb_pacing._sleep", _no_pause):
+        yield
     forget_hltb_search_url()
+    reset_failures()

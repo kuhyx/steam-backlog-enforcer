@@ -147,7 +147,9 @@ class TestSearchOneGroup2:
         # Set done to one less than _SAVE_INTERVAL so it triggers save
 
         ctx.counter["done"] = _SAVE_INTERVAL - 1
-        with patch("steam_backlog_enforcer._hltb_search.save_hltb_cache") as mock_save:
+        with patch(
+            "steam_backlog_enforcer._hltb_search_one.save_hltb_cache"
+        ) as mock_save:
             asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
             mock_save.assert_called_once()
 

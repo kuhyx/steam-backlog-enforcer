@@ -6,8 +6,11 @@ import asyncio
 from typing import Self
 from unittest.mock import patch
 
+import pytest
+
 from steam_backlog_enforcer._hltb_confidence import fetch_hltb_confidence_cached
-from steam_backlog_enforcer._hltb_search import _AuthInfo
+from steam_backlog_enforcer._hltb_failures import HLTBUnavailableError
+from steam_backlog_enforcer._hltb_types import _AuthInfo
 from steam_backlog_enforcer.hltb import (
     _fetch_batch_confidence_only,
     fetch_hltb_confidence,
@@ -39,11 +42,9 @@ class TestConfidenceHelpers:
             patch(f"{PKG}.aiohttp.TCPConnector"),
             patch(f"{PKG}._get_hltb_search_url", return_value="https://example"),
             patch(f"{PKG}._get_auth_info", return_value=None),
+            pytest.raises(HLTBUnavailableError, match="nothing refreshed"),
         ):
-            result = asyncio.run(
-                _fetch_batch_confidence_only([(1, "Game")], {}, {}, None),
-            )
-        assert result == []
+            asyncio.run(_fetch_batch_confidence_only([(1, "Game")], {}, {}, None))
 
     def test_fetch_batch_confidence_only_handles_empty_hp_and_default_counts(
         self,

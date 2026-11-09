@@ -57,19 +57,26 @@ class TestBackfillPollsForFinished:
             json.dumps({"1": {"hours": 2.0, "polls": 0}}), encoding="utf-8"
         )
 
-        def fake_fetch(games: list[tuple[int, str]]) -> dict[int, float]:
-            """Test fake fetch."""
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
+        def fake_fetch(
+            games: list[tuple[int, str]],
+            cache: dict[int, float],
+            polls: dict[int, int],
+            count_comp: dict[int, int],
+            **_kw: object,
+        ) -> list[object]:
+            """Test fake search: write into the caches it is handed."""
             for aid, _name in games:
-                data[str(aid)] = {"hours": 2.0, "polls": 9}
-            cache_file.write_text(json.dumps(data), encoding="utf-8")
-            return {aid: 2.0 for aid, _ in games}
+                cache[aid], polls[aid], count_comp[aid] = 2.0, 9, 0
+            return []
 
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 1, "name": "G"}]),
-            patch(f"{_CONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(
+                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
+                side_effect=fake_fetch,
+            ),
             patch(f"{_CMD}._echo"),
         ):
             result = _cmd_done._backfill_polls_for_finished(_state([1]))
@@ -82,19 +89,26 @@ class TestBackfillPollsForFinished:
             json.dumps({"7": {"hours": 1.0, "polls": 0}}), encoding="utf-8"
         )
 
-        def fake_fetch(games: list[tuple[int, str]]) -> dict[int, float]:
-            """Test fake fetch."""
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
+        def fake_fetch(
+            games: list[tuple[int, str]],
+            cache: dict[int, float],
+            polls: dict[int, int],
+            count_comp: dict[int, int],
+            **_kw: object,
+        ) -> list[object]:
+            """Test fake search: write into the caches it is handed."""
             for aid, _name in games:
-                data[str(aid)] = {"hours": 1.0, "polls": 4}
-            cache_file.write_text(json.dumps(data), encoding="utf-8")
-            return {aid: 1.0 for aid, _ in games}
+                cache[aid], polls[aid], count_comp[aid] = 1.0, 4, 0
+            return []
 
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 7, "name": "G"}]),
-            patch(f"{_CONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(
+                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
+                side_effect=fake_fetch,
+            ),
             patch(f"{_CMD}._echo"),
         ):
             result = _cmd_done._backfill_polls_for_finished(
@@ -109,20 +123,26 @@ class TestBackfillPollsForFinished:
             json.dumps({"3": {"hours": 4.0, "polls": 0}}), encoding="utf-8"
         )
 
-        def fake_fetch(games: list[tuple[int, str]]) -> dict[int, float]:
-            # Simulate a refetch returning a miss (hours -1, polls 0).
-            """Test fake fetch."""
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
+        def fake_fetch(
+            games: list[tuple[int, str]],
+            cache: dict[int, float],
+            polls: dict[int, int],
+            count_comp: dict[int, int],
+            **_kw: object,
+        ) -> list[object]:
+            """Test fake search: a clean miss (hours -1, polls 0)."""
             for aid, _name in games:
-                data[str(aid)] = {"hours": -1, "polls": 0}
-            cache_file.write_text(json.dumps(data), encoding="utf-8")
-            return {aid: -1 for aid, _ in games}
+                cache[aid], polls[aid], count_comp[aid] = -1, 0, 0
+            return []
 
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 3, "name": "G"}]),
-            patch(f"{_CONF}.fetch_hltb_confidence_cached", side_effect=fake_fetch),
+            patch(
+                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
+                side_effect=fake_fetch,
+            ),
             patch(f"{_CMD}._echo"),
         ):
             _cmd_done._backfill_polls_for_finished(_state([3]))

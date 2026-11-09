@@ -13,7 +13,8 @@ from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 logger = logging.getLogger(__name__)
 
 HLTB_CACHE_FILE = CONFIG_DIR / "hltb_cache.json"
-MAX_CONCURRENT = 60  # parallel requests to HLTB
+# Requests in flight to HLTB; each slot is paced by _hltb_pacing.
+MAX_CONCURRENT = 1
 _SAVE_INTERVAL = 50  # flush cache to disk every N results
 MIN_SIMILARITY = 0.5
 HLTB_BASE_URL = "https://howlongtobeat.com"

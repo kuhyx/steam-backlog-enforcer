@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from steam_backlog_enforcer._hltb_failures import HLTBUnavailableError
 from steam_backlog_enforcer._hltb_types import (
     ProgressCb,
     _HLTBExtras,
@@ -83,7 +84,11 @@ def fetch_hltb_times_cached(
         report = reporting_progress_cb(
             "Fetching HLTB times", len(uncached), progress_cb
         )
-        elapsed = fetch_hltb_times_timed(uncached, cache, polls, report, extras)
+        try:
+            elapsed = fetch_hltb_times_timed(uncached, cache, polls, report, extras)
+        except HLTBUnavailableError:
+            # Already logged and tallied by the batch; the cache is untouched.
+            return cache
 
         # Final save.
         save_hltb_cache(cache, polls, extras)

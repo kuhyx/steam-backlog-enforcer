@@ -54,7 +54,7 @@ def _make_ctx(
         search_url="https://example.com/search",
         headers={},
         cache=cache if cache is not None else {},
-        counter={"done": 0, "found": 0},
+        counter={"done": 0, "found": 0, "failed": 0},
         total=1,
         progress_cb=progress_cb,
     )
@@ -118,6 +118,8 @@ class TestSearchOne:
         ctx = _make_ctx(session)
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
         assert result is None
+        assert 440 not in ctx.cache  # a failed lookup is not a miss
+        assert ctx.counter["failed"] == 1
 
     def test_non_200(self) -> None:
         """Test non 200."""
@@ -125,6 +127,8 @@ class TestSearchOne:
         ctx = _make_ctx(_make_session(resp))
         result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
         assert result is None
+        assert 440 not in ctx.cache  # a failed lookup is not a miss
+        assert ctx.counter["failed"] == 1
 
     def test_fallback_name_without_year_suffix(self) -> None:
         """Test fallback name without year suffix."""

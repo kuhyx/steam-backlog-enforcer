@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 
 from steam_backlog_enforcer._hltb_matching import _similarity
-from steam_backlog_enforcer._hltb_search import _AuthInfo
 from steam_backlog_enforcer._hltb_search_api import _get_auth_info, _get_hltb_search_url
 from steam_backlog_enforcer._hltb_types import (
+    _AuthInfo,
     load_hltb_cache,
     save_hltb_cache,
 )

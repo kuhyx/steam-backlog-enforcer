@@ -76,7 +76,9 @@ class TestScanningPollsIntegrationGroup2Group2:
             comp_100_count=3,
             count_comp=15,
         )
-        with patch(f"{_SCANCONF}.fetch_hltb_confidence_cached") as mock_fetch:
+        with patch(
+            "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence"
+        ) as mock_fetch:
             _scanning_confidence._refresh_candidate_confidence(game)
         mock_fetch.assert_not_called()
 
@@ -99,18 +101,23 @@ class TestScanningPollsIntegrationGroup2Group2:
             count_comp=0,
         )
 
-        def fake_fetch(_games: list[tuple[int, str]]) -> dict[int, float]:
-            """Test fake fetch."""
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
-            data["1"] = {"hours": 4.0, "polls": 3, "count_comp": 15}
-            cache_file.write_text(json.dumps(data), encoding="utf-8")
-            return {1: 4.0}
+        def fake_fetch(
+            games: list[tuple[int, str]],
+            cache: dict[int, float],
+            polls: dict[int, int],
+            count_comp: dict[int, int],
+            **_kw: object,
+        ) -> list[object]:
+            """Test fake search: write into the caches it is handed."""
+            del games
+            cache[1], polls[1], count_comp[1] = 4.0, 3, 15
+            return []
 
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(
-                f"{_SCANCONF}.fetch_hltb_confidence_cached",
+                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
                 side_effect=fake_fetch,
             ),
             patch(f"{_SCANCONF}._echo"),
@@ -151,20 +158,24 @@ class TestScanningPollsIntegrationGroup2Group2:
             count_comp=0,
         )
 
-        def fake_fetch(games: list[tuple[int, str]]) -> dict[int, float]:
-            """Test fake fetch."""
+        def fake_fetch(
+            games: list[tuple[int, str]],
+            cache: dict[int, float],
+            polls: dict[int, int],
+            count_comp: dict[int, int],
+            **_kw: object,
+        ) -> list[object]:
+            """Test fake search: write into the caches it is handed."""
             assert sorted(games) == [(1, "A"), (2, "B")]
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
-            data["1"] = {"hours": 4.0, "polls": 3, "count_comp": 15}
-            data["2"] = {"hours": 5.0, "polls": 3, "count_comp": 15}
-            cache_file.write_text(json.dumps(data), encoding="utf-8")
-            return {1: 4.0, 2: 5.0}
+            cache[1], polls[1], count_comp[1] = 4.0, 3, 15
+            cache[2], polls[2], count_comp[2] = 5.0, 3, 15
+            return []
 
         with (
             patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
             patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
             patch(
-                f"{_SCANCONF}.fetch_hltb_confidence_cached",
+                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
                 side_effect=fake_fetch,
             ) as mock_fetch,
             patch(f"{_SCANCONF}._echo"),

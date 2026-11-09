@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import logging
+import sys
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._hltb_failures import (
+    failure_summary_lines,
+    had_total_failure,
+    reset_failures,
+)
 from steam_backlog_enforcer._hltb_types import (
     _read_raw_cache,
 )
@@ -131,7 +137,22 @@ def cmd_stats(_config: Config, state: State) -> None:
     3. Leisure — comp_100_h (slowest 100 %) + DLC leisure per HLTB.
     4. Worst   — absolute maximum recorded time (any category) per HLTB.
     5. Your play style — extrapolated from completed-game calibration vs HLTB.
+
+    Ends with one line per kind of HLTB failure (the cache is kept for those
+    games) and exits 1 when some HLTB batch refreshed nothing at all.
     """
+    reset_failures()
+    try:
+        _print_stats(_config, state)
+    finally:
+        for line in failure_summary_lines():
+            _echo(line)
+    if had_total_failure():
+        sys.exit(1)
+
+
+def _print_stats(_config: Config, state: State) -> None:
+    """Gather the stats data and print every scenario for :func:`cmd_stats`."""
     games = require_snapshot_games()
     if games is None:
         return

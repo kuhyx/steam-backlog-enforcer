@@ -10,6 +10,7 @@ import logging
 import time
 
 from steam_backlog_enforcer._hltb_cached import reporting_progress_cb
+from steam_backlog_enforcer._hltb_failures import HLTBUnavailableError
 from steam_backlog_enforcer._hltb_types import (
     HLTB_BASE_URL,
     ProgressCb,
@@ -38,28 +39,36 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 
 
-def refetch_poll_counts(missing: list[tuple[int, str]]) -> dict[int, int]:
-    """Re-search ``missing`` for poll counts and return the refreshed polls cache.
+def refresh_confidence(
+    games: list[tuple[int, str]],
+) -> tuple[dict[int, float], dict[int, int], dict[int, int]]:
+    """Re-search ``games`` (cached or not) and save hours, polls and count_comp.
 
-    The search-level fetch skips anything already in the hours cache, so the
-    hours entries are dropped first to force it -- then put back where the
-    refetch found nothing better, since a prior leisure/DLC estimate is
-    trusted over a miss.
+    Nothing is dropped from the cache first: a failed lookup writes nothing,
+    so the old entry survives. Prior hours beat a clean miss, since a prior
+    leisure/DLC estimate is trusted over "not found". When HLTB is unavailable
+    the cache is returned unchanged and nothing is saved.
+
+    Returns:
+        The (hours, polls, count_comp) caches after the refresh.
     """
     cache = load_hltb_cache()
     polls = load_hltb_polls_cache()
-    preserved_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
-    for aid, _name in missing:
-        cache.pop(aid, None)
-    save_hltb_cache(cache, polls)
+    count_comp = load_hltb_count_comp_cache()
+    prior_hours = {aid: cache[aid] for aid, _ in games if aid in cache}
+    try:
+        fetch_hltb_confidence(games, cache=cache, polls=polls, count_comp=count_comp)
+    except HLTBUnavailableError:
+        # Already logged and tallied by the batch; the cache is untouched.
+        return cache, polls, count_comp
+    restore_prior_hours(cache, prior_hours)
+    save_hltb_cache(cache, polls, _HLTBExtras(count_comp=count_comp))
+    return cache, polls, count_comp
 
-    fetch_hltb_confidence_cached(missing)
 
-    refreshed_hours = load_hltb_cache()
-    refreshed_polls = load_hltb_polls_cache()
-    restore_prior_hours(refreshed_hours, preserved_hours)
-    save_hltb_cache(refreshed_hours, refreshed_polls)
-    return refreshed_polls
+def refetch_poll_counts(missing: list[tuple[int, str]]) -> dict[int, int]:
+    """Re-search ``missing`` for poll counts and return the refreshed polls cache."""
+    return refresh_confidence(missing)[1]
 
 
 def fetch_hltb_confidence_cached(
@@ -79,15 +88,19 @@ def fetch_hltb_confidence_cached(
             len(games) - len(uncached),
         )
         t0 = time.monotonic()
-        fetch_hltb_confidence(
-            uncached,
-            cache=cache,
-            polls=polls,
-            progress_cb=reporting_progress_cb(
-                "Fetching HLTB poll counts", len(uncached), progress_cb
-            ),
-            count_comp=count_comp,
-        )
+        try:
+            fetch_hltb_confidence(
+                uncached,
+                cache=cache,
+                polls=polls,
+                progress_cb=reporting_progress_cb(
+                    "Fetching HLTB poll counts", len(uncached), progress_cb
+                ),
+                count_comp=count_comp,
+            )
+        except HLTBUnavailableError:
+            # Already logged and tallied by the batch; the cache is untouched.
+            return cache
         elapsed = time.monotonic() - t0
 
         save_hltb_cache(cache, polls, _HLTBExtras(count_comp=count_comp))
@@ -116,9 +129,9 @@ def fetch_hltb_detail_missing(
     Also backfills ``hltb_game_id`` for any game that already has rush/leisure
     data but whose HLTB game ID was never stored (e.g. from an old cache).
     Games with both rush data and a game_id are skipped entirely.  For the
-    rest, temporarily removes them from the hours cache so ``fetch_hltb_times``
-    will visit their detail pages.  Restores prior hours for any game the
-    re-fetch doesn't find.
+    rest, ``fetch_hltb_times`` re-searches them and visits their detail pages
+    (it never skips cached games).  Prior hours win over a clean miss; a failed
+    lookup writes nothing, so its old entry survives untouched.
 
     Args:
         games: list of (app_id, name) tuples to check.
@@ -152,10 +165,7 @@ def fetch_hltb_detail_missing(
         hltb_game_id=game_id_cache,
     )
 
-    # Remove from hours cache so fetch_hltb_times will visit the detail page.
-    prior_hours: dict[int, float] = {}
-    for app_id, _ in missing:
-        prior_hours[app_id] = cache.pop(app_id, -1.0)
+    prior_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
 
     n_rush = len(missing_rush)
     n_id = len(missing_id_only)
@@ -173,7 +183,11 @@ def fetch_hltb_detail_missing(
     else:
         logger.info("Backfilling HLTB game ID for %d game(s)...", n_id)
     report = reporting_progress_cb("Fetching HLTB details", len(missing), progress_cb)
-    elapsed = fetch_hltb_times_timed(missing, cache, polls, report, extras)
+    try:
+        elapsed = fetch_hltb_times_timed(missing, cache, polls, report, extras)
+    except HLTBUnavailableError:
+        # Already logged and tallied by the batch; the cache is untouched.
+        return 0
 
     restore_prior_hours(cache, prior_hours)
 
@@ -200,7 +214,11 @@ def get_hltb_submit_url(game_name: str) -> str | None:
         URL like ``https://howlongtobeat.com/submit/game/12345``,
         or ``None`` if the game wasn't found.
     """
-    results = fetch_hltb_times([(0, game_name)])
+    try:
+        results = fetch_hltb_times([(0, game_name)])
+    except HLTBUnavailableError:
+        # Already logged and tallied by the batch; the cache is untouched.
+        return None
     if results and results[0].hltb_game_id:
         return f"{HLTB_BASE_URL}/submit/game/{results[0].hltb_game_id}"
     return None

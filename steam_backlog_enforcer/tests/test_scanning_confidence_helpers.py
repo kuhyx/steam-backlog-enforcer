@@ -52,7 +52,7 @@ class TestConfidenceHelpers:
         game.comp_100_count = 3
         game.count_comp = 15
         with patch(
-            "steam_backlog_enforcer._scanning_confidence.fetch_hltb_confidence_cached",
+            "steam_backlog_enforcer._scanning_confidence.refresh_confidence",
         ) as mock_fetch:
             _refresh_candidate_confidence_batch([game], force=False)
         mock_fetch.assert_not_called()
@@ -62,32 +62,17 @@ class TestConfidenceHelpers:
         game = _game(app_id=30, name="C", hours=9.5)
         game.comp_100_count = 0
         game.count_comp = 0
-        with (
-            patch(
-                "steam_backlog_enforcer._scanning_confidence.load_hltb_cache",
-                side_effect=[{30: 9.5}, {30: -1.0}],
-            ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence.load_hltb_polls_cache",
-                return_value={30: 0},
-            ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence.load_hltb_count_comp_cache",
-                return_value={30: 0},
-            ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence.fetch_hltb_confidence_cached",
-                return_value={30: -1.0},
-            ),
-            patch(
-                "steam_backlog_enforcer._scanning_confidence.save_hltb_cache",
-            ) as mock_save,
-        ):
+        # refresh_confidence owns the hours-preservation rule (see
+        # test_hltb_refetch_failure_keeps_cache); this layer only applies polls.
+        with patch(
+            "steam_backlog_enforcer._scanning_confidence.refresh_confidence",
+            return_value=({30: 9.5}, {30: 4}, {30: 7}),
+        ) as mock_refresh:
             _refresh_candidate_confidence_batch([game], force=True)
 
+        mock_refresh.assert_called_once_with([(30, "C")])
         assert game.completionist_hours == 9.5
-        saved_cache = mock_save.call_args.args[0]
-        assert saved_cache[30] == 9.5
+        assert (game.comp_100_count, game.count_comp) == (4, 7)
 
     def test_filter_hltb_confident_candidates_skips_low_confidence(self) -> None:
         """Test filter hltb confident candidates skips low confidence."""
