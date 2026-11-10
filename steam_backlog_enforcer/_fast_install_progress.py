@@ -31,6 +31,7 @@ the daemon's own enforce loop polls the trackers.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 import re
 import threading
@@ -109,16 +110,13 @@ class InstallTracker:
         A log that is missing or unreadable changes nothing: the run itself is
         judged by its exit status, never by its log.
         """
-        try:
-            with self._path.open("rb") as log:
-                log.seek(self._offset)
-                while chunk := log.read(_READ_CHUNK):
-                    self._offset += len(chunk)
-                    *lines, self._partial = (self._partial + chunk).split(b"\n")
-                    for line in lines:
-                        self._feed(line.decode("utf-8", "replace").rstrip("\r"))
-        except OSError:
-            return
+        with contextlib.suppress(OSError), self._path.open("rb") as log:
+            log.seek(self._offset)
+            while chunk := log.read(_READ_CHUNK):
+                self._offset += len(chunk)
+                *lines, self._partial = (self._partial + chunk).split(b"\n")
+                for line in lines:
+                    self._feed(line.decode("utf-8", "replace").rstrip("\r"))
 
     def _feed(self, line: str) -> None:
         """Apply one log line to the phase / percent state."""

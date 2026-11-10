@@ -14,6 +14,7 @@ from steam_backlog_enforcer._hltb_detail import (
 )
 from steam_backlog_enforcer._hltb_failures import (
     SKIPPED_AFTER_RATE_LIMIT,
+    Breaker,
     HLTBUnavailableError,
     record_breaker,
     record_failure,
@@ -31,6 +32,7 @@ from steam_backlog_enforcer._hltb_types import (
     MAX_CONCURRENT,
     HLTBResult,
     ProgressCb,
+    _AuthInfo,
     _HLTBExtras,
 )
 
@@ -75,6 +77,42 @@ def _check_batch(ctx: _SearchCtx) -> None:
         raise _fail_batch(msg)
 
 
+async def _acquire_auth(
+    search_url: str, client_timeout: aiohttp.ClientTimeout, breaker: Breaker
+) -> _AuthInfo:
+    """Fetch the HLTB auth token through its own short-lived session.
+
+    Raises:
+        HLTBUnavailableError: no token; a 429 also trips ``breaker``.
+    """
+    auth_failures: list[str] = []
+    async with aiohttp.ClientSession(timeout=client_timeout) as init_session:
+        auth = await _get_auth_info(search_url, init_session, auth_failures)
+    if auth is None:
+        forget_hltb_search_url()
+        why = auth_failures[0] if auth_failures else "no token"
+        if why == status_reason(HTTPStatus.TOO_MANY_REQUESTS):
+            breaker.tripped = True
+        msg = f"HLTB: rate-limited, nothing refreshed (auth init: {why})"
+        raise _fail_batch(msg)
+    logger.info("HLTB auth token acquired.")
+    return auth
+
+
+def _search_headers(auth: _AuthInfo) -> dict[str, str]:
+    """Return the headers every search request in a batch shares."""
+    headers: dict[str, str] = {
+        "content-type": "application/json",
+        "accept": "*/*",
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
+        ),
+        "referer": "https://howlongtobeat.com/",
+    }
+    apply_auth(headers, auth)
+    return headers
+
+
 async def _search_batch(
     games: list[tuple[int, str]],
     cache: dict[int, float],
@@ -103,43 +141,19 @@ async def _search_batch(
     timeout = aiohttp.ClientTimeout(total=20, sock_read=15)
 
     # 2. Get auth info (separate session — avoids reuse issues).
-    auth_failures: list[str] = []
-    async with aiohttp.ClientSession(timeout=timeout) as init_session:
-        auth = await _get_auth_info(search_url, init_session, auth_failures)
-    if auth is None:
-        forget_hltb_search_url()
-        why = auth_failures[0] if auth_failures else "no token"
-        if why == status_reason(HTTPStatus.TOO_MANY_REQUESTS):
-            breaker.tripped = True
-        msg = f"HLTB: rate-limited, nothing refreshed (auth init: {why})"
-        raise _fail_batch(msg)
-    logger.info("HLTB auth token acquired.")
+    auth = await _acquire_auth(search_url, timeout, breaker)
 
-    # 3. Build shared headers for all search requests.
-    headers: dict[str, str] = {
-        "content-type": "application/json",
-        "accept": "*/*",
-        "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
-        ),
-        "referer": "https://howlongtobeat.com/",
-    }
-    apply_auth(headers, auth)
-
-    # 4. Fire all searches through a single persistent session.
+    # 3. Fire all searches through a single persistent session, sharing the
+    #    auth-bearing headers.
     sem = asyncio.Semaphore(MAX_CONCURRENT)
-    connector = aiohttp.TCPConnector(
-        limit=MAX_CONCURRENT,
-        keepalive_timeout=30,
-    )
     async with aiohttp.ClientSession(
         timeout=timeout,
-        connector=connector,
+        connector=aiohttp.TCPConnector(limit=MAX_CONCURRENT, keepalive_timeout=30),
     ) as session:
         ctx = _SearchCtx(
             session=session,
             search_url=search_url,
-            headers=headers,
+            headers=_search_headers(auth),
             cache=cache,
             polls=polls,
             extras=extras,
@@ -168,7 +182,7 @@ async def _fetch_batch(
         extras = _HLTBExtras()
     search_results = await _search_batch(games, cache, polls, progress_cb, extras)
 
-    # 5. Fetch leisure times + DLC from game detail pages.
+    # 4. Fetch leisure times + DLC from game detail pages.
     logger.info(
         "Fetching leisure times for %d games from detail pages...",
         len(search_results),

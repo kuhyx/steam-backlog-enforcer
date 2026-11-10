@@ -175,6 +175,7 @@ def _find_best_extended(
     share the base title as compilations (e.g. "FAITH: The Unholy Trinity").
     """
     best: tuple[dict[str, Any], float] | None = None
+    best_comp: Any = None  # comp_100 of *best*; None until one is chosen
     for entry, sim in usable:
         game_type = str(entry.get("game_type", "")).lower()
         if game_type not in ("", "game", "compil"):
@@ -184,11 +185,10 @@ def _find_best_extended(
             suffix = entry_name[len(lower) :].lstrip(" :-")
             if any(suffix.startswith(kw) for kw in _SUBSET_SUFFIXES):
                 continue
-            if best is not None and entry.get("comp_100", 0) <= best[0].get(
-                "comp_100", 0
-            ):
+            comp = entry.get("comp_100", 0)
+            if best_comp is not None and comp <= best_comp:
                 continue
-            best = (entry, sim)
+            best, best_comp = (entry, sim), comp
     return best
 
 

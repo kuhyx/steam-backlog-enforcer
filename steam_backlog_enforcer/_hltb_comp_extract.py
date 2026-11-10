@@ -31,6 +31,8 @@ from steam_backlog_enforcer._hltb_types import (
 if TYPE_CHECKING:
     import asyncio
 
+    from steam_backlog_enforcer._hltb_types import HLTBResult
+
 logger = logging.getLogger(__name__)
 
 _NEXT_DATA_RE = re.compile(
@@ -130,3 +132,23 @@ async def _fetch_detail_one(
         )
         record_failure(f"detail {reason}")
     return None
+
+
+def _collect_dlc_relationships(
+    valid: list[HLTBResult],
+    details: list[dict[str, Any] | None],
+) -> tuple[dict[int, list[tuple[int, float]]], list[int]]:
+    """Collect DLC relationship IDs for all base-game detail responses."""
+    by_app: dict[int, list[tuple[int, float]]] = {}
+    unique_dlc_ids: set[int] = set()
+
+    for result, game_data in zip(valid, details, strict=False):
+        if game_data is None:
+            continue
+        dlc_rels = _extract_dlc_relationships(game_data)
+        by_app[result.app_id] = dlc_rels
+        for dlc_id, _fallback_hours in dlc_rels:
+            if dlc_id > 0:
+                unique_dlc_ids.add(dlc_id)
+
+    return by_app, sorted(unique_dlc_ids)

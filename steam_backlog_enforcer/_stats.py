@@ -125,12 +125,46 @@ def _print_player_speed_scenario(
             _echo(f"    @ {daily:.0f} h/day → {estimate}")
 
 
+def _print_header(
+    qualified: list[_GameTimes], skips: list[int], state: State, games_done: int
+) -> None:
+    """Print the banner, the filter counts and the excluded games."""
+    hltb_skip, linux_skip, no_data_skip = skips
+    total_q = len(qualified)
+    rule = "═" * 70
+    _echo(f"\n{rule}\n  BACKLOG COMPLETION ESTIMATES\n{rule}")
+    _echo(f"\n  Qualifying games:  {total_q}")
+    if hltb_skip:
+        _echo(f"  HLTB-skipped:      {hltb_skip} (confidence too low)")
+    if linux_skip:
+        _echo(f"  Linux-skipped:     {linux_skip} (poor ProtonDB rating)")
+    if no_data_skip:
+        _echo(f"  No-data-skipped:   {no_data_skip} (no HLTB hours at all)")
+
+    missing_rush_final = sum(1 for e in qualified if e.rush_hours <= 0)
+    if missing_rush_final:
+        _echo(
+            f"\n  Note: {missing_rush_final}/{total_q} games still missing"
+            " rush/leisure data (HLTB search may not have matched them)."
+        )
+    elif total_q:
+        _echo(
+            f"\n  Detail data: rush + leisure available for all {total_q}"
+            " qualifying games."
+        )
+
+    if state.current_app_id:
+        _echo(
+            f"\n  Current game:      {state.current_game_name} (excluded from totals)"
+        )
+    _echo(f"  Finished games:    {games_done} (excluded from totals)")
+
+
 def cmd_stats(_config: Config, state: State) -> None:
     """Display backlog completion-time statistics.
 
-    Filters games by the same HLTB-confidence and Linux-compatibility rules
-    used when picking the next game.  Auto-fetches missing rush/leisure detail
-    data before printing.  Shows five scenarios:
+    Filters games by the HLTB-confidence and Linux-compatibility rules used to
+    pick the next game, auto-fetching missing rush/leisure data. Shows:
 
     1. At your current pace (games finished per day since enforcement started).
     2. Rush   — avg comp_100 + DLC completion time per HLTB.
@@ -138,8 +172,8 @@ def cmd_stats(_config: Config, state: State) -> None:
     4. Worst   — absolute maximum recorded time (any category) per HLTB.
     5. Your play style — extrapolated from completed-game calibration vs HLTB.
 
-    Ends with one line per kind of HLTB failure (the cache is kept for those
-    games) and exits 1 when some HLTB batch refreshed nothing at all.
+    Ends with one line per HLTB failure kind (their cache is kept) and exits 1
+    when some HLTB batch refreshed nothing at all.
     """
     reset_failures()
     try:
@@ -170,44 +204,12 @@ def _print_stats(_config: Config, state: State) -> None:
     # Ensure completed games have rush/leisure data for pace calibration.
     _ensure_completed_rush_data(games)
 
-    qualified, hltb_skip, linux_skip, no_data_skip = _filter_qualifying_games(
-        games, state
-    )
+    qualified, *skips = _filter_qualifying_games(games, state)
     if _ensure_rush_data(qualified):
         # Re-filter picks up updated rush/leisure caches; ProtonDB is now cached.
-        qualified, hltb_skip, linux_skip, no_data_skip = _filter_qualifying_games(
-            games, state
-        )
+        qualified, *skips = _filter_qualifying_games(games, state)
     total_q = len(qualified)
-
-    _echo(f"\n{'═' * 70}")
-    _echo("  BACKLOG COMPLETION ESTIMATES")
-    _echo(f"{'═' * 70}")
-    _echo(f"\n  Qualifying games:  {total_q}")
-    if hltb_skip:
-        _echo(f"  HLTB-skipped:      {hltb_skip} (confidence too low)")
-    if linux_skip:
-        _echo(f"  Linux-skipped:     {linux_skip} (poor ProtonDB rating)")
-    if no_data_skip:
-        _echo(f"  No-data-skipped:   {no_data_skip} (no HLTB hours at all)")
-
-    missing_rush_final = sum(1 for e in qualified if e.rush_hours <= 0)
-    if missing_rush_final:
-        _echo(
-            f"\n  Note: {missing_rush_final}/{total_q} games still missing"
-            " rush/leisure data (HLTB search may not have matched them)."
-        )
-    elif total_q:
-        _echo(
-            f"\n  Detail data: rush + leisure available for all {total_q}"
-            " qualifying games."
-        )
-
-    if state.current_app_id:
-        _echo(
-            f"\n  Current game:      {state.current_game_name} (excluded from totals)"
-        )
-    _echo(f"  Finished games:    {games_done} (excluded from totals)")
+    _print_header(qualified, skips, state, games_done)
 
     _echo(f"\n{_LINE}")
     _print_pace_scenario(state, total_q, games_done_since_start)
@@ -242,8 +244,7 @@ def _print_stats(_config: Config, state: State) -> None:
     _print_worst_example(qualified)
 
     # Pace calibration uses the freshly-updated cache (both fetches above ran).
-    raw_cache = _read_raw_cache()
-    pace_vs_hltb = compute_pace_vs_hltb(games, raw_cache)
+    pace_vs_hltb = compute_pace_vs_hltb(games, _read_raw_cache())
     _print_player_speed_scenario(pace_vs_hltb, rush_total, leisure_total)
 
     _echo(f"\n{_LINE}\n")

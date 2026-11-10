@@ -14,6 +14,7 @@ The server only reads files here, so a job is unaffected by any of this.
 
 from __future__ import annotations
 
+import contextlib
 from http import HTTPStatus
 import json
 import time
@@ -106,9 +107,8 @@ def stream_job_events(handler: BaseHTTPRequestHandler, request: Request) -> None
     handler.send_header("Cache-Control", "no-store")
     handler.send_header("X-Accel-Buffering", "no")
     handler.end_headers()
-    try:
+    # The browser going away is not an error; it will reconnect if it cares.
+    with contextlib.suppress(BrokenPipeError, ConnectionResetError):
         handler.wfile.write(f"retry: {_RETRY_MS}\n\n".encode())
         _pump(handler, job_id, after)
         handler.wfile.flush()
-    except BrokenPipeError, ConnectionResetError:
-        return  # The browser went away; it will reconnect if it cares.

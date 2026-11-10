@@ -163,8 +163,11 @@ def _run_command(
             # The gate already printed its banner (now log events); the
             # summary is the one-line form of the same refusal.
             sink.flush()
-            reason = lock_reason(command, config, State.load())
-            return _failed(reason or "Refused by the lock gate.", EXIT_REFUSED)
+            return _failed(
+                lock_reason(command, config, State.load())
+                or "Refused by the lock gate.",
+                EXIT_REFUSED,
+            )
         try:
             data = job(params, progress, prompter)
         except SystemExit as exc:
@@ -205,10 +208,12 @@ def run_job(job_dir: Path) -> int:
         outcome = _failed(exc.message, EXIT_REFUSED)
     except PrivilegedViaDaemonError as exc:
         outcome = _failed(str(exc), EXIT_REFUSED)
-    except Exception as exc:
+    # Catch-all on purpose: every job ends with a result, however it fails.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception("Job %s crashed", job_dir.name)
         outcome = _failed(f"{type(exc).__name__}: {exc}")
-    except BaseException as exc:  # SystemExit from outside a handler, etc.
+    # SystemExit from outside a handler, etc.: still write the result.
+    except BaseException as exc:  # pylint: disable=broad-exception-caught
         logger.exception("Job %s stopped", job_dir.name)
         outcome = _failed(f"{type(exc).__name__}: {exc}")
     _finish(job_dir, writer, outcome)

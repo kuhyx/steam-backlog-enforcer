@@ -37,6 +37,9 @@ from steam_backlog_enforcer.config import (
 
 logger = logging.getLogger(__name__)
 
+# The install script rewrites /etc/hosts and re-applies its guards.
+_HOSTS_INSTALL_TIMEOUT_SECONDS = 120
+
 
 def is_store_blocked() -> bool:
     """Check if Steam Store domains are blocked in /etc/hosts or iptables."""
@@ -110,7 +113,7 @@ def _block_via_hosts_install() -> bool:
             [SUDO, BASH, str(HOSTS_INSTALL_SCRIPT), "--no-flush-dns"],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=_HOSTS_INSTALL_TIMEOUT_SECONDS,
             check=False,
         )
     except OSError, subprocess.SubprocessError:

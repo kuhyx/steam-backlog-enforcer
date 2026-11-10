@@ -78,11 +78,8 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
     client = SteamAPIClient(config.steam_api_key, config.steam_id)
 
     start = time.time()
-    done_count = 0
 
     def progress(current: int, total: int) -> None:
-        nonlocal done_count
-        done_count = current
         if current % 50 == 0 or current == total:
             _echo(f"\r  Scanning achievements: {current}/{total}", end="", flush=True)
 
@@ -115,19 +112,19 @@ def do_scan(config: Config, state: State) -> list[GameInfo]:
         polls_cache = load_hltb_polls_cache()
         count_comp_cache = load_hltb_count_comp_cache()
         for g in games:
-            hours = hltb_cache.get(g.app_id, -1)
-            g.completionist_hours = hours
+            g.completionist_hours = hltb_cache.get(g.app_id, -1)
             g.comp_100_count = polls_cache.get(g.app_id, 0)
             g.count_comp = count_comp_cache.get(g.app_id, 0)
-        found = sum(1 for h in hltb_cache.values() if h > 0)
-        _echo(f"  HLTB data: {found} games have completion estimates")
+        _echo(
+            f"  HLTB data: {sum(1 for h in hltb_cache.values() if h > 0)} games"
+            " have completion estimates"
+        )
 
     # Save snapshot.
     save_snapshot([g.to_snapshot() for g in games])
 
-    complete = [g for g in games if g.is_complete]
-    incomplete_games = [g for g in games if not g.is_complete]
-    _echo(f"\nResults: {len(complete)} complete, {len(incomplete_games)} incomplete")
+    n_complete = sum(1 for g in games if g.is_complete)
+    _echo(f"\nResults: {n_complete} complete, {len(games) - n_complete} incomplete")
 
     # Auto-pick a game if none assigned.
     if state.current_app_id is None:

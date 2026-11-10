@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 
 from steam_backlog_enforcer._hltb_comp_extract import (
+    _collect_dlc_relationships,
     _extract_comp_100_avg_and_high,
     _extract_dlc_relationships,
     _fetch_detail_one,
@@ -141,6 +142,27 @@ def _apply_detail_to_extras(
     return leisure
 
 
+async def _fetch_all_details(
+    valid: list[HLTBResult],
+) -> tuple[
+    list[dict[str, Any] | None], dict[int, list[tuple[int, float]]], dict[int, float]
+]:
+    """Fetch every detail page, then the leisure hours of every DLC they list."""
+    timeout = aiohttp.ClientTimeout(total=30, sock_read=20)
+    sem = asyncio.Semaphore(MAX_CONCURRENT)
+    connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT, keepalive_timeout=30)
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        coros = [_fetch_detail_one(sem, session, r.hltb_game_id) for r in valid]
+        names = [r.game_name for r in valid]
+        details = await gather_tracked("Fetching HLTB detail pages", coros, names)
+        dlc_relationships_by_app, dlc_ids = _collect_dlc_relationships(valid, details)
+        return (
+            details,
+            dlc_relationships_by_app,
+            await _fetch_dlc_leisure_hours(sem, session, dlc_ids),
+        )
+
+
 async def _fetch_leisure_times(
     search_results: list[HLTBResult],
     cache: dict[int, float],
@@ -163,65 +185,27 @@ async def _fetch_leisure_times(
     if not valid:
         return
 
-    timeout = aiohttp.ClientTimeout(total=30, sock_read=20)
-    sem = asyncio.Semaphore(MAX_CONCURRENT)
-    connector = aiohttp.TCPConnector(
-        limit=MAX_CONCURRENT,
-        keepalive_timeout=30,
-    )
-
-    total = len(valid)
-    done = 0
+    details, dlc_relationships_by_app, dlc_hours_by_id = await _fetch_all_details(valid)
     found = 0
+    for done, (r, game_data) in enumerate(zip(valid, details, strict=False), 1):
+        if game_data is not None:
+            leisure = _apply_detail_to_extras(
+                r.app_id,
+                game_data,
+                dlc_relationships_by_app.get(r.app_id, []),
+                dlc_hours_by_id,
+                extras,
+            )
+            if leisure > 0:
+                r.completionist_hours = leisure
+                cache[r.app_id] = leisure
+                found += 1
 
-    async with aiohttp.ClientSession(
-        timeout=timeout,
-        connector=connector,
-    ) as session:
-        coros = [_fetch_detail_one(sem, session, r.hltb_game_id) for r in valid]
-        names = [r.game_name for r in valid]
-        details = await gather_tracked("Fetching HLTB detail pages", coros, names)
+        if progress_cb is not None:
+            progress_cb(done, len(valid), found, r.game_name)
 
-        dlc_relationships_by_app, dlc_ids = _collect_dlc_relationships(valid, details)
-        dlc_hours_by_id = await _fetch_dlc_leisure_hours(sem, session, dlc_ids)
-
-        for r, game_data in zip(valid, details, strict=False):
-            done += 1
-            if game_data is not None:
-                dlc_rels = dlc_relationships_by_app.get(r.app_id, [])
-                leisure = _apply_detail_to_extras(
-                    r.app_id, game_data, dlc_rels, dlc_hours_by_id, extras
-                )
-                if leisure > 0:
-                    r.completionist_hours = leisure
-                    cache[r.app_id] = leisure
-                    found += 1
-
-            if progress_cb is not None:
-                progress_cb(done, total, found, r.game_name)
-
-            if not done % _SAVE_INTERVAL:
-                save_hltb_cache(cache, polls, extras)
-
-
-def _collect_dlc_relationships(
-    valid: list[HLTBResult],
-    details: list[dict[str, Any] | None],
-) -> tuple[dict[int, list[tuple[int, float]]], list[int]]:
-    """Collect DLC relationship IDs for all base-game detail responses."""
-    by_app: dict[int, list[tuple[int, float]]] = {}
-    unique_dlc_ids: set[int] = set()
-
-    for result, game_data in zip(valid, details, strict=False):
-        if game_data is None:
-            continue
-        dlc_rels = _extract_dlc_relationships(game_data)
-        by_app[result.app_id] = dlc_rels
-        for dlc_id, _fallback_hours in dlc_rels:
-            if dlc_id > 0:
-                unique_dlc_ids.add(dlc_id)
-
-    return by_app, sorted(unique_dlc_ids)
+        if not done % _SAVE_INTERVAL:
+            save_hltb_cache(cache, polls, extras)
 
 
 async def _fetch_dlc_leisure_hours(

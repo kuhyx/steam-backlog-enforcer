@@ -21,7 +21,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
-from steam_backlog_enforcer._actions import allowed_app_ids
+from steam_backlog_enforcer._actions import allowed_app_ids as _allowed_ids_of
 from steam_backlog_enforcer._cdp import _cdp_result_value, _evaluate_js
 from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
@@ -233,7 +233,7 @@ def hide_others_and_report(config: Config, state: State, *, lead: str = "\n  ") 
     owned_ids = get_all_owned_app_ids(config)
     if not owned_ids:
         return
-    hidden, skipped = try_hide_other_games(owned_ids, allowed_app_ids(state))
+    hidden, skipped = try_hide_other_games(owned_ids, _allowed_ids_of(state))
     if skipped is not None:
         _echo(f"{lead}Library hiding: skipped ({skipped})")
     elif hidden > 0:

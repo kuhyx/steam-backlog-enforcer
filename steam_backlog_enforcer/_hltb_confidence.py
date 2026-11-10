@@ -120,6 +120,23 @@ def fetch_hltb_confidence_cached(
     return cache
 
 
+def _log_detail_plan(n_rush: int, n_id: int) -> None:
+    """Log what a detail fetch is about to do."""
+    if n_rush and n_id:
+        logger.info(
+            "Fetching HLTB detail for %d games missing rush/leisure data"
+            " + %d games missing game ID...",
+            n_rush,
+            n_id,
+        )
+    elif n_rush:
+        logger.info(
+            "Fetching HLTB detail for %d games missing rush/leisure data...", n_rush
+        )
+    else:
+        logger.info("Backfilling HLTB game ID for %d game(s)...", n_id)
+
+
 def fetch_hltb_detail_missing(
     games: list[tuple[int, str]],
     progress_cb: ProgressCb | None = None,
@@ -167,21 +184,7 @@ def fetch_hltb_detail_missing(
 
     prior_hours = {aid: cache[aid] for aid, _ in missing if aid in cache}
 
-    n_rush = len(missing_rush)
-    n_id = len(missing_id_only)
-    if n_rush and n_id:
-        logger.info(
-            "Fetching HLTB detail for %d games missing rush/leisure data"
-            " + %d games missing game ID...",
-            n_rush,
-            n_id,
-        )
-    elif n_rush:
-        logger.info(
-            "Fetching HLTB detail for %d games missing rush/leisure data...", n_rush
-        )
-    else:
-        logger.info("Backfilling HLTB game ID for %d game(s)...", n_id)
+    _log_detail_plan(len(missing_rush), len(missing_id_only))
     report = reporting_progress_cb("Fetching HLTB details", len(missing), progress_cb)
     try:
         elapsed = fetch_hltb_times_timed(missing, cache, polls, report, extras)

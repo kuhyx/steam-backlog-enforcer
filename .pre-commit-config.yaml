@@ -124,13 +124,19 @@ repos:
     rev: v4.0.9
     hooks:
       - id: pylint
-        exclude: ^scripts/file_length/
+        # Whole tree on every run, never the staged subset: `--fail-under`
+        # grades a score, and a score over whatever happened to be staged let a
+        # 9.99 tree pass at commit time and fail in CI. scripts/file_length/
+        # is the shared copy from ~/src/utils, linted there.
+        pass_filenames: false
         args:
           - --rcfile=pyproject.toml
-          - --fail-under=8.0
+          - --fail-under=10.0
           # Serial: parallel pylint pickles PyLinter with dill, which crashes on
           # Python 3.15 (removed co_lnotab). Same reason as jobs = 1 in pyproject.
           - --jobs=1
+          - steam_backlog_enforcer
+          - scripts/check_requirements_sync.py
         # pylint resolves imports in its OWN isolated env, so anything the
         # package imports has to be listed here or it reports import-error and
         # drags the score under --fail-under. `mcp` is a real runtime import

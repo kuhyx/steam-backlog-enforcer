@@ -151,7 +151,7 @@ class CtlServer:
             logger.warning("Control socket: refused a connection from uid %d", uid)
             conn.close()
             return
-        if not self._slots.acquire(blocking=False):
+        if not self._take_slot():
             logger.warning("Control socket: too many connections, dropping one")
             conn.close()
             return
@@ -159,13 +159,21 @@ class CtlServer:
             target=self._handle, args=(conn, uid), name="ctl-conn", daemon=True
         ).start()
 
+    def _take_slot(self) -> bool:
+        """Claim a connection slot without blocking; ``_handle`` releases it.
+
+        No ``with``: the slot is released by the worker thread, not here.
+        """
+        return self._slots.acquire(blocking=False)
+
     def _handle(self, conn: socket.socket, uid: int) -> None:
         """Serve one connection, always releasing its slot and socket."""
         try:
             line = read_line(conn)
             if line is not None:
                 self._write(conn, self._dispatch(line, uid))
-        except Exception:
+        # Catch-all on purpose: a dying connection must not kill its thread.
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("Control connection dropped", exc_info=True)
         finally:
             conn.close()
@@ -184,7 +192,8 @@ class CtlServer:
         except CtlError as exc:
             logger.info("Control socket: refused (%s)", exc.code)
             return error_response(exc)
-        except Exception:
+        # Catch-all on purpose: any op bug answers "internal error", never raises.
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("Control socket op crashed")
             return error_response(CtlError(OP_FAILED, "internal error"))
 

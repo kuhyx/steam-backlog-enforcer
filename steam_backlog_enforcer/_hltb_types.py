@@ -144,7 +144,7 @@ def restore_prior_hours(refreshed: dict[int, float], prior: dict[int, float]) ->
     we already had -- prior leisure/DLC figures are trusted over a miss.
     """
     for app_id, old_hours in prior.items():
-        if old_hours > 0 and refreshed.get(app_id, -1.0) <= 0:
+        if refreshed.get(app_id, -1.0) <= 0 < old_hours:
             refreshed[app_id] = old_hours
 
 

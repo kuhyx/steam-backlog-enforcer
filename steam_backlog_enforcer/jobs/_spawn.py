@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Final
+from typing import BinaryIO, Final
 
 from steam_backlog_enforcer.config import _atomic_write
 from steam_backlog_enforcer.jobs._errors import JobError
@@ -111,6 +111,25 @@ def _confirm_started(proc: subprocess.Popen[bytes], path: Path) -> None:
         time.sleep(_POLL_SECONDS)
 
 
+def _start_session(
+    path: Path, out: BinaryIO, env: dict[str, str], lock_fd: int | None
+) -> subprocess.Popen[bytes]:
+    """Start the job process in its own session; the caller owns it.
+
+    No ``with``: the job outlives the CLI call that spawned it.
+    """
+    return subprocess.Popen(
+        _spawn_argv(path),
+        stdin=subprocess.DEVNULL,
+        stdout=out,
+        stderr=out,
+        cwd=_PACKAGE_ROOT,
+        env=env,
+        start_new_session=True,
+        pass_fds=() if lock_fd is None else (lock_fd,),
+    )
+
+
 def spawn_job(path: Path, lock_fd: int | None) -> int:
     """Start the detached job process for *path* and return its pid.
 
@@ -130,16 +149,7 @@ def spawn_job(path: Path, lock_fd: int | None) -> int:
         env[LOCK_FD_ENV] = str(lock_fd)
     try:
         with (path / OUTPUT_NAME).open("ab") as out:
-            proc = subprocess.Popen(
-                _spawn_argv(path),
-                stdin=subprocess.DEVNULL,
-                stdout=out,
-                stderr=out,
-                cwd=_PACKAGE_ROOT,
-                env=env,
-                start_new_session=True,
-                pass_fds=() if lock_fd is None else (lock_fd,),
-            )
+            proc = _start_session(path, out, env, lock_fd)
     except OSError as exc:
         msg = f"The job process could not be started: {exc}."
         raise _fail_unstarted(path, msg) from exc

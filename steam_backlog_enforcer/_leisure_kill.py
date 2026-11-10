@@ -130,8 +130,6 @@ class LeisureKiller:
     ) -> None:
         """Signal this tick's leisure targets if the leisure budget is spent.
 
-        Never raises: the enforce loop has no per-tick guard.
-
         Args:
             state: Accounting state after this tick's policy.
             rules: Policy for this tick (``leisure`` set by the billing step).
@@ -140,7 +138,9 @@ class LeisureKiller:
         """
         try:
             self._enforce(state, rules, verdict=verdict, stamp=stamp)
-        except Exception as exc:  # the loop must outlive any kill bug
+        # Never raises: the enforce loop has no per-tick guard and must outlive
+        # any kill bug, so this catch-all is on purpose.
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             message = f"{type(exc).__name__}: {exc}"
             if message != self._last_error:
                 self._last_error = message
@@ -179,6 +179,12 @@ class LeisureKiller:
             "day_key": state.day_key,
             "seconds": round(state.seconds, 3),
         }
+        self._escalate(live, base, stamp)
+
+    def _escalate(
+        self, live: dict[_Ident, str], base: dict[str, object], stamp: float
+    ) -> None:
+        """SIGTERM each live target once, then SIGKILL it after the grace."""
         for ident, key in sorted(live.items()):
             note = {"key": key, "name": exe_name(ident[0]), **base}
             first = self._termed.get(ident)

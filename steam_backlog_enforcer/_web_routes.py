@@ -84,7 +84,7 @@ def resolve(method: str, path: str) -> tuple[Route, tuple[str, ...]] | str | Non
     """
     path_known = False
     for entry in ROUTES:
-        match = entry.pattern.fullmatch(path)
+        match = re.fullmatch(entry.pattern, path)
         if match is None:
             continue
         if entry.method == method:

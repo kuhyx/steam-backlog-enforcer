@@ -120,7 +120,8 @@ def observe_shadow(owners: dict[int, str], *, stamp: float) -> ShadowVerdict:
         if paused is not None:
             return ShadowVerdict(paused_by=paused, keys=())
         fact = read_now(NOW_PATH, stamp, max_age=_MAX_AGE_SECONDS)
-    except Exception as exc:  # the loop must outlive any shadow input bug
+    # Catch-all on purpose: the loop must outlive any shadow input bug.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         if _should_warn(exc):
             logger.warning(
                 "Shadow inputs unreadable (%r); failing closed.", exc, exc_info=True

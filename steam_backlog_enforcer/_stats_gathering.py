@@ -7,6 +7,7 @@ the 250-line cap. Leaf helpers: nothing here calls back into ``_stats``.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING
 
@@ -41,6 +42,46 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _HltbCaches:
+    """The HLTB caches the stats filter reads, loaded once per filter run."""
+
+    rush: dict[int, float]
+    leisure_100h: dict[int, float]
+    game_id: dict[int, int]
+    hours: dict[int, float]
+
+    @classmethod
+    def load(cls) -> _HltbCaches:
+        """Read every cache from disk."""
+        return cls(
+            rush=load_hltb_rush_cache(),
+            leisure_100h=load_hltb_leisure_100h_cache(),
+            game_id=load_hltb_game_id_cache(),
+            hours=load_hltb_cache(),
+        )
+
+    def times_for(self, game: GameInfo) -> _GameTimes | None:
+        """*game*'s time estimates, or None when HLTB has no time for it."""
+        rush = self.rush.get(game.app_id, -1)
+        leisure = self.leisure_100h.get(game.app_id, -1)
+        # worst_hours = max of: snapshot completionist, HLTB hours cache (fallback
+        # when snapshot is stale/missing), and leisure_100h (slowest 100% time).
+        snap_hours = game.completionist_hours if game.completionist_hours > 0 else -1
+        cache_hours = self.hours.get(game.app_id, -1)
+        worst_candidates = [v for v in (snap_hours, cache_hours, leisure) if v > 0]
+        worst = max(worst_candidates) if worst_candidates else -1
+        if worst <= 0 and rush <= 0 and leisure <= 0:
+            return None
+        return _GameTimes(
+            game=game,
+            worst_hours=worst,
+            rush_hours=rush,
+            leisure_100h=leisure,
+            hltb_game_id=self.game_id.get(game.app_id, 0),
+        )
+
+
 def _filter_qualifying_games(
     games: list[GameInfo],
     state: State,
@@ -53,10 +94,7 @@ def _filter_qualifying_games(
     Returns:
         (qualified_list, hltb_skipped, linux_skipped, no_data_skipped)
     """
-    rush_cache = load_hltb_rush_cache()
-    leisure_100h_cache = load_hltb_leisure_100h_cache()
-    game_id_cache = load_hltb_game_id_cache()
-    hours_cache = load_hltb_cache()
+    caches = _HltbCaches.load()
 
     exclude = set(state.finished_app_ids)
     if state.current_app_id is not None:
@@ -66,53 +104,25 @@ def _filter_qualifying_games(
     _apply_cached_confidence_to_candidates(candidates)
     _refresh_candidate_confidence_batch(candidates)
 
-    hltb_skipped = 0
-    linux_skipped = 0
-    no_data_skipped = 0
-    app_ids_to_check: list[int] = []
-
-    conf_ok: list[GameInfo] = []
-    for game in candidates:
-        if _confidence_fail_reasons(game):
-            hltb_skipped += 1
-            continue
-        conf_ok.append(game)
-        app_ids_to_check.append(game.app_id)
+    conf_ok = [game for game in candidates if not _confidence_fail_reasons(game)]
+    hltb_skipped = len(candidates) - len(conf_ok)
 
     ratings: dict[int, ProtonDBRating] = {}
-    if app_ids_to_check:
-        ratings = fetch_protondb_ratings(app_ids_to_check)
+    if conf_ok:
+        ratings = fetch_protondb_ratings([game.app_id for game in conf_ok])
 
+    linux_skipped = 0
+    no_data_skipped = 0
     qualified: list[_GameTimes] = []
     for game in conf_ok:
-        rating = ratings.get(game.app_id, ProtonDBRating(app_id=game.app_id))
-        if not rating.is_playable:
+        if not ratings.get(game.app_id, ProtonDBRating(app_id=game.app_id)).is_playable:
             linux_skipped += 1
             continue
-
-        rush = rush_cache.get(game.app_id, -1)
-        leisure = leisure_100h_cache.get(game.app_id, -1)
-
-        # worst_hours = max of: snapshot completionist, HLTB hours cache (fallback
-        # when snapshot is stale/missing), and leisure_100h (slowest 100% time).
-        snap_hours = game.completionist_hours if game.completionist_hours > 0 else -1
-        cache_hours = hours_cache.get(game.app_id, -1)
-        worst_candidates = [v for v in (snap_hours, cache_hours, leisure) if v > 0]
-        worst = max(worst_candidates) if worst_candidates else -1
-
-        if worst <= 0 and rush <= 0 and leisure <= 0:
+        times = caches.times_for(game)
+        if times is None:
             no_data_skipped += 1
             continue
-
-        qualified.append(
-            _GameTimes(
-                game=game,
-                worst_hours=worst,
-                rush_hours=rush,
-                leisure_100h=leisure,
-                hltb_game_id=game_id_cache.get(game.app_id, 0),
-            )
-        )
+        qualified.append(times)
 
     return qualified, hltb_skipped, linux_skipped, no_data_skipped
 

@@ -46,6 +46,7 @@ from steam_backlog_enforcer._steam_state import is_game_fully_installed
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+    from typing import BinaryIO
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,21 @@ def poll_fast_installs() -> None:
     _fip.poll_trackers({run.app_id for run in _RUNS}, is_game_fully_installed)
 
 
+def _start_session(cmd: list[str], log: BinaryIO) -> subprocess.Popen[bytes]:
+    """Start *cmd* in its own session writing to *log*; the caller owns it.
+
+    No ``with``: the run outlives this call and is reaped by
+    :func:`poll_fast_installs`.
+    """
+    return subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+
 def _spawn_detached(cmd: list[str], app_id: int, label: str = "") -> None:
     """Start the installer in its own session, output to a log file."""
     # Per user: the daemon's log is root-owned, and a web job runs as the
@@ -149,13 +165,7 @@ def _spawn_detached(cmd: list[str], app_id: int, label: str = "") -> None:
     with log_path.open("ab") as log:
         # Append mode starts at the end: earlier runs' lines are never parsed.
         _fip.track(app_id, label, log_path, offset=log.tell(), now=time.monotonic())
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        proc = _start_session(cmd, log)
     _RUNS.append(_DetachedRun(app_id, proc, log_path))
     logger.info("Started steam-game-installer for AppID=%d (log: %s)", app_id, log_path)
 

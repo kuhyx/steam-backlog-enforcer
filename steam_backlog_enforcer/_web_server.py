@@ -101,7 +101,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._dispatch(method, split.path, _query(split.query))
         except ApiError as exc:
             send_error(self, exc)
-        except Exception:
+        # Catch-all on purpose: any bug answers 500, the server keeps serving.
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("%s %s failed", method, split.path)
             msg = "The server failed to answer this request; see its log."
             send_error(

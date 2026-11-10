@@ -46,10 +46,7 @@ class GameInfo:
     @property
     def is_complete(self) -> bool:
         """True if all achievements are unlocked."""
-        return (
-            self.total_achievements > 0
-            and self.unlocked_achievements >= self.total_achievements
-        )
+        return 0 < self.total_achievements <= self.unlocked_achievements
 
     def to_snapshot(self) -> dict[str, Any]:
         """Serialize to JSON-safe dict."""
