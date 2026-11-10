@@ -16,6 +16,9 @@ from steam_backlog_enforcer._store_tools import (
     IPTABLES,
     IPTABLES_CHAIN,
     SUDO,
+    add_drop_rule,
+    create_fresh_chain,
+    drop_chain,
     ensure_chain_in_output,
     run_quiet,
 )
@@ -44,20 +47,7 @@ def _is_iptables_blocked() -> bool:
 def _block_store_iptables() -> bool:
     """Block Steam Store domains using iptables (IP-based)."""
     try:
-        # Create chain if it doesn't exist.
-        subprocess.run(
-            [SUDO, IPTABLES, "-N", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        # Flush existing rules in our chain.
-        subprocess.run(
-            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=True,
-        )
+        create_fresh_chain(IPTABLES_CHAIN)
 
         # Resolve domains and block their IPs.
         blocked_ips: set[str] = set()
@@ -68,21 +58,7 @@ def _block_store_iptables() -> bool:
                     blocked_ips.add(addr[0])
 
         for ip in blocked_ips:
-            subprocess.run(
-                [
-                    SUDO,
-                    IPTABLES,
-                    "-A",
-                    IPTABLES_CHAIN,
-                    "-d",
-                    ip,
-                    "-j",
-                    "DROP",
-                ],
-                capture_output=True,
-                timeout=5,
-                check=True,
-            )
+            add_drop_rule(IPTABLES_CHAIN, ip)
 
         ensure_chain_in_output(IPTABLES_CHAIN)
     except OSError, subprocess.SubprocessError:
@@ -95,24 +71,7 @@ def _block_store_iptables() -> bool:
 def _unblock_store_iptables() -> bool:
     """Remove iptables-based block."""
     try:
-        subprocess.run(
-            [SUDO, IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [SUDO, IPTABLES, "-X", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
+        drop_chain(IPTABLES_CHAIN)
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to unblock iptables")
         return False

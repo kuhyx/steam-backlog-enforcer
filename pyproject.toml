@@ -132,7 +132,10 @@ exclude = [".venv/"]
 init-hook = "import sys; sys.path.insert(0, '.')"
 analyse-fallback-blocks = true
 persistent = true
-jobs = 0
+# Serial on purpose: with jobs != 1 pylint ships the linter to its workers via
+# dill.dumps(PyLinter), which crashes on Python 3.15 (dill does not handle the
+# removed code.co_lnotab yet). Restore parallel runs once dill supports 3.15.
+jobs = 1
 py-version = "3.14"
 ignore = [".venv", "__pycache__"]
 # Test suites intentionally use patterns (protected-access, fixture-arg
@@ -165,6 +168,11 @@ disable = [
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-comparison-to-zero",
 ]
+
+[tool.pylint.similarities]
+# Same duplicate-code threshold as diet-guard: shorter matches are mostly
+# import blocks and subprocess.run keyword lists, not real copy-paste.
+min-similarity-lines = 8
 
 [tool.pylint.design]
 min-public-methods = 0

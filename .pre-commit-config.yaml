@@ -128,7 +128,9 @@ repos:
         args:
           - --rcfile=pyproject.toml
           - --fail-under=8.0
-          - --jobs=4
+          # Serial: parallel pylint pickles PyLinter with dill, which crashes on
+          # Python 3.15 (removed co_lnotab). Same reason as jobs = 1 in pyproject.
+          - --jobs=1
         # pylint resolves imports in its OWN isolated env, so anything the
         # package imports has to be listed here or it reports import-error and
         # drags the score under --fail-under. `mcp` is a real runtime import

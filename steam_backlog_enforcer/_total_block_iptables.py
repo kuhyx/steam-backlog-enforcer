@@ -15,7 +15,14 @@ import logging
 import socket
 import subprocess
 
-from steam_backlog_enforcer._store_tools import IPTABLES, SUDO, ensure_chain_in_output
+from steam_backlog_enforcer._store_tools import (
+    IPTABLES,
+    SUDO,
+    add_drop_rule,
+    create_fresh_chain,
+    drop_chain,
+    ensure_chain_in_output,
+)
 from steam_backlog_enforcer._total_block_domains import (
     _ALL_TOTAL_BLOCK_DOMAINS,
     NULL_ROUTE_IP,
@@ -111,18 +118,7 @@ def apply_total_block_iptables() -> bool:
 
     resolved_ips: set[str] = set()
     try:
-        subprocess.run(
-            [SUDO, IPTABLES, "-N", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=True,
-        )
+        create_fresh_chain(IPTABLES_CHAIN)
 
         for domain in _ALL_TOTAL_BLOCK_DOMAINS:
             with contextlib.suppress(socket.gaierror):
@@ -133,12 +129,7 @@ def apply_total_block_iptables() -> bool:
         _save_cached_ips(blocked_ips)
 
         for ip in blocked_ips:
-            subprocess.run(
-                [SUDO, IPTABLES, "-A", IPTABLES_CHAIN, "-d", ip, "-j", "DROP"],
-                capture_output=True,
-                timeout=5,
-                check=True,
-            )
+            add_drop_rule(IPTABLES_CHAIN, ip)
 
         ensure_chain_in_output(IPTABLES_CHAIN)
     except OSError, subprocess.SubprocessError:
@@ -151,24 +142,7 @@ def apply_total_block_iptables() -> bool:
 def remove_total_block_iptables() -> bool:
     """Remove the total-block iptables chain and its OUTPUT hook."""
     try:
-        subprocess.run(
-            [SUDO, IPTABLES, "-D", "OUTPUT", "-j", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [SUDO, IPTABLES, "-F", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        subprocess.run(
-            [SUDO, IPTABLES, "-X", IPTABLES_CHAIN],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
+        drop_chain(IPTABLES_CHAIN)
     except OSError, subprocess.SubprocessError:
         logger.exception("Failed to remove total-block iptables rules")
         return False

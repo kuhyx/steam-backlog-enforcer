@@ -53,3 +53,46 @@ def ensure_chain_in_output(chain: str) -> None:
             timeout=5,
             check=True,
         )
+
+
+def create_fresh_chain(chain: str) -> None:
+    """Create ``chain`` if missing, then empty it, ready to be refilled.
+
+    ``-N`` fails harmlessly when the chain already exists, so only the flush
+    is checked.
+
+    Raises:
+        subprocess.CalledProcessError: If the flush fails.
+    """
+    run_quiet([SUDO, IPTABLES, "-N", chain])
+    subprocess.run(
+        [SUDO, IPTABLES, "-F", chain],
+        capture_output=True,
+        timeout=5,
+        check=True,
+    )
+
+
+def add_drop_rule(chain: str, ip: str) -> None:
+    """Append a rule to ``chain`` dropping all traffic to ``ip``.
+
+    Raises:
+        subprocess.CalledProcessError: If iptables rejects the rule.
+    """
+    subprocess.run(
+        [SUDO, IPTABLES, "-A", chain, "-d", ip, "-j", "DROP"],
+        capture_output=True,
+        timeout=5,
+        check=True,
+    )
+
+
+def drop_chain(chain: str) -> None:
+    """Unhook ``chain`` from OUTPUT, flush it and delete it.
+
+    Each step tolerates failure, so removing an absent or half-built chain
+    is a no-op rather than an error.
+    """
+    run_quiet([SUDO, IPTABLES, "-D", "OUTPUT", "-j", chain])
+    run_quiet([SUDO, IPTABLES, "-F", chain])
+    run_quiet([SUDO, IPTABLES, "-X", chain])
