@@ -1,8 +1,8 @@
 """Shared builders for the LeetCode ledger tests.
 
 Split out of ``test_leetcode_ledger.py`` to keep every file inside the 250-line
-cap. The ``key_file`` fixture is imported by name into each test module, which
-is what registers it there.
+cap. The ``key_file`` fixture (``fixture_key_file``) is imported by name into
+each test module, which is what registers it there.
 """
 
 from __future__ import annotations
@@ -78,8 +78,8 @@ def write_ledger(path: Path, entries: list[dict[str, Any]]) -> Path:
     return ledger
 
 
-@pytest.fixture
-def key_file(tmp_path: Path) -> Iterator[Path]:
+@pytest.fixture(name="key_file")
+def fixture_key_file(tmp_path: Path) -> Iterator[Path]:
     """Point the module at a throwaway signing key.
 
     Args:

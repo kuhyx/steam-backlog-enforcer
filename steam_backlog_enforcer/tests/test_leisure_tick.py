@@ -40,7 +40,10 @@ _CUTOFF = "steam_backlog_enforcer._playtime_cutoff"
 
 
 class SpyLeisure:
+    """Leisure killer double that records each enforce call."""
+
     def __init__(self) -> None:
+        """Start with no calls."""
         self.calls: list[tuple[PlaytimeState, PlaytimeRules]] = []
 
     def enforce(
@@ -51,12 +54,14 @@ class SpyLeisure:
         verdict: ShadowVerdict,
         stamp: float,
     ) -> None:
+        """Record the state and rules the tick passed."""
         del verdict, stamp
         self.calls.append((state, rules))
 
 
-@pytest.fixture
-def notify() -> Iterator[MagicMock]:
+@pytest.fixture(name="notify")
+def fixture_notify() -> Iterator[MagicMock]:
+    """Stub every cutoff side effect and yield the desktop-notify mock."""
     with ExitStack() as stack:
         stack.enter_context(patch(f"{_CUTOFF}.reconcile"))
         stack.enter_context(patch(f"{_CUTOFF}.request_steam_shutdown"))
@@ -93,7 +98,10 @@ def _go_live(tmp_path: Path) -> None:
 
 @pytest.mark.usefixtures("notify")
 class TestDormant:
+    """Phase 2 switched off: billing stays games-only."""
+
     def test_no_new_code_path_runs_without_the_switch(self) -> None:
+        """Leisure billing and the killer never run while dormant."""
         with patch.object(
             _leisure_mode, "leisure_billed", side_effect=AssertionError("ran")
         ):
@@ -103,10 +111,12 @@ class TestDormant:
         assert (state.seconds, state.shadow_seconds) == (0.0, 3.0)
 
     def test_games_still_bill_games_only(self) -> None:
+        """A running game is billed per game as before."""
         state, spy = _tick({7: "app:440"})
         assert (state.seconds, state.per_game, spy.calls) == (3.0, {"app:440": 3.0}, [])
 
     def test_a_demo_ignores_the_switch(self, tmp_path: Path) -> None:
+        """A demo tick stays dormant even with the switch set."""
         _go_live(tmp_path)
         state, spy = _tick({}, demo=True)
         assert (state.seconds, spy.calls) == (0.0, [])
@@ -114,15 +124,20 @@ class TestDormant:
 
 @pytest.mark.usefixtures("notify")
 class TestLive:
+    """Phase 2 switched on: leisure is billed and enforced."""
+
     def test_leisure_bills_the_enforced_count(self, tmp_path: Path) -> None:
+        """The fail-closed shadow count becomes the billed count."""
         _go_live(tmp_path)
         state, spy = _tick({})
         assert state.seconds == state.shadow_seconds == 3.0
         assert state.shadow_per_source == {_shadow.FAILCLOSED_KEY: 3.0}
-        [(_seen, rules)] = spy.calls
+        assert len(spy.calls) == 1
+        _seen, rules = spy.calls[0]
         assert rules.leisure
 
     def test_a_lock_pauses_the_enforced_count_too(self, tmp_path: Path) -> None:
+        """A screen lock pauses billing in live mode."""
         _go_live(tmp_path)
         with patch.object(_shadow, "paused_by", return_value="i3lock"):
             state, _ = _tick({7: "app:440"})
@@ -131,6 +146,7 @@ class TestLive:
     def test_at_zero_the_cutoff_says_leisure_and_kills_run(
         self, tmp_path: Path, notify: MagicMock
     ) -> None:
+        """At zero the cutoff notice says leisure and the killer runs."""
         _go_live(tmp_path)
         state, spy = _tick({}, budget=3.0)
         assert state.is_blocked()
@@ -152,11 +168,13 @@ class TestToastGlyphs:
     """Textgate: toasts paint glyphs and numbers, no words."""
 
     def test_warnings_show_gaming_glyph_while_dormant(self) -> None:
+        """Dormant warnings show the gaming glyph."""
         with patch(f"{_CUTOFF}.notify_desktop_user") as notify:
             _warn(PlaytimeState(day_key=_TODAY, seconds=10.0), _RULES)
         notify.assert_called_once_with("⏳🎮", "1h")
 
     def test_warnings_show_leisure_glyph_when_live(self) -> None:
+        """Live warnings show the leisure glyph."""
         with patch(f"{_CUTOFF}.notify_desktop_user") as notify:
             _warn(
                 PlaytimeState(day_key=_TODAY, seconds=10.0),
@@ -166,11 +184,13 @@ class TestToastGlyphs:
 
     @pytest.mark.usefixtures("notify")
     def test_the_dormant_cutoff_shows_unblock_time(self, notify: MagicMock) -> None:
+        """The dormant cutoff notice shows the unblock time."""
         _begin_cutoff(PlaytimeState(day_key=_TODAY), _RULES, now=_NOW)
         notify.assert_called_once_with("⛔🎮", "🔓 06:00")
 
 
 def test_new_session_kills_through_the_budget_log() -> None:
+    """A new session wires a LeisureKiller with a budget log."""
     session = new_session()
     assert isinstance(session.leisure, LeisureKiller)
     assert session.leisure.log is not None

@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
-from steam_backlog_enforcer import _hltb_confidence, _hltb_types, _scanning_confidence
+from steam_backlog_enforcer import _hltb_confidence, _hltb_types
+from steam_backlog_enforcer._scanning_confidence import (
+    _refresh_candidate_confidence_batch,
+)
 from steam_backlog_enforcer.steam_api import GameInfo
 
 _ENTRY = {
@@ -56,7 +59,7 @@ def test_confidence_refresh_keeps_entry_on_failure() -> None:
         playtime_minutes=0,
     )
     with patch.object(_hltb_confidence, "fetch_hltb_confidence"):
-        _scanning_confidence._refresh_candidate_confidence_batch([game], force=True)
+        _refresh_candidate_confidence_batch([game], force=True)
     assert _raw()["1"] == _ENTRY
     assert (game.comp_100_count, game.count_comp) == (100, 500)
 

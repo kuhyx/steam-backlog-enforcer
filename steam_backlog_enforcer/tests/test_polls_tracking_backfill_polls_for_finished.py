@@ -6,24 +6,18 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from steam_backlog_enforcer import _cmd_done
-from steam_backlog_enforcer.config import State
+from steam_backlog_enforcer._cmd_done import _backfill_polls_for_finished
+from steam_backlog_enforcer.tests._polls_helpers import (
+    CMD,
+    TYPES,
+    filling_fetch,
+    hltb_cache_patched,
+    poll_state,
+    write_cache,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-_TYPES = "steam_backlog_enforcer._hltb_types"
-_CMD = "steam_backlog_enforcer._cmd_done"
-_CONF = "steam_backlog_enforcer._hltb_confidence"
-_SCAN = "steam_backlog_enforcer.scanning"
-
-
-def _state(finished: list[int], current: int | None = None) -> State:
-    s = State()
-    s.finished_app_ids = list(finished)
-    s.current_app_id = current
-    s.current_game_name = ""
-    return s
 
 
 class TestBackfillPollsForFinished:
@@ -31,121 +25,56 @@ class TestBackfillPollsForFinished:
 
     def test_no_missing_returns_existing(self, tmp_path: Path) -> None:
         """Test no missing returns existing."""
-        cache_file = tmp_path / "hltb_cache.json"
-        cache_file.write_text(
-            json.dumps({"1": {"hours": 1.0, "polls": 5}}), encoding="utf-8"
-        )
+        cache_file = write_cache(tmp_path, {"1": {"hours": 1.0, "polls": 5}})
         with (
-            patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
-            patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 1, "name": "G"}]),
+            patch(f"{TYPES}.HLTB_CACHE_FILE", cache_file),
+            patch(f"{CMD}.load_snapshot", return_value=[{"app_id": 1, "name": "G"}]),
         ):
-            result = _cmd_done._backfill_polls_for_finished(_state([1]))
+            result = _backfill_polls_for_finished(poll_state([1]))
         assert result == {1: 5}
 
     def test_no_snapshot_no_missing(self) -> None:
         """Test no snapshot no missing."""
         with (
-            patch(f"{_CMD}.load_hltb_polls_cache", return_value={}),
-            patch(f"{_CMD}.load_snapshot", return_value=None),
+            patch(f"{CMD}.load_hltb_polls_cache", return_value={}),
+            patch(f"{CMD}.load_snapshot", return_value=None),
         ):
-            assert _cmd_done._backfill_polls_for_finished(_state([1])) == {}
+            assert _backfill_polls_for_finished(poll_state([1])) == {}
 
     def test_missing_triggers_fetch(self, tmp_path: Path) -> None:
         """Test missing triggers fetch."""
-        cache_file = tmp_path / "hltb_cache.json"
-        cache_file.write_text(
-            json.dumps({"1": {"hours": 2.0, "polls": 0}}), encoding="utf-8"
-        )
-
-        def fake_fetch(
-            games: list[tuple[int, str]],
-            cache: dict[int, float],
-            polls: dict[int, int],
-            count_comp: dict[int, int],
-            **_kw: object,
-        ) -> list[object]:
-            """Test fake search: write into the caches it is handed."""
-            for aid, _name in games:
-                cache[aid], polls[aid], count_comp[aid] = 2.0, 9, 0
-            return []
-
+        cache_file = write_cache(tmp_path, {"1": {"hours": 2.0, "polls": 0}})
         with (
-            patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
-            patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
-            patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 1, "name": "G"}]),
-            patch(
-                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
-                side_effect=fake_fetch,
-            ),
-            patch(f"{_CMD}._echo"),
+            hltb_cache_patched(cache_file, tmp_path, filling_fetch(2.0, 9)),
+            patch(f"{CMD}.load_snapshot", return_value=[{"app_id": 1, "name": "G"}]),
+            patch(f"{CMD}._echo"),
         ):
-            result = _cmd_done._backfill_polls_for_finished(_state([1]))
+            result = _backfill_polls_for_finished(poll_state([1]))
         assert result == {1: 9}
 
     def test_extra_app_id_with_zero_polls_added(self, tmp_path: Path) -> None:
         """Test extra app id with zero polls added."""
-        cache_file = tmp_path / "hltb_cache.json"
-        cache_file.write_text(
-            json.dumps({"7": {"hours": 1.0, "polls": 0}}), encoding="utf-8"
-        )
-
-        def fake_fetch(
-            games: list[tuple[int, str]],
-            cache: dict[int, float],
-            polls: dict[int, int],
-            count_comp: dict[int, int],
-            **_kw: object,
-        ) -> list[object]:
-            """Test fake search: write into the caches it is handed."""
-            for aid, _name in games:
-                cache[aid], polls[aid], count_comp[aid] = 1.0, 4, 0
-            return []
-
+        cache_file = write_cache(tmp_path, {"7": {"hours": 1.0, "polls": 0}})
         with (
-            patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
-            patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
-            patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 7, "name": "G"}]),
-            patch(
-                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
-                side_effect=fake_fetch,
-            ),
-            patch(f"{_CMD}._echo"),
+            hltb_cache_patched(cache_file, tmp_path, filling_fetch(1.0, 4)),
+            patch(f"{CMD}.load_snapshot", return_value=[{"app_id": 7, "name": "G"}]),
+            patch(f"{CMD}._echo"),
         ):
-            result = _cmd_done._backfill_polls_for_finished(
-                _state([], current=7), extra_app_id=7
+            result = _backfill_polls_for_finished(
+                poll_state([], current=7), extra_app_id=7
             )
         assert result == {7: 4}
 
     def test_preserves_prior_hours_on_miss(self, tmp_path: Path) -> None:
         """Test preserves prior hours on miss."""
-        cache_file = tmp_path / "hltb_cache.json"
-        cache_file.write_text(
-            json.dumps({"3": {"hours": 4.0, "polls": 0}}), encoding="utf-8"
-        )
-
-        def fake_fetch(
-            games: list[tuple[int, str]],
-            cache: dict[int, float],
-            polls: dict[int, int],
-            count_comp: dict[int, int],
-            **_kw: object,
-        ) -> list[object]:
-            """Test fake search: a clean miss (hours -1, polls 0)."""
-            for aid, _name in games:
-                cache[aid], polls[aid], count_comp[aid] = -1, 0, 0
-            return []
-
+        cache_file = write_cache(tmp_path, {"3": {"hours": 4.0, "polls": 0}})
+        # A clean miss: hours -1, polls 0.
         with (
-            patch(f"{_TYPES}.HLTB_CACHE_FILE", cache_file),
-            patch(f"{_TYPES}.CONFIG_DIR", tmp_path),
-            patch(f"{_CMD}.load_snapshot", return_value=[{"app_id": 3, "name": "G"}]),
-            patch(
-                "steam_backlog_enforcer._hltb_confidence.fetch_hltb_confidence",
-                side_effect=fake_fetch,
-            ),
-            patch(f"{_CMD}._echo"),
+            hltb_cache_patched(cache_file, tmp_path, filling_fetch(-1, 0)),
+            patch(f"{CMD}.load_snapshot", return_value=[{"app_id": 3, "name": "G"}]),
+            patch(f"{CMD}._echo"),
         ):
-            _cmd_done._backfill_polls_for_finished(_state([3]))
+            _backfill_polls_for_finished(poll_state([3]))
         # Prior hours should be preserved on miss.
         final = json.loads(cache_file.read_text(encoding="utf-8"))
         assert final["3"]["hours"] == 4.0

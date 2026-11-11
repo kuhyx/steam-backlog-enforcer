@@ -13,6 +13,16 @@ from steam_backlog_enforcer.steam_api import (
     SteamAPIError,
 )
 
+# Generous upper bound on requests needed to exhaust the per-second budget.
+_BURST_LIMIT = 100
+
+
+def _owned_response() -> MagicMock:
+    """A GetOwnedGames HTTP response listing no games."""
+    resp = MagicMock()
+    resp.json.return_value = {"response": {"games": []}}
+    return resp
+
 
 class TestSteamAPIClient:
     """Tests for SteamAPIClient."""
@@ -24,51 +34,51 @@ class TestSteamAPIClient:
         assert client.steam_id == "id"
 
     def test_rate_limit(self) -> None:
-        """Test rate limit."""
+        """The first request goes out without waiting on the rate limit."""
         client = SteamAPIClient("key", "id")
-        # Should not block on first call
-        client._rate_limit()
+        client.session.get = MagicMock(return_value=_owned_response())
+        with patch("steam_backlog_enforcer._steam_api_client.time.sleep") as sleep:
+            client.get_owned_games()
+        sleep.assert_not_called()
 
     def test_rate_limit_throttle(self) -> None:
-        """Test rate limit throttle."""
+        """A burst past the per-second budget makes the client sleep."""
         client = SteamAPIClient("key", "id")
-        # Fill up the rate limit window
-        client._request_times = [__import__("time").time()] * client._max_rps
+        client.session.get = MagicMock(return_value=_owned_response())
         with patch(
             "steam_backlog_enforcer._steam_api_client.time.sleep",
         ) as mock_sleep:
-            # Next call should trigger sleep then succeed
-            client._rate_limit()
+            # Keep requesting until the window fills and the throttle kicks in.
+            for _ in range(_BURST_LIMIT):
+                client.get_owned_games()
+                if mock_sleep.called:
+                    break
             mock_sleep.assert_called()
 
     def test_get_success(self) -> None:
-        """Test get success."""
+        """The decoded JSON body of a GET is what the caller receives."""
         client = SteamAPIClient("key", "id")
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"data": "value"}
+        mock_resp.json.return_value = {"response": {"games": [{"appid": 1}]}}
         client.session.get = MagicMock(return_value=mock_resp)
-        result = client._get("https://example.com/api")
-        assert result == {"data": "value"}
+        assert client.get_owned_games() == [{"appid": 1}]
 
     def test_get_with_params(self) -> None:
-        """Test get with params."""
+        """The API key is added to the request's existing params."""
         client = SteamAPIClient("key", "id")
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"data": "value"}
-        client.session.get = MagicMock(return_value=mock_resp)
-        result = client._get("https://example.com/api", params={"foo": "bar"})
-        assert result == {"data": "value"}
+        client.session.get = MagicMock(return_value=_owned_response())
+        client.get_owned_games()
         # Verify key was added to existing params dict
         call_kwargs = client.session.get.call_args
-        assert call_kwargs[1]["params"]["foo"] == "bar"
+        assert call_kwargs[1]["params"]["steamid"] == "id"
         assert call_kwargs[1]["params"]["key"] == "key"
 
     def test_get_failure(self) -> None:
-        """Test get failure."""
+        """A transport error surfaces as SteamAPIError."""
         client = SteamAPIClient("key", "id")
         client.session.get = MagicMock(side_effect=requests.RequestException("fail"))
         with pytest.raises(SteamAPIError):
-            client._get("https://example.com/api")
+            client.get_owned_games()
 
     def test_get_owned_games(self) -> None:
         """Test get owned games."""
@@ -132,22 +142,30 @@ class TestSteamAPIClient:
             assert result == []
 
     def test_fetch_one_game(self) -> None:
-        """Test fetch one game."""
+        """A game with achievements is built from its owned-games entry."""
         client = SteamAPIClient("key", "id")
         ach = AchievementInfo("A1", "Ach1", achieved=True, unlock_time=100)
-        with patch.object(client, "get_achievement_details", return_value=[ach]):
-            result = client._fetch_one_game(
-                {"appid": 440, "name": "TF2", "playtime_forever": 60},
-            )
-            assert result is not None
-            assert result.app_id == 440
+        with (
+            patch.object(
+                client,
+                "get_owned_games",
+                return_value=[{"appid": 440, "name": "TF2", "playtime_forever": 60}],
+            ),
+            patch.object(client, "get_achievement_details", return_value=[ach]),
+        ):
+            result = client.build_game_list()
+            assert len(result) == 1
+            assert result[0].app_id == 440
 
     def test_fetch_one_game_no_achievements(self) -> None:
-        """Test fetch one game no achievements."""
+        """A nameless game without achievements yields no entry."""
         client = SteamAPIClient("key", "id")
-        with patch.object(client, "get_achievement_details", return_value=[]):
-            result = client._fetch_one_game({"appid": 440})
-            assert result is None
+        with (
+            patch.object(client, "get_owned_games", return_value=[{"appid": 440}]),
+            patch.object(client, "get_achievement_details", return_value=[]),
+        ):
+            result = client.build_game_list()
+            assert result == []
 
     def test_build_game_list(self) -> None:
         """Test build game list."""

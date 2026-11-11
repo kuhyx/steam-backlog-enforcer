@@ -7,15 +7,17 @@ arithmetic that consumes it lives in test_budget_resolve.py.
 
 from __future__ import annotations
 
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
+import threading
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer import _workout_budget
 from steam_backlog_enforcer._workout_budget import (
+    _fetch_workout_today,
     reset_cache,
     workout_logged_today,
 )
@@ -135,16 +137,16 @@ class TestFetchWorkoutToday:
 
     def test_reads_the_flag(self, http_stub: str) -> None:
         """A well-formed payload yields the boolean."""
-        assert _workout_budget._fetch_workout_today(http_stub) is True
+        assert _fetch_workout_today(http_stub) is True
 
     def test_a_non_200_is_an_error(self, http_stub_500: str) -> None:
         """An error status must not be parsed as "no workout"."""
         with pytest.raises(ValueError, match="status 500"):
-            _workout_budget._fetch_workout_today(http_stub_500)
+            _fetch_workout_today(http_stub_500)
 
 
-@pytest.fixture
-def http_stub() -> Iterator[str]:
+@pytest.fixture(name="http_stub")
+def fixture_http_stub() -> Iterator[str]:
     """Serve a status payload saying a workout was logged today.
 
     Yields:
@@ -153,8 +155,8 @@ def http_stub() -> Iterator[str]:
     yield from _serve(200, json.dumps({"gaming": {"workout_today": True}}).encode())
 
 
-@pytest.fixture
-def http_stub_500() -> Iterator[str]:
+@pytest.fixture(name="http_stub_500")
+def fixture_http_stub_500() -> Iterator[str]:
     """Serve a 500, as a broken payload builder would.
 
     Yields:
@@ -173,8 +175,6 @@ def _serve(status: int, body: bytes) -> Iterator[str]:
     Yields:
         The URL of the endpoint.
     """
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-    import threading
 
     class _Handler(BaseHTTPRequestHandler):
         def log_message(self, *args: object) -> None:

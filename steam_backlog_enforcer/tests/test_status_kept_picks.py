@@ -39,6 +39,7 @@ def _state() -> State:
 
 
 def test_payload_lists_kept_picks_apart_from_active_ones() -> None:
+    """The status payload lists kept picks apart from the active ones."""
     with patch.multiple(
         "steam_backlog_enforcer._manual_pick_lifecycle",
         get_total_block_status=lambda: _NO_BLOCK,
@@ -52,6 +53,7 @@ def test_payload_lists_kept_picks_apart_from_active_ones() -> None:
 
 
 def test_status_view_projects_kept_picks() -> None:
+    """The web status view projects kept picks to id and name."""
     raw = {"assigned_game_installed": True, "manual_picks": [], "kept_picks": [_KEPT]}
     with patch(f"{_web_views.__name__}.status_payload", return_value=raw):
         body = payload_of(_web_views.status_view(make_request()))
@@ -59,6 +61,7 @@ def test_status_view_projects_kept_picks() -> None:
 
 
 def test_cli_status_lists_kept_games() -> None:
+    """The CLI status lists kept games with the abandon command."""
     with (
         patch(f"{_STATUS}.is_store_blocked", return_value=False),
         patch(f"{_STATUS}.get_installed_games", return_value=[]),

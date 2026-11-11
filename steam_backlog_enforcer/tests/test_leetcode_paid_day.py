@@ -17,7 +17,11 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer import _leetcode_bonus, _leetcode_ledger
-from steam_backlog_enforcer._leetcode_bonus import leetcode_solved_today, reset_cache
+from steam_backlog_enforcer._leetcode_bonus import (
+    _fetch_leetcode_today,
+    leetcode_solved_today,
+    reset_cache,
+)
 from steam_backlog_enforcer.config import Config
 
 if TYPE_CHECKING:
@@ -62,15 +66,17 @@ def _serve(block: dict[str, bool]) -> object:
 def test_the_fallback_pays_only_a_paid_day(
     block: dict[str, bool], *, expected: bool
 ) -> None:
+    """The endpoint fallback earns the hour only for a paid or stood-down day."""
     conn = _serve(block)
     try:
-        assert _leetcode_bonus._fetch_leetcode_today(_URL) is expected
+        assert _fetch_leetcode_today(_URL) is expected
     finally:
         conn.stop()
 
 
 @pytest.mark.parametrize("off", [True, False])
 def test_gate_off_is_read_from_the_endpoint(*, off: bool) -> None:
+    """gate_off_now returns the endpoint's live gate_off value."""
     conn = _serve({"solved_today": False, "gate_off": off})
     try:
         assert _leetcode_bonus.gate_off_now(_URL) is off
@@ -79,11 +85,13 @@ def test_gate_off_is_read_from_the_endpoint(*, off: bool) -> None:
 
 
 def test_an_unreachable_endpoint_means_the_gate_is_on() -> None:
+    """An unreachable endpoint fails closed: the gate counts as on."""
     with patch(f"{_PKG}.get_status", side_effect=OSError("refused")):
         assert _leetcode_bonus.gate_off_now(_URL) is False
 
 
 def test_an_old_endpoint_without_the_field_means_on() -> None:
+    """An endpoint without gate_off counts as gate on."""
     conn = _serve({"solved_today": True})
     try:
         assert _leetcode_bonus.gate_off_now(_URL) is False
@@ -92,6 +100,7 @@ def test_an_old_endpoint_without_the_field_means_on() -> None:
 
 
 def test_the_ledger_read_is_told_the_live_answer() -> None:
+    """leetcode_solved_today hands the live gate_off answer to the ledger read."""
     with (
         patch(f"{_PKG}.gate_off_now", return_value=True),
         patch(f"{_PKG}.read_ledger_solved_today", return_value=True) as read,
@@ -101,6 +110,7 @@ def test_the_ledger_read_is_told_the_live_answer() -> None:
 
 
 def test_the_ledger_reader_passes_it_on(tmp_path: Path) -> None:
+    """The ledger reader forwards gate_off to earned_time.done_today."""
     with patch.object(
         _leetcode_ledger.earned_time, "done_today", return_value=True
     ) as done:

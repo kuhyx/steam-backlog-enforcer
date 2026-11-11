@@ -15,35 +15,31 @@ from steam_backlog_enforcer._desktop_env import (
 )
 from steam_backlog_enforcer._steam_errors import DesktopSessionNotReadyError
 from steam_backlog_enforcer._steam_launch import ensure_steam_debug_port
+from steam_backlog_enforcer.tests._desktop_launch_patches import (
+    DESKTOP_ENV_PKG,
+    STEAM_PROCESS_PKG,
+    fresh_launch_patches,
+    launch_patches,
+)
 
-PKG = "steam_backlog_enforcer.library_hider"
-DESKTOP_ENV_PKG = "steam_backlog_enforcer._desktop_env"
-STEAM_LAUNCH_PKG = "steam_backlog_enforcer._steam_launch"
-STEAM_PROCESS_PKG = "steam_backlog_enforcer._steam_process"
-ENV_PKG = "steam_backlog_enforcer._desktop_env"
-
-
-def _env_value(args: list[str], name: str) -> str | None:
-    """Return the value assigned to *name* in a list of ``VAR=value`` args."""
-    prefix = f"{name}="
-    for arg in args:
-        if arg.startswith(prefix):
-            return arg[len(prefix) :]
-    return None
+ENV_PKG = DESKTOP_ENV_PKG
 
 
 class TestDesktopSessionReady:
     """Tests for desktop_session_ready."""
 
     def test_ready_when_runtime_dir_exists(self) -> None:
+        """An existing /run/user/<uid> means the session is ready."""
         with patch(f"{ENV_PKG}.Path.is_dir", return_value=True):
             assert desktop_session_ready(1000) is True
 
     def test_not_ready_when_runtime_dir_missing(self) -> None:
+        """A missing runtime dir means the session is not ready."""
         with patch(f"{ENV_PKG}.Path.is_dir", return_value=False):
             assert desktop_session_ready(1000) is False
 
     def test_runtime_dir_path(self) -> None:
+        """The runtime dir is /run/user/<uid>."""
         assert desktop_runtime_dir(1000) == "/run/user/1000"
 
 
@@ -58,104 +54,51 @@ class TestLaunchDefersUntilSessionReady:
     """
 
     def test_defers_when_runtime_dir_missing(self) -> None:
+        """Steam is not launched while the runtime dir is missing."""
         with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch.steam_is_installed",
-                return_value=True,
-            ),
-            patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=0),
-            patch(
-                "steam_backlog_enforcer._steam_launch._resolve_desktop_user",
-                return_value="bob",
-            ),
-            patch(f"{DESKTOP_ENV_PKG}.desktop_uid", return_value=1000),
-            patch(f"{STEAM_LAUNCH_PKG}.desktop_session_ready", return_value=False),
-            patch(
-                "steam_backlog_enforcer._steam_launch._shutdown_steam"
-            ) as mock_shutdown,
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug"
-            ) as mock_launch,
+            launch_patches(
+                "_shutdown_steam",
+                "_launch_steam_with_debug",
+                extra={
+                    f"{STEAM_PROCESS_PKG}.os.geteuid": 0,
+                    f"{DESKTOP_ENV_PKG}.desktop_uid": 1000,
+                },
+                _steam_has_debug_port=False,
+                steam_is_installed=True,
+                _resolve_desktop_user="bob",
+                desktop_session_ready=False,
+            ) as mocks,
             pytest.raises(DesktopSessionNotReadyError),
         ):
             ensure_steam_debug_port()
 
         # Neither bounce a working Steam nor start a broken one.
-        mock_launch.assert_not_called()
-        mock_shutdown.assert_not_called()
+        mocks["_launch_steam_with_debug"].assert_not_called()
+        mocks["_shutdown_steam"].assert_not_called()
 
     def test_launches_when_runtime_dir_present(self) -> None:
-        with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch.steam_is_installed",
-                return_value=True,
-            ),
-            patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=0),
-            patch(
-                "steam_backlog_enforcer._steam_launch._resolve_desktop_user",
-                return_value="bob",
-            ),
-            patch(f"{DESKTOP_ENV_PKG}.desktop_uid", return_value=1000),
-            patch(f"{STEAM_LAUNCH_PKG}.desktop_session_ready", return_value=True),
-            patch(
-                "steam_backlog_enforcer._steam_launch._is_steam_running",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug"
-            ) as mock_launch,
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_cdp_ready",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_collections_ready",
-                return_value=True,
-            ),
-        ):
+        """Steam is launched once the runtime dir exists."""
+        with fresh_launch_patches(
+            extra={
+                f"{STEAM_PROCESS_PKG}.os.geteuid": 0,
+                f"{DESKTOP_ENV_PKG}.desktop_uid": 1000,
+            },
+            steam_is_installed=True,
+            _resolve_desktop_user="bob",
+            desktop_session_ready=True,
+            _is_steam_running=False,
+        ) as mocks:
             ensure_steam_debug_port()
-        mock_launch.assert_called_once()
+        mocks["_launch_steam_with_debug"].assert_called_once()
 
     def test_non_root_does_not_gate(self) -> None:
         """Run interactively, the ambient session is already the user's."""
-        with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch.steam_is_installed",
-                return_value=True,
-            ),
-            patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=1000),
-            patch(
-                "steam_backlog_enforcer._steam_launch._resolve_desktop_user",
-                return_value="bob",
-            ),
-            patch(f"{STEAM_LAUNCH_PKG}.desktop_session_ready", return_value=False),
-            patch(
-                "steam_backlog_enforcer._steam_launch._is_steam_running",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug"
-            ) as mock_launch,
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_cdp_ready",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_collections_ready",
-                return_value=True,
-            ),
-        ):
+        with fresh_launch_patches(
+            extra={f"{STEAM_PROCESS_PKG}.os.geteuid": 1000},
+            steam_is_installed=True,
+            _resolve_desktop_user="bob",
+            desktop_session_ready=False,
+            _is_steam_running=False,
+        ) as mocks:
             ensure_steam_debug_port()
-        mock_launch.assert_called_once()
+        mocks["_launch_steam_with_debug"].assert_called_once()

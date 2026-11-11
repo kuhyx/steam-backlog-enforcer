@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer._config_setup import interactive_setup
+from steam_backlog_enforcer.tests._config_paths import config_file_under
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,11 +19,8 @@ class TestInteractiveSetup:
 
     def test_success(self, tmp_path: Path) -> None:
         """Test success."""
-        config_dir = tmp_path / "cfg"
-        config_file = config_dir / "config.json"
         with (
-            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file),
+            config_file_under(tmp_path) as config_file,
             patch("builtins.input", side_effect=["mykey", "myid"]),
         ):
             cfg = interactive_setup()
@@ -40,11 +38,8 @@ class TestInteractiveSetup:
 
     def test_empty_steam_id_exits(self, tmp_path: Path) -> None:
         """Test empty steam id exits."""
-        config_dir = tmp_path / "cfg"
-        config_file = config_dir / "config.json"
         with (
-            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file),
+            config_file_under(tmp_path),
             patch("builtins.input", side_effect=["key", ""]),
             pytest.raises(SystemExit),
         ):

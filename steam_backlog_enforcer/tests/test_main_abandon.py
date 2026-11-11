@@ -26,23 +26,29 @@ PKG = "steam_backlog_enforcer.main.abandon"
 
 
 class TestCmdAbandonPick:
+    """cmd_abandon_pick validates its argument and needs the typed phrase."""
+
     def test_no_args_exits(self) -> None:
+        """No argument prints usage and exits 1."""
         with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit) as exc:
             cmd_abandon_pick(Config(), abandonable_state(), [])
         assert exc.value.code == 1
         assert "Usage" in " ".join(str(c) for c in mock_echo.call_args_list)
 
     def test_non_numeric_app_id_exits(self) -> None:
+        """A non-numeric app id exits with a message."""
         with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
             cmd_abandon_pick(Config(), abandonable_state(), ["abc"])
         assert "must be a number" in " ".join(str(c) for c in mock_echo.call_args_list)
 
     def test_no_active_pick_exits(self) -> None:
+        """Without a manual pick the command exits."""
         with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
             cmd_abandon_pick(Config(), State(), ["100"])
         assert "No manual pick" in " ".join(str(c) for c in mock_echo.call_args_list)
 
     def test_wrong_app_id_exits(self) -> None:
+        """An app id that is not a manual pick exits."""
         with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
             cmd_abandon_pick(Config(), abandonable_state(app_id=100), ["999"])
         assert "not one of your manual picks" in " ".join(
@@ -86,6 +92,7 @@ class TestCmdAbandonPick:
         assert [p["app_id"] for p in state.manual_picks] == [100]
 
     def test_aborted_when_not_yes(self) -> None:
+        """Any answer but the phrase aborts."""
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo"),
@@ -99,6 +106,7 @@ class TestCmdAbandonPick:
         assert [p["app_id"] for p in state.manual_picks] == [100]
 
     def test_success_clears_lock_and_uninstalls(self) -> None:
+        """The phrase clears the pick and uninstalls the game."""
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo") as mock_echo,
@@ -115,6 +123,7 @@ class TestCmdAbandonPick:
         assert "abandoned" in " ".join(str(c) for c in mock_echo.call_args_list)
 
     def test_skips_uninstall_when_not_installed(self) -> None:
+        """A game not installed is not uninstalled."""
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo"),
@@ -127,6 +136,7 @@ class TestCmdAbandonPick:
         mock_uninstall.assert_not_called()
 
     def test_warns_when_uninstall_fails(self) -> None:
+        """A failed uninstall is reported."""
         state = abandonable_state()
         with (
             patch(f"{PKG}._echo") as mock_echo,
@@ -140,11 +150,15 @@ class TestCmdAbandonPick:
 
 
 class TestAbandonPickLockInteraction:
+    """abandon-pick stays reachable while the pick lock holds."""
+
     def test_abandon_pick_is_exempt_from_the_lock(self) -> None:
+        """The lock check lets abandon-pick through."""
         # The escape hatch must survive the pre-dispatch lock check.
         _enforce_manual_pick_lock("abandon-pick", locked_state())
 
     def test_main_dispatches_abandon_pick_while_locked(self) -> None:
+        """main runs abandon-pick under the lock."""
         argv = ["prog", "abandon-pick", "100"]
         with (
             patch.object(sys, "argv", argv),
@@ -162,6 +176,7 @@ class TestAbandonPickLockInteraction:
         mock_cmd.assert_called_once()
 
     def test_lock_message_advertises_abandon(self) -> None:
+        """The lock message points at abandon-pick."""
         state = abandonable_state(started_at=RECENT_PICK)
         with patch("steam_backlog_enforcer.main._shared._echo") as mock_echo:
             _show_manual_pick_lock_message(state)
@@ -170,6 +185,7 @@ class TestAbandonPickLockInteraction:
         assert "day(s) ago" in output
 
     def test_lock_message_advertises_abandon_for_old_picks_too(self) -> None:
+        """The lock message points at abandon-pick for old picks too."""
         state = abandonable_state(started_at=OLD_PICK)
         with patch("steam_backlog_enforcer.main._shared._echo") as mock_echo:
             _show_manual_pick_lock_message(state)
@@ -183,7 +199,10 @@ class TestAbandonPickLockInteraction:
 
 
 class TestAbandonOneOfTwoPicks:
+    """Abandoning one of two picks leaves the other."""
+
     def test_other_pick_survives(self) -> None:
+        """Abandoning the second pick keeps the first."""
         state = two_pick_state()
         with (
             patch(f"{PKG}._echo") as mock_echo,
@@ -199,6 +218,7 @@ class TestAbandonOneOfTwoPicks:
         assert state.current_app_id == 100
 
     def test_wrong_id_lists_all_active_picks(self) -> None:
+        """A wrong id lists every active pick."""
         state = two_pick_state()
         with patch(f"{PKG}._echo") as mock_echo, pytest.raises(SystemExit):
             cmd_abandon_pick(Config(), state, ["999"])
@@ -207,6 +227,7 @@ class TestAbandonOneOfTwoPicks:
         assert "SecondGame (AppID=200)" in output
 
     def test_lock_message_lists_both_picks(self) -> None:
+        """The lock message lists both picks."""
         with patch("steam_backlog_enforcer.main._shared._echo") as mock_echo:
             _show_manual_pick_lock_message(two_pick_state())
         output = " ".join(str(c) for c in mock_echo.call_args_list)

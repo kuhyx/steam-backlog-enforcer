@@ -22,6 +22,8 @@ from unittest.mock import patch
 
 import pytest
 
+from steam_backlog_enforcer import _bonus_incident
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
@@ -38,8 +40,6 @@ def _isolate_incidents(tmp_path: Path) -> Iterator[None]:
         None, with the log redirected and the reported-incident memo cleared so
         one test's rate limit cannot mute the next.
     """
-    from steam_backlog_enforcer import _bonus_incident
-
     _bonus_incident.reset_reported()
     with patch.object(
         _bonus_incident, "INCIDENT_LOG", tmp_path / "leetcode_bonus_incidents.log"

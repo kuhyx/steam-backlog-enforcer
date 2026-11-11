@@ -17,17 +17,24 @@ def test_short_duration(seconds: int, shown: str) -> None:
 
 
 class TestHumanise:
+    """Durations render as the words the playtime warning speaks."""
+
     def test_seconds(self) -> None:
+        """Under a minute reads in seconds."""
         assert _humanise(30) == "30 seconds"
 
     def test_exact_minute_boundary(self) -> None:
+        """Exactly sixty seconds already reads in minutes."""
         assert _humanise(60) == "1 minutes"
 
     def test_minutes(self) -> None:
+        """Several minutes read as a minute count."""
         assert _humanise(300) == "5 minutes"
 
     def test_one_hour_is_special_cased(self) -> None:
+        """One hour reads as the singular ``1 hour``."""
         assert _humanise(3600) == "1 hour"
 
     def test_thirty_minutes(self) -> None:
+        """Half an hour stays in minutes."""
         assert _humanise(1800) == "30 minutes"

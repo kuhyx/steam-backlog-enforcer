@@ -18,11 +18,9 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer import (
-    _fast_install,
-    _fast_install_cmd,
-    _fast_install_progress,
-)
+from steam_backlog_enforcer import _fast_install_cmd
+from steam_backlog_enforcer._fast_install import _FAILED, _RUNS
+from steam_backlog_enforcer._fast_install_progress import _FAILURES, _TRACKERS
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -41,10 +39,10 @@ def _no_fast_install(tmp_path: Path) -> Iterator[None]:
     """Hide the real installer, fake the /proc scan, reset run bookkeeping."""
     fake_steamapps = tmp_path / "steamapps"
     fake_steamapps.mkdir(exist_ok=True)
-    _fast_install._RUNS.clear()
-    _fast_install._FAILED.clear()
-    _fast_install_progress._TRACKERS.clear()
-    _fast_install_progress._FAILURES.clear()
+    _RUNS.clear()
+    _FAILED.clear()
+    _TRACKERS.clear()
+    _FAILURES.clear()
     patches = [patch(name, return_value=False) for name in _RUNNING_BINDINGS]
     patches += [
         # Absolute, so `home / _INSTALLER` resolves here and never under ~.
@@ -60,7 +58,7 @@ def _no_fast_install(tmp_path: Path) -> Iterator[None]:
     finally:
         for p in reversed(patches):
             p.stop()
-        _fast_install._RUNS.clear()
-        _fast_install._FAILED.clear()
-        _fast_install_progress._TRACKERS.clear()
-        _fast_install_progress._FAILURES.clear()
+        _RUNS.clear()
+        _FAILED.clear()
+        _TRACKERS.clear()
+        _FAILURES.clear()

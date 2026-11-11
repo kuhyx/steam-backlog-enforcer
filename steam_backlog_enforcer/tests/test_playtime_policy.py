@@ -5,7 +5,6 @@ Split out of ``test_playtime_tick.py`` to hold both files inside the
 tests exercise the loop that feeds it.
 """
 
-from contextlib import ExitStack
 from dataclasses import replace
 from datetime import (
     datetime,
@@ -13,8 +12,6 @@ from datetime import (
     timezone,
 )
 from unittest.mock import patch
-
-import pytest
 
 from steam_backlog_enforcer._playtime import (
     _policy,
@@ -25,32 +22,10 @@ from steam_backlog_enforcer._playtime_state import (
 )
 from steam_backlog_enforcer.config import Config
 
-PKG = "steam_backlog_enforcer._playtime"
+CUTOFF = "steam_backlog_enforcer._playtime_cutoff"
 LOCAL = timezone(timedelta(hours=2))
 NOW = datetime(2026, 7, 27, 20, 0, tzinfo=LOCAL)
 TODAY = "2026-07-27"
-
-
-@pytest.fixture
-def quiet_tick() -> object:
-    """Neutralise every side effect the tick can produce."""
-    with ExitStack() as stack:
-        # Each name is patched in the module that *resolves* it, not in the
-        # package that re-exports it -- otherwise the patch never bites.
-        cutoff = "steam_backlog_enforcer._playtime_cutoff"
-        mocks = {
-            name: stack.enter_context(patch(f"{where}.{name}"))
-            for name, where in (
-                ("reconcile", cutoff),
-                ("request_steam_shutdown", cutoff),
-                ("kill_gaming_processes", cutoff),
-                ("notify_desktop_user", cutoff),
-                ("mounted_targets", PKG),
-            )
-        }
-        mocks["mounted_targets"].return_value = set()
-        stack.enter_context(patch(f"{PKG}.is_total_block_active", return_value=False))
-        yield mocks
 
 
 def _rules(*, demo: bool = False, **cfg: object) -> object:
@@ -58,13 +33,14 @@ def _rules(*, demo: bool = False, **cfg: object) -> object:
 
 
 class TestPolicyBelowBudget:
+    """Under budget the policy keeps games mounted and warns near the end."""
+
     def test_releases_and_warns(self) -> None:
+        """An hour left releases the block and sends the one-hour warning."""
         state = PlaytimeState(day_key=TODAY, seconds=8 * 3600 - 3600)
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as mock_rec,
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
-            ) as mock_notify,
+            patch(f"{CUTOFF}.reconcile") as mock_rec,
+            patch(f"{CUTOFF}.notify_desktop_user") as mock_notify,
         ):
             out = _policy(state, _rules(), now=NOW)
         mock_rec.assert_called_once_with(should_block=False)
@@ -72,12 +48,11 @@ class TestPolicyBelowBudget:
         assert out.warned_seconds == [3600]
 
     def test_no_warning_when_far_from_budget(self) -> None:
+        """With the whole budget left no warning is sent."""
         state = PlaytimeState(day_key=TODAY, seconds=0.0)
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
-            ) as mock_notify,
+            patch(f"{CUTOFF}.reconcile"),
+            patch(f"{CUTOFF}.notify_desktop_user") as mock_notify,
         ):
             out = _policy(state, _rules(), now=NOW)
         mock_notify.assert_not_called()
@@ -85,7 +60,10 @@ class TestPolicyBelowBudget:
 
 
 class TestPolicyAtOrOverBudget:
+    """At or over budget the policy cuts off, then holds the block."""
+
     def test_engages_the_cutoff_when_not_yet_blocked(self) -> None:
+        """The first over-budget tick engages the cutoff."""
         state = PlaytimeState(day_key=TODAY, seconds=10**6)
         with (
             patch("steam_backlog_enforcer._playtime._begin_cutoff") as mock_begin,
@@ -96,6 +74,7 @@ class TestPolicyAtOrOverBudget:
         mock_sustain.assert_not_called()
 
     def test_sustains_the_block_once_engaged(self) -> None:
+        """Once blocked, later ticks sustain the block instead of re-engaging."""
         state = PlaytimeState(day_key=TODAY, seconds=10**6, blocked_at=1.0)
         with (
             patch("steam_backlog_enforcer._playtime._begin_cutoff") as mock_begin,
@@ -107,14 +86,14 @@ class TestPolicyAtOrOverBudget:
 
 
 class TestPolicyEnforcementDisabled:
+    """With enforcement off the policy never blocks."""
+
     def test_releases_but_does_not_block(self) -> None:
         """Disabling must never come to mean 'blocked forever'."""
         state = PlaytimeState(day_key=TODAY, seconds=10**6)
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as mock_rec,
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.request_steam_shutdown"
-            ) as mock_shutdown,
+            patch(f"{CUTOFF}.reconcile") as mock_rec,
+            patch(f"{CUTOFF}.request_steam_shutdown") as mock_shutdown,
         ):
             out = _policy(state, _rules(playtime_enforcement=False), now=NOW)
         mock_rec.assert_called_once_with(should_block=False)
@@ -142,8 +121,8 @@ class TestPolicyBudgetRoseMidDay:
     def test_the_block_is_released(self) -> None:
         """reconcile is asked to unmount, which is what re-enables gaming."""
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile") as mock_rec,
-            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+            patch(f"{CUTOFF}.reconcile") as mock_rec,
+            patch(f"{CUTOFF}.notify_desktop_user"),
         ):
             _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
         mock_rec.assert_called_once_with(should_block=False)
@@ -151,8 +130,8 @@ class TestPolicyBudgetRoseMidDay:
     def test_blocked_at_is_cleared(self) -> None:
         """Otherwise the UI reports "blocked" while gaming works fine."""
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
-            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+            patch(f"{CUTOFF}.reconcile"),
+            patch(f"{CUTOFF}.notify_desktop_user"),
         ):
             out = _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
         assert out.is_blocked() is False
@@ -163,10 +142,8 @@ class TestPolicyBudgetRoseMidDay:
         Left alone, the extra two hours would arrive with no warning at all.
         """
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
-            ) as mock_notify,
+            patch(f"{CUTOFF}.reconcile"),
+            patch(f"{CUTOFF}.notify_desktop_user") as mock_notify,
         ):
             out = _policy(self._blocked_at_six_hours(), _rules(), now=NOW)
         # Two hours remain, so nothing is due yet -- but the record is clear,
@@ -179,8 +156,8 @@ class TestPolicyBudgetRoseMidDay:
         spent = 8 * 3600 - 3000.0
         state = PlaytimeState(day_key=TODAY, seconds=spent, warned_seconds=[3600])
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
-            patch("steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"),
+            patch(f"{CUTOFF}.reconcile"),
+            patch(f"{CUTOFF}.notify_desktop_user"),
         ):
             out = _policy(state, _rules(), now=NOW)
         assert out.warned_seconds == [3600]
@@ -196,10 +173,8 @@ class TestPolicyBudgetRoseMidDay:
             day_key=TODAY, seconds=5 * 3600.0, warned_seconds=[3600, 1800, 600, 300]
         )
         with (
-            patch("steam_backlog_enforcer._playtime_cutoff.reconcile"),
-            patch(
-                "steam_backlog_enforcer._playtime_cutoff.notify_desktop_user"
-            ) as mock_notify,
+            patch(f"{CUTOFF}.reconcile"),
+            patch(f"{CUTOFF}.notify_desktop_user") as mock_notify,
         ):
             out = _policy(state, _rules(), now=NOW)
             mock_notify.assert_not_called()

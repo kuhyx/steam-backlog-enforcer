@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import TYPE_CHECKING
@@ -23,23 +24,21 @@ from steam_backlog_enforcer._playtime_state import (
 )
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._budget_dates import AFTER_CUT, pin_today
-from steam_backlog_enforcer.tests._fake_session import fake_session
+from steam_backlog_enforcer.tests._budget_earners import HOUR, resolve_with
+from steam_backlog_enforcer.tests._fake_session import StubShadow, fake_session
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-_WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
-_LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
-_READING = "steam_backlog_enforcer._budget_resolve.read_today"
-_HOUR = 3600.0
+_PKG = "steam_backlog_enforcer._playtime"
 _LOCAL = timezone(timedelta(hours=2))
 _NOW = datetime(2026, 7, 27, 20, 0, tzinfo=_LOCAL)
 _TODAY = "2026-07-27"
-_PKG = "steam_backlog_enforcer._playtime"
 
 
 @pytest.fixture(autouse=True)
 def _fresh_caches() -> Iterator[None]:
+    """Start each test with empty earner caches and a pinned date."""
     _workout_budget.reset_cache()
     _leetcode_bonus.reset_cache()
     with pin_today(AFTER_CUT):
@@ -49,23 +48,22 @@ def _fresh_caches() -> Iterator[None]:
 
 
 def _resolve(*, done: bool) -> object:
-    with (
-        patch(_WORKOUT, return_value=done),
-        patch(_LEETCODE, return_value=done),
-        patch(_READING, return_value=done),
-    ):
-        return resolve_budget(Config())
+    return resolve_with(workout=done, leetcode=done, reading=done)
 
 
 class TestShadowResolution:
+    """The shadow leisure budget resolves alongside the enforced one."""
+
     def test_a_fully_done_day_prices_ten_hours_and_enforces_eight(self) -> None:
+        """A fully earned day prices ten shadow hours against eight enforced."""
         resolved = _resolve(done=True)
-        assert resolved.shadow_seconds == 10 * _HOUR
-        assert resolved.seconds == 8 * _HOUR
+        assert resolved.shadow_seconds == 10 * HOUR
+        assert resolved.seconds == 8 * HOUR
 
     def test_the_leisure_base_is_two_hours_above_the_enforced_one(self) -> None:
+        """The shadow base sits two hours above the enforced base."""
         resolved = _resolve(done=False)
-        assert resolved.shadow_seconds == resolved.seconds + 2 * _HOUR
+        assert resolved.shadow_seconds == resolved.seconds + 2 * HOUR
 
     def test_a_missing_answer_warns_once_not_once_per_pricing(
         self, caplog: pytest.LogCaptureFixture
@@ -82,28 +80,36 @@ class TestShadowResolution:
 
 
 class TestHeldShadow:
+    """The shadow budget holds its same-day high-water mark."""
+
     def test_same_day_holds_the_high_water(self) -> None:
-        stored = PlaytimeState(day_key=_TODAY, shadow_budget_seconds=9 * _HOUR)
-        assert held_shadow_today(stored, _NOW) == 9 * _HOUR
+        """A stored budget from today is held."""
+        stored = PlaytimeState(day_key=_TODAY, shadow_budget_seconds=9 * HOUR)
+        assert held_shadow_today(stored, _NOW) == 9 * HOUR
 
     def test_another_day_or_no_state_holds_nothing(self) -> None:
-        stored = PlaytimeState(day_key="2026-07-26", shadow_budget_seconds=_HOUR)
+        """A budget from another day, or none at all, holds nothing."""
+        stored = PlaytimeState(day_key="2026-07-26", shadow_budget_seconds=HOUR)
         assert held_shadow_today(stored, _NOW) == 0.0
         assert held_shadow_today(None, _NOW) == 0.0
 
     def test_rules_take_the_higher_of_live_and_held(self) -> None:
+        """Rules use the higher of the live and held shadow budgets."""
         held = "steam_backlog_enforcer._playtime_state.held_shadow_today"
-        with patch(held, return_value=20 * _HOUR):
-            assert rules_for(Config(), demo=False).shadow_budget_seconds == 20 * (_HOUR)
+        with patch(held, return_value=20 * HOUR):
+            assert rules_for(Config(), demo=False).shadow_budget_seconds == 20 * (HOUR)
         with patch(held, return_value=0.0):
             live = rules_for(Config(), demo=False).shadow_budget_seconds
-        assert 0.0 < live < 20 * _HOUR
+        assert 0.0 < live < 20 * HOUR
 
     def test_demo_has_no_shadow_budget(self) -> None:
+        """Demo runs have no shadow budget."""
         assert rules_for(Config(), demo=True).shadow_budget_seconds == 0.0
 
 
 class TestShadowTick:
+    """The playtime tick bills shadow seconds next to enforced ones."""
+
     def _tick(self, owners: dict[int, str], *, total_block: bool = False) -> None:
         save_state(
             PlaytimeState(day_key=_TODAY, last_tick_at=_NOW.timestamp() - 3.0),
@@ -124,6 +130,7 @@ class TestShadowTick:
             playtime_tick(Config(), interval=3.0, session=fake_session())
 
     def test_bills_shadow_beside_the_enforced_count(self) -> None:
+        """A game tick bills both the enforced count and the shadow count."""
         self._tick({7: "app:440"})
         state = load_state(demo=False)
         assert state is not None
@@ -133,6 +140,7 @@ class TestShadowTick:
         assert state.shadow_budget_seconds > 0.0
 
     def test_no_game_and_no_watcher_fails_closed(self) -> None:
+        """With no game and no watcher the shadow bills the fail-closed key."""
         self._tick({})
         state = load_state(demo=False)
         assert state is not None
@@ -140,6 +148,7 @@ class TestShadowTick:
         assert state.shadow_per_source == {_shadow.FAILCLOSED_KEY: 3.0}
 
     def test_no_shadow_under_a_total_block(self) -> None:
+        """A total block bills no shadow seconds but keeps the budget."""
         self._tick({}, total_block=True)
         state = load_state(demo=False)
         assert state is not None
@@ -147,7 +156,9 @@ class TestShadowTick:
         assert state.shadow_budget_seconds > 0.0
 
     def test_the_session_journals_the_shadow_verdict(self) -> None:
-        session = fake_session()
+        """The tick journals the shadow verdict through the session."""
+        shadow = StubShadow()
+        session = replace(fake_session(), shadow=shadow)
         save_state(
             PlaytimeState(day_key=_TODAY, last_tick_at=_NOW.timestamp() - 3.0),
             demo=False,
@@ -161,11 +172,14 @@ class TestShadowTick:
         ):
             mock_dt.now.return_value = _NOW
             playtime_tick(Config(), interval=3.0, session=session)
-        assert [v.state for v in session.shadow.observed] == ["leisure"]
+        assert [v.state for v in shadow.observed] == ["leisure"]
 
 
 class TestShadowViews:
+    """Budget views expose the shadow block."""
+
     def test_mcp_reports_the_shadow_block(self) -> None:
+        """The MCP gaming-time view reports the full shadow block."""
         stored = PlaytimeState(
             day_key=_TODAY,
             seconds=10.0,
@@ -189,6 +203,7 @@ class TestShadowViews:
         }
 
     def test_would_block_at_zero(self) -> None:
+        """A spent shadow budget reports would_block with zero remaining."""
         stored = PlaytimeState(shadow_seconds=100.0, shadow_budget_seconds=100.0)
         shadow = budget_view.build_today(stored, rules_for(Config(), demo=True))
         assert shadow["shadow"]["would_block"] is True

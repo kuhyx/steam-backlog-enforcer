@@ -12,7 +12,10 @@ from steam_backlog_enforcer._playtime_state import PlaytimeState
 
 
 class TestGetGamingTime:
+    """get_gaming_time reports the day's usage, budget and masked launchers."""
+
     def test_reports_unrecorded_state(self) -> None:
+        """With no recorded state it reports unrecorded and the default 8h budget."""
         with (
             patch.object(budget_view, "load_state", return_value=None),
             patch.object(budget_view, "mounted_targets", return_value=set()),
@@ -22,6 +25,7 @@ class TestGetGamingTime:
         assert out["budget_seconds"] == 8 * 3600
 
     def test_reports_usage(self) -> None:
+        """A recorded day reports its key, seconds used and seconds remaining."""
         stored = PlaytimeState(day_key="2026-07-27", seconds=100.0)
         with (
             patch.object(budget_view, "load_state", return_value=stored),
@@ -35,6 +39,7 @@ class TestGetGamingTime:
         assert out["blocked"] is False
 
     def test_remaining_never_goes_negative(self) -> None:
+        """Usage beyond the budget reports zero remaining, never a negative."""
         stored = PlaytimeState(day_key="d", seconds=10**9)
         with (
             patch.object(budget_view, "load_state", return_value=stored),
@@ -44,6 +49,7 @@ class TestGetGamingTime:
         assert out["seconds_remaining"] == 0.0
 
     def test_lists_masked_launchers(self) -> None:
+        """A blocked day lists the launchers that are currently masked."""
         stored = PlaytimeState(day_key="d", seconds=1.0, blocked_at=2.0)
         with (
             patch.object(budget_view, "load_state", return_value=stored),
@@ -67,7 +73,10 @@ class TestGetGamingTime:
 
 
 class TestResetGamingTime:
+    """reset_gaming_time previews by default and applies only as root."""
+
     def test_preview_by_default(self) -> None:
+        """Without confirm it only previews and releases nothing."""
         with patch.object(mcp_gaming_time, "release_block") as mock_release:
             out = mcp_gaming_time.reset_gaming_time()
         mock_release.assert_not_called()
@@ -76,6 +85,7 @@ class TestResetGamingTime:
         assert out["requires_root"] is True
 
     def test_confirm_unprivileged_returns_gracefully(self) -> None:
+        """Confirming without root returns a privileges failure and releases nothing."""
         with (
             patch.object(mcp_gaming_time.os, "geteuid", return_value=1000),
             patch.object(mcp_gaming_time, "release_block") as mock_release,
@@ -86,6 +96,7 @@ class TestResetGamingTime:
         assert "privileges" in out["reason"]
 
     def test_confirm_applies_as_root(self) -> None:
+        """Confirming as root releases the block and saves fresh state."""
         with (
             patch.object(mcp_gaming_time.os, "geteuid", return_value=0),
             patch.object(
@@ -99,6 +110,7 @@ class TestResetGamingTime:
         assert out["released"] == ["/usr/bin/steam"]
 
     def test_confirm_oserror_returns_gracefully(self) -> None:
+        """An OSError while releasing returns a privileges failure, not a raise."""
         with (
             patch.object(mcp_gaming_time.os, "geteuid", return_value=0),
             patch.object(mcp_gaming_time, "release_block", side_effect=OSError("boom")),
@@ -109,6 +121,7 @@ class TestResetGamingTime:
 
 
 def test_main_runs_stdio_server() -> None:
+    """The MCP entry point runs the stdio server."""
     with patch.object(mcp_server.mcp, "run") as run:
         _mcp.main()
     run.assert_called_once_with()

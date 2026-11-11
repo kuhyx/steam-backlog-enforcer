@@ -8,33 +8,8 @@ from steam_backlog_enforcer._stats import (
     _print_player_speed_scenario,
 )
 from steam_backlog_enforcer._web_dataset import PaceVsHLTB
-from steam_backlog_enforcer.protondb import ProtonDBRating
-from steam_backlog_enforcer.steam_api import GameInfo
 
 _PKG = "steam_backlog_enforcer._stats"
-
-
-def _game(
-    app_id: int = 1,
-    name: str = "G",
-    hours: float = 10.0,
-    total: int = 10,
-    unlocked: int = 0,
-) -> GameInfo:
-    return GameInfo(
-        app_id=app_id,
-        name=name,
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=60,
-        completionist_hours=hours,
-        comp_100_count=5,
-        count_comp=20,
-    )
-
-
-def _unplayable_rating(app_id: int) -> ProtonDBRating:
-    return ProtonDBRating(app_id=app_id, tier="borked")
 
 
 class TestPrintPlayerSpeedScenario:

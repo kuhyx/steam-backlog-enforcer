@@ -49,6 +49,7 @@ class TestEnsureSteamRunning:
         mock_sleep.assert_not_called()
 
     def test_already_running(self) -> None:
+        """A running Steam (pgrep exit 0) is left alone."""
         mock_result = MagicMock(returncode=0)
         with patch(
             "steam_backlog_enforcer._steam_client.subprocess.run",
@@ -57,6 +58,7 @@ class TestEnsureSteamRunning:
             _ensure_steam_running()
 
     def test_not_running_starts_as_non_root(self) -> None:
+        """A stopped Steam is launched directly when not root."""
         mock_result = MagicMock(returncode=1)
         with (
             patch(
@@ -76,6 +78,7 @@ class TestEnsureSteamRunning:
             mock_popen.assert_called_once()
 
     def test_not_running_starts_as_root(self) -> None:
+        """A stopped Steam is launched as the desktop user when root."""
         mock_result = MagicMock(returncode=1)
         mock_pw = MagicMock()
         mock_pw.pw_uid = 1000
@@ -156,6 +159,7 @@ class TestEnsureSteamRunning:
         mock_sleep.assert_not_called()
 
     def test_pgrep_not_found(self) -> None:
+        """A missing pgrep does not raise."""
         with (
             patch(
                 "steam_backlog_enforcer._steam_client.subprocess.run",
@@ -171,6 +175,7 @@ class TestEnsureSteamRunning:
             _ensure_steam_running()
 
     def test_steam_executable_not_found(self) -> None:
+        """A missing steam executable does not raise."""
         mock_result = MagicMock(returncode=1)
         with (
             patch(

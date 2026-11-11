@@ -10,21 +10,16 @@ from steam_backlog_enforcer._desktop_env import (
 )
 from steam_backlog_enforcer._desktop_env import desktop_uid as _desktop_uid
 from steam_backlog_enforcer._steam_process import _run_as_user
+from steam_backlog_enforcer.tests._desktop_launch_patches import (
+    DESKTOP_ENV_PKG,
+    STEAM_PROCESS_PKG,
+)
+from steam_backlog_enforcer.tests._desktop_launch_patches import (
+    env_value as _env_value,
+)
 
 PKG = "steam_backlog_enforcer.library_hider"
-DESKTOP_ENV_PKG = "steam_backlog_enforcer._desktop_env"
-STEAM_LAUNCH_PKG = "steam_backlog_enforcer._steam_launch"
-STEAM_PROCESS_PKG = "steam_backlog_enforcer._steam_process"
-ENV_PKG = "steam_backlog_enforcer._desktop_env"
-
-
-def _env_value(args: list[str], name: str) -> str | None:
-    """Return the value assigned to *name* in a list of ``VAR=value`` args."""
-    prefix = f"{name}="
-    for arg in args:
-        if arg.startswith(prefix):
-            return arg[len(prefix) :]
-    return None
+ENV_PKG = DESKTOP_ENV_PKG
 
 
 class TestDesktopEnvArgs:
@@ -161,14 +156,17 @@ class TestDesktopUid:
     """Tests for _desktop_uid."""
 
     def test_resolves_known_user(self) -> None:
+        """A known desktop user resolves to their uid."""
         mock_pw = MagicMock()
         mock_pw.pw_uid = 1234
         with patch(f"{DESKTOP_ENV_PKG}.pwd.getpwnam", return_value=mock_pw):
             assert _desktop_uid("bob") == 1234
 
     def test_unknown_user_falls_back(self) -> None:
+        """An unknown user falls back to uid 1000."""
         with patch(f"{DESKTOP_ENV_PKG}.pwd.getpwnam", side_effect=KeyError):
             assert _desktop_uid("ghost") == 1000
 
     def test_no_user_falls_back(self) -> None:
+        """No user name falls back to uid 1000."""
         assert _desktop_uid(None) == 1000

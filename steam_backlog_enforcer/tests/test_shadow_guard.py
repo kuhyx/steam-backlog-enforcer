@@ -22,7 +22,12 @@ from steam_backlog_enforcer._playtime_state import (
     load_state,
     save_state,
 )
-from steam_backlog_enforcer._shadow import FAILCLOSED_KEY, ShadowVerdict, observe_shadow
+from steam_backlog_enforcer._shadow import (
+    FAILCLOSED_KEY,
+    ShadowVerdict,
+    _last_warned,
+    observe_shadow,
+)
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._fake_session import fake_session
 
@@ -58,6 +63,7 @@ def quiet_tick() -> Iterator[None]:
 @pytest.mark.parametrize("where", ["paused_by", "read_now"])
 @pytest.mark.parametrize("exc", [RecursionError("deep"), RuntimeError("boom")])
 def test_any_exception_fails_closed(where: str, exc: Exception) -> None:
+    """Any shadow error fails closed: games keep their key, idle is fail-closed."""
     with patch.object(_shadow, where, side_effect=exc):
         game = observe_shadow({1: "app:440"}, stamp=T0)
         idle = observe_shadow({}, stamp=T0)
@@ -81,6 +87,7 @@ def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
 def test_logs_once_per_distinct_error_per_window(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """Each distinct error is logged once per window."""
     errors = [RecursionError("deep")] * 3 + [RuntimeError("other")]
     with (
         caplog.at_level(logging.WARNING, logger=_shadow.__name__),
@@ -96,6 +103,7 @@ def test_logs_once_per_distinct_error_per_window(
 
 
 def test_logs_again_after_the_window(caplog: pytest.LogCaptureFixture) -> None:
+    """The same error is logged again once the window has passed."""
     window = _shadow.WARN_EVERY_SECONDS
     clock = [100.0, 100.0 + window - 1, 100.0 + window + 1]
     with (
@@ -117,6 +125,7 @@ def test_logs_again_after_the_window(caplog: pytest.LogCaptureFixture) -> None:
 def test_tick_completes_and_enforced_count_is_untouched(
     where: str, owners: dict[int, str], seconds: float, shadow: str
 ) -> None:
+    """A failing shadow never stops the tick or changes the enforced count."""
     save_state(PlaytimeState(day_key="2026-07-27", last_tick_at=T0 - 3.0), demo=False)
     with (
         patch.object(_shadow, where, side_effect=RecursionError("deep")),
@@ -142,4 +151,4 @@ def test_errors_older_than_the_window_are_forgotten() -> None:
     ):
         for _ in errors:
             observe_shadow({}, stamp=T0)
-    assert list(_shadow._last_warned) == ["ValueError: char 2"]
+    assert list(_last_warned) == ["ValueError: char 2"]

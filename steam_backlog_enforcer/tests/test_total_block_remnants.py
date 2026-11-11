@@ -6,6 +6,8 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pytest
+
 from steam_backlog_enforcer._total_block_purge import (
     _log_steam_purge,
     _remove_steam_remnants,
@@ -52,7 +54,8 @@ class TestUninstallProtonHelpers:
 class TestRemoveSteamRemnants:
     """Tests for remove steam remnants."""
 
-    def test_no_remnants_present(self, total_block_paths: Paths) -> None:
+    @pytest.mark.usefixtures("total_block_paths")
+    def test_no_remnants_present(self) -> None:
         """Test that no remnants present."""
         assert _remove_steam_remnants() == []
 

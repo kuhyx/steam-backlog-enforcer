@@ -2,61 +2,33 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import aiohttp
 
-from steam_backlog_enforcer._hltb_search import (
-    _search_one,
-    _SearchCtx,
+from steam_backlog_enforcer.tests._hltb_search_fakes import (
+    FakeResponse,
+    hit,
+    make_ctx,
+    make_session,
+    run_search,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-
-class _FakeResponse:
-    """Async context manager mimicking aiohttp response."""
-
-    def __init__(self, status: int, json_data: dict[str, Any] | None = None) -> None:
-        """Test init."""
-        self.status = status
-        self._json_data = json_data or {}
-
-    async def __aenter__(self) -> Self:
-        """Test aenter."""
-        return self
-
-    async def __aexit__(self, *args: object) -> None:
-        """Test aexit."""
-
-    async def json(self) -> dict[str, Any]:
-        """Test json."""
-        return self._json_data
+    from steam_backlog_enforcer._hltb_search import _SearchCtx
 
 
-def _make_session(resp: _FakeResponse) -> MagicMock:
-    session = MagicMock()
-    session.post.return_value = resp
-    return session
-
-
-def _make_ctx(
-    session: MagicMock,
-    *,
-    cache: dict[int, float] | None = None,
-    progress_cb: Callable[..., object] | None = None,
+def _ctx(
+    session: MagicMock, *, progress_cb: Callable[..., object] | None = None
 ) -> _SearchCtx:
-    return _SearchCtx(
-        session=session,
-        search_url="https://example.com/search",
-        headers={},
-        cache=cache if cache is not None else {},
-        counter={"done": 0, "found": 0, "failed": 0},
-        total=1,
+    """Return a search context whose counter also tracks failures."""
+    return make_ctx(
+        session,
         progress_cb=progress_cb,
+        counter={"done": 0, "found": 0, "failed": 0},
     )
 
 
@@ -65,49 +37,22 @@ class TestSearchOne:
 
     def test_found(self) -> None:
         """Test found."""
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "TF2",
-                        "game_alias": "",
-                        "comp_100": 180000,
-                        "game_id": 12345,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        ctx = _ctx(make_session(FakeResponse(200, hit("TF2", 180000, 12345))))
+        result = run_search(ctx)
         assert result is not None
         assert result.app_id == 440
 
     def test_found_without_game_id(self) -> None:
         """Found result with hltb_game_id=0 does not populate ctx.hltb_game_id."""
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "TF2",
-                        "game_alias": "",
-                        "comp_100": 180000,
-                        "game_id": 0,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        ctx = _ctx(make_session(FakeResponse(200, hit("TF2", 180000, 0))))
+        result = run_search(ctx)
         assert result is not None
         assert 440 not in ctx.extras.hltb_game_id
 
     def test_not_found(self) -> None:
         """Test not found."""
-        resp = _FakeResponse(200, {"data": []})
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        ctx = _ctx(make_session(FakeResponse(200, {"data": []})))
+        result = run_search(ctx)
         assert result is None
         assert ctx.cache[440] == -1
 
@@ -115,17 +60,16 @@ class TestSearchOne:
         """Test error."""
         session = MagicMock()
         session.post.side_effect = aiohttp.ClientError("fail")
-        ctx = _make_ctx(session)
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        ctx = _ctx(session)
+        result = run_search(ctx)
         assert result is None
         assert 440 not in ctx.cache  # a failed lookup is not a miss
         assert ctx.counter["failed"] == 1
 
     def test_non_200(self) -> None:
         """Test non 200."""
-        resp = _FakeResponse(500)
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        ctx = _ctx(make_session(FakeResponse(500)))
+        result = run_search(ctx)
         assert result is None
         assert 440 not in ctx.cache  # a failed lookup is not a miss
         assert ctx.counter["failed"] == 1
@@ -134,28 +78,21 @@ class TestSearchOne:
         """Test fallback name without year suffix."""
         session = MagicMock()
         session.post.side_effect = [
-            _FakeResponse(200, {"data": []}),
-            _FakeResponse(
+            FakeResponse(200, {"data": []}),
+            FakeResponse(
                 200,
-                {
-                    "data": [
-                        {
-                            "game_name": "Final Fantasy VII",
-                            "game_alias": "",
-                            "game_type": "game",
-                            "comp_100": 141120,
-                            "game_id": 435,
-                            "comp_100_count": 746,
-                            "count_comp": 10450,
-                        }
-                    ]
-                },
+                hit(
+                    "Final Fantasy VII",
+                    141120,
+                    435,
+                    game_type="game",
+                    comp_100_count=746,
+                    count_comp=10450,
+                ),
             ),
         ]
-        ctx = _make_ctx(session)
-        result = asyncio.run(
-            _search_one(asyncio.Semaphore(1), ctx, 39140, "Final Fantasy VII (2013)")
-        )
+        ctx = _ctx(session)
+        result = run_search(ctx, 39140, "Final Fantasy VII (2013)")
         assert result is not None
         assert result.app_id == 39140
         assert result.comp_100_count == 746
@@ -164,27 +101,13 @@ class TestSearchOne:
 
     def test_with_progress_cb(self) -> None:
         """Test with progress cb."""
-        resp = _FakeResponse(200, {"data": []})
         cb = MagicMock()
-        ctx = _make_ctx(_make_session(resp), progress_cb=cb)
-        asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        ctx = _ctx(make_session(FakeResponse(200, {"data": []})), progress_cb=cb)
+        run_search(ctx)
         cb.assert_called_once()
 
     def test_low_similarity_skipped(self) -> None:
         """Test low similarity skipped."""
-        resp = _FakeResponse(
-            200,
-            {
-                "data": [
-                    {
-                        "game_name": "Completely Different Name",
-                        "game_alias": "",
-                        "comp_100": 3600,
-                        "game_id": 1,
-                    }
-                ],
-            },
-        )
-        ctx = _make_ctx(_make_session(resp))
-        result = asyncio.run(_search_one(asyncio.Semaphore(1), ctx, 440, "TF2"))
+        body = hit("Completely Different Name", 3600, 1)
+        result = run_search(_ctx(make_session(FakeResponse(200, body))))
         assert result is None

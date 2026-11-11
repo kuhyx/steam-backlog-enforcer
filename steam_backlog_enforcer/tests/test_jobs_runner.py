@@ -27,6 +27,7 @@ from steam_backlog_enforcer.jobs._events import (
     read_events,
 )
 from steam_backlog_enforcer.jobs._job_io import JobLogSink
+from steam_backlog_enforcer.jobs._runner import _run_command
 from steam_backlog_enforcer.tests._jobs_helpers import make_job
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ def _run(
     sink = JobLogSink(writer)
     body = request or {"command": command, "params": {"x": 1}}
     with patch.dict(_runner.HANDLERS, {command: handler}), patch(_GATE):
-        return _runner._run_command(path, writer, sink, body), path
+        return _run_command(path, writer, sink, body), path
 
 
 class TestRunCommand:
@@ -73,7 +74,7 @@ class TestRunCommand:
         """Commands outside the tables never run."""
         path = make_job()
         writer = EventWriter(path)
-        outcome = _runner._run_command(
+        outcome = _run_command(
             path, writer, JobLogSink(writer), {"command": "frobnicate"}
         )
         assert outcome.exit_code == _runner.EXIT_REFUSED
@@ -141,7 +142,7 @@ class TestRunCommand:
             patch(_GATE, side_effect=SystemExit(1)),
             patch(_REASON, return_value=reason),
         ):
-            outcome = _runner._run_command(path, writer, sink, {"command": "scan"})
+            outcome = _run_command(path, writer, sink, {"command": "scan"})
         handler.assert_not_called()
         assert (outcome.summary, outcome.exit_code) == (summary, _runner.EXIT_REFUSED)
 

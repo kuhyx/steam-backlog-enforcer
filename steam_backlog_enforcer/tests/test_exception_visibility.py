@@ -42,18 +42,21 @@ def _hide_and_capture(allowed: set[int]) -> tuple[list[int], list[int]]:
 
 
 def test_exception_is_kept_visible() -> None:
+    """An approved exception stays visible beside the assigned game."""
     visible, to_hide = _hide_and_capture({_ASSIGNED})
     assert visible == [_ASSIGNED, _EXCEPTION]
     assert to_hide == [_OTHER]
 
 
 def test_caller_set_is_not_mutated() -> None:
+    """The caller allowed-set is not mutated by adding the exception."""
     allowed = {_ASSIGNED}
     _hide_and_capture(allowed)
     assert allowed == {_ASSIGNED}
 
 
 def test_exception_is_exempt_from_tampering() -> None:
+    """An approved exception counts as legitimately played."""
     with patch(
         "steam_backlog_enforcer._scanning_tampering.get_approved_exception_ids",
         return_value=frozenset({_EXCEPTION}),

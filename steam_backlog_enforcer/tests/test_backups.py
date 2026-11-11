@@ -9,6 +9,7 @@ import pytest
 
 from steam_backlog_enforcer import _backups as backups
 from steam_backlog_enforcer import config
+from steam_backlog_enforcer._backups import _backup_dir, _read_backup
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,21 +36,29 @@ def _plant(
 
 
 class TestBackupDir:
+    """Backup ids are validated before they become a path."""
+
     @pytest.mark.parametrize("bad", ["", "..", "../x", "20260101T000000Z", "a/b"])
     def test_refuses_anything_that_is_not_an_id(self, bad: str) -> None:
+        """Malformed or path-traversal ids are refused."""
         with pytest.raises(backups.BackupError, match="Not a backup id"):
-            backups._backup_dir(bad)
+            _backup_dir(bad)
 
     def test_resolves_a_valid_id(self) -> None:
-        assert backups._backup_dir(_OLD_ID) == backups.BACKUPS_DIR / _OLD_ID
+        """A well-formed id resolves inside the backups directory."""
+        assert _backup_dir(_OLD_ID) == backups.BACKUPS_DIR / _OLD_ID
 
 
 class TestCreateBackup:
+    """create_backup snapshots state.json with its reason."""
+
     def test_no_state_file_means_no_backup(self) -> None:
+        """Without a state file there is nothing to back up."""
         assert backups.create_backup("why") is None
         assert not backups.BACKUPS_DIR.exists()
 
     def test_copies_state_and_records_why(self) -> None:
+        """The snapshot copies state.json and records why it was taken."""
         _write_state()
         backup = backups.create_backup("before reset")
         assert backup is not None
@@ -61,27 +70,37 @@ class TestCreateBackup:
 
 
 class TestReadBackup:
+    """_read_backup rejects incomplete or corrupt backup directories."""
+
     def test_missing_meta_is_unreadable(self) -> None:
-        assert backups._read_backup(_plant(_OLD_ID)) is None
+        """A backup without meta.json is not listed."""
+        assert _read_backup(_plant(_OLD_ID)) is None
 
     def test_corrupt_meta_is_unreadable(self) -> None:
-        assert backups._read_backup(_plant(_OLD_ID, meta="{nope")) is None
+        """A backup whose meta.json is not JSON is not listed."""
+        assert _read_backup(_plant(_OLD_ID, meta="{nope")) is None
 
     def test_missing_state_is_unreadable(self) -> None:
+        """A backup without its state.json copy is not listed."""
         directory = _plant(_OLD_ID, state=None, meta="{}")
-        assert backups._read_backup(directory) is None
+        assert _read_backup(directory) is None
 
     def test_absent_meta_fields_default_to_empty(self) -> None:
-        found = backups._read_backup(_plant(_OLD_ID, meta="{}"))
+        """Missing created_at and reason fields default to empty strings."""
+        found = _read_backup(_plant(_OLD_ID, meta="{}"))
         assert found is not None
         assert (found.created_at, found.reason) == ("", "")
 
 
 class TestListBackups:
+    """list_backups returns readable backups newest first."""
+
     def test_no_directory_is_empty(self) -> None:
+        """No backups directory yields an empty list."""
         assert backups.list_backups() == []
 
     def test_newest_first_and_skips_junk(self) -> None:
+        """Backups sort newest first and junk directories are skipped."""
         _plant(_OLD_ID, meta='{"reason": "old"}')
         _plant(_NEW_ID, meta='{"reason": "new"}')
         _plant("20260303T000000Z-cccccc")  # incomplete: no meta
@@ -90,7 +109,10 @@ class TestListBackups:
 
 
 class TestRestoreBackup:
+    """restore_backup swaps state.json for the chosen snapshot."""
+
     def test_replaces_state_and_backs_up_the_old_one(self) -> None:
+        """Restoring replaces state and snapshots the state it overwrote."""
         _plant(_OLD_ID, state='{"current_app_id": 7}', meta="{}")
         _write_state('{"current_app_id": 1}')
         previous = backups.restore_backup(_OLD_ID)
@@ -99,12 +121,14 @@ class TestRestoreBackup:
         assert previous.reason == f"before restoring {_OLD_ID}"
 
     def test_restoring_over_no_state_has_no_previous(self) -> None:
+        """Restoring when no state exists leaves no previous backup."""
         _plant(_OLD_ID, state="{}", meta="{}")
         assert backups.restore_backup(_OLD_ID) is None
         assert config.STATE_FILE.read_text(encoding="utf-8") == "{}"
 
     @pytest.mark.parametrize("state", [None, "{broken"])
     def test_unreadable_backup_raises_and_keeps_state(self, state: str | None) -> None:
+        """An unreadable backup raises and leaves current state intact."""
         _plant(_OLD_ID, state=state, meta="{}")
         _write_state()
         with pytest.raises(backups.BackupError, match="unreadable"):
@@ -112,5 +136,6 @@ class TestRestoreBackup:
         assert config.STATE_FILE.read_text(encoding="utf-8") == '{"current_app_id": 1}'
 
     def test_malformed_id_raises(self) -> None:
+        """A malformed backup id raises BackupError."""
         with pytest.raises(backups.BackupError):
             backups.restore_backup("../../etc")

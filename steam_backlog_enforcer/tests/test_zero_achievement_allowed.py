@@ -19,6 +19,7 @@ from steam_backlog_enforcer.game_uninstall import (
     uninstall_other_games,
 )
 from steam_backlog_enforcer.library_hider import hide_other_games
+from steam_backlog_enforcer.tests._no_approved_exceptions import no_approved_exceptions
 from steam_backlog_enforcer.tests._zero_ach import (
     ASSIGNED,
     SIMS3,
@@ -35,15 +36,14 @@ if TYPE_CHECKING:
 @pytest.fixture(autouse=True)
 def _no_exceptions() -> Iterator[None]:
     """No approved exceptions, so only the zero-achievement rule can protect."""
-    with patch(
-        "steam_backlog_enforcer.game_uninstall.get_approved_exception_ids",
-        return_value=frozenset(),
-    ):
-        yield
+    yield from no_approved_exceptions()
 
 
 class TestUninstall:
+    """Uninstall sweeps never remove a zero-achievement game."""
+
     def test_zero_achievement_game_is_kept(self) -> None:
+        """uninstall_other_games keeps it and removes the game with achievements."""
         confirm_zero(SIMS3)
         removed: list[int] = []
         with (
@@ -60,6 +60,7 @@ class TestUninstall:
         assert removed == [WITH_ACH]
 
     def test_guard_keeps_it_and_removes_game_with_achievements(self) -> None:
+        """The install guard keeps it and removes only the other game."""
         confirm_zero(SIMS3)
         removed: list[int] = []
         with (
@@ -78,7 +79,10 @@ class TestUninstall:
 
 
 class TestHiding:
+    """Library hiding leaves zero-achievement games visible."""
+
     def test_zero_achievement_game_stays_visible(self) -> None:
+        """The game is in the visible set and not in the hide list."""
         confirm_zero(SIMS3)
         pkg = "steam_backlog_enforcer.library_hider"
         captured: dict[str, str] = {}
@@ -101,7 +105,10 @@ class TestHiding:
 
 
 class TestTampering:
+    """Tampering checks treat zero-achievement play as legitimate."""
+
     def test_zero_achievement_game_is_exempt(self) -> None:
+        """The game is in the legitimately-played set."""
         confirm_zero(SIMS3)
         with patch(
             "steam_backlog_enforcer._scanning_tampering.get_approved_exception_ids",
@@ -112,7 +119,10 @@ class TestTampering:
 
 
 class TestUnauthorizedKill:
+    """The unauthorized-game killer spares zero-achievement games."""
+
     def test_not_killed_but_other_games_are(self) -> None:
+        """Only the game with achievements is killed."""
         confirm_zero(SIMS3)
         with (
             patch(
@@ -129,6 +139,7 @@ class TestBudgetStillApplies:
     """The playtime budget never asks is_protected_app, so it still bites."""
 
     def test_running_zero_game_is_counted_and_in_the_kill_set(self) -> None:
+        """A running zero-achievement game is billed and killed at the cutoff."""
         confirm_zero(SIMS3)
         rules = MagicMock(count_launchers=False)
         with (

@@ -12,33 +12,26 @@ import pytest
 
 from steam_backlog_enforcer._leisure_kill import LeisureKiller
 from steam_backlog_enforcer._leisure_never_kill import never_kill
-from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 from steam_backlog_enforcer._shadow import ShadowVerdict
 from steam_backlog_enforcer.tests._isolate_leisure import leisure_proc
 from steam_backlog_enforcer.tests._leisure_fake_proc import FakeProc, add_proc
+from steam_backlog_enforcer.tests._leisure_kill_world import RULES, SPENT
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 _PY = "/usr/bin/python3.14"
-_RULES = PlaytimeRules(
-    budget_seconds=100.0,
-    warn_at=(),
-    sigkill_after=30.0,
-    count_launchers=False,
-    enforcement=True,
-    demo=False,
-    leisure=True,
-)
-_SPENT = PlaytimeState(day_key="2026-11-02", seconds=100.0)
 
 
-@pytest.fixture
-def proc(tmp_path: Path) -> Path:
+@pytest.fixture(name="proc")
+def fixture_proc(tmp_path: Path) -> Path:
+    """A fake ``/proc`` tree that the never-kill lookups read."""
     return leisure_proc(tmp_path)
 
 
 class TestNeverKill:
+    """Which processes the never-kill set protects, and why."""
+
     @pytest.mark.parametrize(
         ("exe", "args", "why"),
         [
@@ -81,6 +74,7 @@ class TestNeverKill:
     def test_by_binary(
         self, proc: Path, exe: str, args: tuple[str, ...], why: str | None
     ) -> None:
+        """Desktop, shell and terminal binaries are protected; others are not."""
         add_proc(proc, FakeProc(10, exe=exe, argv=args))
         assert never_kill(10) == why
 
@@ -102,6 +96,7 @@ class TestNeverKill:
     def test_by_python_script(
         self, proc: Path, args: tuple[str, ...], why: str | None
     ) -> None:
+        """A python process is protected by its script, not the interpreter."""
         add_proc(proc, FakeProc(10, exe=_PY, argv=args))
         assert never_kill(10) == why
 
@@ -122,14 +117,18 @@ class TestNeverKill:
     def test_claude(
         self, proc: Path, exe: str, args: tuple[str, ...], why: str | None
     ) -> None:
+        """Claude Code is protected whether run natively or under node."""
         add_proc(proc, FakeProc(10, exe=exe, argv=args))
         assert never_kill(10) == why
 
 
 class TestKillerRefuses:
+    """The leisure killer skips protected pids even when a fact names them."""
+
     def test_a_forged_fact_cannot_kill_the_desktop(
         self, proc: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
+        """Only the unprotected pid dies; each refusal is logged and warned once."""
         add_proc(proc, FakeProc(10, exe="/usr/bin/i3", argv=("i3",)))
         add_proc(proc, FakeProc(11, exe="/usr/bin/alacritty", argv=("alacritty",)))
         add_proc(proc, FakeProc(12, exe="/usr/bin/mpv"))
@@ -149,13 +148,16 @@ class TestKillerRefuses:
         records: list[tuple[str, dict[str, object]]] = []
 
         class Log:
+            """Event log that keeps every record in ``records``."""
+
             def record(self, event: str, **fields: object) -> None:
+                """Keep one event and its fields."""
                 records.append((event, fields))
 
         killer = LeisureKiller(Log())
         with patch.object(os, "kill") as kill, caplog.at_level(logging.WARNING):
             for stamp in (0.0, 3.0, 40.0):
-                killer.enforce(_SPENT, _RULES, verdict=verdict, stamp=stamp)
+                killer.enforce(SPENT, RULES, verdict=verdict, stamp=stamp)
         assert {c.args[0] for c in kill.call_args_list} == {12}
         refused = [f for e, f in records if e == "leisure_kill_refused"]
         assert sorted((f["pid"], f["name"]) for f in refused) == [
@@ -167,11 +169,12 @@ class TestKillerRefuses:
     def test_a_refusal_without_a_log_only_warns(
         self, proc: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
+        """With no event log, a refusal still kills nothing and only warns."""
         add_proc(proc, FakeProc(10, exe="/usr/bin/i3", argv=("i3",)))
         reasons = (Reason("failclosed", "failclosed:x", 10, "x"),)
         fact = Now(0.0, 1, "leisure", None, reasons, Focus("i3", "", None, idle=False))
         verdict = ShadowVerdict(paused_by=None, keys=("k",), fact=fact)
         with patch.object(os, "kill") as kill, caplog.at_level(logging.WARNING):
-            LeisureKiller(None).enforce(_SPENT, _RULES, verdict=verdict, stamp=0.0)
+            LeisureKiller(None).enforce(SPENT, RULES, verdict=verdict, stamp=0.0)
         kill.assert_not_called()
         assert "never killed" in caplog.text

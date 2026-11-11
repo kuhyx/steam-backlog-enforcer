@@ -66,14 +66,18 @@ def _clear() -> Iterator[None]:
 
 
 class TestLedgerUnits:
+    """ledger_units counts signed ledger rows and caches the count."""
+
     def test_no_ledger_is_none_and_says_so(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
+        """An earner without a ledger yields None and logs a warning."""
         with caplog.at_level(logging.WARNING):
             assert ledger_units(replace(BLOCKS, ledger=None)) is None
         assert "Earner Blocks has no ledger" in caplog.text
 
     def test_counts_the_signed_rows_under_home(self, tmp_path: Path) -> None:
+        """Each signed credit row under HOME counts as one unit."""
         assert BLOCKS.ledger is not None
         ledger_dir = (tmp_path / BLOCKS.ledger).parent
         ledger_dir.mkdir(parents=True)
@@ -85,6 +89,7 @@ class TestLedgerUnits:
             assert ledger_units(BLOCKS) == 2
 
     def test_a_count_is_cached_until_its_ttl(self) -> None:
+        """A count is reused until its TTL runs out."""
         with (
             patch("earned_time.credit_units", return_value=3) as read,
             patch(f"{_PKG}.time.monotonic", side_effect=[0.0, 30.0, 61.0]),
@@ -93,12 +98,14 @@ class TestLedgerUnits:
         assert read.call_count == 2
 
     def test_a_failure_is_not_cached(self) -> None:
+        """A failed read is retried, not cached."""
         with patch("earned_time.credit_units", return_value=None) as read:
             assert ledger_units(BLOCKS) is None
             assert ledger_units(BLOCKS) is None
         assert read.call_count == 2
 
     def test_reset_cache_drops_counts(self) -> None:
+        """reset_cache forces the next call to reread."""
         with patch("earned_time.credit_units", return_value=1) as read:
             ledger_units(BLOCKS)
             _ledger_earners.reset_cache()
@@ -121,20 +128,26 @@ def _resolve(units: int | None) -> BudgetResolution:
 
 
 class TestACountedGateInTheBudget:
+    """Ledger units flow through the registry into the budget reason."""
+
     def test_units_earn_through_the_registry(self) -> None:
+        """Two units earn the registry minutes for two and say x2."""
         resolved = _resolve(2)
         assert resolved.earned_seconds["blocks"] == BLOCKS.gaming_for(2) * 60.0
         assert resolved.reason.endswith(", Blocks credited x2")
 
     def test_one_unit_reads_like_a_flat_credit(self) -> None:
+        """One unit reads like a flat credit, without a multiplier."""
         assert _resolve(1).reason.endswith(", Blocks credited")
 
     def test_none_and_unknown(self) -> None:
+        """Zero units and an unknown count are both named in the reason."""
         assert "no Blocks credited" in _resolve(0).reason
         assert "Blocks unknown" in _resolve(None).reason
 
 
 def test_view_lists_what_a_full_day_pays() -> None:
+    """The view shows the capped maximum, or the flat minutes without units."""
     # Duck-typed stand-ins: ``plain`` is a pre-0.5 earner without units.
     capped = SimpleNamespace(gaming_minutes=15, max_gaming_minutes=60)
     plain = SimpleNamespace(gaming_minutes=30)

@@ -2,37 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Self
-from unittest.mock import MagicMock
+from typing import Any
 
 from steam_backlog_enforcer._hltb_detail import _extract_leisure_hours
 from steam_backlog_enforcer._hltb_matching import _build_search_variants
-
-
-class _FakeResponse:
-    """Async context manager mimicking aiohttp response."""
-
-    def __init__(self, status: int, json_data: dict[str, Any] | None = None) -> None:
-        """Test init."""
-        self.status = status
-        self._json_data = json_data or {}
-
-    async def __aenter__(self) -> Self:
-        """Test aenter."""
-        return self
-
-    async def __aexit__(self, *args: object) -> None:
-        """Test aexit."""
-
-    async def json(self) -> dict[str, Any]:
-        """Test json."""
-        return self._json_data
-
-
-def _make_session(resp: _FakeResponse) -> MagicMock:
-    session = MagicMock()
-    session.post.return_value = resp
-    return session
 
 
 class TestExtractLeisureHours:

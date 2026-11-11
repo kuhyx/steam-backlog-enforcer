@@ -60,7 +60,10 @@ def _output(mock_echo: MagicMock) -> str:
 
 
 class TestCmdPickKeep:
+    """pick keeps the current games unless --replace is given."""
+
     def test_keeps_by_default(self) -> None:
+        """A plain pick keeps the current games."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=[snap(5, "New")]),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
@@ -71,6 +74,7 @@ class TestCmdPickKeep:
         assert mock_pick.call_args.kwargs["keep"] is True
 
     def test_replace_flag_replaces(self) -> None:
+        """--replace replaces the current games."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=[snap(5, "New")]),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
@@ -81,6 +85,7 @@ class TestCmdPickKeep:
         assert mock_pick.call_args.kwargs["keep"] is False
 
     def test_unknown_argument_exits(self) -> None:
+        """An unknown flag exits without picking."""
         with (
             patch(f"{PKG}._echo") as mock_echo,
             patch(f"{PKG}.pick_next_game") as mock_pick,
@@ -92,6 +97,7 @@ class TestCmdPickKeep:
         mock_pick.assert_not_called()
 
     def test_full_allowed_set_is_refused_before_the_list(self) -> None:
+        """A full allowed set is refused before any list or question."""
         # No scripted answers: being asked anything raises IndexError.
         with (
             use_prompter(FakePrompter()),
@@ -111,6 +117,7 @@ class TestCmdPickKeep:
         assert "--replace" in output
 
     def test_one_below_the_cap_is_allowed(self) -> None:
+        """One game below the cap may still pick."""
         state = State(
             current_app_id=1, current_game_name="Current", manual_picks=[_pick(2, "A")]
         )
@@ -125,7 +132,10 @@ class TestCmdPickKeep:
 
 
 class TestDispatch:
+    """main hands the pick flags through."""
+
     def test_main_passes_the_argv_tail_to_pick(self) -> None:
+        """main passes the argv tail to cmd_pick."""
         config, state = _config(), State()
         with (
             patch("sys.argv", ["sbe", "pick", "--replace"]),
@@ -136,19 +146,25 @@ class TestDispatch:
 
 
 class TestReplaceParam:
+    """The web job replace parameter is a boolean checkbox."""
+
     def test_defaults_to_keep(self) -> None:
+        """A missing replace parameter means keep."""
         assert validate_params("pick", {}) == {"replace": 0}
 
     @pytest.mark.parametrize(("raw", "want"), [(True, 1), (False, 0), (1, 1)])
     def test_accepts_booleans(self, raw: object, want: int) -> None:
+        """Booleans and 1 are accepted as 0 or 1."""
         assert validate_params("pick", {"replace": raw}) == {"replace": want}
 
     @pytest.mark.parametrize("raw", [2, "yes", None])
     def test_rejects_non_booleans(self, raw: object) -> None:
+        """Non-boolean values are rejected."""
         with pytest.raises(InvalidParamsError):
             validate_params("pick", {"replace": raw})
 
     def test_is_an_unchecked_checkbox_in_the_catalog(self) -> None:
+        """The catalog shows replace as an unchecked checkbox."""
         [spec] = PARAMS["pick"]
         assert spec.to_json() == {
             "name": "replace",
@@ -161,17 +177,23 @@ class TestReplaceParam:
 
 
 class TestPickJob:
+    """The pick job turns its parameter into CLI flags."""
+
     @pytest.mark.parametrize(("replace", "argv"), [(1, ["--replace"]), (0, [])])
     def test_replace_param_becomes_the_flag(
         self, replace: int, argv: list[str]
     ) -> None:
+        """replace=1 becomes --replace, replace=0 no flag."""
         with patch("steam_backlog_enforcer.jobs._registry.cmd_pick") as command:
             _registry.HANDLERS["pick"]({"replace": replace}, MagicMock(), MagicMock())
         assert command.call_args.args[2] == argv
 
 
 class TestAbandonKeptGame:
+    """A game kept as a manual pick can be abandoned."""
+
     def test_a_kept_game_can_be_abandoned(self) -> None:
+        """abandon-pick drops a kept pick."""
         state = State(
             current_app_id=1,
             current_game_name="Current",

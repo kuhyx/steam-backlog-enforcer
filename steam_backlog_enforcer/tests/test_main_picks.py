@@ -13,6 +13,12 @@ from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIError
 from steam_backlog_enforcer.tests._main_helpers import (
     snap,
 )
+from steam_backlog_enforcer.tests._main_patches import (
+    HIDE_OTHERS,
+    HIDER_ECHO,
+    OWNED_IDS,
+    library_hider,
+)
 
 PKG = "steam_backlog_enforcer.main.picks"
 
@@ -21,6 +27,7 @@ class TestCmdPick:
     """Tests for cmd_pick."""
 
     def test_no_snapshot_prints_message(self) -> None:
+        """Without a snapshot, pick tells the user to scan first."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=[]),
             patch(f"{PKG}._echo") as mock_echo,
@@ -29,15 +36,13 @@ class TestCmdPick:
         mock_echo.assert_called_once_with("No snapshot found. Run 'scan' first.")
 
     def test_calls_pick_next_game(self) -> None:
+        """With a snapshot, pick hands the games to pick_next_game."""
         snapshot = [snap(2, "NewGame", 10, 0, 5.0)]
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={2: 5.0}),
             patch(f"{PKG}.pick_next_game") as mock_pick,
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[],
-            ),
+            library_hider([]),
         ):
             config = Config(steam_api_key="k", steam_id="i")
             state = State()
@@ -45,100 +50,77 @@ class TestCmdPick:
         mock_pick.assert_called_once()
 
     def test_hides_games_after_pick(self) -> None:
+        """After a pick every game except the assigned one is hidden."""
         snapshot = [snap(2, "NewGame", 10, 0, 5.0)]
         state = State(current_app_id=2, current_game_name="NewGame")
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={2: 5.0}),
             patch(f"{PKG}.pick_next_game"),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[1, 2, 3],
-            ),
-            patch(
-                "steam_backlog_enforcer.library_hider.try_hide_other_games",
-                return_value=(2, None),
-            ) as mock_hide,
+            library_hider([1, 2, 3], (2, None)) as mock_hide,
             patch(f"{PKG}._echo"),
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         mock_hide.assert_called_once_with([1, 2, 3], {2})
 
     def test_no_hide_message_when_none_hidden(self) -> None:
+        """Nothing hidden means nothing is printed."""
         snapshot = [snap(2, "NewGame", 10, 0, 5.0)]
         state = State(current_app_id=2, current_game_name="NewGame")
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[1, 2, 3],
-            ),
-            patch(
-                "steam_backlog_enforcer.library_hider.try_hide_other_games",
-                return_value=(0, None),
-            ),
+            library_hider([1, 2, 3], (0, None)),
             patch(f"{PKG}._echo") as mock_echo,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         mock_echo.assert_not_called()
 
     def test_unreachable_steam_reports_skip(self) -> None:
+        """A hide skipped for an unreachable Steam is reported with its reason."""
         snapshot = [snap(2, "NewGame", 10, 0, 5.0)]
         state = State(current_app_id=2, current_game_name="NewGame")
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[1, 2, 3],
-            ),
-            patch(
-                "steam_backlog_enforcer.library_hider.try_hide_other_games",
-                return_value=(0, "Steam is not installed"),
-            ),
+            library_hider([1, 2, 3], (0, "Steam is not installed")),
             patch(f"{PKG}._echo") as mock_echo,
-            # The skip line is printed by the shared hide helper.
-            patch("steam_backlog_enforcer.library_hider._echo", mock_echo),
+            patch(HIDER_ECHO, mock_echo),
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         output = " ".join(str(c) for c in mock_echo.call_args_list)
         assert "skipped (Steam is not installed)" in output
 
     def test_no_hide_when_no_current_app(self) -> None:
+        """No assignment after the pick means no hide attempt."""
         snapshot = [snap(2, "NewGame", 10, 0, 5.0)]
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids"
-            ) as mock_owned,
+            patch(OWNED_IDS) as mock_owned,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), State())
         mock_owned.assert_not_called()
 
     def test_no_hide_when_owned_ids_empty(self) -> None:
+        """An empty owned-games list skips hiding."""
         snapshot = [snap(2, "NewGame", 10, 0, 5.0)]
         state = State(current_app_id=2, current_game_name="NewGame")
         with (
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={}),
             patch(f"{PKG}.pick_next_game"),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[],
-            ),
-            patch(
-                "steam_backlog_enforcer.library_hider.try_hide_other_games"
-            ) as mock_hide,
+            library_hider([]),
+            patch(HIDE_OTHERS) as mock_hide,
         ):
             cmd_pick(Config(steam_api_key="k", steam_id="i"), state)
         mock_hide.assert_not_called()
 
     def test_hltb_cache_applied_to_games(self) -> None:
+        """Cached HLTB hours replace unknown hours before picking."""
         snapshot = [snap(2, "NewGame", 10, 0, -1.0)]
         captured_games: list[list[GameInfo]] = []
         config = Config(steam_api_key="k", steam_id="i")
@@ -153,10 +135,7 @@ class TestCmdPick:
             patch(f"{PKG}.load_snapshot", return_value=snapshot),
             patch(f"{PKG}.load_hltb_cache", return_value={2: 7.5}),
             patch(f"{PKG}.pick_next_game", side_effect=capture_pick),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[],
-            ),
+            library_hider([]),
         ):
             cmd_pick(config, state)
 
@@ -165,7 +144,10 @@ class TestCmdPick:
 
 
 class TestResolveGameName:
+    """Game names come from the snapshot first, then the Steam API."""
+
     def test_found_in_snapshot(self) -> None:
+        """A snapshot entry supplies the name."""
         snapshot = [
             {
                 "app_id": 440,
@@ -182,6 +164,7 @@ class TestResolveGameName:
         assert result == "TF2"
 
     def test_not_in_snapshot_found_via_api(self) -> None:
+        """A game missing from the snapshot is named via the API."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=[]),
             patch(f"{PKG}.SteamAPIClient") as mock_cls,
@@ -193,6 +176,7 @@ class TestResolveGameName:
         assert result == "Counter-Strike 2"
 
     def test_api_raises_returns_none(self) -> None:
+        """An API error resolves to None."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=[]),
             patch(f"{PKG}.SteamAPIClient") as mock_cls,
@@ -202,6 +186,7 @@ class TestResolveGameName:
         assert result is None
 
     def test_not_found_anywhere_returns_none(self) -> None:
+        """A game unknown to both sources resolves to None."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=[{"app_id": 1, "name": "X"}]),
             patch(f"{PKG}.SteamAPIClient") as mock_cls,
@@ -211,6 +196,7 @@ class TestResolveGameName:
         assert result is None
 
     def test_no_snapshot_falls_through_to_api(self) -> None:
+        """No snapshot at all falls back to the API."""
         with (
             patch(f"{PKG}.load_snapshot", return_value=None),
             patch(f"{PKG}.SteamAPIClient") as mock_cls,
@@ -220,8 +206,3 @@ class TestResolveGameName:
             ]
             result = _resolve_game_name(Config(), 440)
         assert result == "TF2"
-
-
-# ──────────────────────────────────────────────────────────────
-# cmd_pick_manual
-# ──────────────────────────────────────────────────────────────

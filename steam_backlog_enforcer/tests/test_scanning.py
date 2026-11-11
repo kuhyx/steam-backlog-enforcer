@@ -11,29 +11,12 @@ from steam_backlog_enforcer.scanning import (
     _pick_playable_candidate,
     do_scan,
 )
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.tests._scanning_games import make_game
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-
-def _game(
-    app_id: int = 1,
-    name: str = "G",
-    total: int = 10,
-    unlocked: int = 0,
-    hours: float = -1,
-) -> GameInfo:
-    return GameInfo(
-        app_id=app_id,
-        name=name,
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=60,
-        completionist_hours=hours,
-        comp_100_count=3,
-        count_comp=15,
-    )
+    from steam_backlog_enforcer.steam_api import GameInfo
 
 
 class TestDoScan:
@@ -41,7 +24,7 @@ class TestDoScan:
 
     def test_scans_and_picks(self) -> None:
         """Test scans and picks."""
-        game = _game(app_id=440, name="TF2", total=10, unlocked=5)
+        game = make_game(app_id=440, name="TF2", total=10, unlocked=5)
         mock_client = MagicMock()
 
         def build_game_list(
@@ -85,7 +68,7 @@ class TestDoScan:
 
     def test_scan_all_complete(self) -> None:
         """Test scan all complete."""
-        game = _game(app_id=440, name="TF2", total=10, unlocked=10)
+        game = make_game(app_id=440, name="TF2", total=10, unlocked=10)
         mock_client = MagicMock()
 
         def build_game_list(
@@ -119,7 +102,7 @@ class TestDoScan:
 
     def test_scan_already_assigned(self) -> None:
         """Test scan already assigned."""
-        game = _game(app_id=440, total=10, unlocked=5)
+        game = make_game(app_id=440, total=10, unlocked=5)
         mock_client = MagicMock()
         mock_client.build_game_list.return_value = [game]
         with (
@@ -151,7 +134,7 @@ class TestPickPlayableCandidate:
 
     def test_finds_playable(self) -> None:
         """Test finds playable."""
-        game = _game(app_id=440, name="TF2")
+        game = make_game(app_id=440, name="TF2")
         with (
             patch(
                 "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
@@ -167,8 +150,8 @@ class TestPickPlayableCandidate:
 
     def test_skips_bad_rating(self) -> None:
         """Test skips bad rating."""
-        bad = _game(app_id=1, name="Bad")
-        good = _game(app_id=2, name="Good")
+        bad = make_game(app_id=1, name="Bad")
+        good = make_game(app_id=2, name="Good")
         with (
             patch(
                 "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
@@ -185,7 +168,7 @@ class TestPickPlayableCandidate:
 
     def test_all_unplayable(self) -> None:
         """Test all unplayable."""
-        game = _game(app_id=1, name="Bad")
+        game = make_game(app_id=1, name="Bad")
         with (
             patch(
                 "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",
@@ -203,7 +186,7 @@ class TestPickPlayableCandidate:
 
     def test_first_in_batch_playable(self) -> None:
         """First game in first batch is playable — no skip message."""
-        game = _game(app_id=440, name="TF2")
+        game = make_game(app_id=440, name="TF2")
         with (
             patch(
                 "steam_backlog_enforcer._scanning_candidates.fetch_protondb_ratings",

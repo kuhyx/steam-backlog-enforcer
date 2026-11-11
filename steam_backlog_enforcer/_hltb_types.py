@@ -83,6 +83,10 @@ class _AuthInfo:
     hp_val: str = ""
 
 
+_LEGACY_UNKNOWN_COUNTS = dict.fromkeys(("polls", "count_comp"), 0)
+_LEGACY_UNKNOWN_HOURS = dict.fromkeys(("rush_hours", "leisure_100h"), -1)
+
+
 def _read_raw_cache() -> dict[int, dict[str, Any]]:
     """Read the persistent HLTB cache, normalizing legacy float entries.
 
@@ -126,10 +130,8 @@ def _read_raw_cache() -> dict[int, dict[str, Any]]:
             try:
                 out[aid] = {
                     "hours": float(v),
-                    "polls": 0,
-                    "count_comp": 0,
-                    "rush_hours": -1,
-                    "leisure_100h": -1,
+                    **_LEGACY_UNKNOWN_COUNTS,
+                    **_LEGACY_UNKNOWN_HOURS,
                     "hltb_game_id": 0,
                 }
             except TypeError, ValueError:

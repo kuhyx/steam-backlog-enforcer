@@ -25,7 +25,7 @@ def _today() -> str:
 
 def _audit_records() -> list[dict[str, object]]:
     path = _playtime_log.budget_log_path(demo=False)
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def _spent_state(day_key: str) -> PlaytimeState:
@@ -44,6 +44,7 @@ class TestResetToday:
     """Zero the counter, release mounts, keep earned time, leave a record."""
 
     def test_zeroes_state_but_keeps_earned_time(self) -> None:
+        """Reset zeroes billed time and blocks but keeps earned budget."""
         save_state(_spent_state(_today()), demo=False)
         with patch.object(
             _gaming_reset, "release_block", return_value=[Path("/m/steam")]
@@ -61,6 +62,7 @@ class TestResetToday:
         assert stored.last_tick_at > 0
 
     def test_audit_record_has_the_before_picture(self) -> None:
+        """The audit record captures what the day looked like before reset."""
         save_state(_spent_state(_today()), demo=False)
         with patch.object(_gaming_reset, "release_block", return_value=[Path("/m")]):
             _gaming_reset.reset_today(source="cli")
@@ -73,6 +75,7 @@ class TestResetToday:
         assert record["released"] == ["/m"]
 
     def test_stale_day_is_rolled_over_first(self) -> None:
+        """A previous day's state is rolled over before the reset applies."""
         save_state(_spent_state("2000-01-01"), demo=False)
         with patch.object(_gaming_reset, "release_block", return_value=[]):
             outcome = _gaming_reset.reset_today(source="ctl")
@@ -83,6 +86,7 @@ class TestResetToday:
         assert stored.day_key == _today()
 
     def test_no_stored_state(self) -> None:
+        """Reset with no stored state still writes a fresh state."""
         with patch.object(_gaming_reset, "release_block", return_value=[]):
             outcome = _gaming_reset.reset_today(source="ctl")
         assert outcome.seconds_before == 0.0
@@ -90,6 +94,7 @@ class TestResetToday:
         assert load_state(demo=False) is not None
 
     def test_history_failure_does_not_undo_the_reset(self) -> None:
+        """A history write failure does not roll back the reset."""
         save_state(_spent_state(_today()), demo=False)
         with (
             patch.object(_gaming_reset, "release_block", return_value=[]),

@@ -8,6 +8,7 @@ import pytest
 
 from steam_backlog_enforcer import _steam_state, _web_views
 from steam_backlog_enforcer._backups import StateBackup
+from steam_backlog_enforcer._web_views import _manual_pick, _size_on_disk
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._web_request import make_request, payload_of
 
@@ -15,17 +16,20 @@ _PKG = "steam_backlog_enforcer._web_views"
 
 
 class TestStatus:
+    """The status view reshapes manual picks for the UI."""
+
     def test_manual_pick_fields(self) -> None:
-        full = _web_views._manual_pick(
-            {"app_id": 1, "game_name": "One", "age_days": 2.345}
-        )
+        """A manual pick maps to id, name and age rounded to a tenth."""
+        full = _manual_pick({"app_id": 1, "game_name": "One", "age_days": 2.345})
         assert full == {"app_id": 1, "name": "One", "age_days": 2.3}
 
     def test_unknown_name_and_age(self) -> None:
-        bare = _web_views._manual_pick({"app_id": 2, "age_days": None})
+        """A pick without name or age falls back to the id and 0."""
+        bare = _manual_pick({"app_id": 2, "age_days": None})
         assert bare == {"app_id": 2, "name": "2", "age_days": 0.0}
 
     def test_status_view_reshapes_the_payload(self) -> None:
+        """status_view fills install state and reshapes picks, keeping the rest."""
         raw = {
             "assigned_game_installed": None,
             "manual_picks": [{"app_id": 3, "game_name": "G", "age_days": 1.0}],
@@ -39,7 +43,10 @@ class TestStatus:
 
 
 class TestDatasetViews:
+    """The stats, dataset and budget views project their sources."""
+
     def test_stats_projects_two_keys(self) -> None:
+        """stats_view keeps only the summary and pace keys."""
         full = {"default_summary": {"a": 1}, "pace_vs_hltb": [2], "games": []}
         with (
             patch(f"{_PKG}.build_web_dataset"),
@@ -49,6 +56,7 @@ class TestDatasetViews:
         assert reply.payload == {"default_summary": {"a": 1}, "pace_vs_hltb": [2]}
 
     def test_dataset_view(self) -> None:
+        """dataset_view returns the whole dataset payload."""
         with (
             patch(f"{_PKG}.build_web_dataset"),
             patch(f"{_PKG}.dataset_to_payload", return_value={"games": []}),
@@ -57,6 +65,7 @@ class TestDatasetViews:
 
     @pytest.mark.parametrize(("query", "demo"), [({}, False), ({"demo": "1"}, True)])
     def test_budget_view(self, query: dict[str, str], *, demo: bool) -> None:
+        """budget_view builds the snapshot with the demo flag from the query."""
         with patch(f"{_PKG}.build_budget_snapshot", return_value={"x": 1}) as build:
             reply = _web_views.budget_view(make_request(query=query))
         build.assert_called_once_with(demo=demo)
@@ -64,18 +73,23 @@ class TestDatasetViews:
 
 
 class TestInstalled:
+    """The installed view lists games with size and flags."""
+
     def test_size_read_from_the_manifest(self) -> None:
+        """The size comes from SizeOnDisk in the manifest."""
         manifest = _steam_state.STEAMAPPS_PATH / "appmanifest_5.acf"
         manifest.write_text('"AppState"\n{\n\t"SizeOnDisk"\t\t"1234"\n}', "utf-8")
-        assert _web_views._size_on_disk(5) == 1234
+        assert _size_on_disk(5) == 1234
 
     def test_size_unknown_without_a_match_or_a_file(self) -> None:
+        """A manifest without the field, or no manifest, gives size 0."""
         manifest = _steam_state.STEAMAPPS_PATH / "appmanifest_6.acf"
         manifest.write_text('"AppState" {}', encoding="utf-8")
-        assert _web_views._size_on_disk(6) == 0
-        assert _web_views._size_on_disk(7) == 0
+        assert _size_on_disk(6) == 0
+        assert _size_on_disk(7) == 0
 
     def test_installed_view(self) -> None:
+        """installed_view lists each game with size, assigned and protected flags."""
         with (
             patch(f"{_PKG}.get_installed_games", return_value=[(5, "Five")]),
             patch(f"{_PKG}.allowed_app_ids", return_value={5}),
@@ -97,23 +111,29 @@ class TestInstalled:
 
 
 class TestSimpleViews:
+    """Views that pass a single source through."""
+
     def test_commands(self) -> None:
+        """commands_view returns the command specs."""
         with patch(f"{_PKG}.command_specs", return_value=[{"name": "scan"}]):
             assert _web_views.commands_view(make_request()).payload == [
                 {"name": "scan"}
             ]
 
     def test_setup_status_never_carries_the_key(self) -> None:
+        """setup_status reports whether a key is set, never the key."""
         unset = _web_views.setup_status(Config())
         assert unset == {"configured": False, "has_api_key": False, "steam_id": None}
         done = _web_views.setup_status(Config(steam_api_key="k", steam_id="7"))
         assert done == {"configured": True, "has_api_key": True, "steam_id": "7"}
 
     def test_setup_view(self) -> None:
+        """setup_view reports the setup status."""
         body = payload_of(_web_views.setup_view(make_request()))
         assert body["configured"] is False
 
     def test_backups(self) -> None:
+        """backups_view lists the backups as JSON."""
         backup = StateBackup("id1", "t", "r", 4)
         with patch(f"{_PKG}.list_backups", return_value=[backup]):
             reply = _web_views.backups_view(make_request())

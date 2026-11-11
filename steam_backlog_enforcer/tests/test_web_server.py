@@ -67,6 +67,7 @@ class TestBudgetEndpoint:
     """Tests for the /api/budget route."""
 
     def test_budget_ok(self) -> None:
+        """/api/budget returns the production snapshot as JSON."""
         with (
             patch(
                 f"{_VIEWS_PKG}.build_budget_snapshot", return_value={"ok": True}
@@ -81,6 +82,7 @@ class TestBudgetEndpoint:
         assert build.call_args.kwargs == {"demo": False}
 
     def test_demo_query_reads_the_demo_run(self) -> None:
+        """?demo=1 builds the budget snapshot from the demo run."""
         with (
             patch(
                 f"{_VIEWS_PKG}.build_budget_snapshot", return_value={"ok": True}
@@ -91,6 +93,7 @@ class TestBudgetEndpoint:
         assert build.call_args.kwargs == {"demo": True}
 
     def test_budget_error(self) -> None:
+        """A failure building the snapshot returns 500 op_failed."""
         with (
             patch(f"{_VIEWS_PKG}.build_budget_snapshot", side_effect=OSError("boom")),
             _running() as port,
@@ -104,6 +107,7 @@ class TestDatasetEndpoint:
     """Tests for the /api/dataset route."""
 
     def test_dataset_ok(self) -> None:
+        """/api/dataset returns the games dataset as UTF-8 JSON."""
         with (
             patch(f"{_DATASET_PKG}.load_snapshot", return_value=None),
             patch(f"{_DATA_PKG}._read_raw_cache", return_value={}),
@@ -117,6 +121,7 @@ class TestDatasetEndpoint:
         assert "games" in json.loads(body)
 
     def test_dataset_error_returns_500(self) -> None:
+        """A failure building the dataset returns 500 op_failed."""
         with (
             patch(f"{_VIEWS_PKG}.build_web_dataset", side_effect=OSError("boom")),
             _running() as port,
@@ -130,6 +135,7 @@ class TestStaticServing:
     """Tests for static-file serving, the 404 page and the traversal guard."""
 
     def test_serves_index(self, tmp_path: Path) -> None:
+        """/ serves index.html as HTML."""
         dist = _make_dist(tmp_path)
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, body, ctype = _get(port, "/")
@@ -138,6 +144,7 @@ class TestStaticServing:
         assert "text/html" in ctype
 
     def test_serves_js_with_charset(self, tmp_path: Path) -> None:
+        """JavaScript is served with a UTF-8 charset."""
         dist = _make_dist(tmp_path, files={"app.js": b"console.log(1)"})
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, _, ctype = _get(port, "/app.js")
@@ -145,6 +152,7 @@ class TestStaticServing:
         assert "charset=utf-8" in ctype
 
     def test_serves_binary_without_charset(self, tmp_path: Path) -> None:
+        """Binary files are served without a charset."""
         dist = _make_dist(tmp_path, files={"pic.png": b"\x89PNG\r\n"})
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, _, ctype = _get(port, "/pic.png")
@@ -153,6 +161,7 @@ class TestStaticServing:
         assert "charset" not in ctype
 
     def test_unknown_route_gets_the_404_page(self, tmp_path: Path) -> None:
+        """An unknown route gets the built 404 page."""
         dist = _make_dist(tmp_path, files={"404.html": b"<html>MISSING</html>"})
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, body, _ = _get(port, "/some/unknown/route")
@@ -160,6 +169,7 @@ class TestStaticServing:
         assert b"MISSING" in body
 
     def test_path_traversal_blocked(self, tmp_path: Path) -> None:
+        """A traversal path gets the 404 page, never a file outside dist."""
         dist = _make_dist(tmp_path, files={"404.html": b"<html>MISSING</html>"})
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, body, _ = _get(port, "/../../../../../../etc/passwd")
@@ -168,6 +178,7 @@ class TestStaticServing:
         assert b"root:" not in body
 
     def test_not_built_returns_404(self, tmp_path: Path) -> None:
+        """Without a built index the server answers 404 saying it is not built."""
         dist = _make_dist(tmp_path, with_index=False)
         with patch(f"{_PKG}.WEB_DIST", dist), _running() as port:
             status, body, _ = _get(port, "/")
@@ -179,6 +190,7 @@ class TestCreateServer:
     """Tests for create_server."""
 
     def test_binds_localhost(self) -> None:
+        """create_server binds the requested localhost address."""
         server = create_server("127.0.0.1", 0)
         try:
             assert server.server_address[0] == "127.0.0.1"
@@ -190,6 +202,7 @@ class TestServe:
     """Tests for the blocking serve() entry point."""
 
     def test_keyboard_interrupt_shuts_down(self) -> None:
+        """Ctrl-C stops serve() and the server is still closed."""
         fake = MagicMock()
         fake.serve_forever.side_effect = KeyboardInterrupt
         with (
@@ -201,6 +214,7 @@ class TestServe:
         fake.server_close.assert_called_once()
 
     def test_normal_return_closes_server(self) -> None:
+        """A normal return from serve_forever closes the server."""
         fake = MagicMock()
         with (
             patch(f"{_PKG}.create_server", return_value=fake),

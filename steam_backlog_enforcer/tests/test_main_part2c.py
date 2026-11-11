@@ -1,13 +1,14 @@
 """Tests for finalize_completion: snapshot refresh and install retry."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from unittest.mock import (
     patch,
 )
 
 from steam_backlog_enforcer._cmd_done_finalize import _finalize_completion
 from steam_backlog_enforcer.config import Config, State
-from steam_backlog_enforcer.tests._main_helpers import done_game
+from steam_backlog_enforcer.tests._main_helpers import done_game, snap
+from steam_backlog_enforcer.tests._main_patches import assign_next, library_hider
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.steam_api import GameInfo
@@ -19,31 +20,16 @@ _CMD_DONE = "steam_backlog_enforcer._cmd_done"
 PKG = "steam_backlog_enforcer.main"
 
 
-def _snap(
-    app_id: int = 1,
-    name: str = "G",
-    total: int = 10,
-    unlocked: int = 0,
-    hours: float = -1,
-) -> dict[str, Any]:
-    return {
-        "app_id": app_id,
-        "name": name,
-        "total_achievements": total,
-        "unlocked_achievements": unlocked,
-        "playtime_minutes": 60,
-        "completionist_hours": hours,
-    }
-
-
 class TestFinalizeCompletionRetries:
+    """Finalizing a completion refreshes hours and retries a dropped install."""
+
     def test_refreshes_snapshot_hours_before_pick(self) -> None:
         """Ensure stale snapshot hours are replaced before picking next game."""
         config = Config()
         state = State(current_app_id=1, current_game_name="G")
-        snap = [
-            _snap(2, "A Space for the Unbound", 10, 0, 0.56),
-            _snap(3, "Lacuna", 10, 0, 1.2),
+        snapshot = [
+            snap(2, "A Space for the Unbound", 10, 0, 0.56),
+            snap(3, "Lacuna", 10, 0, 1.2),
         ]
         seen: dict[int, float] = {}
 
@@ -60,7 +46,7 @@ class TestFinalizeCompletionRetries:
 
         with (
             patch(f"{CMD_DONE_PKG}._echo"),
-            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snapshot),
             patch(f"{CMD_DONE_PKG}.load_hltb_cache", return_value={2: 20.05}),
             patch(
                 f"{_CMD_DONE}.fetch_hltb_times_cached",
@@ -79,29 +65,13 @@ class TestFinalizeCompletionRetries:
         """Re-trigger install after hide step in case Steam restart drops it."""
         config = Config(steam_id="sid")
         state = State(current_app_id=1, current_game_name="DoneGame")
-        snap = [_snap(2, "Next", 10, 0, 5.0)]
-
-        def set_next(
-            _games: object,
-            s: State,
-            _c: object,
-            **_kwargs: object,
-        ) -> None:
-            s.current_app_id = 2
-            s.current_game_name = "Next"
+        snapshot = [snap(2, "Next", 10, 0, 5.0)]
 
         with (
             patch(f"{CMD_DONE_PKG}._echo"),
-            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
-            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[1, 2],
-            ),
-            patch(
-                "steam_backlog_enforcer.library_hider.try_hide_other_games",
-                return_value=(1, None),
-            ),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snapshot),
+            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=assign_next(2, "Next")),
+            library_hider([1, 2], (1, None)),
             patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=False),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.send_notification"),
@@ -115,29 +85,13 @@ class TestFinalizeCompletionRetries:
         """Do not re-trigger install when assigned game is already present."""
         config = Config(steam_id="sid")
         state = State(current_app_id=1, current_game_name="DoneGame")
-        snap = [_snap(2, "Next", 10, 0, 5.0)]
-
-        def set_next(
-            _games: object,
-            s: State,
-            _c: object,
-            **_kwargs: object,
-        ) -> None:
-            s.current_app_id = 2
-            s.current_game_name = "Next"
+        snapshot = [snap(2, "Next", 10, 0, 5.0)]
 
         with (
             patch(f"{CMD_DONE_PKG}._echo"),
-            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snap),
-            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=set_next),
-            patch(
-                "steam_backlog_enforcer.library_hider.get_all_owned_app_ids",
-                return_value=[1, 2],
-            ),
-            patch(
-                "steam_backlog_enforcer.library_hider.try_hide_other_games",
-                return_value=(1, None),
-            ),
+            patch(f"{CMD_DONE_PKG}.load_snapshot", return_value=snapshot),
+            patch(f"{CMD_DONE_PKG}.pick_next_game", side_effect=assign_next(2, "Next")),
+            library_hider([1, 2], (1, None)),
             patch(f"{CMD_DONE_PKG}.is_game_fully_installed", return_value=True),
             patch(f"{CMD_DONE_PKG}.install_game") as mock_install,
             patch(f"{CMD_DONE_PKG}.send_notification"),

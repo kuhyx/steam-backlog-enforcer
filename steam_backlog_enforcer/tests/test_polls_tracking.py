@@ -15,23 +15,12 @@ from steam_backlog_enforcer._hltb_types import (
     load_hltb_polls_cache,
     save_hltb_cache,
 )
-from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import GameInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 _TYPES = "steam_backlog_enforcer._hltb_types"
-_CMD = "steam_backlog_enforcer._cmd_done"
-_SCAN = "steam_backlog_enforcer.scanning"
-
-
-def _state(finished: list[int], current: int | None = None) -> State:
-    s = State()
-    s.finished_app_ids = list(finished)
-    s.current_app_id = current
-    s.current_game_name = ""
-    return s
 
 
 class TestCacheSchema:

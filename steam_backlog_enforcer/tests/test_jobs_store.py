@@ -11,6 +11,7 @@ import pytest
 from steam_backlog_enforcer.jobs import _store
 from steam_backlog_enforcer.jobs._errors import JobError, PrivilegedViaDaemonError
 from steam_backlog_enforcer.jobs._events import PID_NAME, REQUEST_NAME, read_events
+from steam_backlog_enforcer.jobs._store import _ID_PATTERN
 from steam_backlog_enforcer.tests._jobs_helpers import JOB_ID, make_job
 
 _GATE = "steam_backlog_enforcer.jobs._store.lock_reason"
@@ -47,7 +48,7 @@ class TestJobDir:
 def test_new_job_ids_are_valid_and_sortable() -> None:
     """Fresh ids match the pattern and are distinct."""
     first, second = _store.new_job_id(), _store.new_job_id()
-    assert _store._ID_PATTERN.fullmatch(first)
+    assert _ID_PATTERN.fullmatch(first)
     assert first != second
 
 
@@ -164,7 +165,7 @@ class TestCreateJob:
         """The child gets the lock fd; the server releases its copy after."""
         seen: dict[str, object] = {}
 
-        def fake_spawn(path: object, lock_fd: int | None) -> int:
+        def fake_spawn(_path: object, lock_fd: int | None) -> int:
             seen["fd"] = lock_fd
             with pytest.raises(JobError):  # Still held while spawning.
                 _store.acquire_mutating_lock()

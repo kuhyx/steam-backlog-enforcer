@@ -58,6 +58,7 @@ class TestResolveDesktopUser:
             assert _resolve_desktop_user() == "kuhy"
 
     def test_returns_none_when_nothing_set(self) -> None:
+        """No user variable at all resolves to None."""
         env = os.environ.copy()
         env.pop("STEAM_ENFORCER_DESKTOP_USER", None)
         env.pop("SUDO_USER", None)
@@ -70,11 +71,13 @@ class TestSteamIsInstalled:
     """Tests for steam_is_installed."""
 
     def test_true_when_binary_exists(self) -> None:
+        """An existing /usr/bin/steam reads as installed."""
         with patch("steam_backlog_enforcer._steam_launch.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
             assert steam_is_installed() is True
 
     def test_false_when_binary_missing(self) -> None:
+        """A missing /usr/bin/steam reads as not installed."""
         with patch("steam_backlog_enforcer._steam_launch.Path") as mock_path:
             mock_path.return_value.exists.return_value = False
             assert steam_is_installed() is False
@@ -138,6 +141,7 @@ class TestRunAsUser:
                 _SPAWNED.clear()
 
     def test_non_root_runs_directly(self) -> None:
+        """A non-root caller runs the command unchanged."""
         with (
             patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=1000),
             patch(f"{STEAM_PROCESS_PKG}.subprocess.Popen") as mock_popen,
@@ -148,6 +152,7 @@ class TestRunAsUser:
         assert cmd == ["steam", "-shutdown"]
 
     def test_root_drops_to_user(self) -> None:
+        """Root launches through sudo -u as the desktop user."""
         mock_pw = MagicMock()
         mock_pw.pw_uid = 1001
         with (
@@ -167,6 +172,7 @@ class TestRunAsUser:
         assert "alice" in cmd
 
     def test_root_user_key_error(self) -> None:
+        """An unknown user still drops privileges via sudo with the default uid."""
         with (
             patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=0),
             patch(f"{ENV_PKG}.pwd.getpwnam", side_effect=KeyError("no user")),

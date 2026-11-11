@@ -10,6 +10,7 @@ from steam_backlog_enforcer.scanning import (
     _check_game_tampering,
     detect_tampering,
 )
+from steam_backlog_enforcer.tests._main_helpers import snap
 
 PKG = "steam_backlog_enforcer._scanning_tampering"
 
@@ -21,19 +22,18 @@ def _entry(
     unlocked: int = 5,
     playtime: int = 60,
 ) -> dict[str, Any]:
-    return {
-        "app_id": app_id,
-        "name": name,
-        "total_achievements": total,
-        "unlocked_achievements": unlocked,
-        "playtime_minutes": playtime,
-    }
+    # A scan entry is a snapshot entry without the HLTB hours column.
+    entry = snap(app_id, name, total, unlocked)
+    del entry["completionist_hours"]
+    entry["playtime_minutes"] = playtime
+    return entry
 
 
 class TestCheckGameTampering:
     """Tests for _check_game_tampering."""
 
     def test_current_game_skipped(self) -> None:
+        """The assigned game is never checked for tampering."""
         state = State(current_app_id=1)
         result = _check_game_tampering(MagicMock(), _entry(app_id=1), state)
         assert result is None
@@ -41,6 +41,7 @@ class TestCheckGameTampering:
     def test_finished_manual_pick_is_not_tampering(self) -> None:
         # The completion that retired the pick is legitimate progress; the
         # snapshot is simply stale. Reported as TAMPERING before this exemption.
+        """New unlocks on a finished manual pick are legitimate progress."""
         client = MagicMock()
         game = MagicMock()
         game.unlocked_achievements = 16
@@ -57,6 +58,7 @@ class TestCheckGameTampering:
 
     def test_active_second_pick_is_not_tampering(self) -> None:
         # A second manual pick is allowed but is not current_app_id.
+        """New unlocks on an active second manual pick are allowed."""
         client = MagicMock()
         game = MagicMock()
         game.unlocked_achievements = 9
@@ -72,6 +74,7 @@ class TestCheckGameTampering:
 
     def test_unrelated_game_still_flagged(self) -> None:
         # The detector must keep working for games never allowed.
+        """New unlocks on a game never allowed are reported with the gain."""
         client = MagicMock()
         game = MagicMock()
         game.unlocked_achievements = 8
@@ -81,6 +84,7 @@ class TestCheckGameTampering:
         assert _check_game_tampering(client, entry, state) == ("AoE2", 813780, 3)
 
     def test_already_complete_skipped(self) -> None:
+        """A game that was already 100% is not checked."""
         state = State()
         result = _check_game_tampering(
             MagicMock(),
@@ -90,6 +94,7 @@ class TestCheckGameTampering:
         assert result is None
 
     def test_zero_playtime_skipped(self) -> None:
+        """A game never played is not checked."""
         state = State()
         result = _check_game_tampering(
             MagicMock(),
@@ -99,6 +104,7 @@ class TestCheckGameTampering:
         assert result is None
 
     def test_no_new_achievements(self) -> None:
+        """An unchanged unlock count is not tampering."""
         client = MagicMock()
         game = MagicMock()
         game.unlocked_achievements = 5
@@ -108,6 +114,7 @@ class TestCheckGameTampering:
         assert result is None
 
     def test_tampering_detected(self) -> None:
+        """More unlocks than the snapshot is reported as name, id and gain."""
         client = MagicMock()
         game = MagicMock()
         game.unlocked_achievements = 8
@@ -119,6 +126,7 @@ class TestCheckGameTampering:
         assert result == ("Cheated", 99, 3)
 
     def test_refresh_returns_none(self) -> None:
+        """A failed refresh is not tampering."""
         client = MagicMock()
         client.refresh_single_game.return_value = None
         state = State()
@@ -142,6 +150,8 @@ def _client_showing(extra: dict[int, int]) -> MagicMock:
 class TestDetectTampering:
     """Tests for detect_tampering."""
 
+    notify: MagicMock
+
     def _run(self, entries: list[dict[str, Any]], client: MagicMock) -> MagicMock:
         with (
             patch(f"{PKG}.load_snapshot", return_value=entries),
@@ -154,15 +164,18 @@ class TestDetectTampering:
         return mock_echo
 
     def test_no_snapshot(self) -> None:
+        """With no snapshot, detection returns quietly."""
         with patch(f"{PKG}.load_snapshot", return_value=None):
             detect_tampering(Config(steam_api_key="k", steam_id="i"), State())
 
     def test_no_tampering(self) -> None:
+        """Clean games produce no output and no notification."""
         mock_echo = self._run([_entry(app_id=1)], _client_showing({}))
         mock_echo.assert_not_called()
         self.notify.assert_not_called()
 
     def test_tampering_found(self) -> None:
+        """A tampered game is echoed with its gain and notified once."""
         entries = [_entry(app_id=1, name="BadGame")]
         mock_echo = self._run(entries, _client_showing({1: 3}))
         assert any("TAMPERING" in str(c) for c in mock_echo.call_args_list)

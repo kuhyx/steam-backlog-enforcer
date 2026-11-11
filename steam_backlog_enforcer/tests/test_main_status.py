@@ -25,6 +25,7 @@ class TestCmdStatus:
     """Tests for cmd_status."""
 
     def test_with_game(self) -> None:
+        """Status renders with an assigned, installed game."""
         state = State(current_app_id=440, current_game_name="TF2")
         with (
             patch(f"{PKG}.is_store_blocked", return_value=True),
@@ -35,6 +36,7 @@ class TestCmdStatus:
             cmd_status(Config(), state)
 
     def test_no_game(self) -> None:
+        """Status renders with no game assigned and nothing installed."""
         with (
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
@@ -48,6 +50,7 @@ class TestCmdList:
     """Tests for cmd_list."""
 
     def test_no_snapshot(self) -> None:
+        """Without a snapshot the list says so and hints at a scan."""
         with (
             patch("steam_backlog_enforcer._snapshot.load_snapshot", return_value=None),
             patch(f"{PKG}.report_completion", return_value=[]),
@@ -58,6 +61,7 @@ class TestCmdList:
             assert any("No snapshot" in str(c) for c in mock_echo.call_args_list)
 
     def test_with_games(self) -> None:
+        """The list renders complete, partial and no-estimate games."""
         snapshot = [
             snap(1, "A", 10, 5, 20.0),
             snap(2, "B", 10, 10, 10.0),
@@ -74,6 +78,7 @@ class TestCmdList:
             cmd_list(Config(), state)
 
     def test_many_games(self) -> None:
+        """A long backlog is cut off with a "more" line."""
         snapshot = [snap(i, f"Game{i}") for i in range(60)]
         with (
             patch(
@@ -87,7 +92,10 @@ class TestCmdList:
 
 
 class TestCmdStatusLockHint:
+    """Status shows the manual pick lock only while it holds."""
+
     def test_shows_lock_hint_when_locked(self) -> None:
+        """A locked manual pick is shown in the status."""
         state = locked_state()
         with (
             patch(f"{PKG}.is_store_blocked", return_value=False),
@@ -100,6 +108,7 @@ class TestCmdStatusLockHint:
         assert "MANUAL PICK LOCK" in output
 
     def test_no_lock_hint_when_not_locked(self) -> None:
+        """Without a lock the status shows no lock hint."""
         with (
             patch(f"{PKG}.is_store_blocked", return_value=False),
             patch(f"{PKG}.get_installed_games", return_value=[]),
@@ -127,7 +136,10 @@ def _abandonable_state(app_id: int = 100, started_at: str = _RECENT_PICK) -> Sta
 
 
 class TestCmdStatusTotalBlock:
+    """Status shows the total gaming block while it is active."""
+
     def test_shows_total_block_when_active(self) -> None:
+        """An active block is shown with its time remaining."""
         with (
             patch(f"{PKG}.get_total_block_status", return_value=ACTIVE_STATUS),
             patch(f"{PKG}.is_store_blocked", return_value=False),
@@ -141,6 +153,7 @@ class TestCmdStatusTotalBlock:
         assert "Time remaining: 23h 2m" in output
 
     def test_no_total_block_section_when_inactive(self) -> None:
+        """An inactive block adds no block section."""
         with (
             patch(f"{PKG}.get_total_block_status", return_value=INACTIVE_STATUS),
             patch(f"{PKG}.is_store_blocked", return_value=False),
@@ -153,6 +166,7 @@ class TestCmdStatusTotalBlock:
         assert "TOTAL GAMING BLOCK" not in output
 
     def test_active_without_until_skips_remaining_time(self) -> None:
+        """An active block with no end time omits the remaining time."""
         status = TotalBlockStatus(
             active=True, started_at=None, until=None, days=1, days_remaining=0.5
         )
@@ -178,6 +192,7 @@ class TestCmdStatusCompletionSweepIsNonFatal:
     """status stays usable when the completion sweep cannot run."""
 
     def test_reports_failure_and_still_renders(self) -> None:
+        """A failed sweep is reported and the rest of the status still renders."""
         with (
             patch(f"{PKG}.report_completion", side_effect=OSError("state read-only")),
             patch(f"{PKG}.is_store_blocked", return_value=True),

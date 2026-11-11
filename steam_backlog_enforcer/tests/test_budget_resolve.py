@@ -15,21 +15,22 @@ from unittest.mock import patch
 import earned_time
 import pytest
 
-from steam_backlog_enforcer import _budget_resolve, _leetcode_bonus, _workout_budget
-from steam_backlog_enforcer._budget_resolve import resolve_budget
+from steam_backlog_enforcer import _leetcode_bonus, _workout_budget
+from steam_backlog_enforcer._budget_resolve import _last_logged, resolve_budget
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._budget_dates import AFTER_CUT, pin_today
+from steam_backlog_enforcer.tests._budget_earners import (
+    HOUR,
+    LEETCODE,
+    WORKOUT,
+    resolve_with,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-_WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
-_LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
 _LEETCODE_HTTP = "steam_backlog_enforcer._leetcode_bonus._fetch_leetcode_today"
-_READING = "steam_backlog_enforcer._budget_resolve.read_today"
 _LEDGER = "steam_backlog_enforcer._budget_resolve.ledger_answer"
-
-_HOUR = 3600.0
 
 
 @pytest.fixture(autouse=True)
@@ -41,11 +42,11 @@ def _clear_caches() -> Iterator[None]:
     """
     _workout_budget.reset_cache()
     _leetcode_bonus.reset_cache()
-    _budget_resolve._last_logged.clear()
+    _last_logged.clear()
     yield
     _workout_budget.reset_cache()
     _leetcode_bonus.reset_cache()
-    _budget_resolve._last_logged.clear()
+    _last_logged.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -87,22 +88,12 @@ class TestTheEightDays:
             expected_hours: The budget those three should produce.
         """
         workout, leetcode, reading = earners
-        with (
-            patch(_WORKOUT, return_value=workout),
-            patch(_LEETCODE, return_value=leetcode),
-            patch(_READING, return_value=reading),
-        ):
-            resolved = resolve_budget(Config())
-        assert resolved.seconds == expected_hours * _HOUR
+        resolved = resolve_with(workout=workout, leetcode=leetcode, reading=reading)
+        assert resolved.seconds == expected_hours * HOUR
 
     def test_the_breakdown_matches_the_total(self) -> None:
         """The parts a caller displays must add up to the number enforced."""
-        with (
-            patch(_WORKOUT, return_value=True),
-            patch(_LEETCODE, return_value=True),
-            patch(_READING, return_value=True),
-        ):
-            resolved = resolve_budget(Config())
+        resolved = resolve_with(workout=True, leetcode=True, reading=True)
         assert (
             resolved.base_seconds
             + resolved.workout_seconds
@@ -113,19 +104,14 @@ class TestTheEightDays:
 
     def test_every_earner_is_in_the_generic_breakdown(self) -> None:
         """``earned_seconds`` carries the same terms as the named fields."""
-        with (
-            patch(_WORKOUT, return_value=True),
-            patch(_LEETCODE, return_value=False),
-            patch(_READING, return_value=True),
-        ):
-            resolved = resolve_budget(Config())
+        resolved = resolve_with(workout=True, leetcode=False, reading=True)
         # Every other registered earner has no ledger here, so earns nothing.
         others = {e.name: 0.0 for e in earned_time.EARNERS}
         assert resolved.earned_seconds == {
             **others,
-            "workout": 2 * _HOUR,
+            "workout": 2 * HOUR,
             "leetcode": 0.0,
-            "reading": _HOUR,
+            "reading": HOUR,
         }
 
 
@@ -135,39 +121,39 @@ class TestFailingClosed:
     def test_an_unreachable_locker_costs_only_the_workout_bonus(self) -> None:
         """A dead screen locker must not also cost the LeetCode hour."""
         with (
-            patch(_WORKOUT, side_effect=OSError("refused")),
-            patch(_LEETCODE, return_value=True),
+            patch(WORKOUT, side_effect=OSError("refused")),
+            patch(LEETCODE, return_value=True),
         ):
             resolved = resolve_budget(Config())
-        assert resolved.seconds == 5.0 * _HOUR
-        assert resolved.leetcode_seconds == _HOUR
+        assert resolved.seconds == 5.0 * HOUR
+        assert resolved.leetcode_seconds == HOUR
 
     def test_an_unreadable_ledger_costs_only_the_leetcode_bonus(self) -> None:
         """The whole point of the split: LeetCode failing leaves 6h, not 4h."""
         with (
-            patch(_WORKOUT, return_value=True),
-            patch(_LEETCODE, return_value=None),
+            patch(WORKOUT, return_value=True),
+            patch(LEETCODE, return_value=None),
             patch(_LEETCODE_HTTP, side_effect=OSError("refused")),
         ):
             resolved = resolve_budget(Config())
-        assert resolved.seconds == 6.0 * _HOUR
-        assert resolved.workout_seconds == 2 * _HOUR
+        assert resolved.seconds == 6.0 * HOUR
+        assert resolved.workout_seconds == 2 * HOUR
 
     def test_both_unavailable_leaves_the_bare_floor(self) -> None:
         """Neither earner answering can never grant more than the floor."""
         with (
-            patch(_WORKOUT, side_effect=OSError("refused")),
-            patch(_LEETCODE, return_value=None),
+            patch(WORKOUT, side_effect=OSError("refused")),
+            patch(LEETCODE, return_value=None),
             patch(_LEETCODE_HTTP, side_effect=OSError("refused")),
         ):
             resolved = resolve_budget(Config())
-        assert resolved.seconds == 4.0 * _HOUR
+        assert resolved.seconds == 4.0 * HOUR
 
     def test_unknown_is_reported_differently_from_no(self) -> None:
         """ "Could not check" and "not earned" must not read the same."""
         with (
-            patch(_WORKOUT, return_value=False),
-            patch(_LEETCODE, return_value=None),
+            patch(WORKOUT, return_value=False),
+            patch(LEETCODE, return_value=None),
             patch(_LEETCODE_HTTP, side_effect=OSError("refused")),
             patch(_LEDGER, return_value=False),
         ):
@@ -175,8 +161,8 @@ class TestFailingClosed:
         _leetcode_bonus.reset_cache()
         _workout_budget.reset_cache()
         with (
-            patch(_WORKOUT, return_value=False),
-            patch(_LEETCODE, return_value=False),
+            patch(WORKOUT, return_value=False),
+            patch(LEETCODE, return_value=False),
             patch(_LEDGER, return_value=False),
         ):
             answered = resolve_budget(Config()).reason
@@ -196,8 +182,8 @@ class TestTheExplanation:
         """
         with (
             caplog.at_level(logging.INFO),
-            patch(_WORKOUT, return_value=False),
-            patch(_LEETCODE, return_value=False),
+            patch(WORKOUT, return_value=False),
+            patch(LEETCODE, return_value=False),
         ):
             resolve_budget(Config())
         assert "4.0h" in caplog.text
@@ -215,8 +201,8 @@ class TestTheExplanation:
         """
         with (
             caplog.at_level(logging.INFO),
-            patch(_WORKOUT, return_value=False),
-            patch(_LEETCODE, return_value=False),
+            patch(WORKOUT, return_value=False),
+            patch(LEETCODE, return_value=False),
         ):
             resolve_budget(Config())
             resolve_budget(Config())

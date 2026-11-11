@@ -59,7 +59,10 @@ def write_state(data: dict[str, object]) -> None:
 
 
 class TestLoadBackfill:
+    """Loading old state backfills assignment times and saves once."""
+
     def test_plain_assignment_is_stamped_once_and_persisted(self) -> None:
+        """A plain assignment gets one timestamp that later loads keep."""
         write_state({"current_app_id": 5, "current_game_name": "G5"})
         first = State.load()
         assert first.current_assigned_at
@@ -67,12 +70,14 @@ class TestLoadBackfill:
         assert first.last_assigned_at == {"5": first.current_assigned_at}
 
     def test_current_pick_keeps_its_pick_time(self) -> None:
+        """An assigned pick is timed from when it was picked."""
         write_state({"current_app_id": 5, "manual_picks": [pick(5), pick(6)]})
         state = State.load()
         assert state.current_assigned_at == STARTED_AT
         assert state.last_assigned_at == {"5": STARTED_AT, "6": STARTED_AT}
 
     def test_legacy_pick_migration_is_persisted(self) -> None:
+        """A legacy single-pick state is migrated and written back."""
         write_state({"manual_pick_app_id": 9, "manual_pick_started_at": ""})
         State.load()
         saved = json.loads(config_mod.STATE_FILE.read_text(encoding="utf-8"))
@@ -80,6 +85,7 @@ class TestLoadBackfill:
         assert saved["manual_pick_app_id"] is None
 
     def test_up_to_date_state_is_not_rewritten(self) -> None:
+        """State that needs no upgrade is never rewritten."""
         write_state({"current_app_id": None})
         with patch.object(State, "save") as mock_save:
             State.load()
@@ -87,7 +93,10 @@ class TestLoadBackfill:
 
 
 class TestReleasedPicksStayPlayable:
+    """Released and expired picks stay playable but no longer lock."""
+
     def test_released_and_expired_picks_stay_allowed_but_unlocked(self) -> None:
+        """Released and expired picks are allowed but leave nothing locked."""
         state = State(
             current_app_id=1,
             manual_picks=[
@@ -99,12 +108,14 @@ class TestReleasedPicksStayPlayable:
         assert is_manual_pick_locked(state) is False
 
     def test_explicit_choice_drops_only_inactive_picks(self) -> None:
+        """An explicit choice drops released picks and keeps active ones."""
         state = State(manual_picks=[pick(2, released_at=STARTED_AT), pick(3)])
         dropped = drop_inactive_picks(state)
         assert [p["app_id"] for p in dropped] == [2]
         assert [p["app_id"] for p in state.manual_picks] == [3]
 
     def test_new_manual_pick_keeps_released_ones(self) -> None:
+        """A new manual pick leaves earlier released picks playable."""
         state = State(current_app_id=2, manual_picks=[pick(2, released_at=STARTED_AT)])
         with patch.object(State, "save"):
             assert apply_manual_pick(state, 4, "G4", max_picks=1) is None
@@ -112,6 +123,7 @@ class TestReleasedPicksStayPlayable:
         assert state.current_assigned_at == state.manual_picks[-1]["started_at"]
 
     def test_released_pick_can_be_abandoned(self) -> None:
+        """A released pick can be abandoned and the active pick takes over."""
         state = State(
             current_app_id=2, manual_picks=[pick(2, released_at="R"), pick(3)]
         )
@@ -121,6 +133,7 @@ class TestReleasedPicksStayPlayable:
         assert (state.current_app_id, state.current_assigned_at) == (3, STARTED_AT)
 
     def test_abandoning_the_last_pick_clears_the_assignment(self) -> None:
+        """Abandoning the only pick clears the assignment."""
         state = State(current_app_id=2, current_assigned_at="T", manual_picks=[pick(2)])
         with patch.object(State, "save"):
             abandon_manual_pick(state, 2)
@@ -128,7 +141,10 @@ class TestReleasedPicksStayPlayable:
 
 
 class TestPickOrder:
+    """Candidates are ordered by least recent assignment, then length."""
+
     def test_least_recently_assigned_first_then_shortest(self) -> None:
+        """Never-assigned games come first, then the oldest assignment."""
         state = State(
             last_assigned_at={
                 "1": "2026-09-01T00:00:00+00:00",
@@ -145,7 +161,10 @@ class TestPickOrder:
 
 
 class TestTamperingAfterRelease:
+    """Unlocks after a release are tampering; earlier ones are not."""
+
     def entry(self) -> dict[str, object]:
+        """Return the catalogue entry for the released game."""
         return {
             "app_id": 7,
             "name": "G7",
@@ -155,28 +174,35 @@ class TestTamperingAfterRelease:
         }
 
     def check(self, *unlock_times: int) -> tuple[str, int, int] | None:
+        """Run the tampering check against a refresh with these unlocks."""
         client = MagicMock()
         client.refresh_single_game.return_value = game(7, *unlock_times)
         state = State(current_app_id=1, released_at={"7": RELEASED.isoformat()})
         return _check_game_tampering(client, self.entry(), state)
 
     def test_unlocks_earned_while_assigned_are_legitimate(self) -> None:
+        """Unlocks earned while the game was assigned are legitimate."""
         before = int((RELEASED - timedelta(hours=1)).timestamp())
         assert self.check(before, before) is None
 
     def test_unlocks_after_release_are_flagged(self) -> None:
+        """Unlocks made after the release are flagged as tampering."""
         before = int((RELEASED - timedelta(hours=1)).timestamp())
         after = int((RELEASED + timedelta(hours=1)).timestamp())
         assert self.check(before, after) == ("G7", 7, 1)
 
     def test_unreadable_game_is_not_flagged(self) -> None:
+        """A game whose refresh fails is not flagged."""
         client = MagicMock()
         client.refresh_single_game.return_value = None
         assert _check_game_tampering(client, self.entry(), State()) is None
 
 
 class TestCheckCommand:
+    """The check command applies the one-new-achievement rule."""
+
     def run_check(self, state: State, refreshed: GameInfo) -> MagicMock:
+        """Run do_check with every side effect patched; return the pick mock."""
         client = MagicMock()
         client.refresh_single_game.return_value = refreshed
         with (
@@ -195,6 +221,7 @@ class TestCheckCommand:
         return mock_pick
 
     def test_new_achievement_releases_and_keeps_the_game(self) -> None:
+        """A new achievement releases the game and keeps it assigned."""
         state = State(current_app_id=7, current_assigned_at=RELEASED.isoformat())
         after = int((RELEASED + timedelta(hours=1)).timestamp())
         self.run_check(state, game(7, after))
@@ -204,6 +231,7 @@ class TestCheckCommand:
         assert state.current_app_id == 7
 
     def test_no_new_achievement_changes_nothing(self) -> None:
+        """No new achievement leaves the state and the pick untouched."""
         state = State(current_app_id=7, current_assigned_at=RELEASED.isoformat())
         before = int((RELEASED - timedelta(hours=1)).timestamp())
         mock_pick = self.run_check(state, game(7, before))

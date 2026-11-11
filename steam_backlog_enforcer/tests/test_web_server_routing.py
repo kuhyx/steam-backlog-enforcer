@@ -11,10 +11,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer import _web_process, _web_server
+from steam_backlog_enforcer import _web_server
 from steam_backlog_enforcer._web_io import Reply, Request, ok
+from steam_backlog_enforcer._web_server import _STALE_MSG
 from steam_backlog_enforcer.jobs._daemon_jobs import DaemonOutcome, record_daemon_job
 from steam_backlog_enforcer.jobs._events import now_iso
+from steam_backlog_enforcer.tests._web_process_state import clean_process_state
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -26,11 +28,7 @@ _PKG = "steam_backlog_enforcer._web_server"
 @pytest.fixture(autouse=True)
 def _clean_process_state() -> Iterator[None]:
     """No retiring flag, and never "stale": other edits to the tree must not leak in."""
-    _web_process.RETIRING.clear()
-    with patch(f"{_PKG}.outdated_source", return_value=None):
-        yield
-    _web_process.RETIRING.clear()
-    _web_process._server.clear()
+    yield from clean_process_state()
 
 
 @contextmanager
@@ -85,33 +83,42 @@ def _error_of(raw: bytes) -> str:
 
 
 class TestAuthOrder:
+    """Host, then Origin, then token are checked before anything is served."""
+
     def test_foreign_host_is_refused_even_for_static(self) -> None:
+        """A foreign Host header is refused even for static files."""
         with _running() as server:
             status, raw, _ = _call(server, "GET", "/", headers={"Host": "evil:1"})
         assert (status, _error_of(raw)) == (403, "bad_host")
 
     def test_a_post_needs_the_origin(self) -> None:
+        """A POST without the same-origin header is refused."""
         with _running() as server:
             status, raw, _ = _call(server, "POST", "/api/jobs", body={})
         assert (status, _error_of(raw)) == (403, "bad_origin")
 
     def test_a_post_needs_the_token(self) -> None:
+        """A POST without the launch token is refused."""
         with _running() as server:
             origin = {"Origin": f"http://127.0.0.1:{server.port}"}
             status, raw, _ = _call(server, "POST", "/api/jobs", headers=origin)
         assert (status, _error_of(raw)) == (403, "bad_token")
 
     def test_events_need_the_token_in_the_query(self) -> None:
+        """The event stream needs the token in its query."""
         with _running() as server:
             status, raw, _ = _call(server, "GET", "/api/jobs/abc/events")
         assert (status, _error_of(raw)) == (403, "bad_token")
 
 
 class TestStale:
+    """A stale server refuses requests and stands down."""
+
     def _stale(self) -> AbstractContextManager[MagicMock]:
         return patch(f"{_PKG}.outdated_source", return_value="x.py")
 
     def test_api_routes_refuse_and_stand_down(self) -> None:
+        """API routes answer server_stale and retire the server."""
         with self._stale(), patch(f"{_PKG}._web_process.retire") as retire:
             with _running() as server:
                 status, raw, _ = _call(server, "GET", "/api/budget")
@@ -119,6 +126,7 @@ class TestStale:
         retire.assert_called_once_with()
 
     def test_static_routes_refuse_in_plain_text(self) -> None:
+        """Static routes answer the stale message in plain text."""
         with (
             self._stale(),
             patch(f"{_PKG}._web_process.retire"),
@@ -126,10 +134,11 @@ class TestStale:
         ):
             status, raw, headers = _call(server, "GET", "/")
         assert status == 503
-        assert raw.decode() == _web_server._STALE_MSG
+        assert raw.decode() == _STALE_MSG
         assert headers["Content-Type"].startswith("text/plain")
 
     def test_server_health_still_answers(self) -> None:
+        """/api/server still answers with the version."""
         with (
             self._stale(),
             patch(f"{_PKG}._web_process.retire") as retire,
@@ -142,22 +151,28 @@ class TestStale:
 
 
 class TestDispatch:
+    """Requests reach the right route or a clean error."""
+
     def test_unknown_endpoint(self) -> None:
+        """An unknown API path is a 404."""
         with _running() as server:
             status, raw, _ = _call(server, "GET", "/api/nope")
         assert (status, _error_of(raw)) == (404, "not_found")
 
     def test_known_path_under_the_wrong_method(self) -> None:
+        """A known path under the wrong method is a 405."""
         with _running() as server:
             status, _, _ = _call(server, "POST", "/api/budget", headers=_auth(server))
         assert status == 405
 
     def test_non_get_on_a_static_path(self) -> None:
+        """A non-GET on a static path is a 405."""
         with _running() as server:
             status, _, _ = _call(server, "POST", "/index.html", headers=_auth(server))
         assert status == 405
 
     def test_post_body_reaches_the_route(self) -> None:
+        """The JSON body, path args and first query values reach the route."""
         seen: list[Request] = []
 
         def route(request: Request) -> Reply:
@@ -183,6 +198,7 @@ class TestDispatch:
         )
 
     def test_delete_is_routed(self) -> None:
+        """DELETE requests are routed."""
         with (
             patch(f"{_PKG}.resolve", return_value=(lambda _r: ok(1), ())),
             _running() as server,
@@ -193,6 +209,8 @@ class TestDispatch:
         assert status == 200
 
     def test_a_crashing_route_is_a_500_without_details(self) -> None:
+        """A crashing route is a 500 that leaks no details."""
+
         def route(_request: Request) -> Reply:
             msg = "secret detail"
             raise RuntimeError(msg)
@@ -206,13 +224,17 @@ class TestDispatch:
         assert b"secret" not in raw
 
     def test_real_route_through_the_table(self) -> None:
+        """A real route resolves through the route table."""
         with patch(f"{_PKG}.resolve", wraps=_web_server.resolve), _running() as server:
             status, raw, _ = _call(server, "GET", "/api/jobs")
         assert (status, json.loads(raw)) == (200, [])
 
 
 class TestEvents:
+    """The job event stream serves server-sent events."""
+
     def test_streams_a_finished_job(self) -> None:
+        """A finished job streams its result event."""
         done = DaemonOutcome(ok=True, summary="s", exit_code=0)
         job_id = record_daemon_job("unblock", {}, created_at=now_iso(), outcome=done)
         with _running() as server:

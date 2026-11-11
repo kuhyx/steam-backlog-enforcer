@@ -40,6 +40,7 @@ class _RotatingSession:
         self.posts: list[tuple[str | None, str | None]] = []
 
     def get(self, *_a: object, **_k: object) -> FakeResp:
+        """Hand out a fresh token and honeypot pair for each /init call."""
         self.gets += 1
         n = self.gets
         return FakeResp(
@@ -47,6 +48,7 @@ class _RotatingSession:
         )
 
     def post(self, _url: str, *, headers: dict[str, str], data: str) -> FakeResp:
+        """Record the auth header and honeypot sent, answer with post_status."""
         self.posts.append((headers.get("x-auth-token"), json.loads(data).get("hp")))
         body = MATCH if self.post_status == 200 else None
         return FakeResp(self.post_status, body)

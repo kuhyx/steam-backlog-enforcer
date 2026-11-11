@@ -56,8 +56,8 @@ class TestFetchHltbTimesCached:
                 _games: object,
                 cache: dict[int, float] | None = None,
                 polls: dict[int, int] | None = None,
-                progress_cb: object = None,
                 extras: _HLTBExtras | None = None,
+                **_unused: object,
             ) -> list[object]:
                 """Test add to cache."""
                 if cache is not None:
@@ -116,8 +116,8 @@ class TestFetchHltbTimesCached:
                 _games: object,
                 cache: dict[int, float] | None = None,
                 polls: dict[int, int] | None = None,
-                progress_cb: object = None,
                 extras: _HLTBExtras | None = None,
+                **_unused: object,
             ) -> list[object]:
                 """Test add found."""
                 if cache is not None:

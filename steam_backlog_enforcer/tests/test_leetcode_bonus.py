@@ -14,8 +14,11 @@ from unittest.mock import patch
 
 import pytest
 
-from steam_backlog_enforcer import _leetcode_bonus
-from steam_backlog_enforcer._leetcode_bonus import leetcode_solved_today, reset_cache
+from steam_backlog_enforcer._leetcode_bonus import (
+    _fetch_leetcode_today,
+    leetcode_solved_today,
+    reset_cache,
+)
 from steam_backlog_enforcer.config import Config
 
 if TYPE_CHECKING:
@@ -111,7 +114,7 @@ class TestFetchLeetcodeToday:
             resp = conn.return_value.getresponse.return_value
             resp.status = 200
             resp.read.return_value = payload
-            _leetcode_bonus._fetch_leetcode_today("http://127.0.0.1:8771/api/status")
+            _fetch_leetcode_today("http://127.0.0.1:8771/api/status")
 
     def test_a_non_200_is_an_error(self) -> None:
         """An error page is not a payload."""
@@ -123,7 +126,7 @@ class TestFetchLeetcodeToday:
             resp.status = 500
             resp.reason = "Internal Server Error"
             resp.read.return_value = b""
-            _leetcode_bonus._fetch_leetcode_today("http://127.0.0.1:8771/api/status")
+            _fetch_leetcode_today("http://127.0.0.1:8771/api/status")
 
     def test_a_good_answer_is_read(self) -> None:
         """The happy path returns the flag."""
@@ -141,12 +144,7 @@ class TestFetchLeetcodeToday:
             resp = conn.return_value.getresponse.return_value
             resp.status = 200
             resp.read.return_value = payload
-            assert (
-                _leetcode_bonus._fetch_leetcode_today(
-                    "http://127.0.0.1:8771/api/status"
-                )
-                is True
-            )
+            assert _fetch_leetcode_today("http://127.0.0.1:8771/api/status") is True
 
     @pytest.mark.parametrize(
         ("block", "expected"),
@@ -167,4 +165,4 @@ class TestFetchLeetcodeToday:
             resp.status = 200
             resp.read.return_value = payload
             url = "http://127.0.0.1:8771/api/status"
-            assert _leetcode_bonus._fetch_leetcode_today(url) is expected
+            assert _fetch_leetcode_today(url) is expected

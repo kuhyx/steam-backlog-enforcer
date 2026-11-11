@@ -18,39 +18,25 @@ from unittest.mock import call, patch
 import earned_time
 import pytest
 
-from steam_backlog_enforcer import _ledger_earners, _leetcode_bonus, _workout_budget
 from steam_backlog_enforcer._budget_resolve import BudgetResolution, resolve_budget
 from steam_backlog_enforcer._ledger_earners import ledger_answer, reset_cache
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._budget_dates import AFTER_CUT, pin_today
 from steam_backlog_enforcer.tests._ledger_fixtures import KEY, credit, write_ledger
+from steam_backlog_enforcer.tests._piano_earner import (
+    ANSWER,
+    HOUR,
+    LEETCODE,
+    PIANO,
+    WORKOUT,
+    earner_caches_cleared,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
 _PKG = "steam_backlog_enforcer._ledger_earners"
-_WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
-_LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
-_ANSWER = "steam_backlog_enforcer._budget_resolve.ledger_answer"
-_HOUR = 3600.0
-
-
-def _any_credit(_row: dict[str, object], _window: tuple[float, float]) -> bool:
-    """Count every verified credit: the reader's own dating is earned_time's."""
-    return True
-
-
-# A hypothetical earner: the real registry already holds anki, so the stand-in
-# needs a name no gate uses.
-PIANO = earned_time.Earner(
-    name="piano",
-    label="Piano",
-    gaming_minutes=30,
-    shutdown_minutes=30,
-    ledger=".local/share/piano_guard/ledger.json",
-    match=_any_credit,
-)
 
 
 @pytest.fixture(autouse=True)
@@ -60,11 +46,8 @@ def _clear_caches() -> Iterator[None]:
     Yields:
         None, with the caches empty before and after.
     """
-    for module in (_ledger_earners, _workout_budget, _leetcode_bonus):
-        module.reset_cache()
-    yield
-    for module in (_ledger_earners, _workout_budget, _leetcode_bonus):
-        module.reset_cache()
+    with earner_caches_cleared():
+        yield
 
 
 class TestLedgerAnswer:
@@ -110,12 +93,14 @@ class TestLedgerAnswer:
         assert read.call_count == 1
 
     def test_a_failure_is_not_cached(self) -> None:
+        """A failed ledger read is retried on the next call."""
         with patch("earned_time.done_today", return_value=None) as read:
             assert ledger_answer(PIANO) is None
             assert ledger_answer(PIANO) is None
         assert read.call_count == 2
 
     def test_reset_cache_forces_a_reread(self) -> None:
+        """Resetting the cache makes the next call read the ledger again."""
         with patch("earned_time.done_today", return_value=True) as read:
             ledger_answer(PIANO)
             reset_cache()
@@ -138,10 +123,10 @@ def _resolve(
     with (
         pin_today(AFTER_CUT),
         patch("earned_time.EARNERS", (*earned_time.EARNERS, earner)),
-        patch(_WORKOUT, return_value=False),
-        patch(_LEETCODE, return_value=False),
+        patch(WORKOUT, return_value=False),
+        patch(LEETCODE, return_value=False),
         patch(
-            _ANSWER, side_effect=lambda asked: answer if asked is earner else False
+            ANSWER, side_effect=lambda asked: answer if asked is earner else False
         ) as asked,
     ):
         resolved = resolve_budget(Config())
@@ -153,20 +138,23 @@ class TestAGenericEarnerInTheBudget:
     """A registered earner joins the sum with no code of its own here."""
 
     def test_its_credit_adds_its_term(self) -> None:
+        """A yes from its ledger adds the earner's term to the budget."""
         resolved = _resolve(answer=True)
-        assert resolved.seconds == 4.5 * _HOUR
-        assert resolved.earned_seconds["piano"] == 0.5 * _HOUR
+        assert resolved.seconds == 4.5 * HOUR
+        assert resolved.earned_seconds["piano"] == 0.5 * HOUR
         assert resolved.reason.endswith(", Piano credited")
 
     def test_no_credit_adds_nothing(self) -> None:
+        """A no adds nothing and the reason says it was not credited."""
         resolved = _resolve(answer=False)
-        assert resolved.seconds == 4 * _HOUR
+        assert resolved.seconds == 4 * HOUR
         assert resolved.earned_seconds["piano"] == 0.0
         assert "no Piano credited" in resolved.reason
 
     def test_unknown_adds_nothing_and_reads_differently(self) -> None:
+        """An unknown answer adds nothing and reads as unknown."""
         resolved = _resolve(answer=None)
-        assert resolved.seconds == 4 * _HOUR
+        assert resolved.seconds == 4 * HOUR
         assert "Piano unknown" in resolved.reason
 
     def test_its_penalty_lowers_the_base_by_what_it_pays_back(self) -> None:
@@ -180,17 +168,17 @@ class TestAGenericEarnerInTheBudget:
         )
         missed = _resolve(answer=False, earner=penalised)
         earned = _resolve(answer=True, earner=penalised)
-        assert missed.base_seconds == 3.5 * _HOUR
-        assert missed.seconds == 3.5 * _HOUR
-        assert earned.seconds == 4 * _HOUR
+        assert missed.base_seconds == 3.5 * HOUR
+        assert missed.seconds == 3.5 * HOUR
+        assert earned.seconds == 4 * HOUR
 
     def test_the_built_in_earners_are_not_read_twice(self) -> None:
         """Only an earner with no dedicated reader goes through the ledger path."""
         with (
             pin_today(AFTER_CUT),
-            patch(_WORKOUT, return_value=False),
-            patch(_LEETCODE, return_value=False),
-            patch(_ANSWER, return_value=False) as asked,
+            patch(WORKOUT, return_value=False),
+            patch(LEETCODE, return_value=False),
+            patch(ANSWER, return_value=False) as asked,
         ):
             resolved = resolve_budget(Config())
         dedicated = (earned_time.WORKOUT, earned_time.LEETCODE, earned_time.READING)

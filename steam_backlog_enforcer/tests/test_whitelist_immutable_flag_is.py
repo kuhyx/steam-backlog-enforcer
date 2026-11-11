@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -122,8 +123,6 @@ class TestImmutableFlagIs:
 
     def test_timeout_swallowed(self, tmp_path: Path) -> None:
         """Test timeout swallowed."""
-        import subprocess
-
         target = tmp_path / "file.txt"
         target.write_text("data", encoding="utf-8")
         with (

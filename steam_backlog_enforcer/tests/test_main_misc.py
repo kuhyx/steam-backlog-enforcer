@@ -23,6 +23,7 @@ class TestCmdUnblock:
     """Tests for cmd_unblock: it opens a timed store window."""
 
     def test_default_window(self) -> None:
+        """No argument opens the default-length store window and says until when."""
         with (
             patch(f"{PKG}.open_store_window", return_value=_UNTIL) as mock_open,
             patch(f"{PKG}._echo") as mock_echo,
@@ -32,6 +33,7 @@ class TestCmdUnblock:
         assert any("UNBLOCKED until" in str(c) for c in mock_echo.call_args_list)
 
     def test_explicit_minutes(self) -> None:
+        """A minutes argument sets the window length."""
         with (
             patch(f"{PKG}.open_store_window", return_value=_UNTIL) as mock_open,
             patch(f"{PKG}._echo"),
@@ -41,6 +43,7 @@ class TestCmdUnblock:
 
     @pytest.mark.parametrize("raw", ["abc", "0", "31"])
     def test_bad_minutes_exits(self, raw: str) -> None:
+        """Non-numeric or out-of-range minutes print usage and exit."""
         with (
             patch(f"{PKG}._echo") as mock_echo,
             pytest.raises(SystemExit),
@@ -49,6 +52,7 @@ class TestCmdUnblock:
         assert any("Usage" in str(c) for c in mock_echo.call_args_list)
 
     def test_unblock_failure_exits(self) -> None:
+        """A failure to open the window is reported and exits."""
         with (
             patch(f"{PKG}.open_store_window", side_effect=RuntimeError("sudo?")),
             patch(f"{PKG}._echo") as mock_echo,
@@ -62,6 +66,7 @@ class TestCmdBuyDlc:
     """cmd_buy_dlc is the default-length window, assigned game or not."""
 
     def test_opens_default_window(self) -> None:
+        """buy-dlc opens a window of the default length."""
         with (
             patch(f"{PKG}.open_store_window", return_value=_UNTIL) as mock_open,
             patch(f"{PKG}._echo"),
@@ -98,6 +103,7 @@ class TestCmdReset:
     """Tests for cmd_reset."""
 
     def test_normal_reset(self) -> None:
+        """Reset clears the assignment and history and unhides games."""
         state = State(current_app_id=1, current_game_name="G", finished_app_ids=[1])
         printed = _reset(state, [1, 2])
         assert state.current_app_id is None
@@ -110,24 +116,28 @@ class TestCmdReset:
         assert any("Store left blocked" in line for line in printed)
 
     def test_wrong_phrase_aborts_and_keeps_state(self) -> None:
+        """A wrong confirmation phrase aborts and keeps state."""
         state = State(current_app_id=1)
         printed = _reset(state, [1], typed="yes")
         assert printed == ["Aborted."]
         assert state.current_app_id == 1
 
     def test_reports_the_backup_it_took(self) -> None:
+        """Reset names the state backup it created."""
         backup = MagicMock(id="20261010T000000Z-abcdef")
         with patch(f"{PKG}.create_backup", return_value=backup):
             printed = _reset(State(), [])
         assert "State backed up as 20261010T000000Z-abcdef." in printed
 
     def test_unhide_fails(self) -> None:
+        """An unhide error is reported but the reset still happens."""
         state = State(current_app_id=1)
         printed = _reset(state, OSError("fail"))
         assert any("could not unhide games: fail" in line for line in printed)
         assert state.current_app_id is None
 
     def test_unhide_returns_zero(self) -> None:
+        """Zero unhidden games prints no unhidden count."""
         state = State(current_app_id=1)
         printed = _reset(state, [1, 2], unhidden=0)
         assert not any("Unhidden" in line for line in printed)
@@ -137,6 +147,7 @@ class TestCmdSetup:
     """Tests for cmd_setup."""
 
     def test_calls_interactive(self) -> None:
+        """setup runs the interactive setup."""
         with patch(f"{PKG}.interactive_setup") as mock_setup:
             cmd_setup(Config(), State())
             mock_setup.assert_called_once()

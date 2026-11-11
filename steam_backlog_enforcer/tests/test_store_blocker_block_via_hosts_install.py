@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -193,8 +194,6 @@ class TestBlockStoreIptables:
 
     def test_dns_resolution_fails(self) -> None:
         """Test dns resolution fails."""
-        import socket
-
         mock_result = MagicMock(returncode=0)
         with (
             patch(
@@ -233,7 +232,7 @@ class TestBlockStoreIptables:
             ),
             patch(
                 "steam_backlog_enforcer._store_iptables.socket.getaddrinfo",
-                side_effect=__import__("socket").gaierror,
+                side_effect=socket.gaierror,
             ),
         ):
             assert _block_store_iptables() is True

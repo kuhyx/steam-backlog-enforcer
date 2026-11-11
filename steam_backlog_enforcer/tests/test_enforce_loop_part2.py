@@ -35,6 +35,7 @@ class TestEnforceLoopIteration:
             yield
 
     def test_kills_unauthorized(self) -> None:
+        """With killing on, the iteration runs the allowed-game enforcement."""
         config = Config(
             kill_unauthorized_games=True,
             uninstall_other_games=False,
@@ -52,6 +53,7 @@ class TestEnforceLoopIteration:
             _enforce_loop_iteration(config, state, session=fake_session())
 
     def test_no_kill(self) -> None:
+        """With killing off, the allowed-game enforcement is never called."""
         config = Config(
             kill_unauthorized_games=False,
             uninstall_other_games=False,
@@ -65,6 +67,7 @@ class TestEnforceLoopIteration:
             mock_enforce.assert_not_called()
 
     def test_guards_installed(self) -> None:
+        """With uninstalling on, the iteration guards installed games."""
         config = Config(
             kill_unauthorized_games=False,
             uninstall_other_games=True,
@@ -78,6 +81,7 @@ class TestEnforceLoopIteration:
             _enforce_loop_iteration(config, state, session=fake_session())
 
     def test_guard_removes_zero(self) -> None:
+        """A guard pass that removes nothing still completes the iteration."""
         config = Config(
             kill_unauthorized_games=False,
             uninstall_other_games=True,
@@ -115,6 +119,7 @@ class TestEnforceLoopIteration:
         mock_install.assert_not_called()
 
     def test_reinstalls_missing(self) -> None:
+        """A missing assigned game is reinstalled."""
         config = Config(
             kill_unauthorized_games=False,
             uninstall_other_games=False,
@@ -128,6 +133,7 @@ class TestEnforceLoopIteration:
             mock_install.assert_called_once()
 
     def test_no_app_id_skip_reinstall(self) -> None:
+        """With no assigned game, enforcing, guarding and reinstalling are skipped."""
         config = Config(
             kill_unauthorized_games=False,
             uninstall_other_games=False,

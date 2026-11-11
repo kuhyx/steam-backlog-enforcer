@@ -89,11 +89,14 @@ def property_writer(
         _bytes_after: object,
         prop_ref: object,
     ) -> int:
-        nitems_ref._obj.value = nitems  # type-erased ctypes byref holder
+        # cast() reads the address a byref() holder carries, so the write lands
+        # in the caller's variable exactly as libX11's would.
+        ctypes.cast(nitems_ref, ctypes.POINTER(ctypes.c_ulong)).contents.value = nitems
         if not null:
             holder = ctypes.c_ulong(value)
             keepalive.append(holder)
-            prop_ref._obj.contents = holder
+            out = ctypes.cast(prop_ref, ctypes.POINTER(ctypes.POINTER(ctypes.c_ulong)))
+            out.contents.contents = holder
         return status
 
     return impl

@@ -17,12 +17,15 @@ _PY = "/usr/bin/python3.14"
 _WSG = "/home/kuhy/.local/bin/wsg-grabber"
 
 
-@pytest.fixture
-def proc(tmp_path: Path) -> Path:
+@pytest.fixture(name="proc")
+def fixture_proc(tmp_path: Path) -> Path:
+    """Give each test an empty fake /proc tree."""
     return leisure_proc(tmp_path)
 
 
 class TestWsgIsTheProgram:
+    """Only a process running wsg-grabber itself counts as the reviewer."""
+
     @pytest.mark.parametrize(
         ("exe", "args"),
         [
@@ -39,6 +42,7 @@ class TestWsgIsTheProgram:
         ],
     )
     def test_not_a_reviewer(self, proc: Path, exe: str, args: tuple[str, ...]) -> None:
+        """Tools that merely mention wsg-grabber, or run other code, are left alone."""
         add_proc(proc, FakeProc(10, exe=exe, argv=args))
         assert procs.sweep_targets() == {}
 
@@ -53,22 +57,28 @@ class TestWsgIsTheProgram:
         ],
     )
     def test_a_reviewer(self, proc: Path, exe: str, args: tuple[str, ...]) -> None:
+        """Interpreter or binary runs of wsg-grabber are swept."""
         add_proc(proc, FakeProc(10, exe=exe, argv=args))
         assert procs.sweep_targets() == {10: "sweep:wsg-grabber"}
 
     def test_script_of_a_non_interpreter_is_none(self, proc: Path) -> None:
+        """A non-interpreter has no script, even with a .py argument."""
         add_proc(proc, FakeProc(10, exe="/usr/bin/git", argv=("git", "x.py")))
         assert procs.script_of(10) is None
 
 
 class TestDeletedExe:
+    """A binary replaced on disk still matches by its original name."""
+
     def test_an_updated_browser_is_still_a_browser(self, proc: Path) -> None:
+        """A browser whose exe reads '(deleted)' is still a swept browser."""
         add_proc(proc, FakeProc(10, exe="/opt/helium-browser-bin/helium (deleted)"))
         assert procs.exe_name(10) == "helium"
         assert procs.is_browser(10)
         assert procs.sweep_targets() == {10: "sweep:browser:helium"}
 
     def test_an_updated_player_is_still_swept(self, proc: Path) -> None:
+        """A player whose exe reads '(deleted)' is swept under its real path."""
         add_proc(proc, FakeProc(10, exe="/usr/bin/mpv (deleted)"))
         assert procs.sweep_targets() == {10: "sweep:media:mpv"}
         assert procs.exe_path(10) == "/usr/bin/mpv"

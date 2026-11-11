@@ -15,12 +15,15 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture
-def proc(tmp_path: Path) -> Path:
+@pytest.fixture(name="proc")
+def fixture_proc(tmp_path: Path) -> Path:
+    """Give each test an empty fake /proc tree."""
     return leisure_proc(tmp_path)
 
 
 class TestNames:
+    """Process names come from exe, falling back to comm."""
+
     @pytest.mark.parametrize(
         "exe",
         [
@@ -38,6 +41,7 @@ class TestNames:
         ],
     )
     def test_browser_families_by_exe(self, proc: Path, exe: str) -> None:
+        """Every supported browser family is recognised by its exe."""
         add_proc(proc, FakeProc(10, exe=exe, comm="Isolated Web Co"))
         assert procs.is_browser(10)
 
@@ -45,16 +49,19 @@ class TestNames:
         "exe", ["/usr/bin/mpv", "/usr/bin/operator", "/usr/bin/frozen", "/x/knowledge"]
     )
     def test_non_browsers(self, proc: Path, exe: str) -> None:
+        """Names that merely contain a browser word are not browsers."""
         add_proc(proc, FakeProc(10, exe=exe))
         assert not procs.is_browser(10)
 
     def test_unreadable_exe_falls_back_to_comm(self, proc: Path) -> None:
+        """An unreadable exe link falls back to the comm name."""
         add_proc(proc, FakeProc(10, comm="helium"))
         (proc / "10" / "exe").unlink()
         assert procs.exe_name(10) == "helium"
         assert procs.is_browser(10)
 
     def test_a_vanished_pid_has_no_name(self) -> None:
+        """A pid missing from /proc yields empty or None for every field."""
         assert procs.exe_name(99) == ""
         assert procs.argv(99) == ()
         assert procs.real_uid(99) is None
@@ -62,6 +69,7 @@ class TestNames:
         assert procs.parent(99) is None
 
     def test_reads_uid_start_and_parent(self, proc: Path) -> None:
+        """Uid, start time and parent pid are parsed from status and stat."""
         add_proc(proc, FakeProc(10, uid=1000, ppid=7, start=4242))
         assert (procs.real_uid(10), procs.start_time(10), procs.parent(10)) == (
             1000,
@@ -70,6 +78,7 @@ class TestNames:
         )
 
     def test_malformed_status_and_stat(self, proc: Path) -> None:
+        """Malformed status and stat fields read as None."""
         add_proc(proc, FakeProc(10))
         (proc / "10" / "status").write_text("Name:\tmpv\nUid:\tx\n", encoding="utf-8")
         (proc / "10" / "stat").write_text("10 (mpv) S", encoding="utf-8")
@@ -79,25 +88,32 @@ class TestNames:
         assert procs.parent(10) is None
 
     def test_status_without_a_uid_line(self, proc: Path) -> None:
+        """A status file with no Uid line gives no uid."""
         add_proc(proc, FakeProc(10))
         (proc / "10" / "status").write_text("Name:\tmpv\n", encoding="utf-8")
         assert procs.real_uid(10) is None
 
 
 class TestProtected:
+    """Lockers, other users and our own chain are never signalled."""
+
     def test_a_plain_user_player_is_fair_game(self, proc: Path) -> None:
+        """A desktop user's player outside any locker is killable."""
         add_proc(proc, FakeProc(10))
         assert not procs.is_protected(10, set())
 
     @pytest.mark.parametrize("uid", [0, 999, 1001])
     def test_anything_not_the_desktop_users(self, proc: Path, uid: int) -> None:
+        """Processes owned by any other uid are protected."""
         add_proc(proc, FakeProc(10, uid=uid))
         assert procs.is_protected(10, set())
 
     def test_a_vanished_pid_is_never_signalled(self) -> None:
+        """A pid that no longer exists counts as protected."""
         assert procs.is_protected(99, set())
 
     def test_own_chain(self, proc: Path) -> None:
+        """A pid in our own process chain is protected."""
         add_proc(proc, FakeProc(10))
         assert procs.is_protected(10, {10})
 
@@ -113,17 +129,20 @@ class TestProtected:
     def test_lockers_and_their_children(
         self, proc: Path, argv: tuple[str, ...]
     ) -> None:
+        """Lockers and every child they spawn are protected."""
         add_proc(proc, FakeProc(5, exe="/usr/bin/python3", argv=argv, comm="x"))
         add_proc(proc, FakeProc(10, ppid=5))
         assert procs.is_protected(5, set())
         assert procs.is_protected(10, set())
 
     def test_a_parent_loop_terminates(self, proc: Path) -> None:
+        """A cyclic parent chain ends the walk instead of looping."""
         add_proc(proc, FakeProc(10, ppid=11))
         add_proc(proc, FakeProc(11, ppid=10))
         assert not procs.is_protected(10, set())
 
     def test_own_chain_walks_up(self, proc: Path) -> None:
+        """own_chain() collects every ancestor up to init."""
         me = os.getpid()
         add_proc(proc, FakeProc(me, ppid=77))
         add_proc(proc, FakeProc(77, ppid=1))
@@ -131,9 +150,12 @@ class TestProtected:
 
 
 class TestSweep:
+    """An untrusted watcher sweeps browsers, players and reviewers."""
+
     def test_untrusted_watcher_sweeps_browsers_players_and_the_reviewer(
         self, proc: Path
     ) -> None:
+        """The sweep tags browsers, players and wsg-grabber, but not its subcommands."""
         add_proc(proc, FakeProc(10, exe="/opt/helium-browser-bin/helium"))
         add_proc(proc, FakeProc(11, exe="/usr/bin/mpv"))
         add_proc(proc, FakeProc(12, exe="/opt/FreeTube/freetube"))
@@ -163,10 +185,12 @@ class TestSweep:
         }
 
     def test_an_unlistable_proc_sweeps_nothing(self, proc: Path) -> None:
+        """A missing /proc yields an empty sweep."""
         proc.rmdir()
         assert procs.sweep_targets() == {}
 
     def test_a_deep_tree_walk_is_bounded(self, proc: Path) -> None:
+        """The ancestor walk stops after a fixed depth."""
         for pid in range(100, 150):
             add_proc(proc, FakeProc(pid, ppid=pid + 1))
         add_proc(proc, FakeProc(150, argv=("i3lock",)))

@@ -12,6 +12,7 @@ import pytest
 
 from steam_backlog_enforcer import _web_process
 from steam_backlog_enforcer._web_errors import ApiError
+from steam_backlog_enforcer._web_process import _RESTART_DELAY_SECONDS, _server
 from steam_backlog_enforcer.tests._web_request import make_request, payload_of
 
 if TYPE_CHECKING:
@@ -25,20 +26,24 @@ _PKG = "steam_backlog_enforcer._web_process"
 def _clean_process_state() -> Iterator[None]:
     """Leave neither a retiring flag, a registered server nor a cached sha."""
     _web_process.RETIRING.clear()
-    _web_process._server.clear()
+    _server.clear()
     _web_process.version.cache_clear()
     yield
     _web_process.RETIRING.clear()
-    _web_process._server.clear()
+    _server.clear()
     _web_process.version.cache_clear()
 
 
 class TestRetire:
+    """Retiring shuts the registered server down exactly once."""
+
     def test_without_a_server_it_does_nothing(self) -> None:
+        """With no server registered, retire is a no-op."""
         _web_process.retire()
         assert not _web_process.RETIRING.is_set()
 
     def test_shuts_the_server_down_once(self) -> None:
+        """Retire sets RETIRING and a second retire does not shut down again."""
         stopped = threading.Event()
         server = MagicMock()
         server.shutdown.side_effect = stopped.set
@@ -50,14 +55,18 @@ class TestRetire:
         server.shutdown.assert_called_once_with()
 
     def test_register_replaces_the_previous_server(self) -> None:
+        """Only the last registered server is kept."""
         first, second = MagicMock(), MagicMock()
         _web_process.register(first)
         _web_process.register(second)
-        assert _web_process._server == [second]
+        assert _server == [second]
 
 
 class TestVersion:
+    """The served version: git sha, else newest-source time, else unknown."""
+
     def test_git_short_sha(self) -> None:
+        """Inside git the version is the short sha."""
         done = subprocess.CompletedProcess([], 0, stdout="abc1234\n")
         with (
             patch(f"{_PKG}.shutil.which", return_value="/usr/bin/git"),
@@ -71,6 +80,7 @@ class TestVersion:
     def test_git_failure_falls_back_to_the_newest_source(
         self, failure: Exception, tmp_path: Path
     ) -> None:
+        """A git failure falls back to the newest source file's UTC time."""
         source = tmp_path / "a.py"
         source.write_text("", encoding="utf-8")
         with (
@@ -82,6 +92,7 @@ class TestVersion:
         assert got.endswith("Z")
 
     def test_no_git_and_no_sources(self) -> None:
+        """Without git or sources the version is unknown."""
         with (
             patch(f"{_PKG}.shutil.which", return_value=None),
             patch(f"{_PKG}.newest_py_after", return_value=None),
@@ -90,8 +101,11 @@ class TestVersion:
 
 
 class TestHealth:
+    """The health payload reports staleness, version and start time."""
+
     @pytest.mark.parametrize(("outdated", "stale"), [(None, False), ("x.py", True)])
     def test_health_payload(self, outdated: str | None, *, stale: bool) -> None:
+        """An outdated source marks the server stale."""
         with (
             patch(f"{_PKG}.outdated_source", return_value=outdated),
             patch(f"{_PKG}.version", return_value="v1"),
@@ -103,9 +117,12 @@ class TestHealth:
 
 
 class TestRestartView:
+    """Restart is only offered under a supervisor."""
+
     def test_refused_without_a_supervisor(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Without systemd the restart is refused as unsupported."""
         monkeypatch.delenv("INVOCATION_ID", raising=False)
         with pytest.raises(ApiError) as err:
             _web_process.restart_view(make_request(method="POST"))
@@ -114,8 +131,9 @@ class TestRestartView:
     def test_under_systemd_it_retires_after_the_reply(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Under systemd the server accepts and retires after a delay."""
         monkeypatch.setenv("INVOCATION_ID", "abc")
         with patch(f"{_PKG}.retire") as retire:
             reply = _web_process.restart_view(make_request(method="POST"))
-        retire.assert_called_once_with(_web_process._RESTART_DELAY_SECONDS)
+        retire.assert_called_once_with(_RESTART_DELAY_SECONDS)
         assert reply.status == HTTPStatus.ACCEPTED

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -81,18 +82,22 @@ class TestEcho:
     """Tests for _echo."""
 
     def test_default(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A message prints with a trailing newline."""
         _echo("hello")
         assert capsys.readouterr().out == "hello\n"
 
     def test_custom_end(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A custom end replaces the newline."""
         _echo("hi", end="")
         assert capsys.readouterr().out == "hi"
 
     def test_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """No arguments prints a bare newline."""
         _echo()
         assert capsys.readouterr().out == "\n"
 
     def test_flush(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """flush=True still prints the message once."""
         _echo("x", flush=True)
         assert capsys.readouterr().out == "x\n"
 
@@ -101,12 +106,14 @@ class TestTriggerSteamInstall:
     """Tests for _trigger_steam_install."""
 
     def test_success(self) -> None:
+        """A launched steam:// handler reports True."""
         with patch("steam_backlog_enforcer.game_install.subprocess.run") as mock_run:
             result = _trigger_steam_install(440, "TF2")
             assert result is True
             mock_run.assert_called_once()
 
     def test_file_not_found(self) -> None:
+        """A missing handler binary reports False."""
         with patch(
             "steam_backlog_enforcer.game_install.subprocess.run",
             side_effect=FileNotFoundError,
@@ -115,6 +122,7 @@ class TestTriggerSteamInstall:
             assert result is False
 
     def test_os_error(self) -> None:
+        """An OS error launching the handler reports False."""
         with patch(
             "steam_backlog_enforcer.game_install.subprocess.run",
             side_effect=OSError,
@@ -123,8 +131,7 @@ class TestTriggerSteamInstall:
             assert result is False
 
     def test_timeout(self) -> None:
-        import subprocess
-
+        """A handler that times out reports False."""
         with patch(
             "steam_backlog_enforcer.game_install.subprocess.run",
             side_effect=subprocess.TimeoutExpired("cmd", 15),
@@ -137,10 +144,12 @@ class TestGetRealUser:
     """Tests for _get_real_user."""
 
     def test_sudo_user(self) -> None:
+        """Under sudo the invoking user is the real user."""
         with patch.dict(os.environ, {"SUDO_USER": "alice", "USER": "root"}):
             assert _get_real_user() == "alice"
 
     def test_regular_user(self) -> None:
+        """Without sudo USER is the real user."""
         with patch.dict(os.environ, {"USER": "bob"}, clear=False):
             env = os.environ.copy()
             env.pop("SUDO_USER", None)
@@ -152,6 +161,7 @@ class TestGetUidGid:
     """Tests for _get_uid_gid_for_user."""
 
     def test_known_user(self) -> None:
+        """A known user maps to their passwd uid and gid."""
         mock_pw = MagicMock()
         mock_pw.pw_uid = 1001
         mock_pw.pw_gid = 1001
@@ -162,6 +172,7 @@ class TestGetUidGid:
             assert _get_uid_gid_for_user("alice") == (1001, 1001)
 
     def test_unknown_user(self) -> None:
+        """An unknown user falls back to 1000:1000."""
         with patch(
             "steam_backlog_enforcer._steam_client.pwd.getpwnam",
             side_effect=KeyError,
@@ -173,12 +184,14 @@ class TestIsGameInstalled:
     """Tests for is_game_installed."""
 
     def test_installed(self, tmp_path: Path) -> None:
+        """A present app manifest means the game is installed."""
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.touch()
         with patch("steam_backlog_enforcer._steam_client.STEAMAPPS_PATH", tmp_path):
             assert is_game_installed(440) is True
 
     def test_not_installed(self, tmp_path: Path) -> None:
+        """A missing app manifest means the game is not installed."""
         with patch("steam_backlog_enforcer._steam_client.STEAMAPPS_PATH", tmp_path):
             assert is_game_installed(440) is False
 
@@ -193,6 +206,7 @@ class TestTriggerSteamInstallPrivilegeDrop:
     _PKG = "steam_backlog_enforcer.game_install"
 
     def test_root_drops_to_desktop_user(self) -> None:
+        """As root the handler runs via sudo as the desktop user."""
         with (
             patch(f"{self._PKG}.os.geteuid", return_value=0),
             patch(f"{self._PKG}._get_real_user", return_value="kuhy"),
@@ -207,6 +221,7 @@ class TestTriggerSteamInstallPrivilegeDrop:
         assert argv[-1] == "steam://install/440"
 
     def test_non_root_does_not_wrap(self) -> None:
+        """As a user the handler runs without sudo."""
         with (
             patch(f"{self._PKG}.os.geteuid", return_value=1000),
             patch(f"{self._PKG}._get_real_user", return_value="kuhy"),

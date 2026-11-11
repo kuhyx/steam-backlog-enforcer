@@ -9,7 +9,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer import _web_auth, _web_process, _web_server
+from steam_backlog_enforcer import _web_auth, _web_server
+from steam_backlog_enforcer._web_process import _server
+from steam_backlog_enforcer._web_server import _NOT_BUILT_MSG, _query
+from steam_backlog_enforcer.tests._web_process_state import clean_process_state
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -22,15 +25,11 @@ _PKG = "steam_backlog_enforcer._web_server"
 @pytest.fixture(autouse=True)
 def _clean_process_state() -> Iterator[None]:
     """No retiring flag, and never "stale": other edits to the tree must not leak in."""
-    _web_process.RETIRING.clear()
-    with patch(f"{_PKG}.outdated_source", return_value=None):
-        yield
-    _web_process.RETIRING.clear()
-    _web_process._server.clear()
+    yield from clean_process_state()
 
 
-@pytest.fixture
-def dist(tmp_path: Path) -> Iterator[Path]:
+@pytest.fixture(name="dist")
+def fixture_dist(tmp_path: Path) -> Iterator[Path]:
     """A fake built bundle, served instead of ``web/dist``."""
     root = (tmp_path / "dist").resolve()
     root.mkdir()
@@ -75,7 +74,10 @@ def _get(path: str) -> tuple[int, bytes, str, str, str]:
 
 @pytest.mark.usefixtures("dist")
 class TestStatic:
+    """Static files: content types, caching, token injection and 404s."""
+
     def test_index_carries_this_launchs_token_and_is_not_cached(self) -> None:
+        """The index carries this launch's token and is never cached."""
         status, body, ctype, cache, token = _get("/")
         assert status == 200
         assert f'content="{token}"'.encode() in body
@@ -83,69 +85,85 @@ class TestStatic:
         assert cache == "no-store"
 
     def test_javascript_declares_its_charset(self) -> None:
+        """JavaScript is served with a utf-8 charset and may be cached."""
         _, body, ctype, cache, _ = _get("/app.js")
         assert body == b"console.log(1)"
         assert ctype.endswith("; charset=utf-8")
         assert cache == ""
 
     def test_binary_has_no_charset(self) -> None:
+        """A PNG is served as image/png without a charset."""
         _, body, ctype, _, _ = _get("/logo.png")
         assert (body, ctype) == (b"\x89PNG", "image/png")
 
     def test_unknown_extension_is_plain_text(self) -> None:
+        """A file without a known extension is plain text."""
         assert _get("/noext")[2] == "text/plain; charset=utf-8"
 
     @pytest.mark.parametrize("path", ["/sub", "/sub/", "/sub/index.html", "/sub/?id=7"])
     def test_a_directory_serves_its_own_index_with_a_token(self, path: str) -> None:
+        """Every spelling of a directory serves its index with a token."""
         status, body, ctype, cache, token = _get(path)
         assert (status, b"SUB" in body) == (200, True)
         assert f'content="{token}"'.encode() in body
         assert (ctype, cache) == ("text/html; charset=utf-8", "no-store")
 
     def test_every_html_file_carries_the_token_and_is_not_cached(self) -> None:
+        """Any HTML file gets the token and no-store."""
         status, body, _, cache, token = _get("/sub/page.html")
         assert (status, cache) == (200, "no-store")
         assert f'content="{token}"'.encode() in body
 
     def test_unknown_route_is_the_404_page_with_a_token(self) -> None:
+        """An unknown route serves the 404 page with a token."""
         status, body, _, cache, token = _get("/library/42")
         assert (status, b"MISSING" in body, cache) == (404, True, "no-store")
         assert f'content="{token}"'.encode() in body
 
     def test_path_traversal_gets_the_404_page_not_the_file(self) -> None:
+        """An encoded ../ never reaches a file outside the bundle."""
         status, body, _, _, _ = _get("/..%2Fsecret.txt")
         assert (status, b"MISSING" in body) == (404, True)
         assert b"top secret" not in body
 
     def test_unknown_route_without_a_404_page_is_not_built(self, dist: Path) -> None:
+        """Without a 404 page an unknown route gets the not-built message."""
         (dist / "404.html").unlink()
         status, body, _, _, _ = _get("/nope")
-        assert (status, body) == (404, _web_server._NOT_BUILT_MSG)
+        assert (status, body) == (404, _NOT_BUILT_MSG)
 
     def test_not_built_message_names_pnpm(self) -> None:
-        assert b"pnpm install && pnpm build" in _web_server._NOT_BUILT_MSG
+        """The not-built message tells how to build the frontend."""
+        assert b"pnpm install && pnpm build" in _NOT_BUILT_MSG
 
     def test_unbuilt_frontend_is_a_404(self, tmp_path: Path) -> None:
+        """A missing bundle answers 404 with the not-built message."""
         with patch(f"{_PKG}.WEB_DIST", (tmp_path / "missing").resolve()):
             status, body, _, _, _ = _get("/")
-        assert (status, body) == (404, _web_server._NOT_BUILT_MSG)
+        assert (status, body) == (404, _NOT_BUILT_MSG)
 
 
 class TestServer:
+    """create_server binds, mints a token and registers itself."""
+
     def test_port_is_the_bound_one(self) -> None:
+        """The server reports its bound port and a 64-char token, and is registered."""
         server = _web_server.create_server("127.0.0.1", 0)
         try:
             assert server.port > 0
             assert len(server.token) == 64
-            assert _web_process._server == [server]
+            assert _server == [server]
         finally:
             server.server_close()
 
     def test_query_keeps_the_first_value(self) -> None:
-        assert _web_server._query("a=1&a=2&b=3") == {"a": "1", "b": "3"}
+        """Repeated query keys keep their first value."""
+        assert _query("a=1&a=2&b=3") == {"a": "1", "b": "3"}
 
 
 class TestServe:
+    """serve writes the token file and always closes the server."""
+
     def _serve(self, serve_forever: object) -> MagicMock:
         server = MagicMock()
         server.token = _STUB
@@ -160,10 +178,12 @@ class TestServe:
         return echo
 
     def test_writes_the_token_file_and_runs_until_it_returns(self) -> None:
+        """The token file is written and the user told how to stop."""
         echo = self._serve(MagicMock())
         assert _web_auth.token_path(4321).read_text("ascii") == "tok\n"
         assert "Press Ctrl-C" in echo.call_args_list[2].args[0]
 
     def test_ctrl_c_shuts_down_cleanly(self) -> None:
+        """Ctrl-C ends serve with a shutdown message."""
         echo = self._serve(MagicMock(side_effect=KeyboardInterrupt))
         assert "Shutting down" in echo.call_args.args[0]

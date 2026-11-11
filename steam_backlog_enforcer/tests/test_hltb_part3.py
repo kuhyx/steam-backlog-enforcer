@@ -12,9 +12,11 @@ class TestFetchHltbTimes:
     """Tests for fetch_hltb_times."""
 
     def test_empty(self) -> None:
+        """No games means no lookups and an empty result."""
         assert fetch_hltb_times([]) == []
 
     def test_calls_batch(self) -> None:
+        """Results from the batch fetch are returned."""
         mock_result = HLTBResult(
             app_id=440, game_name="TF2", completionist_hours=50.0, similarity=1.0
         )
@@ -26,6 +28,7 @@ class TestFetchHltbTimes:
             assert len(results) == 1
 
     def test_none_cache(self) -> None:
+        """Without a cache, an empty batch yields no results."""
         with patch(
             "steam_backlog_enforcer.hltb._fetch_batch",
             return_value=[],
@@ -34,6 +37,7 @@ class TestFetchHltbTimes:
             assert results == []
 
     def test_explicit_cache(self) -> None:
+        """A passed cache does not invent results the batch did not return."""
         with patch(
             "steam_backlog_enforcer.hltb._fetch_batch",
             return_value=[],

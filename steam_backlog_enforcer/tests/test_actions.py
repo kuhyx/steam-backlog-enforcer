@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
 import pytest
 
 from steam_backlog_enforcer import _allowed_games
@@ -13,18 +11,7 @@ from steam_backlog_enforcer._actions import (
 )
 from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer.config import State
-
-
-def _iso_days_ago(days: float) -> str:
-    return (datetime.now(UTC) - timedelta(days=days)).isoformat()
-
-
-def _pick(app_id: int = 440, name: str = "TF2", days_ago: float = 1.0) -> dict:
-    return {
-        "app_id": app_id,
-        "game_name": name,
-        "started_at": _iso_days_ago(days_ago),
-    }
+from steam_backlog_enforcer.tests._manual_pick_rows import iso_days_ago, pick_row
 
 
 class TestIsManualPickLocked:
@@ -52,7 +39,7 @@ class TestIsManualPickLocked:
         """Test recent pick is locked."""
         state = State(
             manual_picks=[
-                {"app_id": 5, "game_name": "G", "started_at": _iso_days_ago(1)}
+                {"app_id": 5, "game_name": "G", "started_at": iso_days_ago(1)}
             ]
         )
         assert is_manual_pick_locked(state) is True
@@ -64,7 +51,7 @@ class TestIsManualPickLocked:
                 {
                     "app_id": 5,
                     "game_name": "G",
-                    "started_at": _iso_days_ago(_allowed_games.MANUAL_LOCK_DAYS + 1),
+                    "started_at": iso_days_ago(_allowed_games.MANUAL_LOCK_DAYS + 1),
                 }
             ]
         )
@@ -75,8 +62,8 @@ class TestIsManualPickLocked:
         """Test one active pick holds the lock for all."""
         state = State(
             manual_picks=[
-                {"app_id": 5, "game_name": "Done", "started_at": _iso_days_ago(1)},
-                {"app_id": 6, "game_name": "Live", "started_at": _iso_days_ago(1)},
+                {"app_id": 5, "game_name": "Done", "started_at": iso_days_ago(1)},
+                {"app_id": 6, "game_name": "Live", "started_at": iso_days_ago(1)},
             ],
             finished_app_ids=[5],
         )
@@ -88,7 +75,7 @@ class TestLegacyManualPickMigration:
 
     def test_legacy_pick_is_migrated_on_load(self) -> None:
         """Test legacy pick is migrated on load."""
-        started = _iso_days_ago(1)
+        started = iso_days_ago(1)
         State(
             manual_pick_app_id=5,
             manual_pick_game_name="Legacy",
@@ -159,7 +146,7 @@ class TestManualPickAgeDays:
 
     def test_unknown_app_id_returns_none(self) -> None:
         """Test unknown app id returns none."""
-        state = State(manual_picks=[_pick(440)])
+        state = State(manual_picks=[pick_row(440)])
         assert manual_pick_age_days(state, 999) is None
 
     def test_missing_timestamp_returns_none(self) -> None:
@@ -178,14 +165,14 @@ class TestManualPickAgeDays:
 
     def test_fresh_pick_is_almost_zero_days_old(self) -> None:
         """Test fresh pick is almost zero days old."""
-        state = State(manual_picks=[_pick(days_ago=0)])
+        state = State(manual_picks=[pick_row(days_ago=0)])
         age = manual_pick_age_days(state, 440)
         assert age is not None
         assert age == pytest.approx(0.0, abs=0.01)
 
     def test_old_pick_reports_its_age(self) -> None:
         """Test old pick reports its age."""
-        state = State(manual_picks=[_pick(days_ago=8)])
+        state = State(manual_picks=[pick_row(days_ago=8)])
         age = manual_pick_age_days(state, 440)
         assert age is not None
         assert age == pytest.approx(8.0, abs=0.01)

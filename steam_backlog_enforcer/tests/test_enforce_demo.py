@@ -20,7 +20,10 @@ def _block(days: float = 2.0) -> SimpleNamespace:
 
 
 class TestRunDemo:
+    """run_demo ticks only the demo budget and yields to a total block."""
+
     def test_refuses_to_start_under_a_total_block(self) -> None:
+        """An active total block refuses the demo without ticking."""
         with (
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}.get_total_block_status", return_value=_block(2.0)),
@@ -34,6 +37,7 @@ class TestRunDemo:
         )
 
     def test_ticks_only_the_demo_budget_until_interrupted(self) -> None:
+        """The demo ticks its own session until Ctrl-C."""
         with (
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.new_session", return_value="session") as session,
@@ -52,6 +56,7 @@ class TestRunDemo:
         assert "Demo stopped." in out
 
     def test_stops_loudly_when_a_total_block_starts_mid_run(self) -> None:
+        """A total block starting mid-run stops the demo with a message."""
         with (
             patch(f"{PKG}.is_total_block_active", side_effect=[False, False, True]),
             patch(f"{PKG}.get_total_block_status", return_value=_block(1.0)),

@@ -16,41 +16,34 @@ from unittest.mock import patch
 import earned_time
 import pytest
 
-from steam_backlog_enforcer import _ledger_earners, _leetcode_bonus, _workout_budget
+from steam_backlog_enforcer import _ledger_earners
 from steam_backlog_enforcer._budget_resolve import resolve_budget
 from steam_backlog_enforcer._ledger_earners import first_credits
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._budget_dates import AFTER_CUT, pin_today
 from steam_backlog_enforcer.tests._ledger_fixtures import KEY, credit, write_ledger
+from steam_backlog_enforcer.tests._piano_earner import (
+    ANSWER,
+    HOUR,
+    LEETCODE,
+    WORKOUT,
+    earner_caches_cleared,
+)
+from steam_backlog_enforcer.tests._piano_earner import (
+    PIANO as BASE_PIANO,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from datetime import date
     from pathlib import Path
 
-_WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
-_LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
-_ANSWER = "steam_backlog_enforcer._budget_resolve.ledger_answer"
-_HOUR = 3600.0
 _DAY = timedelta(days=1)
-
-
-def _any_credit(_row: dict[str, object], _window: tuple[float, float]) -> bool:
-    """Count every verified credit: the reader's own dating is earned_time's."""
-    return True
 
 
 # Penalised since well before the suite's pinned day, never confirmed by kuhy:
 # without a real credit it is a new gate and costs nothing.
-PIANO = earned_time.Earner(
-    name="piano",
-    label="Piano",
-    gaming_minutes=30,
-    shutdown_minutes=30,
-    ledger=".local/share/piano_guard/ledger.json",
-    match=_any_credit,
-    penalty_from=AFTER_CUT - 5 * _DAY,
-)
+PIANO = replace(BASE_PIANO, penalty_from=AFTER_CUT - 5 * _DAY)
 
 
 @pytest.fixture(autouse=True)
@@ -60,15 +53,12 @@ def _clear_caches() -> Iterator[None]:
     Yields:
         None, with the caches empty before and after.
     """
-    for module in (_ledger_earners, _workout_budget, _leetcode_bonus):
-        module.reset_cache()
-    yield
-    for module in (_ledger_earners, _workout_budget, _leetcode_bonus):
-        module.reset_cache()
+    with earner_caches_cleared():
+        yield
 
 
-@pytest.fixture
-def key(tmp_path: Path) -> Iterator[Path]:
+@pytest.fixture(name="key")
+def fixture_key(tmp_path: Path) -> Iterator[Path]:
     """Sign and verify the stand-in's ledger with a throwaway key.
 
     Args:
@@ -96,9 +86,9 @@ def _base(day: date) -> float:
     with (
         pin_today(day),
         patch("earned_time.EARNERS", (*earned_time.EARNERS, PIANO)),
-        patch(_WORKOUT, return_value=False),
-        patch(_LEETCODE, return_value=False),
-        patch(_ANSWER, return_value=False),
+        patch(WORKOUT, return_value=False),
+        patch(LEETCODE, return_value=False),
+        patch(ANSWER, return_value=False),
     ):
         return resolve_budget(Config()).base_seconds
 
@@ -145,7 +135,8 @@ class TestTheBudget:
     """The cut waits for the day after the first real credit."""
 
     def test_a_gate_that_never_paid_out_costs_nothing(self) -> None:
-        assert _base(AFTER_CUT) == 4 * _HOUR
+        """An earner with no credit ever leaves the floor uncut."""
+        assert _base(AFTER_CUT) == 4 * HOUR
 
     def test_the_cut_starts_the_day_after_the_first_credit(
         self, tmp_path: Path, key: Path
@@ -158,8 +149,8 @@ class TestTheBudget:
         """
         assert key.exists()
         _credit_on(tmp_path, AFTER_CUT)
-        assert _base(AFTER_CUT) == 4 * _HOUR
-        assert _base(AFTER_CUT + _DAY) == 3.5 * _HOUR
+        assert _base(AFTER_CUT) == 4 * HOUR
+        assert _base(AFTER_CUT + _DAY) == 3.5 * HOUR
 
     def test_an_old_earned_time_resolves_as_before(
         self, monkeypatch: pytest.MonkeyPatch
@@ -170,4 +161,4 @@ class TestTheBudget:
             monkeypatch: pytest's attribute patcher.
         """
         monkeypatch.delattr(earned_time, "maturity")
-        assert _base(AFTER_CUT) == 3.5 * _HOUR
+        assert _base(AFTER_CUT) == 3.5 * HOUR

@@ -1,4 +1,4 @@
-"""Phase 2 at 0: which leisure pids die, how, and what the audit log says."""
+"""Phase 2 at 0: how leisure pids die and what the audit log says."""
 
 from __future__ import annotations
 
@@ -8,114 +8,56 @@ import signal
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from leisure_watch.facts import Focus, Now, Reason
+from leisure_watch.facts import Reason
 import pytest
 
 from steam_backlog_enforcer import _leisure_kill
-from steam_backlog_enforcer._leisure_kill import (
-    EVENT_LEISURE_KILL,
-    LeisureKiller,
-    fact_targets,
-)
+from steam_backlog_enforcer._leisure_kill import EVENT_LEISURE_KILL, LeisureKiller
 from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
-from steam_backlog_enforcer._shadow import ShadowVerdict
-from steam_backlog_enforcer.tests._isolate_leisure import leisure_proc
 from steam_backlog_enforcer.tests._leisure_fake_proc import FakeProc, add_proc
+from steam_backlog_enforcer.tests._leisure_kill_world import (
+    RULES as _RULES,
+)
+from steam_backlog_enforcer.tests._leisure_kill_world import (
+    SPENT as _SPENT,
+)
+from steam_backlog_enforcer.tests._leisure_kill_world import (
+    StubLog,
+    build_proc,
+)
+from steam_backlog_enforcer.tests._leisure_kill_world import (
+    now_with as _now,
+)
+from steam_backlog_enforcer.tests._leisure_kill_world import (
+    verdict_of as _verdict,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
     from unittest.mock import MagicMock
 
-_HELIUM = "/opt/helium-browser-bin/helium"
-_RULES = PlaytimeRules(
-    budget_seconds=100.0,
-    warn_at=(),
-    sigkill_after=30.0,
-    count_launchers=False,
-    enforcement=True,
-    demo=False,
-    leisure=True,
-)
-_SPENT = PlaytimeState(day_key="2026-11-02", seconds=100.0)
+
+@pytest.fixture(name="proc")
+def fixture_proc(tmp_path: Path) -> Path:
+    """Isolated /proc with mpv, helium, chromium and a root-owned app."""
+    return build_proc(tmp_path)
 
 
-class StubLog:
-    def __init__(self) -> None:
-        self.records: list[tuple[str, dict[str, object]]] = []
-
-    def record(self, event: str, **fields: object) -> None:
-        self.records.append((event, fields))
-
-
-def _now(*reasons: Reason) -> Now:
-    return Now(
-        ts=0.0,
-        seq=1,
-        state="leisure",
-        paused_by=None,
-        reasons=reasons,
-        focus=Focus("Helium", "", None, idle=False),
-    )
-
-
-def _verdict(fact: Now | None, paused: str | None = None) -> ShadowVerdict:
-    return ShadowVerdict(paused_by=paused, keys=("k",), fact=fact)
-
-
-@pytest.fixture
-def proc(tmp_path: Path) -> Path:
-    root = leisure_proc(tmp_path)
-    add_proc(root, FakeProc(10, exe="/usr/bin/mpv"))
-    add_proc(root, FakeProc(20, exe=_HELIUM, comm="helium"))
-    add_proc(root, FakeProc(30, exe="/usr/bin/chromium", comm="chromium"))
-    add_proc(root, FakeProc(40, exe="/usr/bin/vesktop", uid=0))
-    return root
-
-
-@pytest.fixture
-def kill() -> Iterator[MagicMock]:
+@pytest.fixture(name="kill")
+def fixture_kill() -> Iterator[MagicMock]:
+    """Replace ``os.kill`` so no real process is ever signalled."""
     with patch.object(os, "kill") as mock:
         yield mock
 
 
-class TestFactTargets:
-    def test_media_and_focus_apps_die_browsers_and_games_do_not(
-        self, proc: Path
-    ) -> None:
-        del proc
-        fact = _now(
-            Reason("media", "app:mpv", 10, "mpv"),
-            Reason("focus", "domain:youtube.com", 20, "YouTube"),
-            Reason("media", "domain:youtube.com", None, "url"),
-            Reason("game", "steam:440", 50, "tf2"),
-            Reason("mystery", "x", 10, "?"),
-        )
-        assert fact_targets(fact) == {10: "app:mpv"}
-
-    @pytest.mark.parametrize(
-        ("pid", "key"),
-        [
-            (20, "failclosed:helium"),
-            (20, "failclosed:helium:unreported"),
-            (20, "failclosed:helium:audio"),
-            (30, "browser:chromium"),
-        ],
-    )
-    def test_a_non_reporting_browser_dies(self, proc: Path, pid: int, key: str) -> None:
-        del proc
-        fact = _now(Reason("failclosed", key, pid, "x"))
-        assert fact_targets(fact) == {pid: key}
-
-    def test_failclosed_without_a_pid_names_nothing(self) -> None:
-        fact = _now(Reason("failclosed", "failclosed:display", None, "X"))
-        assert fact_targets(fact) == {}
-
-
 class TestEnforce:
+    """Kill escalation, sparing rules and failure handling."""
+
     def test_mpv_is_terminated_then_killed_after_30_s(
         self, proc: Path, kill: MagicMock
     ) -> None:
+        """mpv gets SIGTERM, then SIGKILL after 30 s, each logged once."""
         del proc
         log = StubLog()
         killer = LeisureKiller(log)
@@ -145,6 +87,7 @@ class TestEnforce:
     def test_untrusted_watcher_sweeps_but_spares_root(
         self, proc: Path, kill: MagicMock
     ) -> None:
+        """Untrusted for 30 s: user leisure pids are swept, root ones spared."""
         add_proc(proc, FakeProc(41, exe="/usr/bin/mpv", uid=0))
         killer = LeisureKiller(StubLog())
         for stamp in range(0, 31, 3):  # untrusted for the whole 30 s window
@@ -152,6 +95,7 @@ class TestEnforce:
         assert sorted(c.args[0] for c in kill.call_args_list) == [10, 20, 30]
 
     def test_paused_is_not_stale(self, proc: Path, kill: MagicMock) -> None:
+        """A paused watcher is not treated as stale, so nothing dies."""
         del proc
         LeisureKiller(StubLog()).enforce(
             _SPENT, _RULES, verdict=_verdict(None, paused="i3lock"), stamp=1.0
@@ -159,6 +103,7 @@ class TestEnforce:
         kill.assert_not_called()
 
     def test_under_budget_forgets_the_timers(self, proc: Path, kill: MagicMock) -> None:
+        """Dropping under budget resets the SIGKILL timer."""
         del proc
         killer = LeisureKiller(None)
         verdict = _verdict(_now(Reason("media", "app:mpv", 10, "mpv")))
@@ -171,6 +116,7 @@ class TestEnforce:
     def test_a_target_that_drops_out_restarts_its_timer(
         self, proc: Path, kill: MagicMock
     ) -> None:
+        """A target missing from one fact starts its timer over."""
         del proc
         killer = LeisureKiller(None)
         listed = _verdict(_now(Reason("media", "app:mpv", 10, "mpv")))
@@ -182,6 +128,7 @@ class TestEnforce:
     def test_a_pid_reused_by_a_new_process_starts_over(
         self, proc: Path, kill: MagicMock
     ) -> None:
+        """A new start time on the same pid restarts the timer."""
         killer = LeisureKiller(None)
         verdict = _verdict(_now(Reason("media", "app:mpv", 10, "mpv")))
         killer.enforce(_SPENT, _RULES, verdict=verdict, stamp=0.0)
@@ -194,6 +141,7 @@ class TestEnforce:
     def test_a_vanished_or_unsignallable_pid_is_not_logged(
         self, proc: Path, kill: MagicMock
     ) -> None:
+        """Pids that cannot be signalled leave no audit record."""
         add_proc(proc, FakeProc(11, exe="/usr/bin/vlc"))
         (proc / "12").mkdir()
         (proc / "12" / "status").write_text("Uid:\t1000\t1000\n", encoding="utf-8")
@@ -220,6 +168,7 @@ class TestEnforce:
     def test_never_with_enforcement_off_in_a_demo_or_dormant(
         self, proc: Path, kill: MagicMock, rules: PlaytimeRules
     ) -> None:
+        """Enforcement off, demo or dormant Phase 2 never kills."""
         del proc
         LeisureKiller(None).enforce(_SPENT, rules, verdict=_verdict(None), stamp=0.0)
         kill.assert_not_called()
@@ -227,6 +176,7 @@ class TestEnforce:
     def test_a_bug_never_escapes_into_the_loop(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
+        """An internal error is logged once and never raised."""
         killer = LeisureKiller(None)
         with patch.object(_leisure_kill, "sweep_targets", side_effect=RecursionError):
             for stamp in range(0, 34, 3):  # sweeps (and fails) at 30 and 33
@@ -236,6 +186,7 @@ class TestEnforce:
     def test_a_failed_sigkill_is_retried_and_logged_once_delivered(
         self, proc: Path, kill: MagicMock
     ) -> None:
+        """A failed SIGKILL is retried and logged only once it lands."""
         del proc
         kill.side_effect = [None, ProcessLookupError, None, None]
         log = StubLog()

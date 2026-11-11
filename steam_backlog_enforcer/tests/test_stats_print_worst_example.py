@@ -8,33 +8,9 @@ from steam_backlog_enforcer._stats import (
     _GameTimes,
     _print_worst_example,
 )
-from steam_backlog_enforcer.protondb import ProtonDBRating
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.tests._stats_games import make_game
 
 _PKG = "steam_backlog_enforcer._stats_display"
-
-
-def _game(
-    app_id: int = 1,
-    name: str = "G",
-    hours: float = 10.0,
-    total: int = 10,
-    unlocked: int = 0,
-) -> GameInfo:
-    return GameInfo(
-        app_id=app_id,
-        name=name,
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=60,
-        completionist_hours=hours,
-        comp_100_count=5,
-        count_comp=20,
-    )
-
-
-def _unplayable_rating(app_id: int) -> ProtonDBRating:
-    return ProtonDBRating(app_id=app_id, tier="borked")
 
 
 class TestPrintWorstExample:
@@ -50,7 +26,7 @@ class TestPrintWorstExample:
     def test_example_with_rush_and_leisure(self) -> None:
         """Test example with rush and leisure."""
         entry = _GameTimes(
-            game=_game(name="Portal"),
+            game=make_game(name="Portal"),
             worst_hours=15.0,
             rush_hours=5.0,
             leisure_100h=20.0,
@@ -66,7 +42,7 @@ class TestPrintWorstExample:
     def test_example_without_rush(self) -> None:
         """Test example without rush."""
         entry = _GameTimes(
-            game=_game(name="X"),
+            game=make_game(name="X"),
             worst_hours=15.0,
             rush_hours=-1.0,
             leisure_100h=20.0,
@@ -81,7 +57,7 @@ class TestPrintWorstExample:
     def test_example_without_leisure(self) -> None:
         """Test example without leisure."""
         entry = _GameTimes(
-            game=_game(name="Y"),
+            game=make_game(name="Y"),
             worst_hours=15.0,
             rush_hours=5.0,
             leisure_100h=-1.0,
@@ -96,7 +72,7 @@ class TestPrintWorstExample:
     def test_hltb_search_url_shown_when_lookup_finds_nothing(self) -> None:
         """Falls back to search URL when hltb_game_id is 0 and lookup finds nothing."""
         entry = _GameTimes(
-            game=_game(name="Portal 2"),
+            game=make_game(name="Portal 2"),
             worst_hours=15.0,
             rush_hours=-1.0,
             leisure_100h=-1.0,
@@ -113,7 +89,7 @@ class TestPrintWorstExample:
     def test_hltb_direct_link_shown_after_on_demand_lookup(self) -> None:
         """Direct link shown when on-demand lookup successfully finds the game ID."""
         entry = _GameTimes(
-            game=_game(app_id=111, name="Portal 2"),
+            game=make_game(app_id=111, name="Portal 2"),
             worst_hours=15.0,
             rush_hours=-1.0,
             leisure_100h=-1.0,
@@ -131,7 +107,7 @@ class TestPrintWorstExample:
     def test_hltb_direct_link_shown_when_game_id_known(self) -> None:
         """Direct HLTB game link shown when hltb_game_id is populated."""
         entry = _GameTimes(
-            game=_game(name="Devil May Cry 5"),
+            game=make_game(name="Devil May Cry 5"),
             worst_hours=186.0,
             rush_hours=50.0,
             leisure_100h=186.0,
@@ -146,10 +122,13 @@ class TestPrintWorstExample:
     def test_entries_with_zero_worst_hours_excluded_from_examples(self) -> None:
         """Games with worst_hours <= 0 are not selected as the example."""
         bad = _GameTimes(
-            game=_game(name="Skip"), worst_hours=0.0, rush_hours=-1.0, leisure_100h=-1.0
+            game=make_game(name="Skip"),
+            worst_hours=0.0,
+            rush_hours=-1.0,
+            leisure_100h=-1.0,
         )
         good = _GameTimes(
-            game=_game(name="Pick"),
+            game=make_game(name="Pick"),
             worst_hours=10.0,
             rush_hours=-1.0,
             leisure_100h=-1.0,

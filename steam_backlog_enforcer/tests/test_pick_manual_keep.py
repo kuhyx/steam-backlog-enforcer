@@ -46,7 +46,10 @@ def _entries(state: State, app_id: int) -> list[dict[str, object]]:
 
 
 class TestApplyManualPickKeeps:
+    """apply_manual_pick keeps earlier picks allowed within the cap."""
+
     def test_kept_games_and_outgoing_assignment_stay_allowed(self) -> None:
+        """Kept picks and the outgoing game stay allowed; the new pick is active."""
         state = _state((2, "KeptA"))
         with patch.object(State, "save"):
             assert apply_manual_pick(state, 5, "New", max_picks=2) is None
@@ -55,6 +58,7 @@ class TestApplyManualPickKeeps:
         assert state.current_app_id == 5
 
     def test_over_cap_is_refused_naming_the_games(self) -> None:
+        """A pick over the cap is refused naming every allowed game."""
         state = _state((2, "KeptA"), (3, "KeptB"))
         with patch.object(State, "save") as save:
             refused = apply_manual_pick(state, 5, "New", max_picks=2)
@@ -68,6 +72,7 @@ class TestApplyManualPickKeeps:
         assert [p["app_id"] for p in state.manual_picks] == [2, 3]
 
     def test_repicking_a_kept_game_activates_it_without_duplicating(self) -> None:
+        """Re-picking a kept game at the cap activates it without a duplicate."""
         # At the cap, but re-picking a game already allowed adds nothing.
         state = _state((2, "KeptA"), (3, "KeptB"))
         with patch.object(State, "save"):
@@ -78,6 +83,7 @@ class TestApplyManualPickKeeps:
         assert allowed_app_ids(state) == {1, 2, 3}
 
     def test_repicking_the_kept_current_game_does_not_duplicate(self) -> None:
+        """Re-picking the current kept game adds no duplicate."""
         state = _state((2, "KeptA"), current=(2, "KeptA"))
         with patch.object(State, "save"):
             assert apply_manual_pick(state, 2, "KeptA", max_picks=2) is None
@@ -85,6 +91,7 @@ class TestApplyManualPickKeeps:
         assert active_manual_picks(state) == state.manual_picks
 
     def test_finished_pick_is_kept_too(self) -> None:
+        """A finished pick stays allowed after a new pick."""
         state = _state((2, "Done"))
         state.finished_app_ids = [2]
         with patch.object(State, "save"):
@@ -120,7 +127,10 @@ def _output(mock_echo: MagicMock) -> str:
 
 
 class TestCmdPickManualKeeps:
+    """cmd_pick_manual spares kept games and checks the cap first."""
+
     def test_kept_games_are_not_uninstalled(self) -> None:
+        """Only games outside the kept set are uninstalled."""
         state = _state((2, "KeptA"))
         with ExitStack() as stack:
             mocks = _cli_effects(stack)
@@ -132,6 +142,7 @@ class TestCmdPickManualKeeps:
         assert "KeptA" in output
 
     def test_over_cap_is_refused_before_the_confirmation(self) -> None:
+        """An over-cap pick exits before asking to confirm."""
         state = _state((2, "KeptA"), (3, "KeptB"))
         with ExitStack() as stack:
             mocks = _cli_effects(stack)
@@ -147,6 +158,8 @@ class TestCmdPickManualKeeps:
 
 
 class TestMcpPickManualKeeps:
+    """The MCP pick-manual tool keeps earlier picks and honours the cap."""
+
     def _run(self, state: State) -> dict[str, object]:
         with (
             patch(
@@ -164,11 +177,13 @@ class TestMcpPickManualKeeps:
         return out
 
     def test_kept_game_survives(self) -> None:
+        """An MCP pick keeps the earlier pick allowed."""
         state = _state((2, "KeptA"))
         assert self._run(state)["ok"] is True
         assert allowed_app_ids(state) == {1, 2, 5}
 
     def test_over_cap_is_refused(self) -> None:
+        """An over-cap MCP pick is refused naming the games."""
         state = _state((2, "KeptA"), (3, "KeptB"))
         out = self._run(state)
         assert out["ok"] is False

@@ -31,8 +31,8 @@ if TYPE_CHECKING:
 _PKG = "steam_backlog_enforcer._reading_bonus"
 
 
-@pytest.fixture(autouse=True)
-def reading_key(tmp_path: Path) -> Iterator[Path]:
+@pytest.fixture(name="reading_key", autouse=True)
+def fixture_reading_key(tmp_path: Path) -> Iterator[Path]:
     """Point the module at a throwaway signing key and an empty memo.
 
     Args:
@@ -82,6 +82,7 @@ def reading(
 
 
 def _now() -> datetime:
+    """Return the current local time."""
     return datetime.now().astimezone()
 
 
@@ -89,10 +90,12 @@ class TestWhichRowsCount:
     """Only a signed, bonus-eligible credit that ended today counts."""
 
     def test_a_bonus_credit_today_counts(self, tmp_path: Path) -> None:
+        """A bonus-eligible credit that ended today counts."""
         ledger = write_ledger(tmp_path, [reading(when=_now())])
         assert read_ledger_read_today(ledger) is True
 
     def test_yesterdays_reading_does_not(self, tmp_path: Path) -> None:
+        """A reading session from yesterday does not count."""
         yesterday = _now() - timedelta(days=1)
         assert (
             read_ledger_read_today(write_ledger(tmp_path, [reading(when=yesterday)]))
@@ -140,6 +143,7 @@ class TestWhichRowsCount:
         assert read_ledger_read_today(ledger) is False
 
     def test_a_tampered_row_does_not_count(self, tmp_path: Path) -> None:
+        """A row whose detail was edited after signing does not count."""
         row = reading(when=_now(), bonus="0")
         row["detail"]["bonus"] = "1"
         assert read_ledger_read_today(write_ledger(tmp_path, [row])) is False
@@ -149,9 +153,11 @@ class TestFailingClosed:
     """Anything unreadable is ``None``; only an absent ledger is a plain no."""
 
     def test_no_ledger_yet_is_an_honest_no(self, tmp_path: Path) -> None:
+        """A ledger that does not exist yet is a plain no."""
         assert read_ledger_read_today(tmp_path / "absent.json") is False
 
     def test_an_unreadable_ledger_is_none(self, tmp_path: Path) -> None:
+        """A ledger path that cannot be read as a file is None."""
         assert read_ledger_read_today(tmp_path) is None
 
     @pytest.mark.parametrize(
@@ -175,11 +181,13 @@ class TestFailingClosed:
         assert read_ledger_read_today(ledger) is None
 
     def test_a_missing_key_is_none(self, tmp_path: Path) -> None:
+        """A missing signing key makes the answer None."""
         ledger = write_ledger(tmp_path, [reading(when=_now())])
         with patch(f"{_PKG}.HMAC_KEY_FILE", tmp_path / "absent.key"):
             assert read_ledger_read_today(ledger) is None
 
     def test_an_empty_key_is_none(self, tmp_path: Path, reading_key: Path) -> None:
+        """A blank signing key makes the answer None."""
         reading_key.write_bytes(b"  \n")
         ledger = write_ledger(tmp_path, [reading(when=_now())])
         assert read_ledger_read_today(ledger) is None
@@ -189,22 +197,26 @@ class TestTheMemo:
     """Answers are cached like the other earners; failures are not."""
 
     def test_reads_the_configured_ledger(self, tmp_path: Path) -> None:
+        """read_today reads the ledger named in the config."""
         ledger = write_ledger(tmp_path, [reading(when=_now())])
         assert read_today(Config(book_ledger_path=str(ledger))) is True
 
     def test_a_cached_answer_is_served_without_a_reread(self) -> None:
+        """A cached answer is served without reading the ledger again."""
         with patch(f"{_PKG}.read_ledger_read_today", return_value=False) as read:
             assert read_today(Config()) is False
             assert read_today(Config()) is False
         assert read.call_count == 1
 
     def test_a_failure_is_not_cached(self) -> None:
+        """A None answer is not cached, so the next call retries."""
         with patch(f"{_PKG}.read_ledger_read_today", return_value=None) as read:
             assert read_today(Config()) is None
             assert read_today(Config()) is None
         assert read.call_count == 2
 
     def test_reset_cache_forces_a_reread(self) -> None:
+        """reset_cache forces the next call to reread."""
         with patch(f"{_PKG}.read_ledger_read_today", return_value=True) as read:
             read_today(Config())
             reset_cache()
@@ -212,4 +224,5 @@ class TestTheMemo:
         assert read.call_count == 2
 
     def test_the_default_path_is_book_guards(self) -> None:
+        """The default ledger path points at book_guard's ledger."""
         assert Config().book_ledger_path.endswith("book_guard/ledger.json")

@@ -13,6 +13,7 @@ from steam_backlog_enforcer._hltb_matching import _similarity
 from steam_backlog_enforcer._hltb_search_api import _get_auth_info, _get_hltb_search_url
 from steam_backlog_enforcer._hltb_types import (
     _AuthInfo,
+    _HLTBExtras,
     load_hltb_cache,
     save_hltb_cache,
 )
@@ -58,7 +59,7 @@ class TestHltbCache:
             save_hltb_cache({440: 10.5})
             assert cache_file.exists()
 
-    def test_save_cache_os_error(self, tmp_path: Path) -> None:
+    def test_save_cache_os_error(self) -> None:
         """Test save cache os error."""
         with patch(
             "steam_backlog_enforcer._hltb_types._atomic_write",
@@ -68,8 +69,6 @@ class TestHltbCache:
 
     def test_save_cache_full_extras_skips_existing_read(self, tmp_path: Path) -> None:
         """Test save cache full extras skips existing read."""
-        from steam_backlog_enforcer._hltb_types import _HLTBExtras
-
         cache_file = tmp_path / "hltb_cache.json"
         extras = _HLTBExtras(
             hltb_game_id={440: 1},

@@ -39,7 +39,7 @@ class DaemonControl:
             server: The running socket server, or ``None`` when inert.
         """
         self.ctx = ctx
-        self._server = server
+        self.server = server
 
     @property
     def tick_lock(self) -> threading.Lock:
@@ -74,8 +74,8 @@ class DaemonControl:
 
     def close(self) -> None:
         """Stop serving and remove the socket file."""
-        if self._server is not None:
-            self._server.stop()
+        if self.server is not None:
+            self.server.stop()
 
 
 def _is_supervised() -> bool:

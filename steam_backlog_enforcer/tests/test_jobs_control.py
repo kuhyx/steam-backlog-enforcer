@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer.jobs import _control
+from steam_backlog_enforcer.jobs._control import _open_prompt_id
 from steam_backlog_enforcer.jobs._errors import JobError
 from steam_backlog_enforcer.jobs._events import (
     ANSWERS_NAME,
@@ -48,18 +49,18 @@ class TestOpenPromptId:
     def test_no_prompt(self) -> None:
         """A job that never asked has no open prompt."""
         make_job()
-        assert _control._open_prompt_id(JOB_ID) is None
+        assert _open_prompt_id(JOB_ID) is None
 
     def test_unanswered_prompt_is_open(self) -> None:
         """The latest prompt without an answer."""
         _waiting_job()
-        assert _control._open_prompt_id(JOB_ID) == "p1"
+        assert _open_prompt_id(JOB_ID) == "p1"
 
     def test_answered_prompt_is_closed(self) -> None:
         """An answer closes it."""
         path = _waiting_job()
         append_jsonl(path / ANSWERS_NAME, {"prompt_id": "p1", "value": "x"})
-        assert _control._open_prompt_id(JOB_ID) is None
+        assert _open_prompt_id(JOB_ID) is None
 
 
 class TestWriteAnswer:

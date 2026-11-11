@@ -13,35 +13,11 @@ from steam_backlog_enforcer._stats import (
     _sum_hours,
 )
 from steam_backlog_enforcer.config import State
-from steam_backlog_enforcer.protondb import ProtonDBRating
-from steam_backlog_enforcer.steam_api import GameInfo
+from steam_backlog_enforcer.tests._stats_games import make_game
 
 _PKG = "steam_backlog_enforcer._stats_display"
 # _print_scenario was not moved: it still lives in _stats.
 _PKG_STATS = "steam_backlog_enforcer._stats"
-
-
-def _game(
-    app_id: int = 1,
-    name: str = "G",
-    hours: float = 10.0,
-    total: int = 10,
-    unlocked: int = 0,
-) -> GameInfo:
-    return GameInfo(
-        app_id=app_id,
-        name=name,
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=60,
-        completionist_hours=hours,
-        comp_100_count=5,
-        count_comp=20,
-    )
-
-
-def _unplayable_rating(app_id: int) -> ProtonDBRating:
-    return ProtonDBRating(app_id=app_id, tier="borked")
 
 
 class TestSumHours:
@@ -50,7 +26,7 @@ class TestSumHours:
     def _make_entry(self, worst: float, rush: float, leisure: float) -> _GameTimes:
         """Test make entry."""
         return _GameTimes(
-            game=_game(), worst_hours=worst, rush_hours=rush, leisure_100h=leisure
+            game=make_game(), worst_hours=worst, rush_hours=rush, leisure_100h=leisure
         )
 
     def test_empty_list(self) -> None:

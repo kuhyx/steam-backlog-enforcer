@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -133,11 +134,9 @@ class TestApplyTotalBlockIptables:
 
     def test_dns_failure_skips_that_domain(self) -> None:
         """Test that dns failure skips that domain."""
-        import socket as real_socket
-
         with (
             patch(f"{PKG}.subprocess.run", return_value=MagicMock(returncode=0)),
-            patch(f"{PKG}.socket.getaddrinfo", side_effect=real_socket.gaierror),
+            patch(f"{PKG}.socket.getaddrinfo", side_effect=socket.gaierror),
         ):
             assert apply_total_block_iptables() is True
         assert _load_cached_ips() == set()

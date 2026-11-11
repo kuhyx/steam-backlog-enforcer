@@ -101,7 +101,10 @@ def _pick(
 
 
 class TestKeep:
+    """pick --keep adds the new game and keeps the old one allowed."""
+
     def test_old_game_stays_allowed_and_is_not_uninstalled(self) -> None:
+        """The old game stays allowed and installed; the new one is installed."""
         state = _state_on()
         effects = _pick(state, FakePrompter(choices=["0"]), keep=True)
         assert state.current_app_id == 2
@@ -110,6 +113,7 @@ class TestKeep:
         effects.install.assert_called_once_with(2, "New", "i", use_steam_protocol=True)
 
     def test_kept_game_is_a_released_pick_holding_no_lock(self) -> None:
+        """The kept game becomes a released pick that holds no lock."""
         state = _state_on()
         _pick(state, FakePrompter(choices=["0"]), keep=True)
         [kept] = state.manual_picks
@@ -122,18 +126,21 @@ class TestKeep:
         assert state.released_at == {}
 
     def test_allowed_games_are_not_offered(self) -> None:
+        """Games already allowed are not offered as candidates."""
         state = _state_on()
         prompter = FakePrompter(choices=["0"])
         _pick(state, prompter, keep=True)
         assert prompter.asked[0][1] == ["0", "own"]
 
     def test_own_pick_search_excludes_allowed_games(self) -> None:
+        """The own-pick search leaves out allowed games."""
         state = _state_on()
         with patch(f"{_ASSIGN}.prompt_own_pick", return_value=NEW) as own:
             _pick(state, FakePrompter(choices=["own"]), keep=True)
         assert [g.app_id for g in own.call_args.args[0]] == [2]
 
     def test_pick_manual_then_pick_does_not_duplicate_the_active_pick(self) -> None:
+        """An active manual pick is not copied into a second entry."""
         state = _state_on(
             manual_picks=[{"app_id": 1, "game_name": "Old", "started_at": STARTED_AT}]
         )
@@ -145,12 +152,14 @@ class TestKeep:
         assert allowed_app_ids(state) == {1, 2}
 
     def test_released_entry_for_the_current_game_is_not_duplicated(self) -> None:
+        """A released entry for the current game is not added again."""
         entry = {"app_id": 1, "game_name": "Old", "started_at": STARTED_AT}
         state = _state_on(manual_picks=[entry | _RELEASED])
         _pick(state, FakePrompter(choices=["0"]), keep=True)
         assert [p["app_id"] for p in state.manual_picks] == [1]
 
     def test_earlier_kept_games_survive_another_keep(self) -> None:
+        """Games kept earlier stay allowed through another keep."""
         entry = {"app_id": 9, "game_name": "Kept", "started_at": STARTED_AT}
         state = _state_on(manual_picks=[entry | _RELEASED])
         effects = _pick(state, FakePrompter(choices=["0"]), keep=True)
@@ -158,6 +167,7 @@ class TestKeep:
         effects.uninstall.assert_called_once_with({1, 2, 9})
 
     def test_choosing_an_allowed_game_changes_nothing(self) -> None:
+        """Choosing a game that is already allowed is a no-op."""
         state = _state_on()
         with _effects() as effects:
             _assign_chosen_game(OLD, [OLD, NEW], state, _config(), keep=True)
@@ -167,7 +177,10 @@ class TestKeep:
 
 
 class TestReplace:
+    """Without --keep, a pick replaces every allowed game."""
+
     def test_replace_drops_old_and_released_games(self) -> None:
+        """Replacing leaves only the new game allowed."""
         entry = {"app_id": 9, "game_name": "Kept", "started_at": STARTED_AT}
         state = _state_on(manual_picks=[entry | _RELEASED])
         effects = _pick(state, FakePrompter(choices=["0"]))

@@ -55,29 +55,40 @@ def _write(steamapps: Path, app_id: int, body: str) -> Path:
 
 
 class TestManifestTransferActive:
+    """_manifest_transfer_active reads whether a manifest is mid-transfer."""
+
     def test_downloading_is_active(self, tmp_path: Path) -> None:
+        """A downloading manifest is active."""
         assert _manifest_transfer_active(_write(tmp_path, 1, _DOWNLOADING)) is True
 
     def test_staging_is_active(self, tmp_path: Path) -> None:
+        """A staging manifest is active."""
         assert _manifest_transfer_active(_write(tmp_path, 1, _STAGING)) is True
 
     def test_complete_is_inactive(self, tmp_path: Path) -> None:
+        """A complete manifest is inactive."""
         assert _manifest_transfer_active(_write(tmp_path, 1, _COMPLETE)) is False
 
     def test_idle_is_inactive(self, tmp_path: Path) -> None:
+        """An idle manifest is inactive."""
         assert _manifest_transfer_active(_write(tmp_path, 1, _IDLE)) is False
 
     def test_missing_fields_inactive(self, tmp_path: Path) -> None:
+        """A manifest without transfer fields is inactive."""
         manifest = _write(tmp_path, 1, '"AppState"\n{\n\t"appid"\t\t"1"\n}\n')
         assert _manifest_transfer_active(manifest) is False
 
     def test_unreadable_manifest_inactive(self, tmp_path: Path) -> None:
+        """An unreadable manifest is inactive."""
         # Never created -> read_text raises OSError -> treated as inactive.
         assert _manifest_transfer_active(tmp_path / "appmanifest_gone.acf") is False
 
 
 class TestSteamUpdateInProgress:
+    """steam_update_in_progress scans every manifest."""
+
     def test_true_when_any_app_updating(self, tmp_path: Path) -> None:
+        """One updating app makes it true."""
         steamapps = tmp_path / "steamapps"
         _write(steamapps, 1, _IDLE)
         _write(steamapps, 2, _DOWNLOADING)
@@ -85,6 +96,7 @@ class TestSteamUpdateInProgress:
             assert steam_update_in_progress() is True
 
     def test_false_when_all_idle(self, tmp_path: Path) -> None:
+        """All idle or complete apps make it false."""
         steamapps = tmp_path / "steamapps"
         _write(steamapps, 1, _IDLE)
         _write(steamapps, 2, _COMPLETE)
@@ -92,19 +104,24 @@ class TestSteamUpdateInProgress:
             assert steam_update_in_progress() is False
 
     def test_false_when_no_manifests(self, tmp_path: Path) -> None:
+        """No manifests make it false."""
         steamapps = tmp_path / "empty_steamapps"
         steamapps.mkdir()
         with patch(f"{SS}.STEAMAPPS_PATH", steamapps):
             assert steam_update_in_progress() is False
 
     def test_glob_oserror_is_false(self) -> None:
+        """A failing directory scan makes it false."""
         with patch(f"{SS}.STEAMAPPS_PATH") as fake_path:
             fake_path.glob.side_effect = OSError("boom")
             assert steam_update_in_progress() is False
 
 
 class TestEnsureSteamDebugPortDefersUpdate:
+    """ensure_steam_debug_port does not restart Steam mid-update."""
+
     def test_defers_and_does_not_shut_down(self) -> None:
+        """During an update it raises without shutting Steam down."""
         with (
             patch(f"{LH}.steam_is_installed", return_value=True),
             patch(f"{LH}._steam_has_debug_port", return_value=False),
@@ -120,7 +137,10 @@ class TestEnsureSteamDebugPortDefersUpdate:
 
 
 class TestRestartSteamGuard:
+    """restart_steam refuses to bounce Steam during a game or update."""
+
     def test_skips_while_a_game_is_running(self) -> None:
+        """A running game skips the restart."""
         # The interactive restart path has the same teeth as the daemon's:
         # bouncing Steam kills the game and any unsaved progress with it.
         with (
@@ -133,6 +153,7 @@ class TestRestartSteamGuard:
             launch.assert_not_called()
 
     def test_skips_when_update_in_progress(self) -> None:
+        """An update in progress skips the restart."""
         with (
             patch(f"{LH}.steam_update_in_progress", return_value=True),
             patch(f"{LH}._shutdown_steam") as shutdown,
@@ -143,6 +164,7 @@ class TestRestartSteamGuard:
             launch.assert_not_called()
 
     def test_restarts_when_no_update(self) -> None:
+        """Without a game or update Steam is restarted."""
         with (
             patch(f"{LH}.steam_update_in_progress", return_value=False),
             patch(f"{LH}._shutdown_steam") as shutdown,

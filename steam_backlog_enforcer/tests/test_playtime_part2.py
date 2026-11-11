@@ -20,11 +20,15 @@ INTERVAL = 3.0
 
 
 def _state_ticked(seconds_ago: float, **kwargs: object) -> PlaytimeState:
+    """Return a state whose last tick was seconds_ago before NOW."""
     return PlaytimeState(last_tick_at=NOW.timestamp() - seconds_ago, **kwargs)
 
 
 class TestAccumulate:
+    """Each tick credits the time since the last one, clamped and never negative."""
+
     def test_first_ever_tick_credits_nothing(self) -> None:
+        """The first tick ever only starts the clock."""
         out = accumulate(
             PlaytimeState(last_tick_at=0.0),
             now=NOW,
@@ -35,10 +39,12 @@ class TestAccumulate:
         assert out.last_tick_at == NOW.timestamp()
 
     def test_normal_tick_credits_the_delta(self) -> None:
+        """A regular qualifying tick credits the elapsed seconds."""
         out = accumulate(_state_ticked(3.0), now=NOW, qualifying={1}, interval=INTERVAL)
         assert out.seconds == 3.0
 
     def test_idle_tick_credits_nothing_but_advances_the_clock(self) -> None:
+        """With no qualifying game the clock moves but nothing is credited."""
         out = accumulate(
             _state_ticked(3.0), now=NOW, qualifying=set(), interval=INTERVAL
         )
@@ -53,6 +59,7 @@ class TestAccumulate:
         assert out.seconds == 6.0
 
     def test_gap_exactly_at_the_clamp(self) -> None:
+        """A gap equal to the clamp is credited in full."""
         out = accumulate(_state_ticked(6.0), now=NOW, qualifying={1}, interval=INTERVAL)
         assert out.seconds == 6.0
 
@@ -68,26 +75,33 @@ class TestAccumulate:
         assert out.last_tick_at == NOW.timestamp()
 
     def test_zero_delta(self) -> None:
+        """A zero-length tick credits nothing."""
         out = accumulate(_state_ticked(0.0), now=NOW, qualifying={1}, interval=INTERVAL)
         assert out.seconds == 0.0
 
     def test_accrues_across_ticks(self) -> None:
+        """Credit adds to the seconds already counted."""
         state = PlaytimeState(seconds=100.0, last_tick_at=NOW.timestamp() - 3.0)
         out = accumulate(state, now=NOW, qualifying={1}, interval=INTERVAL)
         assert out.seconds == 103.0
 
     def test_is_pure(self) -> None:
+        """accumulate returns a new state and leaves its input alone."""
         state = _state_ticked(3.0)
         accumulate(state, now=NOW, qualifying={1}, interval=INTERVAL)
         assert state.seconds == 0.0
 
 
 class TestRollOver:
+    """A new day resets the counter, block and warnings."""
+
     def test_same_day_is_unchanged(self) -> None:
+        """The same day key returns the very same state."""
         state = PlaytimeState(day_key="2026-07-27", seconds=50.0, blocked_at=9.0)
         assert roll_over(state, day_key="2026-07-27") is state
 
     def test_new_day_resets_counter_and_block(self) -> None:
+        """A new day key clears seconds, block and fired warnings."""
         state = PlaytimeState(
             day_key="2026-07-27",
             seconds=50.0,
@@ -106,22 +120,29 @@ class TestRollOver:
         assert roll_over(state, day_key="2026-07-28").last_tick_at == 1234.0
 
     def test_empty_day_key_rolls_over(self) -> None:
+        """A state with no day key adopts the new day."""
         assert roll_over(PlaytimeState(), day_key="2026-07-28").day_key == "2026-07-28"
 
 
 class TestPendingWarning:
+    """The next warning is the largest threshold crossed and not yet fired."""
+
     def _rules(self, *, demo: bool = False) -> object:
+        """Return the default production or demo rules."""
         return rules_for(Config(), demo=demo)
 
     def test_none_when_far_from_the_budget(self) -> None:
+        """Far from the budget no warning is due."""
         state = PlaytimeState(seconds=0.0)
         assert pending_warning(state, self._rules()) is None
 
     def test_fires_at_the_first_threshold(self) -> None:
+        """Reaching the one-hour mark fires the one-hour warning."""
         state = PlaytimeState(seconds=8 * 3600 - 3600)
         assert pending_warning(state, self._rules()) == 3600
 
     def test_skips_already_fired_thresholds(self) -> None:
+        """A threshold already warned about is skipped."""
         state = PlaytimeState(seconds=8 * 3600 - 1800, warned_seconds=[3600])
         assert pending_warning(state, self._rules()) == 1800
 
@@ -131,15 +152,18 @@ class TestPendingWarning:
         assert pending_warning(state, self._rules()) == 3600
 
     def test_none_when_all_fired(self) -> None:
+        """Once every threshold fired nothing is due."""
         state = PlaytimeState(
             seconds=8 * 3600 - 100, warned_seconds=[3600, 1800, 600, 300]
         )
         assert pending_warning(state, self._rules()) is None
 
     def test_demo_thresholds(self) -> None:
+        """Demo rules use their own short thresholds."""
         state = PlaytimeState(seconds=35.0)
         assert pending_warning(state, self._rules(demo=True)) == 30
 
     def test_over_budget_still_reports(self) -> None:
+        """Past the budget the last unfired threshold still fires."""
         state = PlaytimeState(seconds=8 * 3600 + 500, warned_seconds=[3600, 1800, 600])
         assert pending_warning(state, self._rules()) == 300

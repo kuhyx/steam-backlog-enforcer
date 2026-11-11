@@ -30,6 +30,7 @@ class TestNoCarryOver:
     """Unspent time never moves to a later day (carry-over dropped 2026-10-18)."""
 
     def test_a_saturday_leftover_is_not_passed_on(self) -> None:
+        """Rolling a Saturday with time left gives Sunday a fresh state."""
         sun = roll_over(
             PlaytimeState(day_key=SAT, seconds=HOUR, budget_seconds=8 * HOUR),
             day_key=SUN,
@@ -38,9 +39,11 @@ class TestNoCarryOver:
         assert "carry" not in vars(sun)
 
     def test_rules_have_no_carry(self) -> None:
+        """PlaytimeRules has no carry_seconds field."""
         assert "carry_seconds" not in {f.name for f in fields(PlaytimeRules)}
 
     def test_a_legacy_carry_is_taken_out_of_todays_high_water(self) -> None:
+        """A legacy carry is subtracted from today's stored budget on load."""
         # The live file on 2026-10-18 held 6.0h earned + 9994s carried into the
         # day's high-water mark; held_today would otherwise keep paying it out.
         legacy = {
@@ -62,6 +65,7 @@ class TestNoCarryOver:
     def test_a_ledger_owing_today_nothing_leaves_the_budget(
         self, carry: object
     ) -> None:
+        """A carry ledger that owes today nothing leaves the stored budget unchanged."""
         legacy = {
             "schema_version": 1,
             "day_key": SUN,
@@ -80,13 +84,16 @@ class TestHeldToday:
     NOW = datetime(2026, 10, 5, 0, 30, tzinfo=LOCAL)  # still gaming day SUN
 
     def test_no_state_holds_nothing(self) -> None:
+        """No stored state holds no budget."""
         assert held_today(None, self.NOW) == 0.0
 
     def test_same_gaming_day_returns_the_high_water(self) -> None:
+        """A record from the current gaming day holds its high-water budget."""
         stored = PlaytimeState(day_key=SUN, budget_seconds=8 * HOUR)
         assert held_today(stored, self.NOW) == 8 * HOUR
 
     def test_yesterdays_record_holds_nothing(self) -> None:
+        """A record from an earlier gaming day holds nothing."""
         stored = PlaytimeState(day_key=SAT, budget_seconds=8 * HOUR)
         assert held_today(stored, self.NOW) == 0.0
 
@@ -95,6 +102,7 @@ class TestRulesHold:
     """rules_for never prices the day below what it already granted."""
 
     def test_midnight_reset_is_held_and_says_so(self) -> None:
+        """A lower live budget is raised to the held one and the reason says so."""
         with patch(
             "steam_backlog_enforcer._playtime_state.held_today",
             return_value=10 * HOUR,
@@ -104,6 +112,7 @@ class TestRulesHold:
         assert rules.budget_reason.endswith("; held at 10.0h (earned earlier today)")
 
     def test_a_higher_live_answer_wins_silently(self) -> None:
+        """A live budget above the held one wins with no held note."""
         with patch(
             "steam_backlog_enforcer._playtime_state.held_today", return_value=HOUR
         ):

@@ -32,11 +32,13 @@ class TestLastVerdict:
     """Tests for reading the tail of the audit log."""
 
     def test_missing_log_is_unavailable(self) -> None:
+        """A missing log reports no verdict."""
         view = last_verdict(demo=False)
         assert view.available is False
         assert view.state == ""
 
     def test_reads_the_last_record(self) -> None:
+        """The newest record in the log is the verdict shown."""
         _write([_record(state="not_applicable"), _record(state="engaged")])
         view = last_verdict(demo=False)
         assert view.available is True
@@ -44,23 +46,28 @@ class TestLastVerdict:
         assert view.observed_at.startswith("2026-08-28")
 
     def test_skips_a_malformed_last_line(self) -> None:
+        """A corrupt final line falls back to the previous record."""
         _write([_record(state="engaged"), "{ this is not json"])
         assert last_verdict(demo=False).state == "engaged"
 
     def test_empty_log_is_unavailable(self) -> None:
+        """An empty log reports no verdict."""
         log_mod.BUDGET_LOG_FILE.write_text("", encoding="utf-8")
         assert last_verdict(demo=False).available is False
 
     def test_a_json_scalar_is_not_a_record(self) -> None:
+        """A JSON scalar line is not treated as a record."""
         _write(["42"])
         assert last_verdict(demo=False).available is False
 
     def test_unreadable_log_is_unavailable(self) -> None:
+        """A permission error reading the log reports no verdict."""
         _write([_record()])
         with patch("pathlib.Path.open", side_effect=PermissionError):
             assert last_verdict(demo=False).available is False
 
     def test_reads_only_the_tail(self) -> None:
+        """Only the tail is read, and a leading fragment is skipped."""
         # Seeking back a fixed number of bytes lands mid-record; that leading
         # fragment must be skipped rather than crashing the read.
         newest = _record(state="newest")
@@ -69,11 +76,13 @@ class TestLastVerdict:
             assert last_verdict(demo=False).state == "newest"
 
     def test_a_tail_shorter_than_one_record_finds_nothing(self) -> None:
+        """A tail too short to hold one record finds nothing."""
         _write([_record(state="newest")])
         with patch(f"{_PKG}._TAIL_BYTES", 10):
             assert last_verdict(demo=False).available is False
 
     def test_demo_log_is_read_separately(self) -> None:
+        """Demo and production verdicts come from separate logs."""
         _write([_record(state="production")])
         log_mod.BUDGET_DEMO_LOG_FILE.write_text(
             _record(state="demo") + "\n", encoding="utf-8"
@@ -82,6 +91,7 @@ class TestLastVerdict:
         assert last_verdict(demo=False).state == "production"
 
     def test_missing_and_odd_fields_default(self) -> None:
+        """A record lacking fields still reads, with empty defaults."""
         _write([json.dumps({"event": "heartbeat"})])
         view = last_verdict(demo=False)
         assert view.available is True
@@ -93,12 +103,14 @@ class TestLiveGames:
     """Tests for resolving qualifying PIDs to live processes."""
 
     def test_resolves_running_pids(self) -> None:
+        """Qualifying PIDs resolve to their live process names."""
         _write([_record(qualifying=[1, 2])])
         with patch(f"{_PKG}.process_name", side_effect=["alpha", "beta"]):
             games = last_verdict(demo=False).games
         assert [(g.pid, g.name) for g in games] == [(1, "alpha"), (2, "beta")]
 
     def test_drops_pids_that_have_exited(self) -> None:
+        """PIDs whose process has exited are dropped."""
         # A recycled PID would otherwise be reported under the wrong process.
         _write([_record(qualifying=[1, 2])])
         with patch(f"{_PKG}.process_name", side_effect=["alpha", None]):
@@ -106,9 +118,11 @@ class TestLiveGames:
         assert [g.name for g in games] == ["alpha"]
 
     def test_ignores_non_integer_pids(self) -> None:
+        """Non-integer PIDs are ignored."""
         _write([_record(qualifying=["nope"])])
         assert last_verdict(demo=False).games == []
 
     def test_non_list_qualifying_is_dropped(self) -> None:
+        """A non-list qualifying field yields no games."""
         _write([_record(qualifying=7)])
         assert last_verdict(demo=False).games == []

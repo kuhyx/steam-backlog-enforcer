@@ -2,44 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-from typing import Any, Self
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
 
 from steam_backlog_enforcer._hltb_page_parse import _parse_game_page
-from steam_backlog_enforcer._hltb_search import _fetch_batch
 from steam_backlog_enforcer._hltb_search_api import _pick_best_hltb_entry
 from steam_backlog_enforcer._hltb_types import (
     HLTBResult,
     _AuthInfo,
 )
-
-
-class _FakeResponse:
-    """Async context manager mimicking aiohttp response."""
-
-    def __init__(self, status: int, json_data: dict[str, Any] | None = None) -> None:
-        """Test init."""
-        self.status = status
-        self._json_data = json_data or {}
-
-    async def __aenter__(self) -> Self:
-        """Test aenter."""
-        return self
-
-    async def __aexit__(self, *args: object) -> None:
-        """Test aexit."""
-
-    async def json(self) -> dict[str, Any]:
-        """Test json."""
-        return self._json_data
-
-
-def _make_session(resp: _FakeResponse) -> MagicMock:
-    session = MagicMock()
-    session.post.return_value = resp
-    return session
+from steam_backlog_enforcer.tests._hltb_search_fakes import fetch_tf2_batch
 
 
 class TestPickBestEntry:
@@ -106,86 +78,27 @@ class TestPickBestEntry:
     def test_with_auth(self) -> None:
         """Test with auth."""
         auth = _AuthInfo("token123", "ign_x", "ff")
-        with (
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
-                return_value="https://example.com",
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_auth_info",
-                new_callable=AsyncMock,
-                return_value=auth,
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._search_one",
-                new_callable=AsyncMock,
-                return_value=HLTBResult(
-                    app_id=440,
-                    game_name="TF2",
-                    completionist_hours=50.0,
-                    similarity=1.0,
-                    hltb_game_id=12345,
-                ),
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._fetch_leisure_times",
-                new_callable=AsyncMock,
-            ),
-        ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
-            assert len(results) == 1
+        found = HLTBResult(
+            app_id=440,
+            game_name="TF2",
+            completionist_hours=50.0,
+            similarity=1.0,
+            hltb_game_id=12345,
+        )
+        results = fetch_tf2_batch(auth, found)
+        assert len(results) == 1
 
     def test_with_auth_no_hp(self) -> None:
         """Test with auth no hp."""
         auth = _AuthInfo("tok123")
-        with (
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
-                return_value="https://example.com",
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_auth_info",
-                new_callable=AsyncMock,
-                return_value=auth,
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._search_one",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._fetch_leisure_times",
-                new_callable=AsyncMock,
-            ),
-        ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
-            assert results == []
+        results = fetch_tf2_batch(auth, None)
+        assert results == []
 
     def test_filters_none_results(self) -> None:
         """Test filters none results."""
         auth = _AuthInfo("tok123")
-        with (
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_hltb_search_url",
-                return_value="https://example.com",
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._get_auth_info",
-                new_callable=AsyncMock,
-                return_value=auth,
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._search_one",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "steam_backlog_enforcer._hltb_search._fetch_leisure_times",
-                new_callable=AsyncMock,
-            ),
-        ):
-            results = asyncio.run(_fetch_batch([(440, "TF2")], {}, {}, None))
-            assert results == []
+        results = fetch_tf2_batch(auth, None)
+        assert results == []
 
 
 class TestParseGamePage:

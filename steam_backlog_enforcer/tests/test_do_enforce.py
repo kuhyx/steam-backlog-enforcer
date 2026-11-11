@@ -5,6 +5,7 @@ Split to keep every test file under the 250-line cap.
 
 from __future__ import annotations
 
+import json
 import threading
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
@@ -15,6 +16,7 @@ from steam_backlog_enforcer._enforce_loop import (
     do_enforce,
 )
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._enforce_loop_once import one_iteration
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -46,18 +48,10 @@ class TestDoEnforce:
         but not yet rescanned.
         """
         state = State()
-        with (
-            patch(f"{PKG}._echo") as mock_echo,
-            patch.object(State, "load", return_value=state),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ) as mock_iter,
-            patch(f"{PKG}.open_file_wake"),
-        ):
+        with one_iteration(state) as mocks:
             do_enforce(Config(), state)
-        assert any("No game" in str(c) for c in mock_echo.call_args_list)
-        mock_iter.assert_called_once()
+        assert any("No game" in str(c) for c in mocks.echo.call_args_list)
+        mocks.iteration.assert_called_once()
 
     def test_steam_absent_idles_without_setup(self) -> None:
         """With Steam gone, say so and keep looping - never exit.
@@ -71,36 +65,23 @@ class TestDoEnforce:
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.steam_is_installed", return_value=False),
             patch(f"{PKG}._enforce_setup") as mock_setup,
-            patch(f"{PKG}._echo") as mock_echo,
-            patch.object(State, "load", return_value=state),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ),
-            patch(f"{PKG}.open_file_wake"),
+            one_iteration(state) as mocks,
         ):
             do_enforce(Config(), state)
 
         mock_setup.assert_not_called()
-        assert any("not installed" in str(c) for c in mock_echo.call_args_list)
+        assert any("not installed" in str(c) for c in mocks.echo.call_args_list)
 
     def test_keyboard_interrupt(self) -> None:
+        """A KeyboardInterrupt from an iteration ends the loop cleanly."""
         state = State(current_app_id=1, current_game_name="G")
         config = Config()
         fresh = State(current_app_id=1, current_game_name="G")
-        with (
-            patch(f"{PKG}._enforce_setup"),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "load", return_value=fresh),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ),
-            patch(f"{PKG}.open_file_wake"),
-        ):
+        with patch(f"{PKG}._enforce_setup"), one_iteration(fresh):
             do_enforce(config, state)
 
     def test_runs_iterations(self) -> None:
+        """The loop keeps iterating until interrupted."""
         state = State(current_app_id=1, current_game_name="G")
         config = Config()
         fresh = State(current_app_id=1, current_game_name="G")
@@ -127,8 +108,6 @@ class TestDoEnforce:
 
     def test_state_load_failure_continues(self) -> None:
         """Corrupt state file should not crash the daemon."""
-        import json as json_mod
-
         state = State(current_app_id=1, current_game_name="G")
         config = Config()
         call_count = 0
@@ -138,7 +117,7 @@ class TestDoEnforce:
             call_count += 1
             if call_count == 1:
                 msg = "bad"
-                raise json_mod.JSONDecodeError(msg, "", 0)
+                raise json.JSONDecodeError(msg, "", 0)
             if call_count == 2:
                 raise KeyboardInterrupt
             return State(current_app_id=1)  # pragma: no cover
@@ -158,6 +137,7 @@ class TestStateReload:
     """The loop must pick up CLI/MCP state changes without a restart."""
 
     def test_reloads_manual_picks_from_disk(self) -> None:
+        """Each iteration reloads manual picks and finished ids from disk."""
         # The MCP pick_manual tool adds a *second* pick without touching
         # current_app_id. A daemon that never reloaded manual_picks would drop
         # it out of the allowed set and uninstall it as unauthorized.
@@ -168,16 +148,7 @@ class TestStateReload:
             finished_app_ids=[7],
             manual_picks=[{"app_id": 900, "game_name": "AddedByMcp", "started_at": ""}],
         )
-        with (
-            patch(f"{PKG}._enforce_setup"),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "load", return_value=fresh),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ),
-            patch(f"{PKG}.open_file_wake"),
-        ):
+        with patch(f"{PKG}._enforce_setup"), one_iteration(fresh):
             do_enforce(Config(), state)
         assert state.manual_picks == fresh.manual_picks
         assert state.finished_app_ids == [7]
@@ -187,6 +158,7 @@ class TestRestartRequested:
     """A control-socket ``restart`` op ends the loop cleanly."""
 
     def test_flush_then_exit_without_waiting(self) -> None:
+        """A restart request flushes state and exits without a wake wait."""
         state = State(current_app_id=1, current_game_name="G")
         control = MagicMock()
         control.tick_lock = threading.Lock()

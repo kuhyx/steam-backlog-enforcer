@@ -65,16 +65,19 @@ class TestFastInstallRunning:
         ],
     )
     def test_detects_installer(self, tmp_path: Path, cmdline: bytes) -> None:
+        """Both the run.sh wrapper and the Python module count as the installer."""
         proc = self._proc(tmp_path, {"self": b"", "10": None, "11": cmdline})
         with patch(f"{GUARD}.Path", return_value=proc):
             assert fast_install_running() is True
 
     def test_nothing_running(self, tmp_path: Path) -> None:
+        """Other processes and unreadable entries do not count."""
         proc = self._proc(tmp_path, {"self": b"", "10": None, "11": b"steam\0-silent"})
         with patch(f"{GUARD}.Path", return_value=proc):
             assert fast_install_running() is False
 
     def test_assert_raises_while_running(self) -> None:
+        """The guard raises while an installer is running."""
         with (
             patch(f"{GUARD}.fast_install_running", return_value=True),
             pytest.raises(FastInstallInProgressError),
@@ -82,9 +85,11 @@ class TestFastInstallRunning:
             assert_no_fast_install()
 
     def test_assert_passes_when_idle(self) -> None:
+        """With no installer running the guard passes."""
         assert_no_fast_install()
 
     def test_error_degrades_like_other_steam_errors(self) -> None:
+        """The installer error is caught wherever Steam being unavailable is."""
         assert issubclass(FastInstallInProgressError, SteamUnavailableError)
 
 
@@ -92,26 +97,32 @@ class TestFullyInstalled:
     """Only a finished, settled manifest counts as fully installed."""
 
     def test_missing(self) -> None:
+        """No manifest means not installed."""
         assert _steam_state.is_game_fully_installed(1) is False
 
     def test_installed(self) -> None:
+        """A settled manifest with the installed flag counts."""
         _manifest(1, 4)
         assert _steam_state.is_game_fully_installed(1) is True
 
     def test_steam_still_downloading(self) -> None:
+        """A manifest still downloading through Steam does not count."""
         _manifest(1, 1042, to_download=10)
         assert _steam_state.is_game_fully_installed(1) is False
 
     def test_flag_set_but_bytes_in_flight(self) -> None:
+        """The installed flag with bytes still in flight does not count."""
         _manifest(1, 1044, to_download=10)
         assert _steam_state.is_game_fully_installed(1) is False
 
     def test_no_state_flags(self) -> None:
+        """A manifest without StateFlags does not count."""
         path = _steam_state.STEAMAPPS_PATH / "appmanifest_1.acf"
         path.write_text('"AppState"\n{\n}\n')
         assert _steam_state.is_game_fully_installed(1) is False
 
     def test_update_check_sees_a_transfer(self) -> None:
+        """Bytes left to download mark a Steam update as in progress."""
         _manifest(7, 1026, to_download=10)
         assert _steam_state.steam_update_in_progress() is True
 
@@ -120,6 +131,7 @@ class TestInstallGameFastPath:
     """install_game prefers the installer and never reopens Steam under it."""
 
     def test_own_run_in_progress(self) -> None:
+        """install_game does not restart its own installer run already going."""
         with (
             patch(f"{GI}.fast_install_running", return_value=True),
             patch(f"{GI}.is_fast_installing", return_value=True),
@@ -129,6 +141,7 @@ class TestInstallGameFastPath:
         fast.assert_not_called()
 
     def test_other_run_defers(self) -> None:
+        """Another installer run makes install_game defer, not trigger Steam."""
         with (
             patch(f"{GI}.fast_install_running", return_value=True),
             patch(f"{GI}.is_fast_installing", return_value=False),
@@ -138,6 +151,7 @@ class TestInstallGameFastPath:
         trigger.assert_not_called()
 
     def test_fast_install_wins(self) -> None:
+        """A successful fast install skips the Steam install trigger."""
         with (
             patch(f"{GI}.fast_install", return_value=True),
             patch(f"{GI}._trigger_steam_install") as trigger,
@@ -146,6 +160,7 @@ class TestInstallGameFastPath:
         trigger.assert_not_called()
 
     def test_steams_own_download_is_left_running(self) -> None:
+        """A Steam download already under way is neither triggered nor rewritten."""
         _manifest(1, 1026, to_download=10)
         before = (_steam_state.STEAMAPPS_PATH / "appmanifest_1.acf").read_text()
         with (
@@ -162,6 +177,7 @@ class TestSteamStaysClosed:
     """Every Steam start path defers to a live installer."""
 
     def test_ensure_steam_running(self) -> None:
+        """Steam is not started while an installer runs."""
         with (
             patch(
                 "steam_backlog_enforcer._steam_client.steam_is_installed",
@@ -177,6 +193,7 @@ class TestSteamStaysClosed:
         spawn.assert_not_called()
 
     def test_debug_port(self) -> None:
+        """The debug-port launch refuses while an installer runs."""
         with (
             patch(f"{GUARD}.fast_install_running", return_value=True),
             patch(f"{LAUNCH}._launch_steam_with_debug") as launch,
@@ -186,6 +203,7 @@ class TestSteamStaysClosed:
         launch.assert_not_called()
 
     def test_restart(self) -> None:
+        """A Steam restart is skipped while an installer runs."""
         with (
             patch(f"{LAUNCH}.game_is_running", return_value=False),
             patch(f"{LAUNCH}.steam_update_in_progress", return_value=False),
@@ -200,6 +218,7 @@ class TestReinstallPollsRuns:
     """The loop reaps detached runs even when no game is missing."""
 
     def test_polls_every_pass(self) -> None:
+        """Fast installs are polled on every pass, even with nothing missing."""
         with (
             patch(
                 "steam_backlog_enforcer._enforce_steps.steam_library_ready",

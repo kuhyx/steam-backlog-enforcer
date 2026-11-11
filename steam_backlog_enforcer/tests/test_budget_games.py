@@ -34,6 +34,7 @@ class TestTodayGames:
     """Today's list is uncapped: it is text, not six colours."""
 
     def test_orders_largest_first_with_shares(self) -> None:
+        """Games are listed largest first with their rounded share of the day."""
         state = PlaytimeState(
             day_key="2026-08-29",
             seconds=300.0,
@@ -45,6 +46,7 @@ class TestTodayGames:
         ]
 
     def test_surfaces_the_unattributed_remainder_last(self) -> None:
+        """Billed time not attributed to a game is listed last as Unattributed."""
         state = PlaytimeState(
             day_key="2026-08-29", seconds=300.0, per_game={"app:1": 200.0}
         )
@@ -56,12 +58,14 @@ class TestTodayGames:
         }
 
     def test_no_remainder_when_fully_attributed(self) -> None:
+        """A fully attributed day has no Unattributed row."""
         state = PlaytimeState(
             day_key="2026-08-29", seconds=100.0, per_game={"app:1": 100.0}
         )
         assert [g["key"] for g in today_games(state)] == ["app:1"]
 
     def test_a_day_that_billed_nothing_lists_nothing(self) -> None:
+        """A day with no billed time lists no games."""
         assert today_games(PlaytimeState(day_key="2026-08-29")) == []
 
     def test_drift_below_zero_cannot_produce_a_negative_slice(self) -> None:
@@ -83,6 +87,7 @@ class TestHistoryView:
     """The window is capped at the six hues the shared ramp actually has."""
 
     def test_orders_segments_by_the_shared_legend(self) -> None:
+        """Every bar orders its segments by the window-wide legend ranking."""
         days = [
             HistoryDay("2026-08-27", 300.0, {"app:1": 100.0, "app:2": 200.0}),
             HistoryDay("2026-08-28", 50.0, {"app:1": 50.0}),
@@ -98,6 +103,7 @@ class TestHistoryView:
         assert plotted[1]["segments"] == [{"key": "app:1", "seconds": 50.0}]
 
     def test_folds_the_seventh_game_into_other(self) -> None:
+        """Games past the sixth fold into "other" without losing time."""
         games = {f"app:{i}": float(100 - i) for i in range(8)}
         plotted, legend = history_view(
             [HistoryDay("2026-08-28", sum(games.values()), games)]
@@ -114,9 +120,11 @@ class TestHistoryView:
         assert legend == [{"key": "unattributed", "label": "Unattributed"}]
 
     def test_a_day_with_no_time_has_no_segments(self) -> None:
+        """A day with zero time has no segments and adds nothing to the legend."""
         plotted, legend = history_view([HistoryDay("2026-08-24", 0.0, {})])
         assert plotted[0]["segments"] == []
         assert legend == []
 
     def test_empty_window(self) -> None:
+        """An empty window yields no bars and no legend."""
         assert history_view([]) == ([], [])

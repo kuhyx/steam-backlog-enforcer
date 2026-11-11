@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 
 def test_a_live_host_switch_does_not_leak_into_rules(tmp_path: Path) -> None:
+    """A host switch file read at import never changes the rules."""
     with (
         patch("steam_backlog_enforcer._playtime_state.held_today", return_value=0.0),
         patch(

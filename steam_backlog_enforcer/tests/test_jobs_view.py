@@ -15,6 +15,7 @@ from steam_backlog_enforcer.jobs._events import (
     EventWriter,
     read_events,
 )
+from steam_backlog_enforcer.jobs._view import _pid_alive, _reconcile
 from steam_backlog_enforcer.tests._jobs_helpers import JOB_ID, make_job, write_result
 
 if TYPE_CHECKING:
@@ -44,36 +45,36 @@ class TestPidAlive:
 
     def test_no_pid_file_is_unknown(self) -> None:
         """Before spawn there is nothing to check."""
-        assert _view._pid_alive(make_job()) is None
+        assert _pid_alive(make_job()) is None
 
     def test_garbage_pid_is_unknown(self) -> None:
         """An unreadable pid file counts as not written yet."""
-        assert _view._pid_alive(make_job(pid="soon")) is None
+        assert _pid_alive(make_job(pid="soon")) is None
 
     def test_missing_process_is_dead(self) -> None:
         """No /proc entry means the process is gone."""
         path = make_job(pid="999999\n")
         with patch(_PATH, _proc(None)):
-            assert _view._pid_alive(path) is False
+            assert _pid_alive(path) is False
 
     def test_job_cmdline_is_alive(self) -> None:
         """Our module and our job id on the command line."""
         path = make_job(pid="5\n")
         cmd = f"python\0-m\0steam_backlog_enforcer.jobs\0run\0/x/{JOB_ID}".encode()
         with patch(_PATH, _proc(cmd)):
-            assert _view._pid_alive(path) is True
+            assert _pid_alive(path) is True
 
     def test_recycled_pid_is_dead(self) -> None:
         """Some other program on the same pid is not the job."""
         path = make_job(pid="5\n")
         with patch(_PATH, _proc(b"vim\0notes.txt")):
-            assert _view._pid_alive(path) is False
+            assert _pid_alive(path) is False
 
     def test_zombie_is_dead(self) -> None:
         """A zombie has an empty command line."""
         path = make_job(pid="5\n")
         with patch(_PATH, _proc(b"")):
-            assert _view._pid_alive(path) is False
+            assert _pid_alive(path) is False
 
 
 class TestPidOf:
@@ -96,33 +97,33 @@ class TestReconcile:
     def test_terminal_is_left_alone(self) -> None:
         """Finished jobs are never touched."""
         path = make_job(states=("running", "succeeded"))
-        _view._reconcile(path, "succeeded")
+        _reconcile(path, "succeeded")
         assert len(read_events(path)) == 2
 
     def test_fresh_job_without_pid_gets_grace(self) -> None:
         """Between mkdir and spawn the job is simply young."""
         path = make_job()
-        _view._reconcile(path, "running")
+        _reconcile(path, "running")
         assert read_events(path)[-1]["state"] == "running"
 
     def test_old_job_without_pid_fails(self) -> None:
         """Past the grace period a pid-less job is dead."""
         path = make_job()
         _age(path, 120)
-        _view._reconcile(path, "running")
+        _reconcile(path, "running")
         assert read_events(path)[-1]["state"] == "failed"
 
     def test_live_process_is_left_alone(self) -> None:
         """A running process means the job is fine."""
         path = make_job(pid="5\n")
         with patch.object(_view, "_pid_alive", return_value=True):
-            _view._reconcile(path, "running")
+            _reconcile(path, "running")
         assert read_events(path)[-1]["state"] == "running"
 
     def test_dead_process_fails_job_with_result(self) -> None:
         """A dead pid gets a result then a failed state."""
         path = make_job(pid="5\n")
-        _view._reconcile(path, "running")
+        _reconcile(path, "running")
         last_two = read_events(path)[-2:]
         assert last_two[0]["type"] == "result"
         assert last_two[0]["ok"] is False

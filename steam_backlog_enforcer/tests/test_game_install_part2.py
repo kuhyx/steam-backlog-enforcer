@@ -24,6 +24,7 @@ class TestRemoveGameDirs:
     """Tests for _remove_game_dirs."""
 
     def test_removes_install_dir(self, tmp_path: Path) -> None:
+        """An existing install dir is deleted and reported as success."""
         install_dir = tmp_path / "common" / "MyGame"
         install_dir.mkdir(parents=True)
         (install_dir / "game.exe").touch()
@@ -33,17 +34,20 @@ class TestRemoveGameDirs:
         assert not install_dir.exists()
 
     def test_install_dir_none(self, tmp_path: Path) -> None:
+        """No install dir to remove still succeeds."""
         with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _remove_game_dirs(None, 440)
         assert result is True
 
     def test_install_dir_not_exists(self, tmp_path: Path) -> None:
+        """A missing install dir still succeeds."""
         missing = tmp_path / "common" / "Missing"
         with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
             result = _remove_game_dirs(missing, 440)
         assert result is True
 
     def test_install_dir_remove_fails(self, tmp_path: Path) -> None:
+        """An rmtree failure on the install dir reports failure."""
         install_dir = tmp_path / "common" / "MyGame"
         install_dir.mkdir(parents=True)
         with (
@@ -54,6 +58,7 @@ class TestRemoveGameDirs:
         assert result is False
 
     def test_removes_cache_dirs(self, tmp_path: Path) -> None:
+        """The app's shadercache and compatdata dirs are deleted."""
         for subdir in ("shadercache", "compatdata"):
             (tmp_path / subdir / "440").mkdir(parents=True)
         with patch("steam_backlog_enforcer.game_uninstall.STEAMAPPS_PATH", tmp_path):
@@ -63,6 +68,7 @@ class TestRemoveGameDirs:
         assert not (tmp_path / "compatdata" / "440").exists()
 
     def test_cache_dir_remove_oserror_suppressed(self, tmp_path: Path) -> None:
+        """A cache-dir rmtree failure does not fail the removal."""
         (tmp_path / "shadercache" / "440").mkdir(parents=True)
         call_count = 0
 
@@ -84,6 +90,7 @@ class TestUninstallGame:
     """Tests for uninstall_game."""
 
     def test_success(self, tmp_path: Path) -> None:
+        """Manifest and install dir present: uninstall succeeds."""
         manifest = tmp_path / "appmanifest_440.acf"
         manifest.write_text('"installdir"\t\t"TF2"\n', encoding="utf-8")
         install_dir = tmp_path / "common" / "TF2"
@@ -93,6 +100,7 @@ class TestUninstallGame:
         assert result is True
 
     def test_manifest_removal_fails(self) -> None:
+        """A failed manifest removal fails the uninstall."""
         mock_manifest = MagicMock()
         mock_manifest.exists.return_value = True
         mock_manifest.unlink.side_effect = OSError
@@ -106,6 +114,7 @@ class TestUninstallGame:
         assert result is False
 
     def test_game_dirs_removal_fails(self) -> None:
+        """A failed game-dir removal fails the uninstall."""
         with (
             patch(f"{GAME_UNINSTALL_PKG}._read_install_dir", return_value=None),
             patch(f"{GAME_UNINSTALL_PKG}._remove_manifest", return_value=True),
@@ -119,6 +128,7 @@ class TestUninstallOtherGames:
     """Tests for uninstall_other_games."""
 
     def test_keeps_allowed(self) -> None:
+        """Allowed games stay; every other game is uninstalled."""
         with (
             patch(
                 f"{GAME_UNINSTALL_PKG}.get_installed_games",
@@ -133,6 +143,7 @@ class TestUninstallOtherGames:
         mock_uninstall.assert_called_once_with(730, "CS")
 
     def test_skips_protected(self) -> None:
+        """Protected apps such as redistributables are never uninstalled."""
         with (
             patch(
                 f"{GAME_UNINSTALL_PKG}.get_installed_games",
@@ -145,6 +156,7 @@ class TestUninstallOtherGames:
         mock_uninstall.assert_not_called()
 
     def test_uninstall_fails(self) -> None:
+        """A failed uninstall is not counted."""
         with (
             patch(
                 f"{GAME_UNINSTALL_PKG}.get_installed_games",
@@ -156,6 +168,7 @@ class TestUninstallOtherGames:
         assert count == 0
 
     def test_all_allowed_or_protected(self) -> None:
+        """Nothing to remove means no uninstall calls."""
         with (
             patch(
                 f"{GAME_UNINSTALL_PKG}.get_installed_games",
@@ -172,6 +185,7 @@ class TestUninstallProgressNames:
     """The progress bar names only games that are actually removed."""
 
     def test_protected_and_allowed_never_shown(self) -> None:
+        """Only the game actually removed shows in the progress bar."""
         shown: list[str] = []
 
         def fake_tracked(

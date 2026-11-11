@@ -21,6 +21,7 @@ class TestCmdInstalled:
     """Tests for cmd_installed."""
 
     def test_shows_games(self) -> None:
+        """Listing assigned and protected installed games runs cleanly."""
         with (
             patch(
                 f"{PKG}.get_installed_games",
@@ -36,11 +37,13 @@ class TestCmdUninstall:
     """Tests for cmd_uninstall."""
 
     def test_no_game(self) -> None:
+        """With no assigned game uninstall says so."""
         with patch(f"{PKG}._echo") as mock_echo:
             cmd_uninstall(Config(), State())
             assert any("No game" in str(c) for c in mock_echo.call_args_list)
 
     def test_nothing_to_remove(self) -> None:
+        """With only the assigned game installed there is nothing to remove."""
         state = State(current_app_id=440)
         with (
             patch(f"{PKG}.get_installed_games", return_value=[(440, "TF2")]),
@@ -49,6 +52,7 @@ class TestCmdUninstall:
             cmd_uninstall(Config(), state)
 
     def test_confirms_yes(self) -> None:
+        """Typing the confirmation phrase uninstalls the other games."""
         state = State(current_app_id=440)
         with (
             patch(
@@ -63,6 +67,7 @@ class TestCmdUninstall:
         mock_uninstall.assert_called_once()
 
     def test_aborts(self) -> None:
+        """Any other answer aborts and uninstalls nothing."""
         state = State(current_app_id=440)
         with (
             patch(
@@ -82,11 +87,13 @@ class TestCmdInstall:
     """Tests for cmd_install."""
 
     def test_no_game(self) -> None:
+        """With no assigned game install says so."""
         with patch(f"{PKG}._echo") as mock_echo:
             cmd_install(Config(), State())
             assert any("No game" in str(c) for c in mock_echo.call_args_list)
 
     def test_already_installed(self) -> None:
+        """An already installed game is not installed again."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
@@ -95,6 +102,7 @@ class TestCmdInstall:
             cmd_install(Config(), state)
 
     def test_installs_ok(self) -> None:
+        """A successful install of the assigned game runs cleanly."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.is_game_fully_installed", return_value=False),
@@ -104,6 +112,7 @@ class TestCmdInstall:
             cmd_install(Config(steam_id="i"), state)
 
     def test_install_fails(self) -> None:
+        """A failed install of the assigned game is reported without raising."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.is_game_fully_installed", return_value=False),
@@ -130,10 +139,12 @@ class TestCmdHide:
     """Tests for cmd_hide."""
 
     def test_no_game(self) -> None:
+        """Hiding with no assigned game runs cleanly."""
         with patch(f"{PKG}._echo"):
             cmd_hide(Config(), State())
 
     def test_no_owned(self) -> None:
+        """Hiding with no owned games runs cleanly."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
@@ -142,6 +153,7 @@ class TestCmdHide:
             cmd_hide(Config(), state)
 
     def test_hides(self) -> None:
+        """Hiding the other owned games runs cleanly."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1, 2]),
@@ -151,6 +163,7 @@ class TestCmdHide:
             cmd_hide(Config(), state)
 
     def test_hides_zero(self) -> None:
+        """Hiding zero games runs cleanly."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1]),
@@ -160,6 +173,7 @@ class TestCmdHide:
             cmd_hide(Config(), state)
 
     def test_unreachable_steam_reports_skip(self) -> None:
+        """An unreachable Steam degrades hiding to a skip message."""
         # Regression guard: a deferred Steam restart used to escape as a
         # traceback instead of degrading to a skip message.
         state = State(current_app_id=1, current_game_name="G")
@@ -181,6 +195,7 @@ class TestCmdUnhide:
     """Tests for cmd_unhide."""
 
     def test_no_owned(self) -> None:
+        """Unhiding with no owned games runs cleanly."""
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[]),
             patch(f"{PKG}._echo"),
@@ -188,6 +203,7 @@ class TestCmdUnhide:
             cmd_unhide(Config(), State())
 
     def test_unhides(self) -> None:
+        """Unhiding owned games runs cleanly."""
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1]),
             patch(f"{PKG}.unhide_all_games", return_value=1),
@@ -196,6 +212,7 @@ class TestCmdUnhide:
             cmd_unhide(Config(), State())
 
     def test_skips_without_steam_like_hide(self) -> None:
+        """Unhiding without Steam reports a skip, like hide."""
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1]),
             patch(
@@ -208,6 +225,7 @@ class TestCmdUnhide:
         echo.assert_called_with("Library unhiding: skipped (Steam is not installed)")
 
     def test_unhides_zero(self) -> None:
+        """Unhiding zero games runs cleanly."""
         with (
             patch(f"{PKG}.get_all_owned_app_ids", return_value=[1]),
             patch(f"{PKG}.unhide_all_games", return_value=0),

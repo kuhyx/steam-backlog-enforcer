@@ -20,6 +20,8 @@ PKG = "steam_backlog_enforcer.game_install"
 
 
 class TestQueueBeforeFastInstall:
+    """A fresh install is queued with Steam before the fast installer runs."""
+
     def test_fast_install_gets_a_manifest_to_finish(self, tmp_path: Path) -> None:
         """steam-game-installer only finishes a manifest it finds, so a fresh
         install is queued with Steam before the installer runs, not after."""

@@ -17,7 +17,10 @@ _ACH = AchievementInfo("A1", "Ach1", achieved=True, unlock_time=100)
 
 
 class TestStrictAchievementDetails:
+    """Strict achievement lookups raise real failures only."""
+
     def test_a_real_failure_raises_when_strict(self) -> None:
+        """A real API failure propagates when strict."""
         client = SteamAPIClient("key", "id")
         with (
             patch.object(client, "_get", side_effect=SteamAPIError("timeout")),
@@ -26,6 +29,7 @@ class TestStrictAchievementDetails:
             client.get_achievement_details(440, strict=True)
 
     def test_a_no_stats_answer_is_empty_even_when_strict(self) -> None:
+        """A no-stats answer is an empty list even when strict."""
         client = SteamAPIClient("key", "id")
         with (
             patch.object(client, "_get", side_effect=SteamAPIError("400")),
@@ -35,7 +39,10 @@ class TestStrictAchievementDetails:
 
 
 class TestBuildGameListSkips:
+    """build_game_list skips known bare games and records what Steam answered."""
+
     def test_known_no_achievement_games_are_not_asked_about(self) -> None:
+        """Games known to have no achievements are not queried."""
         client = SteamAPIClient("key", "id")
         owned = [{"appid": 1, "name": "Bare"}, {"appid": 2, "name": "Rich"}]
         with (
@@ -50,6 +57,7 @@ class TestBuildGameListSkips:
         assert [c.args[0] for c in details.call_args_list] == [2]
 
     def test_only_answered_games_are_remembered(self) -> None:
+        """Only games Steam answered for are recorded as scanned."""
         client = SteamAPIClient("key", "id")
         owned = [{"appid": 1}, {"appid": 2}, {"appid": 3}]
 
@@ -74,7 +82,10 @@ class TestBuildGameListSkips:
 
 
 class TestCancelledScan:
+    """A cancelled scan stops at once."""
+
     def test_an_interrupt_propagates_and_drops_queued_requests(self) -> None:
+        """Ctrl-C from the progress callback propagates out of the scan."""
         client = SteamAPIClient("key", "id")
 
         def cancel(_done: int, _total: int) -> None:

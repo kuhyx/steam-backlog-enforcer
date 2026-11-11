@@ -44,8 +44,8 @@ def _resolve(hour: int) -> tuple[float, list[object]]:
     return base, [c.kwargs["leisure"] for c in spy.call_args_list]
 
 
-@pytest.fixture
-def dormant(tmp_path: Path) -> float:
+@pytest.fixture(name="dormant")
+def fixture_dormant(tmp_path: Path) -> float:
     """The dormant base at noon, then the switch dated the go-live day."""
     base = _resolve(12)[0]
     switch_file(tmp_path).write_text(AFTER_CUT.isoformat() + "\n", encoding="ascii")
@@ -53,11 +53,13 @@ def dormant(tmp_path: Path) -> float:
 
 
 def test_dormant_prices_pre_leisure_with_a_leisure_shadow() -> None:
+    """With no switch the live price is pre-leisure and the shadow is leisure."""
     assert _resolve(12)[1] == [False, True]
 
 
 @pytest.mark.parametrize("hour", [6, 12, 23])
 def test_the_go_live_gaming_day_is_priced_as_leisure(dormant: float, hour: int) -> None:
+    """From 06:00 on the go-live day the base is priced as leisure."""
     base, leisure = _resolve(hour)
     assert leisure == [True, True]
     assert base - dormant == 2 * _HOUR
@@ -67,12 +69,14 @@ def test_the_go_live_gaming_day_is_priced_as_leisure(dormant: float, hour: int) 
 def test_before_06_on_the_go_live_date_stays_pre_leisure(
     dormant: float, hour: int
 ) -> None:
+    """Before 06:00 on the go-live date the old gaming day stays pre-leisure."""
     base, leisure = _resolve(hour)
     assert leisure == [False, True]
     assert base == dormant
 
 
 def test_a_switch_dated_tomorrow_is_dormant_today(tmp_path: Path) -> None:
+    """A switch dated tomorrow does not apply today."""
     tomorrow = (AFTER_CUT + timedelta(days=1)).isoformat()
     switch_file(tmp_path).write_text(tomorrow + "\n", encoding="ascii")
     assert _resolve(12)[1] == [False, True]

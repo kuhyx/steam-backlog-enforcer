@@ -81,8 +81,8 @@ class CtlServer:
         self._gid = desktop_gid
         self._path = path
         self._stop = threading.Event()
-        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
-        self._sock: socket.socket | None = None
+        self.slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+        self.sock: socket.socket | None = None
 
     def start(self) -> bool:
         """Bind the socket and start accepting. Never raises.
@@ -109,23 +109,23 @@ class CtlServer:
         except OSError:
             logger.exception("Cannot start the control socket at %s", self._path)
             return False
-        self._sock = sock
-        threading.Thread(target=self._serve, name="ctl-accept", daemon=True).start()
+        self.sock = sock
+        threading.Thread(target=self.serve, name="ctl-accept", daemon=True).start()
         logger.info("Control socket listening on %s", self._path)
         return True
 
     def stop(self) -> None:
         """Stop accepting and remove the socket file."""
         self._stop.set()
-        if self._sock is not None:
-            self._sock.close()
-            self._sock = None
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
         self._path.unlink(missing_ok=True)
 
-    def _serve(self) -> None:
+    def serve(self) -> None:
         """Accept loop; survives anything but being told to stop."""
         while not self._stop.is_set():
-            sock = self._sock
+            sock = self.sock
             if sock is None:
                 return
             try:
@@ -138,9 +138,9 @@ class CtlServer:
                 logger.exception("Control socket accept failed")
                 time.sleep(_ACCEPT_POLL_SECONDS)
                 continue
-            self._admit(conn)
+            self.admit(conn)
 
-    def _admit(self, conn: socket.socket) -> None:
+    def admit(self, conn: socket.socket) -> None:
         """Authenticate *conn* and hand it to a worker, or close it silently."""
         try:
             uid = peer_uid(conn)
@@ -151,33 +151,33 @@ class CtlServer:
             logger.warning("Control socket: refused a connection from uid %d", uid)
             conn.close()
             return
-        if not self._take_slot():
+        if not self.take_slot():
             logger.warning("Control socket: too many connections, dropping one")
             conn.close()
             return
         threading.Thread(
-            target=self._handle, args=(conn, uid), name="ctl-conn", daemon=True
+            target=self.handle, args=(conn, uid), name="ctl-conn", daemon=True
         ).start()
 
-    def _take_slot(self) -> bool:
-        """Claim a connection slot without blocking; ``_handle`` releases it.
+    def take_slot(self) -> bool:
+        """Claim a connection slot without blocking; ``handle`` releases it.
 
         No ``with``: the slot is released by the worker thread, not here.
         """
-        return self._slots.acquire(blocking=False)
+        return self.slots.acquire(blocking=False)
 
-    def _handle(self, conn: socket.socket, uid: int) -> None:
+    def handle(self, conn: socket.socket, uid: int) -> None:
         """Serve one connection, always releasing its slot and socket."""
         try:
             line = read_line(conn)
             if line is not None:
-                self._write(conn, self._dispatch(line, uid))
+                self._write(conn, self.dispatch(line, uid))
         # Catch-all on purpose: a dying connection must not kill its thread.
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("Control connection dropped", exc_info=True)
         finally:
             conn.close()
-            self._slots.release()
+            self.slots.release()
 
     @staticmethod
     def _write(conn: socket.socket, payload: bytes) -> None:
@@ -185,10 +185,10 @@ class CtlServer:
         conn.settimeout(WRITE_TIMEOUT_SECONDS)
         conn.sendall(payload)
 
-    def _dispatch(self, line: bytes, uid: int) -> bytes:
+    def dispatch(self, line: bytes, uid: int) -> bytes:
         """Turn a request line into a response line. Never raises."""
         try:
-            return ok_response(self._run(line, uid))
+            return ok_response(self.run(line, uid))
         except CtlError as exc:
             logger.info("Control socket: refused (%s)", exc.code)
             return error_response(exc)
@@ -197,7 +197,7 @@ class CtlServer:
             logger.exception("Control socket op crashed")
             return error_response(CtlError(OP_FAILED, "internal error"))
 
-    def _run(self, line: bytes, uid: int) -> dict[str, object]:
+    def run(self, line: bytes, uid: int) -> dict[str, object]:
         """Validate a request line and run its op.
 
         Raises:

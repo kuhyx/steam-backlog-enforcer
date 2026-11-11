@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from steam_backlog_enforcer import _ctl_control
+from steam_backlog_enforcer._ctl_control import _is_supervised
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._ctl_fixtures import make_ctx
 
@@ -19,6 +20,7 @@ class TestDaemonControl:
     """The handle the loop holds."""
 
     def test_properties(self) -> None:
+        """The handle exposes the shared tick lock and the restart flag."""
         ctx = make_ctx()
         control = _ctl_control.DaemonControl(ctx, None)
         assert control.tick_lock is ctx.tick_lock
@@ -27,6 +29,7 @@ class TestDaemonControl:
         assert control.restart_requested is True
 
     def test_flush_without_request_does_nothing(self) -> None:
+        """Without a restart request nothing is billed."""
         control = _ctl_control.DaemonControl(make_ctx(), None)
         with patch.object(_ctl_control, "playtime_tick") as tick:
             assert (
@@ -38,6 +41,7 @@ class TestDaemonControl:
         tick.assert_not_called()
 
     def test_flush_bills_marks_and_exits(self) -> None:
+        """A restart request bills the tick and records the exit."""
         ctx = make_ctx()
         ctx.restart_event.set()
         control = _ctl_control.DaemonControl(ctx, None)
@@ -51,11 +55,13 @@ class TestDaemonControl:
         record.assert_called_once()
 
     def test_close_stops_server(self) -> None:
+        """close() stops a running server."""
         server = MagicMock()
         _ctl_control.DaemonControl(make_ctx(), server).close()
         server.stop.assert_called_once()
 
     def test_close_inert(self) -> None:
+        """close() without a server is a no-op."""
         _ctl_control.DaemonControl(make_ctx(), None).close()
 
 
@@ -63,34 +69,39 @@ class TestIsSupervised:
     """systemd sets INVOCATION_ID for its services."""
 
     def test_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """INVOCATION_ID set means supervised."""
         monkeypatch.setenv("INVOCATION_ID", "abc")
-        assert _ctl_control._is_supervised() is True
+        assert _is_supervised() is True
 
     def test_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """No INVOCATION_ID means unsupervised."""
         monkeypatch.delenv("INVOCATION_ID", raising=False)
-        assert _ctl_control._is_supervised() is False
+        assert _is_supervised() is False
 
 
 class TestStartControl:
     """Only the real root daemon serves."""
 
     def test_demo_is_inert(self) -> None:
+        """Demo mode never builds a server."""
         with patch.object(_ctl_control, "CtlServer") as server:
             control = _ctl_control.start_control(Config(), demo=True)
         server.assert_not_called()
-        assert control._server is None
+        assert control.server is None
 
     def test_non_root_is_inert(self) -> None:
+        """A non-root process never builds a server."""
         with (
             patch.object(_ctl_control.os, "geteuid", return_value=1000),
             patch.object(_ctl_control, "CtlServer") as server,
         ):
             control = _ctl_control.start_control(Config(), demo=False)
         server.assert_not_called()
-        assert control._server is None
+        assert control.server is None
 
     @pytest.mark.parametrize("user", [None, "ghost"])
     def test_unknown_desktop_user_fails_closed(self, user: str | None) -> None:
+        """An unresolvable desktop user gets no server."""
         with (
             patch.object(_ctl_control.os, "geteuid", return_value=0),
             patch.object(_ctl_control, "resolve_desktop_user", return_value=user),
@@ -99,9 +110,10 @@ class TestStartControl:
         ):
             control = _ctl_control.start_control(Config(), demo=False)
         server.assert_not_called()
-        assert control._server is None
+        assert control.server is None
 
     def test_root_desktop_user_fails_closed(self) -> None:
+        """A desktop user that resolves to root gets no server."""
         entry = MagicMock(pw_uid=0, pw_gid=0)
         with (
             patch.object(_ctl_control.os, "geteuid", return_value=0),
@@ -111,10 +123,11 @@ class TestStartControl:
         ):
             control = _ctl_control.start_control(Config(), demo=False)
         server.assert_not_called()
-        assert control._server is None
+        assert control.server is None
 
     @pytest.mark.parametrize("started", [True, False], ids=["bound", "bind_failed"])
     def test_serves_for_desktop_user(self, *, started: bool) -> None:
+        """Root serves the desktop user's uid/gid, kept only if bound."""
         entry = MagicMock(pw_uid=1000, pw_gid=1001)
         with (
             patch.object(_ctl_control.os, "geteuid", return_value=0),
@@ -128,4 +141,6 @@ class TestStartControl:
             "desktop_uid": 1000,
             "desktop_gid": 1001,
         }
-        assert (control._server is not None) is started
+        # close() stops the server only if start_control kept it.
+        control.close()
+        assert server_cls.return_value.stop.called is started

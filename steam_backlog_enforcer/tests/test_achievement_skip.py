@@ -10,6 +10,7 @@ import pytest
 
 from steam_backlog_enforcer import _achievement_skip as skip
 from steam_backlog_enforcer import config
+from steam_backlog_enforcer._achievement_skip import _cache_file, _load_checked
 
 _PKG = "steam_backlog_enforcer._achievement_skip"
 _NOW = 1_000_000_000.0
@@ -17,7 +18,7 @@ _STEAM_ID = "sid"
 
 
 def _store(payload: object) -> None:
-    skip._cache_file().write_text(json.dumps(payload), encoding="utf-8")
+    _cache_file().write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _game(app_id: int, *, stats: bool = False) -> dict[str, Any]:
@@ -46,60 +47,82 @@ def _failure(status: int | None, body: object = None) -> Exception:
 
 
 class TestCacheFile:
+    """Where the no-achievements cache lives."""
+
     def test_lives_under_the_config_dir(self) -> None:
-        assert skip._cache_file() == config.CONFIG_DIR / "no_achievements_cache.json"
+        """The cache sits in the config dir under a fixed name."""
+        assert _cache_file() == config.CONFIG_DIR / "no_achievements_cache.json"
 
 
 class TestLoadChecked:
+    """Reading the per-account checked map back from disk."""
+
     def test_missing_file_is_empty(self) -> None:
-        assert skip._load_checked(_STEAM_ID) == {}
+        """No cache file means nothing was checked."""
+        assert _load_checked(_STEAM_ID) == {}
 
     def test_corrupt_file_is_empty(self) -> None:
-        skip._cache_file().write_text("{nope", encoding="utf-8")
-        assert skip._load_checked(_STEAM_ID) == {}
+        """A corrupt cache file reads as nothing checked."""
+        _cache_file().write_text("{nope", encoding="utf-8")
+        assert _load_checked(_STEAM_ID) == {}
 
     @pytest.mark.parametrize("payload", [["list"], {"steam_id": "other"}])
     def test_other_account_or_shape_is_empty(self, payload: object) -> None:
+        """A cache for another account, or of the wrong shape, reads as empty."""
         _store(payload)
-        assert skip._load_checked(_STEAM_ID) == {}
+        assert _load_checked(_STEAM_ID) == {}
 
     def test_skips_unparsable_entries(self) -> None:
+        """Entries with an unparsable id or timestamp are dropped."""
         _store({"steam_id": _STEAM_ID, "checked": {"1": 5, "x": 6, "2": None}})
-        assert skip._load_checked(_STEAM_ID) == {1: 5.0}
+        assert _load_checked(_STEAM_ID) == {1: 5.0}
 
 
 class TestIsNoStatsAnswer:
+    """Recognising Steam's "this game has no stats" failure."""
+
     def test_steams_no_stats_answer(self) -> None:
+        """Steam's 400 with ``success: False`` is the no-stats answer."""
         body = {"playerstats": {"error": "no stats", "success": False}}
         assert skip.is_no_stats_answer(_failure(400, body)) is True
 
     def test_no_response_is_not_an_answer(self) -> None:
+        """A failure with no HTTP response is not the no-stats answer."""
         assert skip.is_no_stats_answer(_failure(None)) is False
 
     def test_other_status_is_not_an_answer(self) -> None:
+        """A non-400 status is not the no-stats answer."""
         assert skip.is_no_stats_answer(_failure(500, {})) is False
 
     def test_unparsable_body_is_not_an_answer(self) -> None:
+        """A body that is not JSON is not the no-stats answer."""
         assert skip.is_no_stats_answer(_failure(400, ValueError("html"))) is False
 
     def test_body_without_failure_flag_is_not_an_answer(self) -> None:
+        """A body missing the failure flag is not the no-stats answer."""
         assert skip.is_no_stats_answer(_failure(400, {"playerstats": {}})) is False
 
     def test_non_dict_playerstats_is_not_an_answer(self) -> None:
+        """A non-dict ``playerstats`` is not the no-stats answer."""
         assert skip.is_no_stats_answer(_failure(400, {"playerstats": 3})) is False
 
 
 class TestSkippableAppIds:
+    """Choosing which owned games the scan may skip."""
+
     def test_nothing_recorded_skips_nothing(self) -> None:
+        """With nothing recorded no game is skipped."""
         assert skip.skippable_app_ids(_STEAM_ID, [_game(1)], _NOW) == set()
 
     def test_recent_flagless_game_is_skipped(self) -> None:
+        """A recently checked game without the stats flag is skipped."""
         _store({"steam_id": _STEAM_ID, "checked": {"1": _NOW - 10}})
         with patch(f"{_PKG}.load_snapshot", return_value=None):
             found = skip.skippable_app_ids(_STEAM_ID, [_game(1)], _NOW)
         assert found == {1}
 
     def test_flagged_snapshotted_and_stale_games_are_scanned(self) -> None:
+        """Flagged, snapshotted and stale games are scanned again."""
         stale = _NOW - skip.RECHECK_AFTER_SECONDS - 1
         _store(
             {
@@ -114,20 +137,25 @@ class TestSkippableAppIds:
 
 
 class TestRecordScan:
+    """Writing scan results back to the cache."""
+
     def _saved(self) -> dict[str, float]:
-        return json.loads(skip._cache_file().read_text(encoding="utf-8"))["checked"]
+        return json.loads(_cache_file().read_text(encoding="utf-8"))["checked"]
 
     def test_records_games_that_came_back_empty(self) -> None:
+        """Games that came back with no achievements are recorded."""
         skip.record_scan(_STEAM_ID, [_game(1), _game(2)], {2}, _NOW)
         assert self._saved() == {"1": _NOW}
 
     def test_forgets_games_that_gained_achievements_or_the_flag(self) -> None:
+        """Games that gained achievements or the stats flag are forgotten."""
         _store({"steam_id": _STEAM_ID, "checked": {"1": 5, "2": 5, "3": 5}})
         fetched = [_game(1), _game(2, stats=True), _game(3)]
         skip.record_scan(_STEAM_ID, fetched, {1}, _NOW)
         assert self._saved() == {"3": _NOW}
 
     def test_a_failed_write_is_swallowed(self) -> None:
+        """A failed cache write is swallowed and leaves no file."""
         with patch(f"{_PKG}._atomic_write", side_effect=OSError("disk full")):
             skip.record_scan(_STEAM_ID, [_game(1)], set(), _NOW)
-        assert not skip._cache_file().exists()
+        assert not _cache_file().exists()

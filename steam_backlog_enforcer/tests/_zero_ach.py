@@ -6,8 +6,8 @@ import json
 import re
 from typing import TYPE_CHECKING
 
-from steam_backlog_enforcer import _achievement_skip as skip
 from steam_backlog_enforcer import config
+from steam_backlog_enforcer._achievement_skip import _cache_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -21,6 +21,7 @@ NOW = 1_000_000_000.0
 
 
 def write(path: Path, payload: object) -> None:
+    """Store *payload* as JSON at *path*, as the real config writers do."""
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
@@ -28,12 +29,13 @@ def confirm_zero(*app_ids: int, steam_id: str = STEAM_ID) -> None:
     """Make the real cache say Steam answered "no achievements" for these."""
     write(config.CONFIG_FILE, {"steam_id": STEAM_ID})
     write(
-        skip._cache_file(),
+        _cache_file(),
         {"steam_id": steam_id, "checked": {str(a): NOW for a in app_ids}},
     )
 
 
 def write_snapshot(*app_ids: int) -> None:
+    """Make the snapshot list these apps, each with achievements to earn."""
     write(
         config.SNAPSHOT_FILE, [{"app_id": a, "total_achievements": 5} for a in app_ids]
     )
@@ -50,6 +52,7 @@ def recorder(removed: list[int]) -> Callable[..., bool]:
 
 
 def js_list(pattern: str, js: str) -> list[int]:
+    """Pull the JSON app-id list that *pattern* captures out of *js*."""
     match = re.search(pattern, js)
     assert match is not None
     return list(json.loads(match.group(1)))

@@ -48,13 +48,16 @@ class TestStateAccess:
     """Tests for telling apart the reasons state fails to load."""
 
     def test_missing_file(self) -> None:
+        """An absent state file reads as missing."""
         assert state_access(state_mod.PLAYTIME_STATE_FILE) == MISSING
 
     def test_readable_file(self) -> None:
+        """A present, readable state file reads as readable."""
         state_mod.PLAYTIME_STATE_FILE.write_text("{}", encoding="utf-8")
         assert state_access(state_mod.PLAYTIME_STATE_FILE) == READABLE
 
     def test_unreadable_file(self) -> None:
+        """A permission error reads as denied."""
         state_mod.PLAYTIME_STATE_FILE.write_text("{}", encoding="utf-8")
         with patch("pathlib.Path.read_bytes", side_effect=PermissionError):
             assert state_access(state_mod.PLAYTIME_STATE_FILE) == DENIED
@@ -64,18 +67,22 @@ class TestNextWarning:
     """Tests for the forward-looking warning threshold."""
 
     def test_largest_threshold_below_remaining(self) -> None:
+        """The next warning is the largest threshold still ahead."""
         state = PlaytimeState(day_key="d", seconds=0.0)
         assert next_warning(state, RULES) == 3600
 
     def test_skips_thresholds_already_fired(self) -> None:
+        """Thresholds that already fired are skipped."""
         state = PlaytimeState(day_key="d", seconds=0.0, warned_seconds=[3600])
         assert next_warning(state, RULES) == 1800
 
     def test_none_once_every_threshold_is_passed(self) -> None:
+        """A spent budget has no next warning."""
         state = PlaytimeState(day_key="d", seconds=RULES.budget_seconds)
         assert next_warning(state, RULES) is None
 
     def test_is_not_the_already_crossed_threshold(self) -> None:
+        """The next warning is the one ahead, not the one just crossed."""
         # pending_warning() would return 3600 here; the display wants the next
         # one the countdown is heading towards.
         state = PlaytimeState(day_key="d", seconds=RULES.budget_seconds - 3000)
@@ -86,6 +93,7 @@ class TestBuildToday:
     """Tests for the today block."""
 
     def test_reports_usage_and_remaining(self) -> None:
+        """Today's block reports time used and time left."""
         today = build_today(PlaytimeState(day_key="2026-08-28", seconds=100.0), RULES)
         assert today["seconds_used"] == 100.0
         assert today["seconds_remaining"] == RULES.budget_seconds - 100.0
@@ -93,11 +101,13 @@ class TestBuildToday:
         assert today["fraction_used"] < 0.01
 
     def test_never_reports_negative_remaining(self) -> None:
+        """Overspending clamps remaining time at zero."""
         today = build_today(PlaytimeState(day_key="d", seconds=10**9), RULES)
         assert today["seconds_remaining"] == 0.0
         assert today["fraction_used"] == 1.0
 
     def test_reports_the_cutoff(self) -> None:
+        """A blocked day reports when it was cut off."""
         today = build_today(
             PlaytimeState(day_key="d", seconds=1.0, blocked_at=2.0), RULES
         )
@@ -105,6 +115,7 @@ class TestBuildToday:
         assert today["blocked_at"] == 2.0
 
     def test_a_zero_budget_reads_as_fully_spent(self) -> None:
+        """A zero budget reads as fully spent."""
         with fixed_budget(0.0):
             rules = rules_for(Config(), demo=False)
         today = build_today(PlaytimeState(day_key="d", seconds=0.0), rules)
@@ -115,6 +126,7 @@ class TestBuildRules:
     """Tests for the rules block."""
 
     def test_lists_the_policy(self) -> None:
+        """The rules block lists budget, warnings and masked launchers."""
         with patch.object(view, "mounted_targets", return_value=set()):
             rules = build_rules(RULES)
         assert rules["budget_seconds"] == 8 * 3600
@@ -122,6 +134,7 @@ class TestBuildRules:
         assert rules["masked_launchers"] == []
 
     def test_lists_masked_launchers(self) -> None:
+        """Mounted launcher masks are listed."""
         with patch.object(view, "mounted_targets", return_value={"/usr/bin/steam"}):
             assert build_rules(RULES)["masked_launchers"] == ["/usr/bin/steam"]
 
@@ -145,6 +158,7 @@ class TestBuildBudgetSnapshot:
             return build_budget_snapshot(demo=bool(kwargs.get("demo", False)))
 
     def test_reports_a_readable_day(self) -> None:
+        """A readable state yields a full today block and no error."""
         snapshot = self._snapshot()
         assert snapshot["readable"] is True
         assert snapshot["state_status"] == READABLE
@@ -152,6 +166,7 @@ class TestBuildBudgetSnapshot:
         assert snapshot["today"]["gaming_day"] == "2026-08-28"
 
     def test_reports_denied_state(self) -> None:
+        """Denied state reports an error but keeps the rules."""
         snapshot = self._snapshot(stored=None, access=DENIED)
         assert snapshot["readable"] is False
         assert snapshot["state_status"] == DENIED
@@ -161,16 +176,19 @@ class TestBuildBudgetSnapshot:
         assert snapshot["rules"]["budget_seconds"] == 8 * 3600
 
     def test_reports_missing_state(self) -> None:
+        """Missing state reports that no time is recorded."""
         snapshot = self._snapshot(stored=None, access=MISSING)
         assert snapshot["state_status"] == MISSING
         assert "No gaming time" in snapshot["error"]
 
     def test_a_file_that_opens_but_will_not_parse_is_corrupt(self) -> None:
+        """A readable file that fails to parse is reported as corrupt."""
         snapshot = self._snapshot(stored=None, access=READABLE)
         assert snapshot["state_status"] == CORRUPT
         assert "tampering" in snapshot["error"]
 
     def test_includes_the_live_session(self) -> None:
+        """The live session block names the game and its processes."""
         session = SessionView(
             observed_at="2026-08-28T20:42:19+02:00",
             state="engaged",
@@ -187,6 +205,7 @@ class TestBuildBudgetSnapshot:
         assert block["processes"] == [{"pid": 7, "name": "hollow_knight"}]
 
     def test_includes_recorded_history(self) -> None:
+        """Recorded history is served with an unattributed residual."""
         with patch.object(
             view,
             "load_history",

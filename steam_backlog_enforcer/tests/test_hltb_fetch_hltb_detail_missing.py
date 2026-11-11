@@ -46,9 +46,8 @@ class TestFetchHltbDetailMissing:
         def add_rush(
             _games: object,
             cache: dict[int, float] | None = None,
-            polls: dict[int, int] | None = None,
-            progress_cb: object = None,
             extras: _HLTBExtras | None = None,
+            **_unused: object,
         ) -> list[object]:
             """Test add rush."""
             if extras is not None:
@@ -104,9 +103,8 @@ class TestFetchHltbDetailMissing:
         def add_hours_and_rush(
             _games: object,
             cache: dict[int, float] | None = None,
-            polls: dict[int, int] | None = None,
-            progress_cb: object = None,
             extras: _HLTBExtras | None = None,
+            **_unused: object,
         ) -> list[object]:
             """Test add hours and rush."""
             if cache is not None:

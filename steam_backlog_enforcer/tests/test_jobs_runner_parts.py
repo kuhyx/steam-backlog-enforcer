@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer.jobs import _runner, _spawn, _store
+from steam_backlog_enforcer.jobs import _spawn, _store
 from steam_backlog_enforcer.jobs._errors import JobCancelledError, JobError
 from steam_backlog_enforcer.jobs._events import (
     RESULT_NAME,
@@ -18,6 +18,16 @@ from steam_backlog_enforcer.jobs._events import (
     read_events,
 )
 from steam_backlog_enforcer.jobs._job_io import JobLogSink
+from steam_backlog_enforcer.jobs._runner import (
+    EXIT_FAILED,
+    EXIT_REFUSED,
+    _completed,
+    _failed,
+    _finish,
+    _hold_lock,
+    _on_sigterm,
+    _Outcome,
+)
 from steam_backlog_enforcer.jobs._specs import JobFlags
 from steam_backlog_enforcer.tests._jobs_helpers import make_job
 
@@ -26,8 +36,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture(autouse=True)
-def sig() -> Iterator[MagicMock]:
+@pytest.fixture(autouse=True, name="sig")
+def fixture_sig() -> Iterator[MagicMock]:
     """Stand in for ``signal.signal`` so the test process keeps its handlers."""
     with patch.object(signal, "signal") as fake:
         yield fake
@@ -38,14 +48,14 @@ class TestOutcome:
 
     def test_ok_only_when_succeeded(self) -> None:
         """Only a succeeded state counts as ok."""
-        assert _runner._Outcome("succeeded", "x", 0).ok is True
-        assert _runner._Outcome("failed", "x", 1).ok is False
+        assert _Outcome("succeeded", "x", 0).ok is True
+        assert _Outcome("failed", "x", 1).ok is False
 
     def test_failed_defaults_to_exit_one(self) -> None:
         """The helper builds a failed outcome."""
-        outcome = _runner._failed("boom")
-        assert (outcome.state, outcome.exit_code) == ("failed", _runner.EXIT_FAILED)
-        assert _runner._failed("no", _runner.EXIT_REFUSED).exit_code == 2
+        outcome = _failed("boom")
+        assert (outcome.state, outcome.exit_code) == ("failed", EXIT_FAILED)
+        assert _failed("no", EXIT_REFUSED).exit_code == 2
 
 
 class TestHoldLock:
@@ -53,14 +63,14 @@ class TestHoldLock:
 
     def test_read_only_job_holds_nothing(self) -> None:
         """Non-mutating jobs skip the lock."""
-        assert _runner._hold_lock(JobFlags(mutating=False)) is None
+        assert _hold_lock(JobFlags(mutating=False)) is None
 
     def test_takes_the_lock_when_run_by_hand(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """No inherited descriptor: acquire, and make it non-inheritable."""
         monkeypatch.delenv(_spawn.LOCK_FD_ENV, raising=False)
-        fd = _runner._hold_lock(JobFlags())
+        fd = _hold_lock(JobFlags())
         assert fd is not None
         try:
             assert os.get_inheritable(fd) is False
@@ -77,7 +87,7 @@ class TestHoldLock:
         held = _store.acquire_mutating_lock()
         try:
             with pytest.raises(JobError) as info:
-                _runner._hold_lock(JobFlags())
+                _hold_lock(JobFlags())
             assert info.value.code == "busy"
         finally:
             os.close(held)
@@ -89,7 +99,7 @@ class TestHoldLock:
         held = _store.acquire_mutating_lock()
         monkeypatch.setenv(_spawn.LOCK_FD_ENV, str(held))
         try:
-            assert _runner._hold_lock(JobFlags()) == held
+            assert _hold_lock(JobFlags()) == held
             assert os.get_inheritable(held) is False
             assert _spawn.LOCK_FD_ENV not in os.environ
         finally:
@@ -106,7 +116,7 @@ class TestHoldLock:
         monkeypatch.setenv(_spawn.LOCK_FD_ENV, str(fd))
         try:
             with pytest.raises(JobError) as info:
-                _runner._hold_lock(JobFlags())
+                _hold_lock(JobFlags())
             assert info.value.code == "busy"
             assert "not the lock file" in info.value.message
         finally:
@@ -118,7 +128,7 @@ class TestOnSigterm:
 
     def test_cancellable_raises_in_handler(self, sig: MagicMock) -> None:
         """The handler raises, and does nothing else."""
-        _runner._on_sigterm(cancellable=True)
+        _on_sigterm(cancellable=True)
         sigterm, handler = sig.call_args.args
         assert sigterm == signal.SIGTERM
         with pytest.raises(JobCancelledError):
@@ -126,7 +136,7 @@ class TestOnSigterm:
 
     def test_non_cancellable_ignores(self, sig: MagicMock) -> None:
         """SIGTERM is ignored for unsafe-to-stop commands."""
-        _runner._on_sigterm(cancellable=False)
+        _on_sigterm(cancellable=False)
         sig.assert_called_once_with(signal.SIGTERM, signal.SIG_IGN)
 
 
@@ -137,14 +147,14 @@ class TestCompleted:
         """``Error: ...`` then return is still a failed job."""
         sink = JobLogSink(EventWriter(tmp_path))
         sink("Error: no key\n")
-        outcome = _runner._completed(sink)
+        outcome = _completed(sink)
         assert (outcome.state, outcome.summary) == ("failed", "Error: no key")
 
     def test_summary_is_last_line(self, tmp_path: Path) -> None:
         """The last text line summarises; unflushed text is flushed."""
         sink = JobLogSink(EventWriter(tmp_path))
         sink("first\nlast")
-        outcome = _runner._completed(sink, {"a": 1})
+        outcome = _completed(sink, {"a": 1})
         assert (outcome.state, outcome.summary, outcome.data) == (
             "succeeded",
             "last",
@@ -153,7 +163,7 @@ class TestCompleted:
 
     def test_silent_command_says_done(self, tmp_path: Path) -> None:
         """No output at all reads as ``Done.``."""
-        outcome = _runner._completed(JobLogSink(EventWriter(tmp_path)))
+        outcome = _completed(JobLogSink(EventWriter(tmp_path)))
         assert outcome.summary == "Done."
         assert outcome.exit_code == 0
 
@@ -164,8 +174,8 @@ class TestFinish:
     def test_writes_result_event_file_and_state(self, sig: MagicMock) -> None:
         """result event, result.json, then the final state."""
         path = make_job(states=("running",))
-        outcome = _runner._Outcome("succeeded", "ok", 0, {"when": object})
-        _runner._finish(path, EventWriter(path), outcome)
+        outcome = _Outcome("succeeded", "ok", 0, {"when": object})
+        _finish(path, EventWriter(path), outcome)
         events = read_events(path)
         assert [e["type"] for e in events[-2:]] == ["result", "state"]
         assert events[-2]["ok"] is True
@@ -179,5 +189,5 @@ class TestFinish:
     def test_no_data_key_without_data(self) -> None:
         """A dataless outcome has no ``data`` field."""
         path = make_job(states=("running",))
-        _runner._finish(path, EventWriter(path), _runner._failed("bad"))
+        _finish(path, EventWriter(path), _failed("bad"))
         assert "data" not in read_events(path)[-2]

@@ -19,14 +19,14 @@ from steam_backlog_enforcer._leetcode_ledger import (
 from steam_backlog_enforcer.tests._ledger_fixtures import (
     LEDGER_PKG,
     credit,
-    key_file,
+    fixture_key_file,
     write_ledger,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["key_file"]
+__all__ = ["fixture_key_file"]
 
 
 class TestCannotCheck:

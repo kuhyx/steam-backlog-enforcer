@@ -43,7 +43,7 @@ _REAL_PROC = Path("/proc")
 # Captured at import: _no_subprocess patches ``subprocess.Popen`` on the shared
 # module for every test, so the name alone would resolve to its MagicMock.
 # Guarding the class itself also covers code that bound it before that.
-_REAL_POPEN = subprocess.Popen
+_RealPopen = subprocess.Popen
 _MAX_ANCESTRY = 64
 _DENIED_TOOLS = frozenset(
     {
@@ -122,7 +122,7 @@ def _no_real_effects() -> Iterator[list[str]]:
     blocked: list[str] = []
     spawned: set[int] = set()
     real_kill, real_killpg = os.kill, os.killpg
-    real_popen_init: Callable[..., None] = _REAL_POPEN.__init__
+    real_popen_init: Callable[..., None] = _RealPopen.__init__
 
     def _refuse(what: str) -> RealEffectError:
         blocked.append(what)
@@ -162,7 +162,7 @@ def _no_real_effects() -> Iterator[list[str]]:
     with (
         patch.object(os, "kill", guarded_kill),
         patch.object(os, "killpg", guarded_killpg),
-        patch.object(_REAL_POPEN, "__init__", guarded_popen_init),
+        patch.object(_RealPopen, "__init__", guarded_popen_init),
         # The demo loop never ends on its own; a test reaching it unpatched
         # must fail at once rather than hang (test_enforce_demo patches it).
         patch("steam_backlog_enforcer._enforce_demo.playtime_tick", tripwire),

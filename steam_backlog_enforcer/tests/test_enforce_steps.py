@@ -25,6 +25,7 @@ class TestGuardInstalledGames:
     """Tests for guard_installed_games."""
 
     def test_removes_unauthorized(self) -> None:
+        """An installed game outside the allowed set is uninstalled."""
         with (
             patch(
                 f"{GUARDS_PKG}.get_installed_games",
@@ -36,6 +37,7 @@ class TestGuardInstalledGames:
             assert guard_installed_games({440}) == 1
 
     def test_skips_allowed(self) -> None:
+        """An allowed installed game is left alone."""
         with patch(
             f"{GUARDS_PKG}.get_installed_games",
             return_value=[(440, "TF2")],
@@ -43,6 +45,7 @@ class TestGuardInstalledGames:
             assert guard_installed_games({440}) == 0
 
     def test_skips_protected(self) -> None:
+        """A protected app such as a runtime is never uninstalled."""
         with (
             patch(
                 f"{GUARDS_PKG}.get_installed_games",
@@ -55,6 +58,7 @@ class TestGuardInstalledGames:
             assert guard_installed_games({440}) == 0
 
     def test_uninstall_fails(self) -> None:
+        """A failed uninstall is not counted as removed."""
         with (
             patch(
                 f"{GUARDS_PKG}.get_installed_games",
@@ -65,6 +69,7 @@ class TestGuardInstalledGames:
             assert guard_installed_games({440}) == 0
 
     def test_allowed_none_skips(self) -> None:
+        """An empty allowed set skips the guard entirely."""
         assert guard_installed_games(set()) == 0
 
 
@@ -72,6 +77,7 @@ class TestEnforceSetup:
     """Tests for _enforce_setup."""
 
     def test_block_store_success(self) -> None:
+        """Setup blocks the store when configured."""
         config = Config(block_store=True, uninstall_other_games=False)
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -83,6 +89,7 @@ class TestEnforceSetup:
             _enforce_setup(config, state)
 
     def test_block_store_fail(self) -> None:
+        """A failed store block is reported."""
         config = Config(block_store=True, uninstall_other_games=False)
         state = State()
         with (
@@ -95,6 +102,7 @@ class TestEnforceSetup:
             assert any("FAILED" in str(c) for c in mock_echo.call_args_list)
 
     def test_no_block_store(self) -> None:
+        """Store blocking off means block_store is never called."""
         config = Config(block_store=False, uninstall_other_games=False)
         state = State()
         with (
@@ -107,6 +115,7 @@ class TestEnforceSetup:
             mock_block.assert_not_called()
 
     def test_uninstall_other_games(self) -> None:
+        """Setup uninstalls other games when configured."""
         config = Config(uninstall_other_games=True, block_store=False)
         state = State(current_app_id=1)
         with (
@@ -122,9 +131,11 @@ class TestEnforceAutoInstall:
     """Tests for _enforce_auto_install."""
 
     def test_no_app_id(self) -> None:
+        """Auto-install does nothing without an assigned game."""
         _enforce_auto_install(Config(), State())
 
     def test_already_installed(self) -> None:
+        """An already installed game is not reinstalled."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{ENFORCE_STEPS_PKG}.is_game_fully_installed", return_value=True),
@@ -133,6 +144,7 @@ class TestEnforceAutoInstall:
             _enforce_auto_install(Config(), state)
 
     def test_installs_successfully(self) -> None:
+        """A missing assigned game is installed."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{ENFORCE_STEPS_PKG}.is_game_fully_installed", return_value=False),
@@ -143,6 +155,7 @@ class TestEnforceAutoInstall:
             _enforce_auto_install(Config(steam_id="i"), state)
 
     def test_install_fails(self) -> None:
+        """A failed install asks the user to install manually."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{ENFORCE_STEPS_PKG}.is_game_fully_installed", return_value=False),
@@ -157,6 +170,7 @@ class TestEnforceHideGames:
     """Tests for _enforce_hide_games."""
 
     def test_hides_some(self) -> None:
+        """Other owned games are hidden."""
         state = State(current_app_id=1)
         with (
             patch(f"{ENFORCE_STEPS_PKG}.get_all_owned_app_ids", return_value=[1, 2, 3]),
@@ -166,6 +180,7 @@ class TestEnforceHideGames:
             _enforce_hide_games(Config(), state)
 
     def test_already_hidden(self) -> None:
+        """Nothing new to hide reports the games as already hidden."""
         state = State(current_app_id=1)
         with (
             patch(f"{ENFORCE_STEPS_PKG}.get_all_owned_app_ids", return_value=[1, 2]),
@@ -176,6 +191,7 @@ class TestEnforceHideGames:
             assert any("already" in str(c) for c in mock_echo.call_args_list)
 
     def test_no_owned_ids(self) -> None:
+        """No owned ids skips hiding with a message."""
         state = State(current_app_id=1)
         with (
             patch(f"{ENFORCE_STEPS_PKG}.get_all_owned_app_ids", return_value=[]),

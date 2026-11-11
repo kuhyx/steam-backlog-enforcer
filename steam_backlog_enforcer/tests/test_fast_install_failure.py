@@ -35,6 +35,7 @@ def _console(tmp_path: Path, run_log: Path) -> Path:
 
 
 def test_reason_is_the_run_logs_error_lines(tmp_path: Path) -> None:
+    """The reason is the run log's error lines joined into one line."""
     run_log = tmp_path / "run-1086940.log"
     hello = "2026-10-23 22:13:21,605 INFO    steam_installer: hi\n"
     run_log.write_text(hello + _REFUSAL)
@@ -45,10 +46,12 @@ def test_reason_is_the_run_logs_error_lines(tmp_path: Path) -> None:
 
 
 def test_without_a_run_log_the_last_console_line_is_shown(tmp_path: Path) -> None:
+    """Without a run log the console's last line names the failure."""
     console = tmp_path / "fast_install-0.log"
     console.write_text("Traceback (most recent call last):\nOSError: disk full\n")
     assert failure_reason(console, 1) == "exit 1: OSError: disk full"
 
 
 def test_an_unreadable_console_log_still_names_the_exit(tmp_path: Path) -> None:
+    """An unreadable console log still names the exit status."""
     assert failure_reason(tmp_path / "missing.log", 3) == "exit 3"

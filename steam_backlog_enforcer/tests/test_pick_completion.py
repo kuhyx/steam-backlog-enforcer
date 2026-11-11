@@ -1,99 +1,64 @@
 """Tests for achievement-based release of manual picks."""
 
-from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from steam_backlog_enforcer._actions import allowed_app_ids
 from steam_backlog_enforcer._pick_completion import (
-    MANUAL_PICK_RECHECK_TTL_SECONDS,
     PickProgress,
-    _DaemonSweep,
-    daemon_sweep,
-    report_completion,
     retire_completed_manual_picks,
-    retire_completed_manual_picks_throttled,
-    warn_stale_assignment,
 )
 from steam_backlog_enforcer.config import Config, State
-from steam_backlog_enforcer.steam_api import AchievementInfo, GameInfo
 from steam_backlog_enforcer.tests._main_helpers import locked_state, two_pick_state
+from steam_backlog_enforcer.tests._pick_completion_helpers import (
+    client_returning,
+    game,
+)
 
 PKG = "steam_backlog_enforcer._pick_completion"
 
 
-def game(app_id: int, unlocked: int, total: int, *, new: bool = False) -> GameInfo:
-    """Build a GameInfo with the given achievement progress.
-
-    Args:
-        app_id: Steam application id.
-        unlocked: Unlocked achievement count.
-        total: Total achievement count.
-        new: Whether one of the unlocks happened just now (after any pick).
-
-    Returns:
-        A GameInfo carrying that progress.
-    """
-    now = int(datetime.now(UTC).timestamp())
-    achievements = [
-        AchievementInfo(f"a{i}", f"Ach{i}", i < unlocked, now if new and i == 0 else 1)
-        for i in range(total)
-    ]
-    return GameInfo(
-        app_id=app_id,
-        name="G",
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=0,
-        achievements=achievements,
-    )
-
-
-def client_returning(*games: GameInfo | None) -> MagicMock:
-    """Build a fake SteamAPIClient yielding *games* in order.
-
-    Args:
-        games: What each ``refresh_single_game`` call should return.
-
-    Returns:
-        A MagicMock standing in for SteamAPIClient.
-    """
-    fake = MagicMock()
-    fake.refresh_single_game.side_effect = list(games)
-    return fake
-
-
 class TestPickProgressDescribe:
+    """describe() renders each pick state as one status line."""
+
     def test_undeterminable(self) -> None:
+        """A pick with unreadable achievements says progress is unavailable."""
         line = PickProgress(1, "G", 0, 0, retired=False, determinable=False).describe()
         assert "progress unavailable" in line
 
     def test_retired_at_100(self) -> None:
+        """A pick retired at 100% says complete and still playable."""
         line = PickProgress(1, "G", 5, 5, retired=True, determinable=True).describe()
         assert "COMPLETE, slot freed, stays playable" in line
 
     def test_released_by_new_achievement(self) -> None:
+        """A pick released by a new unlock names that achievement."""
         line = PickProgress(
             1, "G", 2, 5, retired=True, determinable=True, new_achievement="Win"
         ).describe()
         assert "2/5 (40%) - earned 'Win', slot freed, stays playable" in line
 
     def test_in_progress(self) -> None:
+        """An unreleased pick shows its ratio and waits for an unlock."""
         line = PickProgress(1, "G", 1, 4, retired=False, determinable=True).describe()
         assert "1/4 (25%) - no new achievement since it was picked yet" in line
 
     def test_in_progress_with_zero_total(self) -> None:
+        """A determinable pick with zero achievements shows 0% safely."""
         # Defensive: determinable but no achievements must not divide by zero.
         line = PickProgress(1, "G", 0, 0, retired=False, determinable=True).describe()
         assert "(0%)" in line
 
 
 class TestRetireCompletedManualPicks:
+    """Manual picks are released on completion or a new unlock only."""
+
     def test_no_picks_makes_no_api_call(self) -> None:
+        """No manual picks means no Steam query."""
         fake = client_returning()
         assert retire_completed_manual_picks(Config(), State(), client=fake) == []
         fake.refresh_single_game.assert_not_called()
 
     def test_complete_pick_is_retired_and_saved(self) -> None:
+        """A 100% pick is finished, retired and saved."""
         state = locked_state(app_id=100)
         with patch.object(State, "save") as mock_save:
             results = retire_completed_manual_picks(
@@ -104,6 +69,7 @@ class TestRetireCompletedManualPicks:
         mock_save.assert_called_once()
 
     def test_new_achievement_releases_without_finishing(self) -> None:
+        """A new unlock releases the slot but does not finish the game."""
         state = locked_state(app_id=100)
         with patch.object(State, "save") as mock_save:
             results = retire_completed_manual_picks(
@@ -116,6 +82,7 @@ class TestRetireCompletedManualPicks:
         mock_save.assert_called_once()
 
     def test_incomplete_pick_is_left_alone(self) -> None:
+        """A pick without a new unlock stays locked and unsaved."""
         state = locked_state(app_id=100)
         with patch.object(State, "save") as mock_save:
             results = retire_completed_manual_picks(
@@ -126,6 +93,7 @@ class TestRetireCompletedManualPicks:
         mock_save.assert_not_called()
 
     def test_unreadable_pick_stays_locked(self) -> None:
+        """A pick whose progress cannot be read stays locked."""
         # No achievements at all, or Steam unreachable: both surface as None.
         state = locked_state(app_id=100)
         with patch.object(State, "save") as mock_save:
@@ -139,6 +107,7 @@ class TestRetireCompletedManualPicks:
         mock_save.assert_not_called()
 
     def test_reports_every_pick_not_only_retirements(self) -> None:
+        """Every pick gets a result, retired or not."""
         state = two_pick_state()
         with patch.object(State, "save"):
             results = retire_completed_manual_picks(
@@ -149,12 +118,14 @@ class TestRetireCompletedManualPicks:
         assert [(r.app_id, r.retired) for r in results] == [(100, False), (200, True)]
 
     def test_pick_without_app_id_is_skipped(self) -> None:
+        """A malformed pick with no app id is skipped without a query."""
         state = State(manual_picks=[{"game_name": "Broken", "started_at": ""}])
         fake = client_returning()
         assert retire_completed_manual_picks(Config(), state, client=fake) == []
         fake.refresh_single_game.assert_not_called()
 
     def test_unnamed_pick_falls_back_to_app_id(self) -> None:
+        """A pick with no name is labelled by its app id."""
         state = State(manual_picks=[{"app_id": 100, "game_name": "", "started_at": ""}])
         results = retire_completed_manual_picks(
             Config(), state, client=client_returning(game(100, 1, 5))
@@ -162,6 +133,7 @@ class TestRetireCompletedManualPicks:
         assert results[0].game_name == "AppID=100"
 
     def test_builds_its_own_client_when_none_given(self) -> None:
+        """Without a client one is built from the config credentials."""
         state = locked_state(app_id=100)
         fake = client_returning(game(100, 1, 5))
         with patch(f"{PKG}.SteamAPIClient", return_value=fake) as mock_cls:
@@ -169,74 +141,3 @@ class TestRetireCompletedManualPicks:
                 Config(steam_api_key="k", steam_id="i"), state
             )
         mock_cls.assert_called_once_with("k", "i")
-
-
-class TestReportCompletion:
-    def test_prints_nothing_without_picks(self) -> None:
-        with patch(f"{PKG}._echo") as mock_echo:
-            assert report_completion(Config(), State()) == []
-        mock_echo.assert_not_called()
-
-    def test_prints_each_pick_and_returns_only_retirements(self) -> None:
-        state = two_pick_state()
-        with (
-            patch.object(State, "save"),
-            patch(
-                f"{PKG}.SteamAPIClient",
-                return_value=client_returning(game(100, 1, 5), game(200, 5, 5)),
-            ),
-            patch(f"{PKG}._echo") as mock_echo,
-        ):
-            retired = report_completion(Config(), state)
-        assert [r.app_id for r in retired] == [200]
-        output = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "no new achievement" in output
-        assert "COMPLETE, slot freed" in output
-
-
-class TestWarnStaleAssignment:
-    def test_warns_when_retired_pick_is_current(self) -> None:
-        state = State(current_app_id=200, current_game_name="SecondGame")
-        retired = [
-            PickProgress(200, "SecondGame", 5, 5, retired=True, determinable=True)
-        ]
-        with patch(f"{PKG}._echo") as mock_echo:
-            warn_stale_assignment(state, retired)
-        assert "still" in " ".join(str(c) for c in mock_echo.call_args_list)
-
-    def test_silent_when_current_is_something_else(self) -> None:
-        state = State(current_app_id=999)
-        retired = [PickProgress(200, "G", 5, 5, retired=True, determinable=True)]
-        with patch(f"{PKG}._echo") as mock_echo:
-            warn_stale_assignment(state, retired)
-        mock_echo.assert_not_called()
-
-
-class TestDaemonSweep:
-    def test_due_then_throttled(self) -> None:
-        sweep = _DaemonSweep()
-        assert sweep.due(1000.0, 900.0) is True
-        assert sweep.due(1100.0, 900.0) is False
-        assert sweep.due(2000.0, 900.0) is True
-
-    def test_throttled_call_releases_without_evicting(self) -> None:
-        state = locked_state(app_id=100)
-        daemon_sweep.last = None
-        try:
-            with (
-                patch.object(State, "save"),
-                patch(
-                    f"{PKG}.SteamAPIClient",
-                    return_value=client_returning(game(100, 5, 5)),
-                ),
-            ):
-                results = retire_completed_manual_picks_throttled(Config(), state)
-                assert [r.retired for r in results] == [True]
-                assert 100 in allowed_app_ids(state)
-                # Second call inside the TTL must not re-query Steam.
-                assert retire_completed_manual_picks_throttled(Config(), state) == []
-        finally:
-            daemon_sweep.last = None
-
-    def test_ttl_is_well_clear_of_the_three_second_loop(self) -> None:
-        assert MANUAL_PICK_RECHECK_TTL_SECONDS >= 300

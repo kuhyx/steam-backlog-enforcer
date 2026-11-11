@@ -12,26 +12,7 @@ from steam_backlog_enforcer._scanning_confidence import (
 from steam_backlog_enforcer.scanning import (
     _pick_next_shortest_candidate,
 )
-from steam_backlog_enforcer.steam_api import GameInfo
-
-
-def _game(
-    app_id: int = 1,
-    name: str = "G",
-    total: int = 10,
-    unlocked: int = 0,
-    hours: float = -1,
-) -> GameInfo:
-    return GameInfo(
-        app_id=app_id,
-        name=name,
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=60,
-        completionist_hours=hours,
-        comp_100_count=3,
-        count_comp=15,
-    )
+from steam_backlog_enforcer.tests._scanning_games import make_game
 
 
 class TestConfidenceHelpers:
@@ -39,7 +20,7 @@ class TestConfidenceHelpers:
 
     def test_force_refresh_candidate_confidence_delegates(self) -> None:
         """Test force refresh candidate confidence delegates."""
-        game = _game(app_id=10, name="A")
+        game = make_game(app_id=10, name="A")
         with patch(
             "steam_backlog_enforcer._scanning_confidence._refresh_candidate_confidence_batch",
         ) as mock_batch:
@@ -48,7 +29,7 @@ class TestConfidenceHelpers:
 
     def test_refresh_candidate_confidence_batch_no_missing_skips_fetch(self) -> None:
         """Test refresh candidate confidence batch no missing skips fetch."""
-        game = _game(app_id=20, name="B", hours=12.0)
+        game = make_game(app_id=20, name="B", hours=12.0)
         game.comp_100_count = 3
         game.count_comp = 15
         with patch(
@@ -59,7 +40,7 @@ class TestConfidenceHelpers:
 
     def test_refresh_candidate_confidence_batch_preserves_existing_hours(self) -> None:
         """Test refresh candidate confidence batch preserves existing hours."""
-        game = _game(app_id=30, name="C", hours=9.5)
+        game = make_game(app_id=30, name="C", hours=9.5)
         game.comp_100_count = 0
         game.count_comp = 0
         # refresh_confidence owns the hours-preservation rule (see
@@ -76,7 +57,7 @@ class TestConfidenceHelpers:
 
     def test_filter_hltb_confident_candidates_skips_low_confidence(self) -> None:
         """Test filter hltb confident candidates skips low confidence."""
-        low = _game(app_id=40, name="Low", hours=2.0)
+        low = make_game(app_id=40, name="Low", hours=2.0)
         low.comp_100_count = 1
         low.count_comp = 2
         with (
@@ -91,8 +72,8 @@ class TestConfidenceHelpers:
 
     def test_pick_next_shortest_candidate_logs_skipped_unplayable_batches(self) -> None:
         """Test pick next shortest candidate logs skipped unplayable batches."""
-        bad = _game(app_id=50, name="Bad", hours=1.0)
-        good = _game(app_id=51, name="Good", hours=2.0)
+        bad = make_game(app_id=50, name="Bad", hours=1.0)
+        good = make_game(app_id=51, name="Good", hours=2.0)
         bad.comp_100_count = 3
         bad.count_comp = 15
         good.comp_100_count = 3

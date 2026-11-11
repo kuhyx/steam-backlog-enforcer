@@ -13,17 +13,12 @@ from steam_backlog_enforcer._desktop_env import (
     desktop_user_cmd,
     resolve_desktop_user,
 )
-
-ENV_PKG = "steam_backlog_enforcer._desktop_env"
-
-
-def _env_value(args: list[str], name: str) -> str | None:
-    """Return the value assigned to *name* in a list of ``VAR=value`` args."""
-    prefix = f"{name}="
-    for arg in args:
-        if arg.startswith(prefix):
-            return arg[len(prefix) :]
-    return None
+from steam_backlog_enforcer.tests._desktop_launch_patches import (
+    DESKTOP_ENV_PKG as ENV_PKG,
+)
+from steam_backlog_enforcer.tests._desktop_launch_patches import (
+    env_value as _env_value,
+)
 
 
 class TestResolveDesktopUser:
@@ -42,6 +37,7 @@ class TestResolveDesktopUser:
             assert resolve_desktop_user() == "kuhy"
 
     def test_falls_back_to_sudo_user(self) -> None:
+        """Without the enforcer variable, SUDO_USER wins over USER."""
         env = {
             k: v for k, v in os.environ.items() if k != "STEAM_ENFORCER_DESKTOP_USER"
         }
@@ -50,6 +46,7 @@ class TestResolveDesktopUser:
             assert resolve_desktop_user() == "alice"
 
     def test_falls_back_to_user(self) -> None:
+        """Without the enforcer variable or SUDO_USER, USER is used."""
         env = {
             k: v
             for k, v in os.environ.items()
@@ -60,6 +57,7 @@ class TestResolveDesktopUser:
             assert resolve_desktop_user() == "bob"
 
     def test_returns_none_when_unset(self) -> None:
+        """With none of the variables set, there is no desktop user."""
         env = {
             k: v
             for k, v in os.environ.items()
@@ -73,10 +71,12 @@ class TestDesktopUserCmd:
     """Tests for desktop_user_cmd — all four branches."""
 
     def test_non_root_returns_cmd_unchanged(self) -> None:
+        """A non-root caller runs the command as is."""
         with patch(f"{ENV_PKG}.os.geteuid", return_value=1000):
             assert desktop_user_cmd(["steam"], "kuhy") == ["steam"]
 
     def test_root_with_user_wraps_in_sudo(self) -> None:
+        """Root with a desktop user wraps the command in sudo with the user env."""
         with (
             patch(f"{ENV_PKG}.os.geteuid", return_value=0),
             patch(f"{ENV_PKG}.desktop_uid", return_value=1000),
@@ -92,6 +92,7 @@ class TestDesktopUserCmd:
             assert desktop_user_cmd(["steam"], None) == ["steam"]
 
     def test_root_with_root_user_returns_cmd_unchanged(self) -> None:
+        """A desktop user of root leaves the command unwrapped."""
         with patch(f"{ENV_PKG}.os.geteuid", return_value=0):
             assert desktop_user_cmd(["steam"], "root") == ["steam"]
 
@@ -100,6 +101,7 @@ class TestDesktopUid:
     """Tests for desktop_uid's lookup and fallbacks."""
 
     def test_known_user(self) -> None:
+        """A known user resolves to its passwd uid."""
         with patch(f"{ENV_PKG}.pwd.getpwnam") as mock_getpwnam:
             mock_getpwnam.return_value.pw_uid = 1234
             assert desktop_uid("kuhy") == 1234
@@ -110,4 +112,5 @@ class TestDesktopUid:
             assert desktop_uid("nosuchuser") == 1000
 
     def test_none_falls_back(self) -> None:
+        """No user name falls back to uid 1000."""
         assert desktop_uid(None) == 1000

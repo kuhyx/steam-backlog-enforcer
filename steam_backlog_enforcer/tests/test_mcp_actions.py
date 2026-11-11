@@ -11,13 +11,17 @@ from steam_backlog_enforcer.config import State
 
 
 class TestPickManualGate:
+    """The pick_manual tool previews first and applies only on confirm."""
+
     def test_not_found(self) -> None:
+        """A game missing from the snapshot is refused as not found."""
         with patch.object(mcp_query, "load_snapshot", return_value=[]):
             out = mcp_actions.pick_manual(440)
         assert out["ok"] is False
         assert "not found" in out["reason"]
 
     def test_preview_does_not_mutate(self) -> None:
+        """Without confirm the tool only previews the pick."""
         with (
             patch(
                 "steam_backlog_enforcer._snapshot.load_snapshot",
@@ -31,6 +35,7 @@ class TestPickManualGate:
         amp.assert_not_called()
 
     def test_confirm_applies(self) -> None:
+        """With confirm the pick is applied with the configured pick cap."""
         with (
             patch(
                 "steam_backlog_enforcer._snapshot.load_snapshot",
@@ -67,12 +72,14 @@ class TestAbandonPickGate:
         )
 
     def test_no_active_pick(self) -> None:
+        """With no manual pick there is nothing to abandon."""
         with patch.object(mcp_query.State, "load", return_value=State()):
             out = mcp_actions.abandon_pick(440)
         assert out["ok"] is False
         assert "No manual pick" in out["reason"]
 
     def test_wrong_app_id(self) -> None:
+        """An app id that is not an active pick is refused."""
         with patch.object(mcp_query.State, "load", return_value=self._state()):
             out = mcp_actions.abandon_pick(999)
         assert out["ok"] is False
@@ -80,6 +87,7 @@ class TestAbandonPickGate:
 
     def test_old_pick_is_still_abandonable(self) -> None:
         # Past the deleted 4-day grace window, inside the 14-day lock.
+        """An 8-day-old pick can still be abandoned."""
         state = self._state(days_ago=8)
         with (
             patch.object(mcp_query.State, "load", return_value=state),
@@ -89,6 +97,7 @@ class TestAbandonPickGate:
         assert out["ok"] is True
 
     def test_preview_does_not_mutate(self) -> None:
+        """Without confirm the tool previews the pick and its age."""
         with (
             patch.object(mcp_query.State, "load", return_value=self._state()),
             patch.object(mcp_actions, "abandon_manual_pick") as amp,
@@ -100,6 +109,7 @@ class TestAbandonPickGate:
         amp.assert_not_called()
 
     def test_confirm_applies(self) -> None:
+        """With confirm the pick is abandoned in the loaded state."""
         state = self._state()
         with (
             patch.object(mcp_query.State, "load", return_value=state),
@@ -111,6 +121,7 @@ class TestAbandonPickGate:
         amp.assert_called_once_with(state, 440)
 
     def test_refused_at_cap(self) -> None:
+        """A pick refused at the cap reports the refusal reason."""
         with (
             patch(
                 "steam_backlog_enforcer._snapshot.load_snapshot",
@@ -129,28 +140,35 @@ class TestAbandonPickGate:
 
 
 class TestBlockGamingGate:
+    """The block_gaming tool validates days and needs root to apply."""
+
     def test_invalid_days(self) -> None:
+        """Zero days is refused."""
         out = mcp_actions.block_gaming(0)
         assert out["ok"] is False
 
     def test_preview(self) -> None:
+        """Without confirm the tool previews and says root is needed."""
         out = mcp_actions.block_gaming(3)
         assert out["preview"] is True
         assert out["requires_root"] is True
 
     def test_confirm_success(self) -> None:
+        """A started block reports it was applied for the given days."""
         with patch.object(mcp_actions, "start_total_block", return_value=True):
             out = mcp_actions.block_gaming(3, confirm=True)
         assert out["applied"] is True
         assert out["days"] == 3
 
     def test_confirm_unprivileged_returns_gracefully(self) -> None:
+        """A block refused for privileges is reported, not raised."""
         with patch.object(mcp_actions, "start_total_block", return_value=False):
             out = mcp_actions.block_gaming(3, confirm=True)
         assert out["ok"] is False
         assert "privileges" in out["reason"]
 
     def test_confirm_oserror_returns_gracefully(self) -> None:
+        """An OSError starting the block is reported as missing privileges."""
         with patch.object(
             mcp_actions, "start_total_block", side_effect=OSError("boom")
         ):

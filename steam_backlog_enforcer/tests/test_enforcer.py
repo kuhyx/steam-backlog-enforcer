@@ -16,6 +16,7 @@ class TestEnforceAllowedGame:
     """Tests for enforce_allowed_game."""
 
     def test_no_violations(self) -> None:
+        """Only the allowed game running means no violations."""
         with patch(
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 440},
@@ -24,6 +25,7 @@ class TestEnforceAllowedGame:
             assert result == []
 
     def test_kills_unauthorized(self) -> None:
+        """An unauthorized game is reported and killed."""
         with (
             patch(
                 "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
@@ -36,6 +38,7 @@ class TestEnforceAllowedGame:
             mock_kill.assert_called_once_with(100, 570)
 
     def test_skips_app_id_zero(self) -> None:
+        """Processes with app id 0 are not games and are ignored."""
         with patch(
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 0},
@@ -44,6 +47,7 @@ class TestEnforceAllowedGame:
             assert result == []
 
     def test_detects_without_killing(self) -> None:
+        """With killing off, violations are reported but left running."""
         with patch(
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
             return_value={100: 570},
@@ -52,6 +56,7 @@ class TestEnforceAllowedGame:
             assert result == [(100, 570)]
 
     def test_allowed_none(self) -> None:
+        """With nothing running, an empty allow set finds no violations."""
         result = enforce_allowed_game(set(), kill_unauthorized=True)
         assert result == []
 
@@ -77,11 +82,13 @@ class TestKillProcess:
     """Tests for kill_process."""
 
     def test_kill_success(self) -> None:
+        """A live process gets signalled once."""
         with patch("steam_backlog_enforcer.enforcer.os.kill") as mock_kill:
             kill_process(123, 440)
             mock_kill.assert_called_once()
 
     def test_process_already_gone(self) -> None:
+        """An already-exited process does not raise."""
         with patch(
             "steam_backlog_enforcer.enforcer.os.kill",
             side_effect=ProcessLookupError,
@@ -89,6 +96,7 @@ class TestKillProcess:
             kill_process(123, 440)  # Should not raise
 
     def test_permission_error(self) -> None:
+        """A permission error while killing does not raise."""
         with patch(
             "steam_backlog_enforcer.enforcer.os.kill",
             side_effect=PermissionError,
@@ -100,11 +108,13 @@ class TestSendNotification:
     """Tests for send_notification."""
 
     def test_sends(self) -> None:
+        """A notification runs notify-send once."""
         with patch("steam_backlog_enforcer.enforcer.subprocess.run") as mock_run:
             send_notification("Title", "Body")
             mock_run.assert_called_once()
 
     def test_handles_missing_notify_send(self) -> None:
+        """A missing notify-send binary does not raise."""
         with patch(
             "steam_backlog_enforcer.enforcer.subprocess.run",
             side_effect=FileNotFoundError,
@@ -112,6 +122,7 @@ class TestSendNotification:
             send_notification("Title", "Body")  # Should not raise
 
     def test_handles_os_error(self) -> None:
+        """An OS error from notify-send does not raise."""
         with patch(
             "steam_backlog_enforcer.enforcer.subprocess.run",
             side_effect=OSError,
@@ -130,6 +141,7 @@ class TestSendNotificationPrivilegeDrop:
     _ENV = "steam_backlog_enforcer._desktop_env"
 
     def test_root_drops_to_desktop_user(self) -> None:
+        """As root, notify-send runs as the desktop user on their session bus."""
         with (
             patch(f"{self._ENV}.os.geteuid", return_value=0),
             patch(f"{self._ENV}.desktop_uid", return_value=1000),
@@ -143,6 +155,7 @@ class TestSendNotificationPrivilegeDrop:
         assert "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus" in argv
 
     def test_non_root_does_not_wrap(self) -> None:
+        """A non-root caller runs notify-send directly."""
         with (
             patch(f"{self._ENV}.os.geteuid", return_value=1000),
             patch(f"{self._PKG}.resolve_desktop_user", return_value="kuhy"),

@@ -29,12 +29,15 @@ class TestSpawnDetachedScope:
     """Root launches leave the cgroup; anything else is spawned as asked."""
 
     def test_root_with_systemd_run_gets_its_own_scope(self) -> None:
+        """A root launch is wrapped in a transient systemd scope."""
         argv = _argv(euid=0, which="/usr/bin/systemd-run")
         assert argv == [*SCOPE, "steam", "-silent"]
 
     def test_root_without_systemd_run_launches_plainly(self) -> None:
+        """Root without systemd-run launches the command unwrapped."""
         assert _argv(euid=0, which=None) == ["steam", "-silent"]
 
     def test_unprivileged_launch_is_never_wrapped(self) -> None:
+        """A non-root launch is never wrapped in a scope."""
         argv = _argv(euid=1000, which="/usr/bin/systemd-run")
         assert argv == ["steam", "-silent"]

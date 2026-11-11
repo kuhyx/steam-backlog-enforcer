@@ -19,6 +19,7 @@ class TestIsSteamRunning:
     """Tests for _is_steam_running."""
 
     def test_running(self) -> None:
+        """pgrep exit 0 means Steam is running."""
         mock_result = MagicMock(returncode=0)
         with patch(
             "steam_backlog_enforcer._steam_launch.subprocess.run",
@@ -27,6 +28,7 @@ class TestIsSteamRunning:
             assert _is_steam_running() is True
 
     def test_not_running(self) -> None:
+        """pgrep exit 1 means Steam is not running."""
         mock_result = MagicMock(returncode=1)
         with patch(
             "steam_backlog_enforcer._steam_launch.subprocess.run",
@@ -39,6 +41,7 @@ class TestSteamHasDebugPort:
     """Tests for _steam_has_debug_port."""
 
     def test_has_port(self) -> None:
+        """A shared-JS websocket URL means the CDP port is open."""
         with patch(
             "steam_backlog_enforcer._steam_launch._get_shared_js_ws_url",
             return_value="ws://test",
@@ -46,6 +49,7 @@ class TestSteamHasDebugPort:
             assert _steam_has_debug_port() is True
 
     def test_no_port(self) -> None:
+        """No websocket URL means no CDP port."""
         with patch(
             "steam_backlog_enforcer._steam_launch._get_shared_js_ws_url",
             return_value=None,
@@ -57,6 +61,7 @@ class TestWaitForCdpReady:
     """Tests for _wait_for_cdp_ready."""
 
     def test_ready_immediately(self) -> None:
+        """An open CDP port is ready at once."""
         with patch(
             "steam_backlog_enforcer._steam_launch._get_shared_js_ws_url",
             return_value="ws://test",
@@ -64,6 +69,7 @@ class TestWaitForCdpReady:
             assert _wait_for_cdp_ready() is True
 
     def test_timeout(self) -> None:
+        """A CDP port that never opens times out as not ready."""
         with (
             patch(
                 "steam_backlog_enforcer._steam_launch._get_shared_js_ws_url",
@@ -84,6 +90,7 @@ class TestWaitForCollectionsReady:
     """Tests for _wait_for_collections_ready."""
 
     def test_ready(self) -> None:
+        """Collections that report ok are ready."""
         with (
             patch(
                 "steam_backlog_enforcer._steam_launch._evaluate_js",
@@ -97,6 +104,7 @@ class TestWaitForCollectionsReady:
             assert _wait_for_collections_ready() is True
 
     def test_not_ready_then_ready(self) -> None:
+        """Collections are polled until they report ok."""
         with (
             patch(
                 "steam_backlog_enforcer._steam_launch._evaluate_js",
@@ -117,6 +125,7 @@ class TestWaitForCollectionsReady:
             assert _wait_for_collections_ready() is True
 
     def test_timeout(self) -> None:
+        """Evaluation that keeps failing times out as not ready."""
         with (
             patch(
                 "steam_backlog_enforcer._steam_launch._evaluate_js",

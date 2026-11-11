@@ -9,7 +9,8 @@ import logging
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from steam_backlog_enforcer.game_install import install_game
+from steam_backlog_enforcer._enforce_steps import _reinstall_missing_allowed
+from steam_backlog_enforcer.game_install import _LIBRARY_WARNED, install_game
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -28,6 +29,7 @@ class TestInstallGameLibraryGuard:
     _PKG = "steam_backlog_enforcer.game_install"
 
     def test_skips_when_library_missing(self, tmp_path: Path) -> None:
+        """With no Steam library, install neither starts Steam nor triggers."""
         missing = tmp_path / "steamapps"  # deliberately not created
         with (
             patch(f"{self._PKG}.STEAMAPPS_PATH", missing),
@@ -43,6 +45,7 @@ class TestInstallGameLibraryGuard:
         mock_trigger.assert_not_called()
 
     def test_proceeds_when_library_present(self, tmp_path: Path) -> None:
+        """With a library present, install goes ahead and succeeds."""
         with (
             patch(f"{self._PKG}.STEAMAPPS_PATH", tmp_path),
             patch(f"{self._PKG}.steam_library_ready", return_value=True),
@@ -63,8 +66,7 @@ class TestReinstallMissingAllowedGuard:
     _PKG = "steam_backlog_enforcer._enforce_steps"
 
     def test_skips_when_library_missing(self) -> None:
-        from steam_backlog_enforcer._enforce_steps import _reinstall_missing_allowed
-
+        """With no library, reinstall never even lists allowed games."""
         with (
             patch(f"{self._PKG}.steam_library_ready", return_value=False),
             patch(f"{self._PKG}.allowed_games") as mock_allowed,
@@ -76,8 +78,7 @@ class TestReinstallMissingAllowedGuard:
         mock_install.assert_not_called()
 
     def test_proceeds_when_library_present(self) -> None:
-        from steam_backlog_enforcer._enforce_steps import _reinstall_missing_allowed
-
+        """With a library, a missing allowed game is reinstalled."""
         with (
             patch(f"{self._PKG}.steam_library_ready", return_value=True),
             patch(f"{self._PKG}.allowed_games", return_value=[(440, "TF2")]),
@@ -99,8 +100,7 @@ class TestLibraryWarningLatch:
     _PKG = "steam_backlog_enforcer.game_install"
 
     def test_warns_once_then_debugs(self, caplog: pytest.LogCaptureFixture) -> None:
-        from steam_backlog_enforcer.game_install import _LIBRARY_WARNED
-
+        """Repeated misses warn once, then log at debug."""
         _LIBRARY_WARNED.discard("missing")
         with (
             patch(f"{self._PKG}.steam_library_ready", return_value=False),
@@ -118,8 +118,6 @@ class TestLibraryWarningLatch:
 
     def test_latch_resets_when_library_returns(self) -> None:
         """Signing in to Steam must re-arm the warning for a later outage."""
-        from steam_backlog_enforcer.game_install import _LIBRARY_WARNED
-
         _LIBRARY_WARNED.add("missing")
         with (
             patch(f"{self._PKG}.steam_library_ready", return_value=True),

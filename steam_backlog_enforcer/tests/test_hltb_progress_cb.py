@@ -9,7 +9,10 @@ from steam_backlog_enforcer._progress import use_progress
 
 
 class TestReportingProgressCb:
+    """reporting_progress_cb ties HLTB lookups to the active progress meter."""
+
     def test_starts_a_phase_and_advances_by_the_done_count(self) -> None:
+        """The callback starts a phase and advances by the done count."""
         progress = MagicMock()
         with use_progress(progress):
             report = reporting_progress_cb("Fetching", 5, None)
@@ -18,6 +21,7 @@ class TestReportingProgressCb:
         progress.advance.assert_called_once_with("Doom", step=2)
 
     def test_forwards_to_the_callers_own_meter(self) -> None:
+        """The callback also forwards every report to the caller's own meter."""
         inner = MagicMock()
         with use_progress(MagicMock()):
             report = reporting_progress_cb("Fetching", 5, inner)

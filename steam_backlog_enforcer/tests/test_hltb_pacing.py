@@ -37,6 +37,7 @@ class _DetailSession:
         self.gets = 0
 
     def get(self, _url: str, *, headers: object) -> FakeResp:
+        """Count the detail request and answer 404."""
         del headers
         self.gets += 1
         return FakeResp(404)

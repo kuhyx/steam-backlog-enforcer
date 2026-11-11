@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 
-@pytest.fixture
-def short_dir() -> Iterator[Path]:
+@pytest.fixture(name="short_dir")
+def fixture_short_dir() -> Iterator[Path]:
     """A short-path temp dir: AF_UNIX paths are capped near 108 bytes."""
     with tempfile.TemporaryDirectory(prefix="ctl") as name:
         yield Path(name)
@@ -36,29 +36,35 @@ class TestCodec:
     """Line encoding and the two response shapes."""
 
     def test_roundtrip(self) -> None:
+        """Encode then decode returns the object; the line ends in a newline."""
         raw = _ctl_protocol.encode_line({"op": "ping", "args": {}})
         assert raw.endswith(b"\n")
         assert _ctl_protocol.decode_line(raw) == {"op": "ping", "args": {}}
 
     def test_decode_rejects_garbage(self) -> None:
+        """Decoding invalid JSON raises ValueError."""
         with pytest.raises(ValueError, match="Expecting"):
             _ctl_protocol.decode_line(b"{nope")
 
     def test_ok_response(self) -> None:
+        """An ok response wraps the data under ok=true."""
         body = json.loads(_ctl_protocol.ok_response({"a": 1}))
         assert body == {"ok": True, "data": {"a": 1}}
 
     def test_error_response_without_data(self) -> None:
+        """An error response without data carries only code and message."""
         err = _ctl_protocol.CtlError(_ctl_protocol.LOCKED, "nope")
         body = json.loads(_ctl_protocol.error_response(err))
         assert body == {"ok": False, "error": "locked", "message": "nope"}
 
     def test_error_response_with_data(self) -> None:
+        """An error response includes the error data when present."""
         err = _ctl_protocol.CtlError(_ctl_protocol.BUSY, "wait", {"retry": 2})
         body = json.loads(_ctl_protocol.error_response(err))
         assert body["data"] == {"retry": 2}
 
     def test_ctl_error_attributes(self) -> None:
+        """CtlError exposes code, message, empty data and a code: msg string."""
         err = _ctl_protocol.CtlError("code", "msg")
         assert (err.code, err.message, err.data) == ("code", "msg", {})
         assert str(err) == "code: msg"
@@ -68,9 +74,11 @@ class TestTypes:
     """The result types are frozen value objects."""
 
     def test_hashable_because_frozen(self) -> None:
+        """DaemonInfo is hashable because it is frozen."""
         assert hash(DaemonInfo("running", "t", 1, None)) is not None
 
     def test_equality(self) -> None:
+        """BlockResult values compare equal by field."""
         assert BlockResult(3, None) == BlockResult(3, None)
 
 
@@ -78,6 +86,7 @@ class TestPeerUid:
     """SO_PEERCRED reports the connecting process's real uid."""
 
     def test_reports_own_uid(self) -> None:
+        """The peer uid of a socketpair is the current uid."""
         left, right = socket.socketpair()
         try:
             assert _ctl_wire.peer_uid(left) == os.getuid()
@@ -90,9 +99,11 @@ class TestSocketIsLive:
     """Probing a path for an accepting listener."""
 
     def test_missing_path(self, short_dir: Path) -> None:
+        """A path with no socket is reported as not live."""
         assert _ctl_wire.socket_is_live(short_dir / "none.sock") is False
 
     def test_listening_path(self, short_dir: Path) -> None:
+        """A path with a listening socket is reported as live."""
         path = short_dir / "s.sock"
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
@@ -107,12 +118,14 @@ class TestReadLine:
     """Bounded, deadline-limited request reading."""
 
     def test_reads_first_line(self) -> None:
+        """Only the first line is returned, without its newline."""
         left, right = socket.socketpair()
         with left, right:
             right.sendall(b'{"op":"ping"}\nextra')
             assert _ctl_wire.read_line(left) == b'{"op":"ping"}'
 
     def test_eof_without_newline_returns_data(self) -> None:
+        """Data ended by EOF without a newline is still returned."""
         left, right = socket.socketpair()
         with left, right:
             right.sendall(b"abc")
@@ -120,12 +133,14 @@ class TestReadLine:
             assert _ctl_wire.read_line(left) == b"abc"
 
     def test_immediate_eof_returns_none(self) -> None:
+        """EOF before any data returns None."""
         left, right = socket.socketpair()
         with left, right:
             right.shutdown(socket.SHUT_WR)
             assert _ctl_wire.read_line(left) is None
 
     def test_oversize_is_truncated_past_the_cap(self) -> None:
+        """An oversize request is cut to one byte past the cap."""
         left, right = socket.socketpair()
         with left, right:
             right.sendall(b"x" * (_ctl_protocol.MAX_REQUEST_BYTES + 100))
@@ -134,6 +149,7 @@ class TestReadLine:
         assert len(line) == _ctl_protocol.MAX_REQUEST_BYTES + 1
 
     def test_stalled_client_times_out(self) -> None:
+        """A client that never sends returns None after the read timeout."""
         left, right = socket.socketpair()
         with (
             left,
@@ -143,6 +159,7 @@ class TestReadLine:
             assert _ctl_wire.read_line(left) is None
 
     def test_deadline_already_passed(self) -> None:
+        """A deadline already in the past returns None without reading."""
         left, right = socket.socketpair()
         with left, right, patch.object(_ctl_wire, "READ_TIMEOUT_SECONDS", -1.0):
             assert _ctl_wire.read_line(left) is None
@@ -152,12 +169,14 @@ class TestParseRequest:
     """Validation of a decoded request."""
 
     def test_valid_with_args(self) -> None:
+        """A valid request yields its op and args."""
         assert _ctl_wire.parse_request(b'{"op":"x","args":{"a":1}}') == (
             "x",
             {"a": 1},
         )
 
     def test_args_default_to_empty(self) -> None:
+        """A request without args yields an empty args dict."""
         assert _ctl_wire.parse_request(b'{"op":"x"}') == ("x", {})
 
     @pytest.mark.parametrize(
@@ -165,10 +184,12 @@ class TestParseRequest:
         [b"{bad", b"\xff\xfe", b"[1]", b'{"op":5}', b'{"args":{}}'],
     )
     def test_rejects_malformed(self, line: bytes) -> None:
+        """Malformed lines are refused as invalid_params."""
         with pytest.raises(_ctl_protocol.CtlError) as caught:
             _ctl_wire.parse_request(line)
         assert caught.value.code == _ctl_protocol.INVALID_PARAMS
 
     def test_rejects_non_object_args(self) -> None:
+        """Non-object args are refused."""
         with pytest.raises(_ctl_protocol.CtlError, match="args must be"):
             _ctl_wire.parse_request(b'{"op":"x","args":[1]}')

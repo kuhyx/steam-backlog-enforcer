@@ -138,14 +138,10 @@ persistent = true
 jobs = 1
 py-version = "3.14"
 ignore = [".venv", "__pycache__"]
-# Test suites intentionally use patterns (protected-access, fixture-arg
-# shadowing) that don't apply to source code; ruff's per-file-ignores carry
-# the equivalent exemptions, so tests stay linted -- by ruff. This is the same
-# source-only pylint scope wake-alarm / diet-guard / testsAndMisc use. It has
-# to be `ignore-paths`, not `ignore = ["tests"]`: `ignore` only matches the
-# basename of what pylint is *given*, and pre-commit hands it explicit file
-# paths, so a directory name in `ignore` never fires under the hook.
-ignore-paths = ["^(.*/)?tests/.*$"]
+# Tests are linted like the package (kuhy, 2026-11-10): no ignore-paths, no
+# per-test disables. A private name a test needs is imported directly, and a
+# fixture that would shadow its own name is declared with
+# ``@pytest.fixture(name=...)``.
 ignore-patterns = [".*\\.pyi$"]
 
 [tool.pylint.basic]

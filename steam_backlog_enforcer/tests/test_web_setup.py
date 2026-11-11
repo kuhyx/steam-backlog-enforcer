@@ -11,6 +11,7 @@ import requests
 from steam_backlog_enforcer import _web_setup
 from steam_backlog_enforcer import config as _config
 from steam_backlog_enforcer._web_errors import ApiError
+from steam_backlog_enforcer._web_setup import _STEAM_ID, _field
 from steam_backlog_enforcer.tests._web_request import make_request, payload_of
 
 if TYPE_CHECKING:
@@ -36,25 +37,33 @@ def _players(*names: str) -> dict[str, Any]:
 
 
 class TestField:
+    """_field validates and strips one string field of the request body."""
+
     def test_returns_the_stripped_value(self) -> None:
+        """A valid field comes back with surrounding whitespace stripped."""
         request = make_request(body={"steam_id": f" {_ID} "})
-        got = _web_setup._field(request, "steam_id", _web_setup._STEAM_ID, "an id")
+        got = _field(request, "steam_id", _STEAM_ID, "an id")
         assert got == _ID
 
     @pytest.mark.parametrize("raw", [None, 5, "", "abc"])
     def test_rejects_missing_or_malformed(self, raw: object) -> None:
+        """A missing, non-string, empty or malformed field is invalid_params."""
         request = make_request(body={"steam_id": raw})
         with pytest.raises(ApiError) as err:
-            _web_setup._field(request, "steam_id", _web_setup._STEAM_ID, "an id")
+            _field(request, "steam_id", _STEAM_ID, "an id")
         assert err.value.code == "invalid_params"
 
 
 class TestVerifyWithSteam:
+    """verify_with_steam accepts only a key and id Steam recognises."""
+
     def test_accepts_a_known_account(self) -> None:
+        """A key and id that resolve to a player pass without raising."""
         with patch(f"{_PKG}.requests.get", return_value=_steam(200, _players("x"))):
             _web_setup.verify_with_steam(_KEY, _ID)
 
     def test_network_failure_is_op_failed(self) -> None:
+        """A network failure is reported as op_failed naming the exception."""
         with (
             patch(f"{_PKG}.requests.get", side_effect=requests.Timeout),
             pytest.raises(ApiError) as err,
@@ -65,6 +74,7 @@ class TestVerifyWithSteam:
 
     @pytest.mark.parametrize("status", [401, 403])
     def test_rejected_key(self, status: int) -> None:
+        """A 401 or 403 means Steam rejected the API key."""
         with (
             patch(f"{_PKG}.requests.get", return_value=_steam(status)),
             pytest.raises(ApiError) as err,
@@ -76,6 +86,7 @@ class TestVerifyWithSteam:
         )
 
     def test_other_http_status(self) -> None:
+        """Any other HTTP error status is reported as op_failed."""
         with (
             patch(f"{_PKG}.requests.get", return_value=_steam(500)),
             pytest.raises(ApiError) as err,
@@ -88,6 +99,7 @@ class TestVerifyWithSteam:
         [_steam(200, ValueError()), _steam(200, {}), _steam(200, {"response": None})],
     )
     def test_unexpected_reply_shape(self, reply: MagicMock) -> None:
+        """A reply without a players list is reported as op_failed."""
         with (
             patch(f"{_PKG}.requests.get", return_value=reply),
             pytest.raises(ApiError) as err,
@@ -96,6 +108,7 @@ class TestVerifyWithSteam:
         assert err.value.code == "op_failed"
 
     def test_unknown_account(self) -> None:
+        """A key that works but finds no player means the Steam id is wrong."""
         with (
             patch(f"{_PKG}.requests.get", return_value=_steam(200, _players())),
             pytest.raises(ApiError) as err,
@@ -105,6 +118,8 @@ class TestVerifyWithSteam:
 
 
 class TestSaveSetup:
+    """save_setup validates, checks the lock, asks Steam, then saves."""
+
     _LOCK = "steam_backlog_enforcer._web_setup.lock_reason"
 
     def _request(self, **body: str) -> Request:
@@ -113,16 +128,19 @@ class TestSaveSetup:
         )
 
     def test_bad_key_is_refused_first(self) -> None:
+        """A malformed API key is refused before anything else runs."""
         with pytest.raises(ApiError) as err:
             _web_setup.save_setup(self._request(steam_api_key="short"))
         assert "steam_api_key" in err.value.message
 
     def test_bad_steam_id_is_refused(self) -> None:
+        """A malformed Steam id is refused."""
         with pytest.raises(ApiError) as err:
             _web_setup.save_setup(self._request(steam_id="1"))
         assert "steam_id" in err.value.message
 
     def test_a_locked_setup_is_refused_before_asking_steam(self) -> None:
+        """A locked setup is refused without calling Steam."""
         with (
             patch(self._LOCK, return_value="Total block"),
             patch(f"{_PKG}.verify_with_steam") as verify,
@@ -133,6 +151,7 @@ class TestSaveSetup:
         verify.assert_not_called()
 
     def test_steam_refusal_saves_nothing(self) -> None:
+        """When Steam refuses the credentials nothing is written."""
         with (
             patch(self._LOCK, return_value=None),
             patch(
@@ -146,6 +165,7 @@ class TestSaveSetup:
         save.assert_not_called()
 
     def test_saves_and_never_echoes_the_key(self) -> None:
+        """Accepted credentials are saved and the reply never contains the key."""
         with (
             patch(self._LOCK, return_value=None),
             patch(f"{_PKG}.verify_with_steam"),

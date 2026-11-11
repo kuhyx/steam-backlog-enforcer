@@ -18,7 +18,6 @@ from steam_backlog_enforcer import _budget_view as view
 from steam_backlog_enforcer import _leetcode_bonus, _workout_budget
 from steam_backlog_enforcer._budget_resolve import (
     BudgetResolution,
-    resolve_budget,
 )
 from steam_backlog_enforcer._ledger_earners import registry_for
 from steam_backlog_enforcer._playtime_state import rules_for
@@ -28,16 +27,11 @@ from steam_backlog_enforcer.tests._budget_dates import (
     BEFORE_CUT,
     pin_today,
 )
+from steam_backlog_enforcer.tests._budget_earners import HOUR, resolve_with
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from datetime import date
-
-_WORKOUT = "steam_backlog_enforcer._workout_budget._fetch_workout_today"
-_LEETCODE = "steam_backlog_enforcer._leetcode_bonus.read_ledger_solved_today"
-_READING = "steam_backlog_enforcer._budget_resolve.read_today"
-
-_HOUR = 3600.0
 
 
 def _later_penalised(day: date) -> list[earned_time.Earner]:
@@ -81,12 +75,7 @@ def _resolve(*, earners: tuple[bool, bool, bool | None]) -> BudgetResolution:
         The resolved budget.
     """
     workout, leetcode, reading = earners
-    with (
-        patch(_WORKOUT, return_value=workout),
-        patch(_LEETCODE, return_value=leetcode),
-        patch(_READING, return_value=reading),
-    ):
-        return resolve_budget(Config())
+    return resolve_with(workout=workout, leetcode=leetcode, reading=reading)
 
 
 class TestTheBase:
@@ -96,13 +85,13 @@ class TestTheBase:
         """The day before still gets the hour reading cannot yet earn back."""
         with pin_today(BEFORE_CUT):
             resolved = _resolve(earners=(False, False, False))
-        assert resolved.base_seconds == 5 * _HOUR
+        assert resolved.base_seconds == 5 * HOUR
 
     def test_the_cut_day_itself_uses_the_lower_floor(self) -> None:
         """The boundary is inclusive: the penalty start is the first 4h day."""
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(False, False, False))
-        assert resolved.base_seconds == 4 * _HOUR
+        assert resolved.base_seconds == 4 * HOUR
 
     def test_every_later_day_uses_the_lower_floor(self) -> None:
         """No drift back to 5h once the cut has happened.
@@ -116,25 +105,27 @@ class TestTheBase:
             resolved = _resolve(earners=(False, False, False))
         later_cuts = 60 * sum(e.max_gaming_minutes for e in _later_penalised(day))
         # From earned_time 0.14 the floor itself is dated (LEISURE_FROM lifts it).
-        lift = 60 * earned_time.gaming_base_minutes_for(day) - 5 * _HOUR
-        assert resolved.base_seconds == 4 * _HOUR + lift - later_cuts
+        lift = 60 * earned_time.gaming_base_minutes_for(day) - 5 * HOUR
+        assert resolved.base_seconds == 4 * HOUR + lift - later_cuts
 
 
 class TestTheReadingTerm:
     """Reading adds one hour, and an unknown answer adds nothing."""
 
     def test_credited_reading_adds_the_hour(self) -> None:
+        """Credited reading adds exactly one hour and says so."""
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(False, False, True))
-        assert resolved.reading_seconds == _HOUR
-        assert resolved.seconds == 5 * _HOUR
+        assert resolved.reading_seconds == HOUR
+        assert resolved.seconds == 5 * HOUR
         assert "reading credited" in resolved.reason
 
     def test_no_reading_adds_nothing(self) -> None:
+        """No reading leaves the budget at the base."""
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(False, False, False))
         assert resolved.reading_seconds == 0.0
-        assert resolved.seconds == 4 * _HOUR
+        assert resolved.seconds == 4 * HOUR
         assert "no reading credited" in resolved.reason
 
     def test_an_unreadable_ledger_costs_only_the_reading_hour(self) -> None:
@@ -142,9 +133,9 @@ class TestTheReadingTerm:
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(True, True, None))
         assert resolved.reading_seconds == 0.0
-        assert resolved.workout_seconds == 2 * _HOUR
-        assert resolved.leetcode_seconds == _HOUR
-        assert resolved.seconds == 7 * _HOUR
+        assert resolved.workout_seconds == 2 * HOUR
+        assert resolved.leetcode_seconds == HOUR
+        assert resolved.seconds == 7 * HOUR
         assert "reading unknown (book-guard ledger unreadable)" in resolved.reason
 
 
@@ -155,14 +146,15 @@ class TestTheCeiling:
         """5h + 2h + 1h + 1h is 9h; 8h is what gets enforced."""
         with pin_today(BEFORE_CUT):
             resolved = _resolve(earners=(True, True, True))
-        assert resolved.base_seconds == 5 * _HOUR
-        assert resolved.seconds == 8 * _HOUR
+        assert resolved.base_seconds == 5 * HOUR
+        assert resolved.seconds == 8 * HOUR
         assert resolved.reason.startswith("8.0h: ")
 
     def test_before_the_cut_an_idle_day_keeps_five_hours(self) -> None:
+        """An idle day before the cut keeps the 5h floor."""
         with pin_today(BEFORE_CUT):
             resolved = _resolve(earners=(False, False, False))
-        assert resolved.seconds == 5 * _HOUR
+        assert resolved.seconds == 5 * HOUR
 
     def test_a_lower_registry_ceiling_binds(self) -> None:
         """The ceiling is the registry's, read when the budget resolves."""
@@ -172,41 +164,45 @@ class TestTheCeiling:
             patch("earned_time._leisure.GAMING_CEILING_MINUTES", 6 * 60),
         ):
             resolved = _resolve(earners=(True, True, True))
-        assert resolved.seconds == 6 * _HOUR
+        assert resolved.seconds == 6 * HOUR
 
     def test_after_the_cut_a_full_day_is_exactly_the_ceiling(self) -> None:
+        """After the cut every earner together lands on the 8h ceiling."""
         with pin_today(AFTER_CUT):
             resolved = _resolve(earners=(True, True, True))
         ceiling = earned_time.GAMING_CEILING_MINUTES * 60
-        assert resolved.seconds == ceiling == 8 * _HOUR
+        assert resolved.seconds == ceiling == 8 * HOUR
 
 
 class TestReadingReachesTheRulesAndTheView:
     """The resolved reading hour is carried, never re-resolved."""
 
     def test_rules_and_bonuses_carry_the_reading_seconds(self) -> None:
+        """The reading hour flows into the rules and the view's bonuses."""
         resolution = BudgetResolution(
-            seconds=5 * _HOUR,
-            base_seconds=4 * _HOUR,
+            seconds=5 * HOUR,
+            base_seconds=4 * HOUR,
             workout_seconds=0.0,
             leetcode_seconds=0.0,
             reason="stub",
-            reading_seconds=_HOUR,
+            reading_seconds=HOUR,
         )
         with patch(
             "steam_backlog_enforcer._playtime_state.resolve_budget",
             return_value=resolution,
         ):
             rules = rules_for(Config(), demo=False)
-        assert rules.reading_seconds == _HOUR
+        assert rules.reading_seconds == HOUR
         with patch.object(view, "mounted_targets", return_value=set()):
             bonuses = view.build_rules(rules)["bonuses"]
-        assert bonuses["reading"] == _HOUR
+        assert bonuses["reading"] == HOUR
 
     def test_a_demo_run_earns_no_reading(self) -> None:
+        """A demo run never earns the reading hour."""
         assert rules_for(Config(), demo=True).reading_seconds == 0.0
 
     def test_a_resolution_defaults_to_no_reading(self) -> None:
+        """A resolution built without reading defaults to zero."""
         resolution = BudgetResolution(
             seconds=0.0,
             base_seconds=0.0,

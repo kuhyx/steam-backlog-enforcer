@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
 
 from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
@@ -12,6 +10,11 @@ from steam_backlog_enforcer.protondb import (
     _rating_from_cache,
     _rating_to_dict,
     _save_cache,
+)
+from steam_backlog_enforcer.tests._protondb_cache import (
+    cache_at,
+    writable_cache_at,
+    write_gold_cache,
 )
 
 if TYPE_CHECKING:
@@ -127,35 +130,19 @@ class TestProtonDBCache:
 
     def test_load_cache_exists(self, tmp_path: Path) -> None:
         """Test load cache exists."""
-        cache_file = tmp_path / "protondb_cache.json"
-        cache_file.write_text(json.dumps({"440": {"tier": "gold"}}), encoding="utf-8")
-        with patch(
-            "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
-            cache_file,
-        ):
+        with cache_at(write_gold_cache(tmp_path)):
             result = _load_cache()
             assert result == {"440": {"tier": "gold"}}
 
     def test_load_cache_missing(self, tmp_path: Path) -> None:
         """Test load cache missing."""
-        cache_file = tmp_path / "nonexistent.json"
-        with patch(
-            "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
-            cache_file,
-        ):
+        with cache_at(tmp_path / "nonexistent.json"):
             assert _load_cache() == {}
 
     def test_save_cache(self, tmp_path: Path) -> None:
         """Test save cache."""
         cache_file = tmp_path / "protondb_cache.json"
-        config_dir = tmp_path
-        with (
-            patch(
-                "steam_backlog_enforcer.protondb.PROTONDB_CACHE_FILE",
-                cache_file,
-            ),
-            patch("steam_backlog_enforcer.protondb.CONFIG_DIR", config_dir),
-        ):
+        with writable_cache_at(cache_file, tmp_path):
             _save_cache({"440": {"tier": "gold"}})
             assert cache_file.exists()
 

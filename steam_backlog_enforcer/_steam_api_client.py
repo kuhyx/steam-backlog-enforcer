@@ -32,6 +32,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _game_from_achievements(
+    app_id: int, name: str, playtime: int, achievements: list[AchievementInfo]
+) -> GameInfo:
+    """Build a GameInfo whose counts are derived from its achievement list."""
+    return GameInfo(
+        app_id=app_id,
+        name=name,
+        total_achievements=len(achievements),
+        unlocked_achievements=sum(1 for a in achievements if a.achieved),
+        playtime_minutes=playtime,
+        achievements=achievements,
+    )
+
+
 class SteamAPIError(Exception):
     """Raised when the Steam API returns an error."""
 
@@ -72,11 +86,9 @@ class SteamAPIClient:
                     return
             time.sleep(0.06)
 
-    def _get(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Rate-limited GET request."""
+    def _get(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Rate-limited GET request; adds the API key to ``params``."""
         self._rate_limit()
-        if params is None:
-            params = {}
         params["key"] = self.api_key
         try:
             resp = self.session.get(url, params=params, timeout=30)
@@ -151,17 +163,8 @@ class SteamAPIClient:
             return None
 
         name = game_dict.get("name", f"Unknown ({app_id})")
-        total = len(achievements)
-        unlocked = sum(1 for a in achievements if a.achieved)
-
-        return GameInfo(
-            app_id=app_id,
-            name=name,
-            total_achievements=total,
-            unlocked_achievements=unlocked,
-            playtime_minutes=game_dict.get("playtime_forever", 0),
-            achievements=achievements,
-        )
+        playtime = game_dict.get("playtime_forever", 0)
+        return _game_from_achievements(app_id, name, playtime, achievements)
 
     def build_game_list(
         self,
@@ -238,13 +241,4 @@ class SteamAPIClient:
         achievements = self.get_achievement_details(app_id)
         if not achievements:
             return None
-        total = len(achievements)
-        unlocked = sum(1 for a in achievements if a.achieved)
-        return GameInfo(
-            app_id=app_id,
-            name=name,
-            total_achievements=total,
-            unlocked_achievements=unlocked,
-            playtime_minutes=playtime,
-            achievements=achievements,
-        )
+        return _game_from_achievements(app_id, name, playtime, achievements)

@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from steam_backlog_enforcer import _fast_install
 from steam_backlog_enforcer import _fast_install_progress as fip
+from steam_backlog_enforcer._fast_install import _RUNS, _DetachedRun
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -25,11 +26,14 @@ def _failed_run(tmp_path: Path, app_id: int = 7) -> None:
     fip.track(app_id, "Baldur's Gate 3", log, offset=0, now=0.0)
     proc = MagicMock(pid=4321)
     proc.poll.return_value = 1
-    _fast_install._RUNS.append(_fast_install._DetachedRun(app_id, proc, log))
+    _RUNS.append(_DetachedRun(app_id, proc, log))
 
 
 class TestFailedRunsStayListed:
+    """A failed daemon run stays on the dashboard until superseded."""
+
     def test_status_carries_the_reason(self, tmp_path: Path) -> None:
+        """A failed run is listed as failed with its exit code and log tail."""
         _failed_run(tmp_path)
         with patch(f"{PKG}.is_game_fully_installed", return_value=False):
             _fast_install.poll_fast_installs()
@@ -45,6 +49,7 @@ class TestFailedRunsStayListed:
         ]
 
     def test_live_runs_have_no_error(self, tmp_path: Path) -> None:
+        """A live run carries no error."""
         fip.track(8, "G", tmp_path / "log", offset=0, now=0.0)
         fip.poll_trackers({8})
         assert fip.fast_install_status(now=1.0)[0]["error"] is None
@@ -59,6 +64,7 @@ class TestFailedRunsStayListed:
         assert fip.fast_install_status(now=9.0) == []
 
     def test_a_new_run_replaces_the_failure(self, tmp_path: Path) -> None:
+        """Tracking a new run for the game replaces the failed entry."""
         _failed_run(tmp_path)
         with patch(f"{PKG}.is_game_fully_installed", return_value=False):
             _fast_install.poll_fast_installs()

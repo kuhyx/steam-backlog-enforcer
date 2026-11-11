@@ -21,16 +21,21 @@ _STATE = PlaytimeState(
 
 
 def _records() -> list[dict[str, object]]:
+    """Return every record in the budget log, oldest first."""
     text = log_mod.BUDGET_LOG_FILE.read_text(encoding="utf-8")
     return [json.loads(line) for line in text.splitlines()]
 
 
 def _journal() -> ShadowJournal:
+    """Return a shadow journal writing to the production budget log."""
     return ShadowJournal(BudgetLog(path=log_mod.BUDGET_LOG_FILE))
 
 
 class TestShadowJournal:
+    """The shadow journal writes one record per verdict change."""
+
     def test_writes_on_change_only(self) -> None:
+        """A repeated verdict is not written again."""
         journal = _journal()
         leisure = ShadowVerdict(paused_by=None, keys=("app:440",))
         journal.observe(leisure, _STATE)
@@ -41,12 +46,14 @@ class TestShadowJournal:
         assert {r["event"] for r in records} == {EVENT_SHADOW_CHANGE}
 
     def test_a_new_source_is_a_change(self) -> None:
+        """A different source set counts as a change."""
         journal = _journal()
         journal.observe(ShadowVerdict(None, ("a",)), _STATE)
         journal.observe(ShadowVerdict(None, ("b",)), _STATE)
         assert [r["sources"] for r in _records()] == [["a"], ["b"]]
 
     def test_carries_the_shadow_fields(self) -> None:
+        """Each record carries the shadow budget fields."""
         _journal().observe(ShadowVerdict(None, ("app:440",)), _STATE)
         record = _records()[0]
         assert record["day_key"] == "2026-10-19"

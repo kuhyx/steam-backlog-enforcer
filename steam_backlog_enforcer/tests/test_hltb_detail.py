@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Self
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import aiohttp
@@ -21,26 +21,6 @@ from steam_backlog_enforcer._hltb_page_parse import (
 from steam_backlog_enforcer._hltb_types import (
     HLTBResult,
 )
-
-
-class _FakeTextResponse:
-    """Async context manager mimicking aiohttp response for text."""
-
-    def __init__(self, status: int, text: str = "") -> None:
-        """Test init."""
-        self.status = status
-        self._text = text
-
-    async def __aenter__(self) -> Self:
-        """Test aenter."""
-        return self
-
-    async def __aexit__(self, *args: object) -> None:
-        """Test aexit."""
-
-    async def text(self) -> str:
-        """Test text."""
-        return self._text
 
 
 class TestInternalHelpers:

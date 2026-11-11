@@ -27,6 +27,7 @@ class TestSudoWriteHosts:
     """Tests for _sudo_write_hosts."""
 
     def test_writes_content(self) -> None:
+        """The hosts content is piped to the privileged writer."""
         with patch(f"{PKG}.subprocess.run") as mock_run:
             _sudo_write_hosts("127.0.0.1 localhost\n")
         mock_run.assert_called_once()
@@ -37,6 +38,7 @@ class TestDisableHostsProtection:
     """Tests for _disable_hosts_protection."""
 
     def test_calls_guardctl_pacman_unlock(self) -> None:
+        """Disabling protection runs guardctl file-guard pacman-unlock hosts."""
         with patch(f"{PKG}.subprocess.run") as mock_run:
             _disable_hosts_protection()
         mock_run.assert_called_once()
@@ -48,6 +50,7 @@ class TestEnableHostsProtection:
     """Tests for _enable_hosts_protection."""
 
     def test_calls_guardctl_sync(self) -> None:
+        """Enabling protection runs guardctl file-guard sync hosts."""
         with patch(f"{PKG}.subprocess.run") as mock_run:
             _enable_hosts_protection()
         mock_run.assert_called_once()
@@ -59,11 +62,13 @@ class TestUnblockHosts:
     """Tests for _unblock_hosts."""
 
     def test_not_blocked(self) -> None:
+        """Unblocking an unblocked store succeeds at once."""
         with patch(f"{PKG}.is_store_blocked", return_value=False):
             result = _unblock_hosts()
         assert result is True
 
     def test_comments_out_entries(self, tmp_path: Path) -> None:
+        """Unblocking comments out the store entries."""
         hosts_file = tmp_path / "hosts"
         hosts_file.write_text(
             "127.0.0.1 localhost\n"
@@ -84,6 +89,7 @@ class TestUnblockHosts:
         assert "# 0.0.0.0 store.steampowered.com" in written
 
     def test_no_change_needed(self, tmp_path: Path) -> None:
+        """Already commented entries are not rewritten."""
         hosts_file = tmp_path / "hosts"
         hosts_file.write_text(
             "# 0.0.0.0 store.steampowered.com\n",
@@ -101,6 +107,7 @@ class TestUnblockHosts:
         mock_write.assert_not_called()
 
     def test_os_error(self) -> None:
+        """An OSError while unblocking reports failure."""
         with (
             patch(f"{PKG}.is_store_blocked", return_value=True),
             patch(f"{_HP}._disable_hosts_protection", side_effect=OSError),
@@ -113,6 +120,7 @@ class TestReblockHosts:
     """Tests for _reblock_hosts."""
 
     def test_uncomments_entries(self, tmp_path: Path) -> None:
+        """Reblocking uncomments the store entries."""
         hosts_file = tmp_path / "hosts"
         hosts_file.write_text(
             "127.0.0.1 localhost\n"
@@ -136,6 +144,7 @@ class TestReblockHosts:
         assert "# 0.0.0.0 store.steampowered.com" not in written
 
     def test_no_change(self, tmp_path: Path) -> None:
+        """A hosts file without store entries is not rewritten."""
         hosts_file = tmp_path / "hosts"
         hosts_file.write_text("127.0.0.1 localhost\n", encoding="utf-8")
         with (
@@ -151,6 +160,7 @@ class TestReblockHosts:
         mock_write.assert_not_called()
 
     def test_os_error(self) -> None:
+        """An OSError while reblocking reports failure."""
         with patch(
             "steam_backlog_enforcer._hosts_protection._disable_hosts_protection",
             side_effect=OSError,
@@ -163,11 +173,13 @@ class TestFlushDnsCache:
     """Tests for flush_dns_cache."""
 
     def test_runs_commands(self) -> None:
+        """The DNS flush runs all three commands."""
         with patch(f"{PKG}.subprocess.run") as mock_run:
             flush_dns_cache()
         assert mock_run.call_count == 3
 
     def test_file_not_found_suppressed(self) -> None:
+        """A missing flush tool is ignored."""
         with patch(
             f"{PKG}.subprocess.run",
             side_effect=FileNotFoundError,
@@ -175,5 +187,6 @@ class TestFlushDnsCache:
             flush_dns_cache()
 
     def test_os_error_suppressed(self) -> None:
+        """An OSError from a flush tool is ignored."""
         with patch(f"{PKG}.subprocess.run", side_effect=OSError):
             flush_dns_cache()

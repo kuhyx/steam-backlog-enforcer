@@ -14,6 +14,10 @@ from steam_backlog_enforcer._steam_errors import SteamUnavailableError
 from steam_backlog_enforcer._steam_launch import (
     ensure_steam_debug_port,
 )
+from steam_backlog_enforcer.tests._desktop_launch_patches import (
+    fresh_launch_patches,
+    launch_patches,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -43,24 +47,19 @@ class TestEnsureSteamDebugPort:
         CDP port that no process was ever going to open.
         """
         with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch.steam_is_installed",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug",
-            ) as mock_launch,
+            launch_patches(
+                "_launch_steam_with_debug",
+                _steam_has_debug_port=False,
+                steam_is_installed=False,
+            ) as mocks,
             pytest.raises(SteamUnavailableError, match="not installed"),
         ):
             ensure_steam_debug_port()
 
-        mock_launch.assert_not_called()
+        mocks["_launch_steam_with_debug"].assert_not_called()
 
     def test_already_available(self) -> None:
+        """An open debug port needs no launch and does not raise."""
         with patch(
             "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
             return_value=True,
@@ -68,98 +67,29 @@ class TestEnsureSteamDebugPort:
             ensure_steam_debug_port()
 
     def test_starts_fresh(self) -> None:
-        with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._is_steam_running",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug",
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_cdp_ready",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_collections_ready",
-                return_value=True,
-            ),
-        ):
+        """A stopped Steam is launched with the debug port and waited on."""
+        with fresh_launch_patches(_is_steam_running=False):
             ensure_steam_debug_port()
 
     def test_restarts_running_steam(self) -> None:
-        with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._is_steam_running",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._shutdown_steam",
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug",
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_cdp_ready",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_collections_ready",
-                return_value=True,
-            ),
-        ):
+        """A running Steam without the port is shut down and relaunched."""
+        with fresh_launch_patches("_shutdown_steam", _is_steam_running=True):
             ensure_steam_debug_port()
 
     def test_cdp_timeout(self) -> None:
+        """A CDP port that never opens raises a timeout."""
         with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._is_steam_running",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug",
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_cdp_ready",
-                return_value=False,
+            fresh_launch_patches(
+                cdp_ready=False, collections_ready=None, _is_steam_running=False
             ),
             pytest.raises(RuntimeError, match="Timed out waiting for Steam CDP"),
         ):
             ensure_steam_debug_port()
 
     def test_collections_timeout(self) -> None:
+        """Collections that never load raise a timeout."""
         with (
-            patch(
-                "steam_backlog_enforcer._steam_launch._steam_has_debug_port",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._is_steam_running",
-                return_value=False,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._launch_steam_with_debug",
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_cdp_ready",
-                return_value=True,
-            ),
-            patch(
-                "steam_backlog_enforcer._steam_launch._wait_for_collections_ready",
-                return_value=False,
-            ),
+            fresh_launch_patches(collections_ready=False, _is_steam_running=False),
             pytest.raises(
                 RuntimeError, match="Timed out waiting for Steam collections"
             ),

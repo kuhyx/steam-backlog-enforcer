@@ -28,6 +28,7 @@ class TestInstallPicksGame:
     """Every allowed game that is not fully installed is offered."""
 
     def test_only_unfinished_game_installed_without_asking(self) -> None:
+        """A single unfinished game installs with no prompt."""
         prompter = FakePrompter()
         with (
             use_prompter(prompter),
@@ -40,6 +41,7 @@ class TestInstallPicksGame:
         assert install.call_args.args[:2] == (2, "Picked")
 
     def test_several_unfinished_games_prompt(self) -> None:
+        """Several unfinished games make the user choose."""
         prompter = FakePrompter(choices=["2"])
         with (
             use_prompter(prompter),
@@ -52,6 +54,7 @@ class TestInstallPicksGame:
         assert install.call_args.args[:2] == (2, "Picked")
 
     def test_all_installed(self) -> None:
+        """With everything installed nothing is installed and the user is told."""
         with (
             patch(f"{PKG}.is_game_fully_installed", return_value=True),
             patch(f"{PKG}.install_game") as install,

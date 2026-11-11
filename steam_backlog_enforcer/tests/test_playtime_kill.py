@@ -15,7 +15,10 @@ PKG = "steam_backlog_enforcer._playtime_kill"
 
 
 class TestRequestSteamShutdown:
+    """request_steam_shutdown asks a present Steam to exit."""
+
     def test_skips_when_steam_is_absent(self) -> None:
+        """Without a steam binary nothing is run."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.shutil.which", return_value=None
@@ -26,6 +29,7 @@ class TestRequestSteamShutdown:
         mock_run.assert_not_called()
 
     def test_sends_shutdown(self) -> None:
+        """With steam on PATH the shutdown command is sent."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.shutil.which",
@@ -40,7 +44,10 @@ class TestRequestSteamShutdown:
 
 
 class TestSteamAndLauncherPids:
+    """steam_and_launcher_pids finds Steam and other launchers."""
+
     def test_unions_both_name_sets(self) -> None:
+        """Steam and launcher pids are merged into one set."""
         with patch(
             "steam_backlog_enforcer._playtime_kill.get_pids_by_process_names",
             return_value={11: "steam", 22: "lutris"},
@@ -52,7 +59,10 @@ class TestSteamAndLauncherPids:
 
 
 class TestKillGamingProcesses:
+    """kill_gaming_processes signals the game tree but never us."""
+
     def test_sigterm_by_default(self) -> None:
+        """Without force the pids get SIGTERM."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",
@@ -68,6 +78,7 @@ class TestKillGamingProcesses:
         mock_kill.assert_called_once_with(7, signal.SIGTERM)
 
     def test_sigkill_when_forced(self) -> None:
+        """With force the pids get SIGKILL."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",
@@ -83,6 +94,7 @@ class TestKillGamingProcesses:
         mock_kill.assert_called_once_with(7, signal.SIGKILL)
 
     def test_includes_descendants(self) -> None:
+        """Descendants of the targets are signalled too."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",
@@ -97,6 +109,7 @@ class TestKillGamingProcesses:
             assert kill_gaming_processes({7}, force=False) == [7, 8, 9]
 
     def test_never_signals_our_own_chain(self) -> None:
+        """Pids in our own ancestor chain are skipped."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",
@@ -112,6 +125,7 @@ class TestKillGamingProcesses:
         mock_kill.assert_called_once_with(8, signal.SIGTERM)
 
     def test_process_already_gone(self) -> None:
+        """A pid that is already gone is not reported as killed."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",
@@ -129,6 +143,7 @@ class TestKillGamingProcesses:
             assert kill_gaming_processes({7}, force=False) == []
 
     def test_permission_denied(self) -> None:
+        """A pid we may not signal is not reported as killed."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",
@@ -146,6 +161,7 @@ class TestKillGamingProcesses:
             assert kill_gaming_processes({7}, force=False) == []
 
     def test_empty_set(self) -> None:
+        """No targets means no signal."""
         with (
             patch(
                 "steam_backlog_enforcer._playtime_kill.descendant_pids",

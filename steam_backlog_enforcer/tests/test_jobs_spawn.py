@@ -17,6 +17,14 @@ from steam_backlog_enforcer.jobs._events import (
     EventWriter,
     read_events,
 )
+from steam_backlog_enforcer.jobs._spawn import (
+    _PACKAGE_ROOT,
+    _confirm_started,
+    _fail_unstarted,
+    _is_job_interpreter,
+    _output_tail,
+    _spawn_argv,
+)
 from steam_backlog_enforcer.tests._jobs_helpers import JOB_ID, make_job
 
 if TYPE_CHECKING:
@@ -34,7 +42,7 @@ class TestSpawnArgv:
     def test_plain_without_systemd_unit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Outside a unit the job is just the interpreter."""
         monkeypatch.delenv("INVOCATION_ID", raising=False)
-        argv = _spawn._spawn_argv(make_job())
+        argv = _spawn_argv(make_job())
         assert argv[:3] == [sys.executable, "-m", "steam_backlog_enforcer.jobs"]
         assert argv[-2] == "run"
 
@@ -42,7 +50,7 @@ class TestSpawnArgv:
         """Inside the server's unit the job gets its own scope."""
         monkeypatch.setenv("INVOCATION_ID", "abc")
         with patch(_WHICH, return_value="/usr/bin/systemd-run"):
-            argv = _spawn._spawn_argv(make_job())
+            argv = _spawn_argv(make_job())
         assert argv[0] == "/usr/bin/systemd-run"
         assert f"--unit=sbe-job-{JOB_ID.lower()}" in argv
         assert argv[argv.index("--") + 1] == sys.executable
@@ -53,7 +61,7 @@ class TestSpawnArgv:
         """No systemd-run on PATH means no wrapping."""
         monkeypatch.setenv("INVOCATION_ID", "abc")
         with patch(_WHICH, return_value=None):
-            assert _spawn._spawn_argv(make_job())[0] == sys.executable
+            assert _spawn_argv(make_job())[0] == sys.executable
 
 
 class TestIsJobInterpreter:
@@ -64,21 +72,21 @@ class TestIsJobInterpreter:
         fake = MagicMock()
         fake.return_value.read_bytes.return_value = f"{sys.executable}\0-m\0x".encode()
         with patch(_PATH, fake):
-            assert _spawn._is_job_interpreter(1) is True
+            assert _is_job_interpreter(1) is True
 
     def test_launcher_is_not(self) -> None:
         """systemd-run before it execs."""
         fake = MagicMock()
         fake.return_value.read_bytes.return_value = b"/usr/bin/systemd-run\0--user"
         with patch(_PATH, fake):
-            assert _spawn._is_job_interpreter(1) is False
+            assert _is_job_interpreter(1) is False
 
     def test_missing_process(self) -> None:
         """A vanished process is not the interpreter."""
         fake = MagicMock()
         fake.return_value.read_bytes.side_effect = FileNotFoundError
         with patch(_PATH, fake):
-            assert _spawn._is_job_interpreter(1) is False
+            assert _is_job_interpreter(1) is False
 
 
 class TestOutputTail:
@@ -86,13 +94,13 @@ class TestOutputTail:
 
     def test_missing_log(self) -> None:
         """No output.log, no tail."""
-        assert _spawn._output_tail(make_job()) == ""
+        assert _output_tail(make_job()) == ""
 
     def test_tail_is_stripped_and_capped(self) -> None:
         """Only the last characters survive."""
         path = make_job()
         (path / OUTPUT_NAME).write_text("\n" + "x" * 1000 + "END\n", encoding="utf-8")
-        tail = _spawn._output_tail(path)
+        tail = _output_tail(path)
         assert len(tail) == 600
         assert tail.endswith("END")
 
@@ -104,7 +112,7 @@ class TestFailUnstarted:
         """The job ends failed, with the launcher output in its log."""
         path = make_job(states=("queued",))
         (path / OUTPUT_NAME).write_text("bus unreachable\n", encoding="utf-8")
-        err = _spawn._fail_unstarted(path, "Could not start.")
+        err = _fail_unstarted(path, "Could not start.")
         assert err.code == "op_failed"
         assert err.message == "Could not start. bus unreachable"
         events = read_events(path)
@@ -125,14 +133,14 @@ class TestConfirmStarted:
         path = make_job()
         EventWriter(path).emit("result", ok=True, summary="done")
         proc = MagicMock(**{"poll.return_value": 0})
-        _spawn._confirm_started(proc, path)
+        _confirm_started(proc, path)
 
     def test_launcher_exit_without_result_fails_job(self) -> None:
         """The launcher died before the job ran."""
         path = make_job()
         proc = MagicMock(**{"poll.return_value": 3})
         with pytest.raises(JobError) as info:
-            _spawn._confirm_started(proc, path)
+            _confirm_started(proc, path)
         assert info.value.code == "op_failed"
         assert "launcher exit 3" in info.value.message
 
@@ -140,7 +148,7 @@ class TestConfirmStarted:
         """The launcher exec'd into the job's Python."""
         proc = MagicMock(pid=9, **{"poll.return_value": None})
         with patch.object(_spawn, "_is_job_interpreter", return_value=True):
-            _spawn._confirm_started(proc, make_job())
+            _confirm_started(proc, make_job())
 
     def test_waits_then_gives_up_quietly(self) -> None:
         """Past the deadline the reconciler takes over; no error here."""
@@ -151,7 +159,7 @@ class TestConfirmStarted:
             patch.object(_spawn, "_is_job_interpreter", return_value=False),
             patch(_CLOCK, clock),
         ):
-            _spawn._confirm_started(proc, make_job())
+            _confirm_started(proc, make_job())
         clock.sleep.assert_called_once()
 
 
@@ -188,7 +196,7 @@ class TestSpawnJob:
         kwargs = popen.call_args.kwargs
         assert kwargs["pass_fds"] == ()
         assert _spawn.LOCK_FD_ENV not in kwargs["env"]
-        assert kwargs["env"]["PYTHONPATH"] == str(_spawn._PACKAGE_ROOT)
+        assert kwargs["env"]["PYTHONPATH"] == str(_PACKAGE_ROOT)
 
     def test_popen_oserror_fails_job(self) -> None:
         """An exec failure marks the job failed and raises ``op_failed``."""

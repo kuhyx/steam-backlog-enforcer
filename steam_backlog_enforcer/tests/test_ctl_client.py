@@ -35,8 +35,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.fixture
-def sock_path() -> Iterator[Path]:
+@pytest.fixture(name="sock_path")
+def fixture_sock_path() -> Iterator[Path]:
+    """Yield a socket path in a short temp dir (Unix socket path limit)."""
     with short_socket_dir() as directory:
         yield directory / "c.sock"
 
@@ -49,15 +50,18 @@ class TestCall:
     """The wire round trip."""
 
     def test_returns_data(self, sock_path: Path) -> None:
+        """An ok reply returns its data object."""
         thread = serve_once(sock_path, _line({"ok": True, "data": {"a": 1}}))
         assert _ctl_client.call("ping", {"x": 1}, path=sock_path) == {"a": 1}
         thread.join(5)
 
     def test_ok_without_object_data_is_empty(self, sock_path: Path) -> None:
+        """An ok reply whose data is not an object yields an empty dict."""
         serve_once(sock_path, _line({"ok": True, "data": 5}))
         assert _ctl_client.call("ping", path=sock_path) == {}
 
     def test_error_reply_raises_ctl_error(self, sock_path: Path) -> None:
+        """An error reply raises CtlError carrying code, message and data."""
         reply = {"ok": False, "error": "locked", "message": "no", "data": {"k": 1}}
         serve_once(sock_path, _line(reply))
         with pytest.raises(CtlError) as caught:
@@ -66,6 +70,7 @@ class TestCall:
         assert caught.value.data == {"k": 1}
 
     def test_error_reply_defaults(self, sock_path: Path) -> None:
+        """An error reply without fields falls back to op_failed and empty data."""
         serve_once(sock_path, _line({"ok": False}))
         with pytest.raises(CtlError) as caught:
             _ctl_client.call("ping", path=sock_path)
@@ -73,21 +78,25 @@ class TestCall:
         assert caught.value.data == {}
 
     def test_missing_socket(self, sock_path: Path) -> None:
+        """No socket file means the daemon is unreachable."""
         with pytest.raises(DaemonUnreachableError, match="control socket"):
             _ctl_client.call("ping", path=sock_path)
 
     def test_closed_without_answer(self, sock_path: Path) -> None:
+        """A daemon that hangs up silently counts as unreachable."""
         serve_once(sock_path, b"")
         with pytest.raises(DaemonUnreachableError, match="without answering"):
             _ctl_client.call("ping", path=sock_path)
 
     @pytest.mark.parametrize("reply", [b"{nope\n", b"[1]\n", b"\xff\n"])
     def test_malformed_reply(self, sock_path: Path, reply: bytes) -> None:
+        """Non-JSON, non-object or undecodable replies are rejected as malformed."""
         serve_once(sock_path, reply)
         with pytest.raises(DaemonUnreachableError, match="malformed"):
             _ctl_client.call("ping", path=sock_path)
 
     def test_oversize_reply(self, sock_path: Path) -> None:
+        """A reply over the size cap is rejected as too large."""
         serve_once(sock_path, b"x" * (MAX_RESPONSE_BYTES + 70000))
         with pytest.raises(DaemonUnreachableError, match="too large"):
             _ctl_client.call("ping", path=sock_path)
@@ -109,11 +118,13 @@ class TestTypedWrappers:
         return patch.object(_ctl_client, "call", return_value=data)
 
     def test_ping(self) -> None:
+        """ping sends the bare ping op."""
         with self._call({}) as call:
             _ctl_client.ping()
         call.assert_called_once_with("ping")
 
     def test_status(self) -> None:
+        """status maps the reply onto DaemonInfo."""
         data = {
             "state": "running",
             "started_at": "t",
@@ -124,6 +135,7 @@ class TestTypedWrappers:
             assert _ctl_client.status() == DaemonInfo("running", "t", 4, "x")
 
     def test_status_no_restart_time(self) -> None:
+        """status tolerates a missing restart time and fast-install list."""
         data = {"state": "running", "started_at": "t", "pid": 4}
         with self._call(data):
             info = _ctl_client.status()
@@ -131,6 +143,7 @@ class TestTypedWrappers:
         assert info.fast_installs == ()  # an older daemon sends none
 
     def test_status_fast_installs(self) -> None:
+        """status parses running fast installs into FastInstallInfo."""
         run = {
             "app_id": 7,
             "name": "G",
@@ -146,6 +159,7 @@ class TestTypedWrappers:
         )
 
     def test_status_failed_fast_install(self) -> None:
+        """status keeps the error of a failed fast install."""
         run = {"app_id": 7, "name": "G", "phase": "failed", "percent": None}
         run |= {"elapsed_seconds": 0, "error": "exit 1"}
         data = {"state": "running", "started_at": "t", "pid": 4, "fast_installs": [run]}
@@ -154,34 +168,41 @@ class TestTypedWrappers:
         assert info.fast_installs[0].error == "exit 1"
 
     def test_journal_tail(self) -> None:
+        """journal_tail sends the line count and stringifies every line."""
         with self._call({"lines": ["a", 2]}) as call:
             assert _ctl_client.journal_tail(9) == ["a", "2"]
         call.assert_called_once_with("journal_tail", {"lines": 9})
 
     def test_store_unblock(self) -> None:
+        """store_unblock sends minutes and phrase and returns a StoreWindow."""
         with self._call({"minutes": 5, "until": "u"}) as call:
             assert _ctl_client.store_unblock(5, "ph") == StoreWindow(5, "u")
         assert call.call_args.args == ("store_unblock", {"minutes": 5, "phrase": "ph"})
 
     def test_block_gaming(self) -> None:
+        """block_gaming returns a BlockResult with the until time."""
         with self._call({"days": 3, "until": "u"}):
             assert _ctl_client.block_gaming(3, "ph") == BlockResult(3, "u")
 
     def test_block_gaming_no_until(self) -> None:
+        """block_gaming keeps a null until as None."""
         with self._call({"days": 3, "until": None}):
             assert _ctl_client.block_gaming(3, "ph") == BlockResult(3, None)
 
     def test_gaming_unblock(self) -> None:
+        """gaming_unblock returns the released paths."""
         with self._call({"released": ["/a"]}):
             assert _ctl_client.gaming_unblock("ph") == ["/a"]
 
     def test_reset_arm_and_heartbeat(self) -> None:
+        """Arm and heartbeat both return the PendingReset."""
         expected = PendingReset("abc", "p", "a", "r", 10)
         with self._call(dict(_PENDING)):
             assert _ctl_client.gaming_reset_arm("ph") == expected
             assert _ctl_client.gaming_reset_heartbeat("abc") == expected
 
     def test_reset_commit(self) -> None:
+        """gaming_reset_commit coerces the reply into a ResetResult."""
         data = {
             "day_key": "d",
             "seconds_before": 1.5,
@@ -193,14 +214,17 @@ class TestTypedWrappers:
         assert result == ResetResult("d", 1.5, was_blocked=True, released=["/m"])
 
     def test_reset_cancel(self) -> None:
+        """gaming_reset_cancel sends the pending id."""
         with self._call({}) as call:
             _ctl_client.gaming_reset_cancel("abc")
         call.assert_called_once_with("gaming_reset_cancel", {"pending_id": "abc"})
 
     def test_restart(self) -> None:
+        """restart returns the next restart time."""
         with self._call({"restart_available_at": "x"}):
             assert _ctl_client.restart() == "x"
 
     def test_restart_no_time(self) -> None:
+        """restart returns None when the daemon sends no time."""
         with self._call({}):
             assert _ctl_client.restart() is None

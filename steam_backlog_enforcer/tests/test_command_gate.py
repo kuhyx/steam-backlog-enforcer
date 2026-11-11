@@ -31,17 +31,22 @@ def _block(*, active: bool, days: float = 3.5) -> Iterator[None]:
 
 
 class TestLockReason:
+    """Which commands the gate refuses, and why."""
+
     def test_unconfigured_is_refused(self) -> None:
+        """An unconfigured install refuses normal commands."""
         assert _gate.lock_reason("status", Config(), State()) == (
             _gate.NOT_CONFIGURED_MSG
         )
 
     @pytest.mark.parametrize("command", ["setup", "add-exception", "serve"])
     def test_setup_commands_need_no_key(self, command: str) -> None:
+        """Setup commands run without an API key."""
         with _block(active=False):
             assert _gate.lock_reason(command, Config(), State()) is None
 
     def test_total_block_names_days_and_allowed_commands(self) -> None:
+        """A total block names the time left and the allowed commands."""
         with _block(active=True):
             reason = _gate.lock_reason("scan", _CONFIGURED, State())
         assert reason is not None
@@ -49,19 +54,23 @@ class TestLockReason:
         assert "Allowed:" in reason
 
     def test_exempt_commands_pass_the_total_block(self) -> None:
+        """Exempt commands pass a total block."""
         with _block(active=True):
             assert _gate.lock_reason("status", _CONFIGURED, State()) is None
 
     def test_manual_pick_lock_names_the_picks(self) -> None:
+        """The manual pick lock names the locked picks."""
         with _block(active=False):
             reason = _gate.lock_reason("scan", _CONFIGURED, locked_state())
         assert reason is not None
         assert "Manual pick lock active (TestGame)" in reason
 
     def test_exempt_commands_pass_the_pick_lock(self) -> None:
+        """Exempt commands pass the pick lock."""
         with _block(active=False):
             assert _gate.lock_reason("status", _CONFIGURED, locked_state()) is None
 
     def test_no_state_skips_the_pick_check(self) -> None:
+        """Without state the pick lock is not checked."""
         with _block(active=False):
             assert _gate.lock_reason("scan", _CONFIGURED, None) is None

@@ -27,6 +27,7 @@ class TestRestartSteam:
     """Tests for restart_steam."""
 
     def test_cdp_ready(self) -> None:
+        """restart_steam completes when the debug port comes up."""
         with (
             patch("steam_backlog_enforcer._steam_launch._shutdown_steam"),
             patch("steam_backlog_enforcer._steam_launch._launch_steam_with_debug"),
@@ -38,6 +39,7 @@ class TestRestartSteam:
             restart_steam()
 
     def test_cdp_not_ready(self) -> None:
+        """restart_steam completes even when the debug port never comes up."""
         with (
             patch("steam_backlog_enforcer._steam_launch._shutdown_steam"),
             patch("steam_backlog_enforcer._steam_launch._launch_steam_with_debug"),
@@ -53,6 +55,7 @@ class TestHideOtherGames:
     """Tests for hide_other_games."""
 
     def test_hides(self) -> None:
+        """hide_other_games returns the hidden count from the page."""
         with (
             patch("steam_backlog_enforcer.library_hider.ensure_steam_debug_port"),
             patch(
@@ -70,6 +73,7 @@ class TestHideOtherGames:
             assert count == 5
 
     def test_empty_list(self) -> None:
+        """Nothing to hide returns zero."""
         with (
             patch("steam_backlog_enforcer.library_hider.ensure_steam_debug_port"),
             patch(
@@ -87,6 +91,7 @@ class TestHideOtherGames:
             assert count == 0
 
     def test_no_allowed(self) -> None:
+        """An empty allowed set still hides and returns the count."""
         with (
             patch("steam_backlog_enforcer.library_hider.ensure_steam_debug_port"),
             patch(
@@ -113,10 +118,12 @@ class TestTryHideOtherGames:
     """
 
     def test_success_returns_count_and_no_reason(self) -> None:
+        """Success returns the count and no reason."""
         with patch(f"{PKG}.hide_other_games", return_value=7):
             assert try_hide_other_games([1, 2], {1}) == (7, None)
 
     def test_steam_unavailable_is_reported_not_raised(self) -> None:
+        """An unavailable Steam becomes a reason, not an exception."""
         with patch(
             f"{PKG}.hide_other_games",
             side_effect=SteamUnavailableError("Steam is not installed"),
@@ -126,6 +133,7 @@ class TestTryHideOtherGames:
         assert reason == "Steam is not installed"
 
     def test_update_in_progress_is_reported_not_raised(self) -> None:
+        """A running update becomes a reason, not an exception."""
         with patch(
             f"{PKG}.hide_other_games",
             side_effect=SteamUpdateInProgressError("update in progress"),
@@ -139,6 +147,7 @@ class TestUnhideAllGames:
     """Tests for unhide_all_games."""
 
     def test_unhides(self) -> None:
+        """unhide_all_games returns the unhidden count."""
         with (
             patch("steam_backlog_enforcer.library_hider.ensure_steam_debug_port"),
             patch(

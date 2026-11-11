@@ -17,6 +17,7 @@ class TestShutdownSteam:
     """Tests for _shutdown_steam."""
 
     def test_exits_immediately(self) -> None:
+        """A Steam that is already gone needs no waiting."""
         mock_result = MagicMock(returncode=1)  # Not running
         with (
             patch(
@@ -30,6 +31,7 @@ class TestShutdownSteam:
             _shutdown_steam()
 
     def test_waits_for_exit(self) -> None:
+        """Shutdown polls until Steam has exited."""
         results = [MagicMock(returncode=0), MagicMock(returncode=1)]
         with (
             patch(
@@ -46,6 +48,7 @@ class TestShutdownSteam:
             _shutdown_steam()
 
     def test_file_not_found(self) -> None:
+        """A missing steam binary does not raise."""
         with patch(
             "steam_backlog_enforcer._steam_launch._run_as_user",
             side_effect=FileNotFoundError,
@@ -53,6 +56,7 @@ class TestShutdownSteam:
             _shutdown_steam()  # Should not raise
 
     def test_timeout(self) -> None:
+        """A Steam that never exits ends the wait without raising."""
         mock_result = MagicMock(returncode=0)  # Still running
         with (
             patch(
@@ -73,6 +77,7 @@ class TestLaunchSteamWithDebug:
     """Tests for _launch_steam_with_debug."""
 
     def test_launches(self) -> None:
+        """Launching runs Steam once as the desktop user."""
         with patch(
             "steam_backlog_enforcer._steam_launch._run_as_user",
         ) as mock_run:

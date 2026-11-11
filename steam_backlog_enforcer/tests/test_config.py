@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 from steam_backlog_enforcer._snapshot import load_snapshot, save_snapshot
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._config_paths import config_file_under
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,12 +31,7 @@ class TestConfig:
     def test_save(self, tmp_path: Path) -> None:
         """Test save."""
         cfg = Config(steam_api_key="abc", steam_id="123")
-        config_dir = tmp_path / "cfg"
-        config_file = config_dir / "config.json"
-        with (
-            patch("steam_backlog_enforcer.config.CONFIG_DIR", config_dir),
-            patch("steam_backlog_enforcer.config.CONFIG_FILE", config_file),
-        ):
+        with config_file_under(tmp_path) as config_file:
             cfg.save()
             data = json.loads(config_file.read_text(encoding="utf-8"))
             assert data["steam_api_key"] == "abc"
@@ -159,16 +155,12 @@ class TestState:
         state.skip_for_days(42, 7)
         assert "42" in state.skipped_until
         # Round-trip parse and check ~7 days in the future.
-        from datetime import datetime
-
         expiry = datetime.fromisoformat(state.skipped_until["42"])
         delta = (expiry - datetime.now(UTC)).total_seconds()
         assert 6 * 86400 < delta <= 7 * 86400 + 1
 
     def test_active_skipped_ids_returns_active(self) -> None:
         """Test active skipped ids returns active."""
-        from datetime import datetime, timedelta
-
         state = State()
         future = datetime.now(UTC) + timedelta(days=3)
         state.skipped_until["100"] = future.isoformat()
@@ -178,8 +170,6 @@ class TestState:
 
     def test_active_skipped_ids_prunes_expired(self) -> None:
         """Test active skipped ids prunes expired."""
-        from datetime import datetime, timedelta
-
         state = State()
         past = datetime.now(UTC) - timedelta(days=1)
         state.skipped_until["50"] = past.isoformat()

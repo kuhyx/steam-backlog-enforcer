@@ -4,34 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from steam_backlog_enforcer._stats import _refresh_recently_played_completions
 from steam_backlog_enforcer.config import Config
-from steam_backlog_enforcer.protondb import ProtonDBRating
-from steam_backlog_enforcer.steam_api import GameInfo, SteamAPIError
+from steam_backlog_enforcer.steam_api import AchievementInfo, GameInfo, SteamAPIError
 
 _PKG = "steam_backlog_enforcer._stats_gathering"
-
-
-def _game(
-    app_id: int = 1,
-    name: str = "G",
-    hours: float = 10.0,
-    total: int = 10,
-    unlocked: int = 0,
-) -> GameInfo:
-    return GameInfo(
-        app_id=app_id,
-        name=name,
-        total_achievements=total,
-        unlocked_achievements=unlocked,
-        playtime_minutes=60,
-        completionist_hours=hours,
-        comp_100_count=5,
-        count_comp=20,
-    )
-
-
-def _unplayable_rating(app_id: int) -> ProtonDBRating:
-    return ProtonDBRating(app_id=app_id, tier="borked")
 
 
 class TestRefreshRecentlyPlayedCompletions:
@@ -42,10 +19,6 @@ class TestRefreshRecentlyPlayedCompletions:
         games = [GameInfo(1, "G", 10, 0, 60)]
         with patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf:
             mock_sf.stat.side_effect = OSError("no file")
-            from steam_backlog_enforcer._stats import (
-                _refresh_recently_played_completions,
-            )
-
             result = _refresh_recently_played_completions(games, Config())
         assert result == games
 
@@ -60,10 +33,6 @@ class TestRefreshRecentlyPlayedCompletions:
             mock_cls.return_value.get_owned_games.side_effect = SteamAPIError(
                 "api down"
             )
-            from steam_backlog_enforcer._stats import (
-                _refresh_recently_played_completions,
-            )
-
             result = _refresh_recently_played_completions(games, Config())
         assert result == games
 
@@ -78,18 +47,11 @@ class TestRefreshRecentlyPlayedCompletions:
             mock_cls.return_value.get_owned_games.return_value = [
                 {"appid": 1, "rtime_last_played": 500_000}
             ]
-            from steam_backlog_enforcer._stats import (
-                _refresh_recently_played_completions,
-            )
-
             result = _refresh_recently_played_completions(games, Config())
         assert result == games
 
     def test_recently_played_game_is_refreshed(self) -> None:
         """Test recently played game is refreshed."""
-        from steam_backlog_enforcer._stats import _refresh_recently_played_completions
-        from steam_backlog_enforcer.steam_api import AchievementInfo
-
         game = GameInfo(1, "G", 5, 0, 60)
         new_achievements = [
             AchievementInfo("a1", "A1", achieved=True, unlock_time=1_500_001),
@@ -116,8 +78,6 @@ class TestRefreshRecentlyPlayedCompletions:
 
     def test_get_achievement_details_empty_keeps_old_game(self) -> None:
         """Test get achievement details empty keeps old game."""
-        from steam_backlog_enforcer._stats import _refresh_recently_played_completions
-
         game = GameInfo(1, "G", 5, 3, 60)
         with (
             patch(f"{_PKG}.SNAPSHOT_FILE") as mock_sf,

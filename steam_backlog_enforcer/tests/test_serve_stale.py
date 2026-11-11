@@ -10,6 +10,7 @@ server, where no launch path can skip it.
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -40,8 +41,8 @@ def _clear() -> Iterator[None]:
     reset_cache()
 
 
-@pytest.fixture
-def fake_package(tmp_path: Path) -> Path:
+@pytest.fixture(name="fake_package")
+def fixture_fake_package(tmp_path: Path) -> Path:
     """Point the module at a throwaway package tree.
 
     Args:
@@ -64,8 +65,6 @@ def _touch(path: Path, mtime: float) -> None:
         mtime: Epoch seconds to set.
     """
     path.write_text("x = 2\n", encoding="utf-8")
-    import os
-
     os.utime(path, (mtime, mtime))
 
 

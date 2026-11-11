@@ -60,13 +60,13 @@ class TestWait:
     def test_cancel_marker_raises(self, tmp_path: Path) -> None:
         """A cancel request while blocked cancels the job."""
         (tmp_path / CANCEL_NAME).touch()
-        with pytest.raises(JobCancelledError):
-            _prompter(tmp_path)._wait("p1")
+        with _ids(), pytest.raises(JobCancelledError):
+            _prompter(tmp_path).text("?")
 
     def test_zero_timeout_aborts(self, tmp_path: Path) -> None:
         """No answer in time aborts the prompt."""
-        with pytest.raises(PromptAbortedError, match="No answer within"):
-            _prompter(tmp_path, timeout=0)._wait("p1")
+        with _ids(), pytest.raises(PromptAbortedError, match="No answer within"):
+            _prompter(tmp_path, timeout=0).text("?")
 
     def test_polls_until_answer_arrives(self, tmp_path: Path) -> None:
         """An answer written during the wait is picked up."""
@@ -78,16 +78,21 @@ class TestWait:
             append_jsonl(tmp_path / ANSWERS_NAME, {"prompt_id": "p1", "value": "later"})
 
         clock.sleep.side_effect = answer_arrives
-        with patch(_TIME, clock):
-            assert prompter._wait("p1") == "later"
+        with _ids(), patch(_TIME, clock):
+            assert prompter.text("?") == "later"
 
     def test_other_prompts_answers_are_ignored(self, tmp_path: Path) -> None:
         """Only the line for this prompt id counts."""
         prompter = _prompter(tmp_path, "x", timeout=10)
         clock = MagicMock()
         clock.monotonic.side_effect = [0.0, 1.0, 100.0]
-        with patch(_TIME, clock), pytest.raises(PromptAbortedError):
-            prompter._wait("p2")
+        # The question gets id p2, so p1's answer "x" must not satisfy it.
+        with (
+            patch(_HEX, return_value="p2"),
+            patch(_TIME, clock),
+            pytest.raises(PromptAbortedError),
+        ):
+            prompter.text("?")
 
 
 class TestAsk:

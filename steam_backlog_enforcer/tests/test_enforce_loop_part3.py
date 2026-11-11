@@ -9,6 +9,7 @@ from steam_backlog_enforcer._enforce_loop import (
     do_enforce,
 )
 from steam_backlog_enforcer.config import Config, State
+from steam_backlog_enforcer.tests._enforce_loop_once import one_iteration
 from steam_backlog_enforcer.tests._fake_session import fake_session
 
 PKG = "steam_backlog_enforcer._enforce_loop"
@@ -19,6 +20,7 @@ class TestEnforceLoopIterationTotalBlock:
     """Total-block short-circuit at the top of _enforce_loop_iteration."""
 
     def test_active_short_circuits_before_assigned_game_logic(self) -> None:
+        """An active total block ticks the block and skips all assigned-game guards."""
         config = Config(kill_unauthorized_games=True, uninstall_other_games=True)
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -35,6 +37,7 @@ class TestEnforceLoopIterationTotalBlock:
         mock_installed.assert_not_called()
 
     def test_not_active_runs_normal_logic(self) -> None:
+        """Without a total block the block tick is not called."""
         config = Config(kill_unauthorized_games=False, uninstall_other_games=False)
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -47,6 +50,7 @@ class TestEnforceLoopIterationTotalBlock:
         mock_tick.assert_not_called()
 
     def test_expired_lock_triggers_cleanup_once(self) -> None:
+        """An expired block that needs cleanup is cleaned up exactly once."""
         config = Config(kill_unauthorized_games=False, uninstall_other_games=False)
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -59,6 +63,7 @@ class TestEnforceLoopIterationTotalBlock:
         mock_cleanup.assert_called_once()
 
     def test_no_lock_no_cleanup_call(self) -> None:
+        """No block and nothing to clean means no cleanup call."""
         config = Config(kill_unauthorized_games=False, uninstall_other_games=False)
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -75,18 +80,13 @@ class TestDoEnforceTotalBlock:
     """Total-block awareness in do_enforce's one-time setup."""
 
     def test_active_skips_enforce_setup_but_still_loops(self) -> None:
+        """Under a total block do_enforce skips setup but still runs the loop."""
         state = State()  # no assigned game
         config = Config()
         with (
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}._enforce_setup") as mock_setup,
-            patch(f"{PKG}._echo"),
-            patch.object(State, "load", return_value=state),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ),
-            patch(f"{PKG}.open_file_wake"),
+            one_iteration(state),
         ):
             do_enforce(config, state)
         mock_setup.assert_not_called()
@@ -98,16 +98,10 @@ class TestDoEnforceTotalBlock:
         with (
             patch(f"{PKG}.is_total_block_active", return_value=True),
             patch(f"{PKG}._enforce_setup"),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "load", return_value=state),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ) as mock_iter,
-            patch(f"{PKG}.open_file_wake"),
+            one_iteration(state) as mocks,
         ):
             do_enforce(config, state)
-        mock_iter.assert_called_once()
+        mocks.iteration.assert_called_once()
 
     def test_inactive_with_no_game_still_enters_the_loop(self) -> None:
         """No assigned game must NOT exit the process.
@@ -119,19 +113,13 @@ class TestDoEnforceTotalBlock:
         state = State()
         with (
             patch(f"{PKG}.is_total_block_active", return_value=False),
-            patch(f"{PKG}._echo") as mock_echo,
-            patch.object(State, "load", return_value=state),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ) as mock_iter,
-            patch(f"{PKG}.open_file_wake"),
+            one_iteration(state) as mocks,
         ):
             do_enforce(Config(), state)
-        output = " ".join(str(c) for c in mock_echo.call_args_list)
+        output = " ".join(str(c) for c in mocks.echo.call_args_list)
         assert "No game" in output
         assert "budget is still enforced" in output
-        mock_iter.assert_called_once()
+        mocks.iteration.assert_called_once()
 
 
 class TestPlaytimeIsEnforcedFirst:
@@ -150,6 +138,7 @@ class TestPlaytimeIsEnforcedFirst:
         mock_playtime.assert_called_once()
 
     def test_receives_the_loop_interval(self) -> None:
+        """playtime_tick gets the 3 s loop interval and demo off by default."""
         config = Config()
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -162,6 +151,7 @@ class TestPlaytimeIsEnforcedFirst:
         assert mock_playtime.call_args.kwargs["demo"] is False
 
     def test_demo_flag_is_plumbed_through(self) -> None:
+        """The demo flag reaches playtime_tick."""
         config = Config()
         state = State(current_app_id=1, current_game_name="G")
         with (
@@ -173,18 +163,13 @@ class TestPlaytimeIsEnforcedFirst:
         assert mock_playtime.call_args.kwargs["demo"] is True
 
     def test_do_enforce_plumbs_demo_into_the_iteration(self) -> None:
+        """do_enforce passes its demo flag into each loop iteration."""
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.steam_is_installed", return_value=True),
             patch(f"{PKG}._enforce_setup"),
-            patch(f"{PKG}._echo"),
-            patch.object(State, "load", return_value=state),
-            patch(
-                f"{PKG}._enforce_loop_iteration",
-                side_effect=KeyboardInterrupt,
-            ) as mock_iter,
-            patch(f"{PKG}.open_file_wake"),
+            one_iteration(state) as mocks,
         ):
             do_enforce(Config(), state, demo=True)
-        assert mock_iter.call_args.kwargs["demo"] is True
+        assert mocks.iteration.call_args.kwargs["demo"] is True

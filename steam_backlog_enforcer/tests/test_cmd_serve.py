@@ -38,6 +38,7 @@ class TestCmdServe:
     """
 
     def test_invokes_serve_with_parsed_args(self) -> None:
+        """The parsed port is checked for availability and then served."""
         with (
             patch.object(misc_mod, "frontend_is_stale", return_value=False),
             patch.object(misc_mod, "ensure_port_available") as guard,
@@ -48,6 +49,7 @@ class TestCmdServe:
         mock_serve.assert_called_once_with(DEFAULT_HOST, 8123)
 
     def test_stale_frontend_is_rebuilt_before_binding(self) -> None:
+        """A stale frontend is rebuilt before the port check runs."""
         # Order matters: a failed build must not cost the caller the server
         # that was already running, so the build happens before the port check.
         _CALLS.clear()
@@ -61,6 +63,7 @@ class TestCmdServe:
         assert _CALLS == ["build", "guard"]
 
     def test_failed_build_exits_1(self) -> None:
+        """A failed rebuild exits 1 without checking the port or serving."""
         with (
             patch.object(misc_mod, "frontend_is_stale", return_value=True),
             patch.object(misc_mod, "build_frontend", return_value=False),
@@ -74,6 +77,7 @@ class TestCmdServe:
         mock_serve.assert_not_called()
 
     def test_port_stolen_after_the_check_exits_1(self) -> None:
+        """A port taken between the check and the bind exits 1 with a message."""
         # Covers the race between the /proc scan and the actual bind.
         taken = OSError(errno.EADDRINUSE, "Address already in use")
         with (
@@ -88,6 +92,7 @@ class TestCmdServe:
         assert "was taken while starting up" in echo.call_args[0][0]
 
     def test_unrelated_oserror_propagates(self) -> None:
+        """An OSError other than address-in-use propagates."""
         # Swallowing this would turn a real fault into a bare "try again".
         denied = OSError(errno.EACCES, "Permission denied")
         with (
