@@ -56,7 +56,7 @@ export function timelineSvg(pts: readonly TimelinePoint[], now: Date = new Date(
   const area = `${path} L${sx(maxDay).toFixed(1)} ${sy(0).toFixed(1)} L${sx(0).toFixed(1)} ${sy(0).toFixed(1)} Z`
   const fractions = [0, 0.25, 0.5, 0.75, 1]
 
-  const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img', 'aria-label': 'Completion timeline' })
+  const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img', 'aria-label': 'Games completion timeline chart' })
   for (const g of fractions.map((f) => Math.round(f * maxGames))) {
     const group = svg('g', {})
     group.append(
@@ -72,7 +72,7 @@ export function timelineSvg(pts: readonly TimelinePoint[], now: Date = new Date(
   return root
 }
 
-/** The whole `.chart` box: title, SVG (or why there is none) and caption. */
+/** The whole `.chart` box: SVG (or why there is none) and caption. */
 export function timelineChart(
   result: EstimateResult,
   filters: Filters,
@@ -82,17 +82,13 @@ export function timelineChart(
   const pts = timelinePoints(result, filters, state)
   const box = document.createElement('div')
   box.className = 'chart'
-  const title = document.createElement('h2')
-  const hint = document.createElement('p')
-  hint.className = 'hint'
   if (pts.length < 2) {
-    title.textContent = 'Completion timeline'
-    hint.textContent = 'Not enough games in scope to draw a timeline.'
-    box.append(title, hint)
+    const hint = document.createElement('p')
+    hint.className = 'hint empty-state'
+    hint.innerHTML = '<span class="empty-icon" aria-hidden="true">📭</span><span class="sr-only">Not enough games in scope to draw a timeline.</span>'
+    box.append(hint)
     return box
   }
-  title.textContent = `Completion timeline · ${filters.basis}`
-  hint.textContent = 'Cumulative games finished over time (shortest games first).'
-  box.append(title, timelineSvg(pts, now), hint)
+  box.append(timelineSvg(pts, now))
   return box
 }

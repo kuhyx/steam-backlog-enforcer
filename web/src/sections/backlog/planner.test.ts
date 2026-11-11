@@ -28,7 +28,6 @@ describe('<game-table> planner', () => {
     expect(big()).toBe('2')
     await user.click(panel().getByRole('button', { name: 'Rush' }))
     expect(document.querySelector('.card.active .card-title')?.textContent).toBe('Rush')
-    expect(document.querySelector('.chart h2')?.textContent).toBe('Completion timeline · rush')
     expect(hash().get('basis')).toBe('rush')
 
     const box = within(table()).getAllByRole('checkbox')[0]
@@ -42,13 +41,13 @@ describe('<game-table> planner', () => {
     expect(big()).toBe('2')
     expect(box.closest('tr')).not.toHaveClass('excluded')
 
-    await user.type(screen.getByPlaceholderText(/Search games/i), 'Alpha')
+    await user.type(screen.getByLabelText('Search games'), 'Alpha')
     expect(names()).toEqual(['Alpha'])
 
     await user.click(screen.getByRole('button', { name: /Reset to CLI defaults/i }))
     expect(big()).toBe('2')
     expect(names()).toHaveLength(2)
-    expect(screen.getByPlaceholderText(/Search games/i)).toHaveValue('')
+    expect(screen.getByLabelText('Search games')).toHaveValue('')
     expect(location.hash).toBe('')
   })
 
@@ -85,11 +84,11 @@ describe('<game-table> planner', () => {
   it('restores sort, search, column and planner filters from the hash on load', async () => {
     history.replaceState(null, '', '/backlog/#sort=name&dir=desc&q=a&f.rush=1..15&f.proton=gold&basis=worst')
     await show()
-    expect(screen.getByPlaceholderText(/Search games/i)).toHaveValue('a')
+    expect(screen.getByLabelText('Search games')).toHaveValue('a')
     expect(screen.getByRole('spinbutton', { name: 'Rush min' })).toHaveValue(1)
     expect(screen.getByRole('spinbutton', { name: 'Rush max' })).toHaveValue(15)
     expect(screen.getByRole('combobox', { name: 'Filter ProtonDB' })).toHaveValue('gold')
-    expect(header('Game').textContent).toBe('Game ▼')
+    expect(header('Game').textContent).toBe('🎮 ▼')
     expect(panel().getByRole('button', { name: 'Worst' })).toHaveClass('active')
     expect(names()).toEqual(['Alpha'])
   })

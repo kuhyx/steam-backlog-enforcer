@@ -15,27 +15,31 @@ describe('notice', () => {
     expect(full.querySelector('.notice-title')?.textContent).toBe('Title')
     expect(full.querySelector('.notice-text')?.textContent).toBe('body')
     const bare = notice('success', null)
-    expect(bare.children).toHaveLength(0)
+    expect(bare.querySelector('.notice-icon')).not.toBeNull()
+    expect(bare.querySelector('.notice-text')).toBeNull()
+    expect(bare.querySelector('.notice-title')).toBeNull()
   })
 })
 
 describe('errorNotice', () => {
   it('explains an ApiFailure with detail, hint and extras', () => {
     const el = errorNotice(new ApiFailure('busy', 'Job j1 runs', 409), h('em', {}, 'extra'))
-    expect(el).toHaveTextContent('Another job is running')
+    expect(el).toHaveAttribute('data-code', 'busy')
+    expect(el.getAttribute('aria-label')).toContain('Another job is running')
+    expect(el.getAttribute('aria-label')).toContain('Only one state-changing job')
     expect(el).toHaveTextContent('Job j1 runs')
-    expect(el).toHaveTextContent('Only one state-changing job')
+    expect(el).not.toHaveTextContent('Another job is running')
     expect(el.querySelector('em')).not.toBeNull()
   })
 
   it('omits the detail line when the message is empty', () => {
     const el = errorNotice(new ApiFailure('busy', '', 409))
-    expect(el.querySelectorAll('p')).toHaveLength(1)
+    expect(el.querySelectorAll('p')).toHaveLength(0)
   })
 })
 
 describe('copyButton and commandLine', () => {
-  it('copies, shows Copied, then restores the label', async () => {
+  it('copies, shows check icon, then restores clipboard icon', async () => {
     vi.useFakeTimers()
     const writeText = vi.fn(() => Promise.resolve())
     vi.stubGlobal('navigator', { clipboard: { writeText } })
@@ -43,13 +47,11 @@ describe('copyButton and commandLine', () => {
     btn.click()
     await vi.advanceTimersByTimeAsync(0)
     expect(writeText).toHaveBeenCalledWith('sudo x')
-    expect(btn.textContent).toBe('Copied')
+    expect(btn.textContent).toBe('✅')
+    expect(btn.getAttribute('aria-label')).toBe('Copied')
     await vi.advanceTimersByTimeAsync(2000)
-    expect(btn.textContent).toBe('Copy')
-  })
-
-  it('uses a custom label', () => {
-    expect(copyButton('x', 'Grab').textContent).toBe('Grab')
+    expect(btn.textContent).toBe('📋')
+    expect(btn.getAttribute('aria-label')).toBe('Copy command')
   })
 
   it('commandLine shows the command beside its copy button', () => {
@@ -60,26 +62,30 @@ describe('copyButton and commandLine', () => {
 })
 
 describe('small builders', () => {
-  it('loading names what is loading', () => {
+  it('loading has a spinner and sr-only label', () => {
     const el = loading('jobs')
-    expect(el).toHaveTextContent('Loading jobs…')
+    expect(el.querySelector('.spinner')).not.toBeNull()
+    expect(el.querySelector('.sr-only')?.textContent).toBe('Loading jobs')
     expect(el.getAttribute('role')).toBe('status')
   })
 
-  it('empty, pill and link', () => {
-    expect(empty('Nothing').className).toBe('empty')
-    expect(pill('danger', 'x').className).toBe('pill pill-danger')
+  it('empty has an icon and passes through children', () => {
+    const el = empty('Nothing')
+    expect(el.className).toBe('empty')
+    expect(el.querySelector('.empty-icon')?.textContent).toBe('📭')
+  })
+
+  it('pill has an icon for known tones', () => {
+    const el = pill('danger', 'x')
+    expect(el.className).toBe('pill pill-danger')
+    expect(el.querySelector('.pill-icon')).not.toBeNull()
+  })
+
+  it('link is an anchor', () => {
     const a = link('/library/', 'Open')
     expect(a.getAttribute('href')).toBe('/library/')
     expect(a.className).toBe('btn btn-ghost btn-small')
     expect(link('/x/', 'Y', 'custom').className).toBe('custom')
-  })
-
-  it('facts lays out label/value rows', () => {
-    const el = facts([['A', '1'], ['B', h('b', {}, '2')]])
-    expect(el.querySelectorAll('.fact')).toHaveLength(2)
-    expect(el.querySelector('dt')?.textContent).toBe('A')
-    expect(el.querySelectorAll('dd')[1].textContent).toBe('2')
   })
 })
 
@@ -96,12 +102,21 @@ describe('card', () => {
     const asideOnly = card(null, 'b', { aside: 'right' })
     expect(asideOnly.querySelector('h2')).toBeNull()
     expect(asideOnly.querySelector('.box-head')).toHaveTextContent('right')
-    expect(asideOnly.hasAttribute('aria-label')).toBe(false)
+    expect(asideOnly.getAttribute('aria-label')).toBe('')
     const titleOnly = card('T', 'b')
     expect(titleOnly.className).toBe('box')
     expect(titleOnly.querySelector('.box-head')?.children).toHaveLength(1)
     const none = card(null, 'b')
     expect(none.querySelector('.box-head')).toBeNull()
     expect(none).toHaveTextContent('b')
+  })
+})
+
+describe('facts', () => {
+  it('lays out label/value rows', () => {
+    const el = facts([['A', '1'], ['B', h('b', {}, '2')]])
+    expect(el.querySelectorAll('.fact')).toHaveLength(2)
+    expect(el.querySelector('dt')?.textContent).toBe('A')
+    expect(el.querySelectorAll('dd')[1].textContent).toBe('2')
   })
 })

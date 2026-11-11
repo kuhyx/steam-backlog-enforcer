@@ -26,12 +26,12 @@ export function eta(p: Progress, live: LiveJob, now: number): number | null {
 }
 
 const DONE: ReadonlySet<JobState> = new Set(['succeeded', 'failed', 'cancelled'])
-const FINISHED_LABEL: Record<'succeeded' | 'failed' | 'cancelled', string> = {
-  succeeded: 'Completed',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
+const DONE_LABEL: Record<'succeeded' | 'failed' | 'cancelled', string> = {
+  succeeded: '✅',
+  failed: '⛔',
+  cancelled: '🚫',
 }
-const isDone = (s: JobState): s is keyof typeof FINISHED_LABEL => DONE.has(s)
+const isDone = (s: JobState): s is keyof typeof DONE_LABEL => DONE.has(s)
 
 export class JobProgressElement extends LiveElement {
   private cancel = new Action(() => api.cancelJob(this.jobId), () => {
@@ -125,9 +125,10 @@ export class JobProgressElement extends LiveElement {
     const fraction = finished ? 1 : progress && progress.total !== null && progress.total > 0 ? progress.step / progress.total : null
     const tone = state === 'failed' ? 'danger' : state === 'succeeded' ? 'success' : waiting ? 'warning' : 'accent'
     const remaining = progress && !finished && !waiting ? eta(progress, live, now) : null
-    const title = job ? commandLabel(job.command) : 'Job'
+    const title = job ? commandLabel(job.command) : ''
 
     f.section.className = compact ? 'job job-compact' : 'job'
+    f.section.dataset.state = state
     f.section.setAttribute('aria-label', `Job ${job ? commandLabel(job.command) : id}`)
     f.title.textContent = title
     f.badge.replaceChildren(stateBadge(state))
@@ -137,21 +138,20 @@ export class JobProgressElement extends LiveElement {
         ? ''
         : h(
             'span',
-            { class: live.connected ? 'dot dot-live' : 'dot dot-off', title: live.connected ? 'Live' : 'Reconnecting…' },
-            h('span', { class: 'sr-only' }, live.connected ? 'Live' : 'Reconnecting'),
+            { class: live.connected ? 'dot dot-live' : 'dot dot-off', role: 'img', 'aria-label': live.connected ? 'Live' : 'Reconnecting' },
           ),
     )
     f.phase.replaceChildren(
       h(
         'span',
         { class: 'job-label' },
-        isDone(state) ? FINISHED_LABEL[state] : waiting ? 'Waiting for your answer' : (progress?.label ?? 'Starting…'),
+        isDone(state) ? DONE_LABEL[state] : waiting ? '⏳' : (progress?.label ?? ''),
       ),
       !finished && progress && progress.total !== null
-        ? h('span', { class: 'job-step' }, `Step ${progress.step} of ${progress.total}`)
+        ? h('span', { class: 'job-step' }, `${progress.step}/${progress.total}`)
         : '',
     )
-    f.bar.replaceChildren(progressBar(fraction, progress?.label ?? 'Progress', tone))
+    f.bar.replaceChildren(progressBar(fraction, progress?.label ?? '', tone))
     f.sub.replaceChildren(
       ...(finished
         ? []
@@ -163,7 +163,7 @@ export class JobProgressElement extends LiveElement {
               h(
                 'span',
                 { class: 'job-eta' },
-                remaining !== null ? `about ${clock(remaining)} left` : waiting ? 'paused' : progress?.total === null ? 'working…' : '',
+                remaining !== null ? clock(remaining) : '',
               ),
             ),
           ]),
@@ -171,7 +171,7 @@ export class JobProgressElement extends LiveElement {
     this.updatePrompt(f, live, state)
     f.result.replaceChildren(
       ...(live.result
-        ? [notice(live.result.ok ? 'success' : 'danger', live.result.ok ? 'Done' : 'Did not complete', live.result.summary)]
+        ? [notice(live.result.ok ? 'success' : 'danger', null, live.result.summary)]
         : []),
     )
     f.actions.replaceChildren(
@@ -183,8 +183,8 @@ export class JobProgressElement extends LiveElement {
               { class: 'actions' },
               h(
                 'button',
-                { type: 'button', class: 'btn btn-ghost', disabled: this.cancel.pending, onclick: () => void this.cancel.run() },
-                this.cancel.pending ? 'Cancelling…' : 'Cancel job',
+                { type: 'button', class: 'btn btn-ghost', disabled: this.cancel.pending, onclick: () => void this.cancel.run(), 'aria-label': this.cancel.pending ? 'Cancelling…' : 'Cancel job' },
+                this.cancel.pending ? '⏳' : '✕',
               ),
             ),
           ]
@@ -204,14 +204,18 @@ export class JobProgressElement extends LiveElement {
 
   private updateLog(f: NonNullable<JobProgressElement['frame']>, live: LiveJob, finished: boolean, compact: boolean): void {
     const logs = live.logs
-    f.summary.textContent = `Log (${logs.length} lines)`
+    f.summary.replaceChildren(
+      h('span', { class: 'log-count-icon', 'aria-hidden': 'true' }, '📋'),
+      h('span', { class: 'log-count', 'aria-hidden': 'true' }, String(logs.length)),
+    )
+    f.summary.setAttribute('aria-label', `${logs.length} lines`)
     // Open once on errors or at the end; after that the user owns the toggle.
     if (!this.autoOpened && !compact && (finished || logs.some((l) => l.level === 'error'))) {
       f.details.open = true
       this.autoOpened = true
     }
     if (logs.length === 0) {
-      f.log.replaceChildren(h('li', { class: 'muted' }, finished ? 'No output.' : 'No output yet.'))
+      f.log.replaceChildren(h('li', { class: 'muted log-empty', 'aria-label': finished ? 'No output.' : 'No output yet.' }, finished ? '—' : ''))
       this.logCount = 0
       return
     }

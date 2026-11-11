@@ -3,13 +3,13 @@
 import type { JobState } from '../api/jobContract'
 import { h } from '../lib/dom'
 
-const STATE_LABEL: Record<JobState, string> = {
-  queued: 'Queued',
-  running: 'Running',
-  waiting_input: 'Needs your input',
-  succeeded: 'Succeeded',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
+const STATE_ICON: Record<JobState, string> = {
+  queued: '⏸️',
+  running: '▶️',
+  waiting_input: '⚠️',
+  succeeded: '✅',
+  failed: '⛔',
+  cancelled: '🚫',
 }
 
 const STATE_TONE: Record<JobState, string> = {
@@ -22,7 +22,7 @@ const STATE_TONE: Record<JobState, string> = {
 }
 
 export function stateBadge(state: JobState): HTMLSpanElement {
-  return h('span', { class: `pill pill-${STATE_TONE[state]}` }, STATE_LABEL[state])
+  return h('span', { class: `pill pill-${STATE_TONE[state]}`, 'aria-label': state }, h('span', { class: 'pill-icon', 'aria-hidden': 'true' }, STATE_ICON[state]))
 }
 
 export type BarTone = 'accent' | 'success' | 'danger' | 'warning'

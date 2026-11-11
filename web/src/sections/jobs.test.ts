@@ -41,7 +41,7 @@ describe('jobs list', () => {
     expect(screen.getByText('1:05')).toBeInTheDocument()
     expect(screen.getByText('Picked 5')).toBeInTheDocument()
     expect(screen.getByText('Scanning')).toBeInTheDocument()
-    expect(screen.getAllByText('Running')).toHaveLength(2)
+    expect(screen.getAllByLabelText('running')).toHaveLength(2)
   })
 
   it('keeps the table and its links across ticks, updating only durations', async () => {

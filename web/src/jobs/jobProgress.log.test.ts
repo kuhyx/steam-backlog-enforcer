@@ -11,7 +11,8 @@ describe('<job-progress> log', () => {
     const { el, send } = mountJob()
     send('log', { level: 'info', message: 'hello' })
     send('log', { level: 'warning', message: 'careful' })
-    expect(sel(el, 'summary')).toHaveTextContent('Log (2 lines)')
+    expect(sel(el, '.log-count')).toHaveTextContent('2')
+    expect(sel(el, 'summary')).toHaveAttribute('aria-label', '2 lines')
     expect(el.querySelectorAll('.log li')).toHaveLength(2)
     expect(sel(el, '.log-info')).toHaveTextContent('10:00:00 hello')
     expect(sel(el, '.log-warning')).toHaveTextContent('careful')
@@ -46,7 +47,7 @@ describe('<job-progress> log', () => {
 
   it('says nothing has been printed yet', () => {
     const { el } = mountJob()
-    expect(sel(el, '.log')).toHaveTextContent('No output yet.')
+    expect(sel(el, '.log-empty')).toHaveAttribute('aria-label', 'No output yet.')
   })
 
   it('rebuilds the list when the newest-lines window slides', () => {
@@ -79,7 +80,7 @@ describe('<job-progress> lifecycle', () => {
     el.remove()
     document.body.append(el)
     expect(sel(el, 'section')).not.toBe(section)
-    expect(sel(el, 'summary')).toHaveTextContent('Log (1 lines)')
+    expect(sel(el, '.log-count')).toHaveTextContent('1')
     expect(sel(el, 'details')).toHaveAttribute('open')
   })
 })

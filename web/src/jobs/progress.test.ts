@@ -3,17 +3,18 @@ import type { JobState } from '../api/jobContract'
 import { progressBar, stateBadge } from './progress'
 
 describe('stateBadge', () => {
-  it.each<[JobState, string, string]>([
-    ['queued', 'Queued', 'neutral'],
-    ['running', 'Running', 'accent'],
-    ['waiting_input', 'Needs your input', 'warning'],
-    ['succeeded', 'Succeeded', 'success'],
-    ['failed', 'Failed', 'danger'],
-    ['cancelled', 'Cancelled', 'neutral'],
-  ])('labels %s', (state, label, tone) => {
+  it.each<[JobState, string]>([
+    ['queued', 'neutral'],
+    ['running', 'accent'],
+    ['waiting_input', 'warning'],
+    ['succeeded', 'success'],
+    ['failed', 'danger'],
+    ['cancelled', 'neutral'],
+  ])('labels %s', (state, tone) => {
     const el = stateBadge(state)
-    expect(el.textContent).toBe(label)
+    expect(el.getAttribute('aria-label')).toBe(state)
     expect(el.className).toBe(`pill pill-${tone}`)
+    expect(el.querySelector('.pill-icon')).not.toBeNull()
   })
 })
 

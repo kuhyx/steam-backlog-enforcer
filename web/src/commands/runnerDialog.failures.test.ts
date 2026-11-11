@@ -45,14 +45,14 @@ describe('<runner-dialog> start failures', () => {
   it('has no fallback for a command without one', async () => {
     openRunner([makeSpec('scan')], 'scan', { extra: { 'POST /api/jobs': apiError(502, 'daemon_unreachable') } })
     submit(await found('Run scan'))
-    await waitText('Root daemon unreachable')
+    await vi.waitFor(() => { expect(document.querySelector('[data-code="daemon_unreachable"]')).not.toBeNull() })
     expect(text()).not.toContain('terminal instead')
   })
 
   it('copes with a garbled reply', async () => {
     openRunner([makeSpec('scan')], 'scan', { extra: { 'POST /api/jobs': new Reply(200, undefined, '{garbled') } })
     submit(await found('Run scan'))
-    await waitText('Unexpected server error')
+    await vi.waitFor(() => { expect(document.querySelector('[data-code="http"]')).not.toBeNull() })
   })
 
   it('shows Starting… while waiting', async () => {

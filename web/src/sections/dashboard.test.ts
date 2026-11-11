@@ -233,7 +233,7 @@ describe('Dashboard', () => {
       expect(document.querySelectorAll('.rows .row-link')).toHaveLength(5)
       const first = document.querySelector('a[href="/jobs/?id=a"]')
       expect(first).toHaveTextContent('Scan')
-      expect(first).toHaveTextContent('Succeeded')
+      expect(first?.querySelector('.pill')).toHaveAttribute('aria-label', 'succeeded')
       expect(screen.queryByText(/No jobs yet/)).not.toBeInTheDocument()
     })
 

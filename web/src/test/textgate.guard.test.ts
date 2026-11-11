@@ -15,7 +15,7 @@ const WORD_RE = /[A-Za-z]{2,}/
 
 function spokenOnly(el: Element | null): boolean {
   for (let cur = el; cur; cur = cur.parentElement) {
-    if (cur.classList.contains('sr-only') || cur.getAttribute('aria-hidden') === 'true' || cur.hidden) return true
+    if (cur.classList.contains('sr-only') || cur.getAttribute('aria-hidden') === 'true' || (cur instanceof HTMLElement && cur.hidden)) return true
   }
   return false
 }

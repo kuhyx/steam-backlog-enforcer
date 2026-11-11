@@ -37,17 +37,16 @@ describe('timelineChart', () => {
   it('shows a fallback message with fewer than two games', () => {
     const box = chart(1)
     expect(box.textContent).toContain('Not enough games in scope to draw a timeline.')
-    expect(box.querySelector('h2')?.textContent).toBe('Completion timeline')
+    expect(box.querySelector('.empty-icon')).not.toBeNull()
+    expect(box.querySelector('.sr-only')?.textContent).toBe('Not enough games in scope to draw a timeline.')
     expect(box.querySelector('svg')).toBeNull()
   })
 
   it('draws an SVG line for the hours basis', () => {
     const box = chart(3, 'leisure')
-    expect(box.querySelector('h2')?.textContent).toBe('Completion timeline · leisure')
     expect(box.querySelector('svg.chart-svg')).not.toBeNull()
     expect(box.querySelector('path.line')?.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ L/)
     expect(box.querySelector('path.area')?.getAttribute('d')).toMatch(/ Z$/)
-    expect(box.querySelector('.hint')?.textContent).toMatch(/shortest games first/)
   })
 
   it('labels the y axis in games and the x axis in dates from now', () => {

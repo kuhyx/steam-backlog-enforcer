@@ -7,9 +7,11 @@ export function setValue(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-/** The button inside `root` whose text is exactly `text`. */
+/** The button inside `root` whose text or (icon-only buttons) aria-label is exactly `text`. */
 export function button(root: ParentNode, text: string): HTMLButtonElement {
-  const found = [...root.querySelectorAll('button')].find((b) => b.textContent === text)
+  const found = [...root.querySelectorAll('button')].find(
+    (b) => b.textContent === text || b.getAttribute('aria-label') === text,
+  )
   if (!found) throw new Error(`no button "${text}"`)
   return found
 }

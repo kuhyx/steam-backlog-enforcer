@@ -36,16 +36,30 @@ export function hltbUrl(game: WebGame): string {
 
 const optionLabel = (c: Column, v: string) => (c.key === 'keep' ? (v === 'kept' ? 'Kept' : 'Excluded') : v)
 
+// Textgate: column headers are pictograms; the column name is the button's
+// aria-label (spoken only), the sort arrow stays visible.
+const COLUMN_ICON: Record<ColumnKey, string> = {
+  name: '🎮',
+  completion: '%',
+  playtime: '⏱',
+  rush: '🐇',
+  leisure: '🐢',
+  worst: '🐌',
+  count_comp: '#',
+  proton: '🐧',
+  keep: '📌',
+}
+
 export class PlannerTable {
   readonly el: HTMLElement
   private readonly opts: PlannerTableOptions
-  private readonly count = h('h2')
-  private readonly search = h('input', { type: 'search', placeholder: 'Search games…', 'aria-label': 'Search games' })
+  private readonly count = h('span', { class: 'games-count', 'aria-label': 'Visible games' })
+  private readonly search = h('input', { type: 'search', 'aria-label': 'Search games', placeholder: '' })
   private readonly heads: [Column, HTMLTableCellElement, HTMLButtonElement][] = []
   private readonly inputs = new Map<string, HTMLInputElement | HTMLSelectElement>()
   private readonly selects: [Column, HTMLSelectElement][] = []
   private readonly tbody = h('tbody')
-  private readonly overflow = h('p', { class: 'hint' })
+  private readonly overflow = h('span', { class: 'overflow-hint' })
   private readonly rows = new Map<number, RowEls>()
 
   constructor(opts: PlannerTableOptions) {
@@ -66,13 +80,15 @@ export class PlannerTable {
   show(all: readonly GameRow[], visible: readonly GameRow[], table: TableState): void {
     this.syncOptions(all, table)
     this.syncHeads(table)
-    this.count.textContent = `Games (${visible.length})`
+    this.count.textContent = String(visible.length)
+    this.count.setAttribute('aria-label', `${visible.length} visible games`)
     const trs = visible.slice(0, DISPLAY_CAP).map((r) => this.rowFor(r))
     const current = this.tbody.children
     // Re-order only when the order changed: moving a row would blur its checkbox.
     if (trs.length !== current.length || trs.some((tr, i) => current[i] !== tr)) this.tbody.replaceChildren(...trs)
     this.overflow.hidden = visible.length <= DISPLAY_CAP
-    this.overflow.textContent = `Showing first ${DISPLAY_CAP} of ${visible.length}. Use search to narrow.`
+    this.overflow.textContent = `${DISPLAY_CAP}/${visible.length}`
+    this.overflow.setAttribute('aria-label', `Showing first ${DISPLAY_CAP} of ${visible.length} games`)
   }
 
   private build(): HTMLElement {
@@ -86,7 +102,7 @@ export class PlannerTable {
       }
       if (c.filter === 'range') {
         const bound = (side: 'min' | 'max') =>
-          field(`${c.key}.${side}`, h('input', { type: 'number', inputmode: 'decimal', placeholder: side, 'aria-label': `${c.label} ${side}` }))
+          field(`${c.key}.${side}`, h('input', { type: 'number', inputmode: 'decimal', placeholder: side === 'min' ? '≥' : '≤', 'aria-label': `${c.label} ${side}` }))
         return h('td', { class: 'range-filter' }, h('div', {}, bound('min'), bound('max')))
       }
       if (c.filter === 'select') {
@@ -94,11 +110,11 @@ export class PlannerTable {
         this.selects.push([c, select])
         return h('td', {}, field(c.key, select))
       }
-      return h('td', {}, field(c.key, h('input', { type: 'search', placeholder: 'Filter…', 'aria-label': `Filter ${c.label}` })))
+      return h('td', {}, field(c.key, h('input', { type: 'search', placeholder: '', 'aria-label': `Filter ${c.label}` })))
     }
     const headCell = (c: Column): HTMLTableCellElement => {
-      const button = h('button', { type: 'button', class: 'sort-btn' }, c.label)
-      const th = h('th', { class: c.numeric ? 'num clickable' : 'clickable', scope: 'col' }, button)
+      const button = h('button', { type: 'button', class: 'sort-btn', 'aria-label': c.label }, COLUMN_ICON[c.key])
+      const th = h('th', { class: c.numeric ? 'num clickable' : 'clickable', scope: 'col', 'aria-label': c.label }, button)
       th.addEventListener('click', () => {
         this.opts.onSort(c.key)
       })
@@ -177,7 +193,7 @@ export class PlannerTable {
     for (const [c, th, button] of this.heads) {
       const active = c.key === table.sort
       const arrow = active ? (table.asc ? ' ▲' : ' ▼') : ''
-      button.textContent = `${c.label}${arrow}`
+      button.textContent = `${COLUMN_ICON[c.key]}${arrow}`
       if (active) th.setAttribute('aria-sort', table.asc ? 'ascending' : 'descending')
       else th.removeAttribute('aria-sort')
     }

@@ -10,10 +10,11 @@ describe('copyButton without a clipboard', () => {
     vi.stubGlobal('navigator', {})
     const errors = vi.fn()
     window.addEventListener('error', errors)
-    const btn = copyButton('abc', 'Copy it')
+    const btn = copyButton('abc')
     btn.click()
     window.removeEventListener('error', errors)
     expect(errors).not.toHaveBeenCalled()
-    expect(btn.textContent).toBe('Copy it')
+    // Icon stays as clipboard icon since copy failed
+    expect(btn.textContent).toBe('📋')
   })
 })

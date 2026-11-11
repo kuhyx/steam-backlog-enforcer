@@ -11,14 +11,14 @@ afterEach(() => {
 describe('<game-table> table', () => {
   it('renders the row count', async () => {
     await show()
-    expect(screen.getByText('Games (3)')).toBeInTheDocument()
+    expect(document.querySelector('.games-count')?.textContent).toBe('3')
   })
 
   it('sorts by leisure ascending by default', async () => {
     await show()
     expect(names()).toEqual(['Beta', 'Gamma', 'Alpha'])
     expect(header('Leisure')).toHaveAttribute('aria-sort', 'ascending')
-    expect(header('Leisure').textContent).toBe('Leisure ▲')
+    expect(header('Leisure').textContent).toBe('🐢 ▲')
   })
 
   it('toggles sort direction when a header is clicked', async () => {
@@ -50,13 +50,13 @@ describe('<game-table> table', () => {
 
   it('filters by a typo-tolerant search and keeps focus while typing', async () => {
     const { user } = await show()
-    const box = screen.getByPlaceholderText(/Search games/i)
+    const box = screen.getByLabelText('Search games')
     await user.type(box, 'gama')
     expect(names()).toEqual(['Gamma'])
     expect(document.activeElement).toBe(box)
-    expect(screen.getByPlaceholderText(/Search games/i)).toBe(box)
+    expect(screen.getByLabelText('Search games')).toBe(box)
     expect(hash().get('q')).toBe('gama')
-    expect(screen.getByText('Games (1)')).toBeInTheDocument()
+    expect(document.querySelector('.games-count')?.textContent).toBe('1')
   })
 
   it('narrows rows by a text column filter without losing focus', async () => {
@@ -116,12 +116,12 @@ describe('<game-table> table', () => {
 
   it('caps the table and notes the overflow', async () => {
     await show(Array.from({ length: 301 }, (_, i) => makeGame({ app_id: i + 1, name: `Game ${i}` })))
-    expect(screen.getByText(/Showing first 300 of 301/i)).toBeVisible()
+    expect(screen.getByText('300/301')).toBeVisible()
     expect(table().querySelectorAll('tbody tr')).toHaveLength(300)
   })
 
   it('hides the overflow note under the cap', async () => {
     await show()
-    expect(screen.getByText(/Showing first 300/i)).not.toBeVisible()
+    expect(document.querySelector('.overflow-hint')).not.toBeVisible()
   })
 })
