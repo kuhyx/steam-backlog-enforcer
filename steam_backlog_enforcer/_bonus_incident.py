@@ -41,7 +41,7 @@ INCIDENT_LOG: Final = (
     Path(__file__).resolve().parents[1] / "leetcode_bonus_incidents.log"
 )
 
-_TITLE: Final = "Gaming budget: LeetCode bonus not applied"
+_TITLE: Final = "🧩❌🎮"
 
 # reason -> the local day it was last reported on.
 _reported: dict[str, str] = {}
@@ -69,7 +69,9 @@ def report_leetcode_incident(reason: str, *, fix: str) -> None:
 
     body = f"{reason}. Budget is 1h lower until this is fixed. Try: {fix}"
     logger.warning("LeetCode bonus not applied - %s. Try: %s", reason, fix)
-    notify_desktop_user(_TITLE, body)
+    # Textgate: the toast paints the bonus glyph, the lost hour and the fix
+    # command (content kuhy runs); the sentence stays in the log and journal.
+    notify_desktop_user(_TITLE, f"-1h  {fix}")
     _append_incident(f"{datetime.now().astimezone().isoformat()} {body}")
 
 

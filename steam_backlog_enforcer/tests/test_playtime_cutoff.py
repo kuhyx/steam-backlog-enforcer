@@ -195,7 +195,7 @@ class TestWarn:
         ) as mock_notify:
             out = _warn(state, _rules())
         assert out.warned_seconds == [3600, 1800, 600, 300]
-        assert "5 minutes" in mock_notify.call_args.args[1]
+        assert mock_notify.call_args.args == ("⏳🎮", "5m")
 
     def test_a_fired_warning_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         state = PlaytimeState(seconds=8 * 3600 - 300, warned_seconds=[3600, 1800, 600])

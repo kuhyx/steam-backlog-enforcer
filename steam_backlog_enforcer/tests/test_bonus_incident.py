@@ -57,7 +57,7 @@ class TestReporting:
             patch(f"{_PKG}.notify_desktop_user") as notify,
         ):
             report_leetcode_incident("ledger unreadable", fix="systemctl status x")
-        assert notify.call_count == 1
+        notify.assert_called_once_with("🧩❌🎮", "-1h  systemctl status x")
         assert "ledger unreadable" in caplog.text
         assert "systemctl status x" in log.read_text(encoding="utf-8")
 

@@ -187,7 +187,4 @@ def detect_tampering(config: Config, state: State) -> None:
         _echo("\n  TAMPERING DETECTED:")
         for name, app_id, diff in suspicious:
             _echo(f"    {name} (AppID={app_id}): +{diff} new achievements!")
-        send_notification(
-            "Tampering Detected!",
-            f"Achievements unlocked on {len(suspicious)} non-assigned games!",
-        )
+        send_notification("🕵️🏆", f"🎮 {len(suspicious)}")

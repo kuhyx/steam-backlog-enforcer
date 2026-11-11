@@ -60,9 +60,5 @@ def guard_installed_games(allowed: set[int]) -> int:
         )
         if uninstall_game(app_id, name):
             count += 1
-            send_notification(
-                "Game Removed!",
-                f"Uninstalled {name} (AppID={app_id}). "
-                f"Only your assigned game(s) are allowed.",
-            )
+            send_notification("🗑️", f"{name} · {app_id}")
     return count

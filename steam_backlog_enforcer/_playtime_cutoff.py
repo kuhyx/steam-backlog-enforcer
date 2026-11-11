@@ -24,7 +24,11 @@ from steam_backlog_enforcer._playtime_kill import (
     request_steam_shutdown,
     steam_and_launcher_pids,
 )
-from steam_backlog_enforcer._playtime_notify import _humanise, notify_desktop_user
+from steam_backlog_enforcer._playtime_notify import (
+    _humanise,
+    notify_desktop_user,
+    short_duration,
+)
 from steam_backlog_enforcer._playtime_state import (
     _SHUTDOWN_GRACE_SECONDS,
     PlaytimeRules,
@@ -53,17 +57,18 @@ def reconcile_for(rules: PlaytimeRules, *, should_block: bool) -> None:
         reconcile(should_block=should_block)
 
 
-_CUTOFF_BODY = {
-    False: "Daily budget used up. Steam and games are shutting down. "
-    "Unblocks at 06:00.",
-    True: "Daily leisure budget used up. Steam, games and leisure apps are "
-    "shutting down. Unblocks at 06:00.",
-}
+# Toasts are textgated: a glyph per budget and the unblock time, no sentence.
+_UNBLOCK_AT = "06:00"
 
 
 def _noun(rules: PlaytimeRules) -> str:
     """What the budget is called: "Leisure" from the go-live day (Phase 2)."""
     return "Leisure" if rules.leisure else "Gaming"
+
+
+def _glyph(rules: PlaytimeRules) -> str:
+    """The toast glyph for the budget: 🛋️ leisure (Phase 2), 🎮 gaming."""
+    return "🛋️" if rules.leisure else "🎮"
 
 
 def _warn(state: PlaytimeState, rules: PlaytimeRules) -> PlaytimeState:
@@ -89,7 +94,7 @@ def _warn(state: PlaytimeState, rules: PlaytimeRules) -> PlaytimeState:
         state.seconds,
         rules.budget_seconds,
     )
-    notify_desktop_user(f"{noun} time running out", left)
+    notify_desktop_user(f"⏳{_glyph(rules)}", short_duration(threshold))
     return replace(state, warned_seconds=[*state.warned_seconds, threshold])
 
 
@@ -116,7 +121,7 @@ def _begin_cutoff(
     logger.warning(
         "Daily %s budget exhausted; shutting Steam down.", _noun(rules).lower()
     )
-    notify_desktop_user(f"{_noun(rules)} time is up", _CUTOFF_BODY[rules.leisure])
+    notify_desktop_user(f"⛔{_glyph(rules)}", f"🔓 {_UNBLOCK_AT}")
     request_steam_shutdown()
     kill_gaming_processes(_kill_set(rules), force=False)
     if rules.demo:

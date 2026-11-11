@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from steam_backlog_enforcer._playtime_notify import _humanise
+import pytest
+
+from steam_backlog_enforcer._playtime_notify import _humanise, short_duration
+
+
+@pytest.mark.parametrize(
+    ("seconds", "shown"),
+    [(30, "30s"), (60, "1m"), (300, "5m"), (3600, "1h"), (5400, "1h 30m")],
+)
+def test_short_duration(seconds: int, shown: str) -> None:
+    """Toasts paint a number + unit, never a word."""
+    assert short_duration(seconds) == shown
 
 
 class TestHumanise:

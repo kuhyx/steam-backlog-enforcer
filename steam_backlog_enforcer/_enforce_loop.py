@@ -142,11 +142,7 @@ def _enforce_loop_iteration(
         violations = enforce_allowed_game(allowed, kill_unauthorized=True)
         for pid, app_id in violations:
             _echo(f"  Killed unauthorized game: AppID={app_id} (PID={pid})")
-            send_notification(
-                "Game Blocked!",
-                f"Killed unauthorized game (AppID={app_id}). "
-                f"Focus on {allowed_names(state)}!",
-            )
+            send_notification("⛔🎮", f"{app_id} → 🎯 {allowed_names(state)}")
 
     # B) Remove any newly-installed unauthorized games.
     if config.uninstall_other_games:

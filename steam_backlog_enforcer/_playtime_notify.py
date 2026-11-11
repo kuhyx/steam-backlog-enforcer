@@ -18,6 +18,23 @@ _SECONDS_PER_MINUTE = 60
 _MINUTES_PER_HOUR = 60
 
 
+def short_duration(seconds: int) -> str:
+    """Render a threshold as a toast-sized number + unit (textgate: no words).
+
+    Args:
+        seconds: Seconds remaining.
+
+    Returns:
+        ``"30s"``, ``"5m"``, ``"1h"`` or ``"1h 30m"``.
+    """
+    if seconds < _SECONDS_PER_MINUTE:
+        return f"{seconds}s"
+    hours, minutes = divmod(seconds // _SECONDS_PER_MINUTE, _MINUTES_PER_HOUR)
+    if not hours:
+        return f"{minutes}m"
+    return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+
+
 def notify_desktop_user(title: str, body: str) -> None:
     """Send a desktop notification into the real user's session.
 

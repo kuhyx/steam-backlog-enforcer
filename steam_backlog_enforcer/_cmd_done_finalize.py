@@ -102,10 +102,7 @@ def _finalize_completion(
             use_steam_protocol=True,
         )
 
-    send_notification(
-        "Moving on!",
-        f"New achievement in {game_name}! Now playing: {state.current_game_name}",
-    )
+    send_notification("🏆", f"{game_name} → {state.current_game_name}")
     _echo(f"\nAll done! Go play {state.current_game_name}!")
 
 

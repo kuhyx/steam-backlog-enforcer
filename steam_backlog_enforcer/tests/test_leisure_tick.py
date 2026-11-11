@@ -134,8 +134,7 @@ class TestLive:
         _go_live(tmp_path)
         state, spy = _tick({}, budget=3.0)
         assert state.is_blocked()
-        assert notify.call_args.args[0] == "Leisure time is up"
-        assert "leisure" in notify.call_args.args[1]
+        assert notify.call_args.args == ("⛔🛋️", "🔓 06:00")
         assert spy.calls[0][0].seconds >= spy.calls[0][1].budget_seconds
 
 
@@ -149,32 +148,26 @@ _RULES = PlaytimeRules(
 )
 
 
-class TestWording:
-    def test_warnings_say_gaming_while_dormant(self) -> None:
+class TestToastGlyphs:
+    """Textgate: toasts paint glyphs and numbers, no words."""
+
+    def test_warnings_show_gaming_glyph_while_dormant(self) -> None:
         with patch(f"{_CUTOFF}.notify_desktop_user") as notify:
             _warn(PlaytimeState(day_key=_TODAY, seconds=10.0), _RULES)
-        notify.assert_called_once_with(
-            "Gaming time running out", "1 hour of today's gaming budget left."
-        )
+        notify.assert_called_once_with("⏳🎮", "1h")
 
-    def test_warnings_say_leisure_when_live(self) -> None:
+    def test_warnings_show_leisure_glyph_when_live(self) -> None:
         with patch(f"{_CUTOFF}.notify_desktop_user") as notify:
             _warn(
                 PlaytimeState(day_key=_TODAY, seconds=10.0),
                 replace(_RULES, leisure=True),
             )
-        notify.assert_called_once_with(
-            "Leisure time running out", "1 hour of today's leisure budget left."
-        )
+        notify.assert_called_once_with("⏳🛋️", "1h")
 
     @pytest.mark.usefixtures("notify")
-    def test_the_dormant_cutoff_text_is_unchanged(self, notify: MagicMock) -> None:
+    def test_the_dormant_cutoff_shows_unblock_time(self, notify: MagicMock) -> None:
         _begin_cutoff(PlaytimeState(day_key=_TODAY), _RULES, now=_NOW)
-        notify.assert_called_once_with(
-            "Gaming time is up",
-            "Daily budget used up. Steam and games are shutting down. "
-            "Unblocks at 06:00.",
-        )
+        notify.assert_called_once_with("⛔🎮", "🔓 06:00")
 
 
 def test_new_session_kills_through_the_budget_log() -> None:

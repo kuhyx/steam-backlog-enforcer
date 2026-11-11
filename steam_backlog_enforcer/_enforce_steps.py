@@ -100,7 +100,7 @@ def _enforce_auto_install(config: Config, state: State) -> None:
             config.steam_id,
             use_steam_protocol=True,
         ):
-            send_notification("Game Installing", f"{name} is being downloaded.")
+            send_notification("⬇️", name)
         else:
             _echo("  Could not auto-install. Install manually from Steam.")
 

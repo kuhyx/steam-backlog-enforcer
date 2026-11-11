@@ -225,10 +225,7 @@ def do_check(config: Config, state: State) -> None:
     _echo(f"\n  {verdict}")
     if released:
         release_game(state, game)
-        send_notification(
-            "Moving on!",
-            f"New achievement in {state.current_game_name}! Picking next game...",
-        )
+        send_notification("🏆", f"{state.current_game_name} → 🎲")
 
         # Load snapshot and pick next.
         snapshot_data = load_snapshot()
