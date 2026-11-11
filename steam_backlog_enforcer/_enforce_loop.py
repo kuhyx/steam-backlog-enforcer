@@ -24,11 +24,11 @@ from steam_backlog_enforcer._pick_completion import (
 )
 from steam_backlog_enforcer._playtime import playtime_tick
 from steam_backlog_enforcer._playtime_session import PlaytimeSession, new_session
+from steam_backlog_enforcer._research_tick import total_block_pass
 from steam_backlog_enforcer._steam_launch import steam_is_installed
 from steam_backlog_enforcer._store_window import store_window_tick
 from steam_backlog_enforcer._total_block import (
     end_total_block_cleanup,
-    enforce_total_block_tick,
     is_total_block_active,
     total_block_needs_cleanup,
 )
@@ -107,9 +107,10 @@ def _enforce_loop_iteration(
 
     # Total block takes priority over the assigned-game enforcement below -
     # while active, don't fight ourselves (e.g. installing the assigned
-    # game while total-block tries to keep Steam uninstalled).
+    # game while total-block tries to keep Steam uninstalled). An open
+    # research window is decided inside total_block_pass.
     if is_total_block_active():
-        enforce_total_block_tick()
+        total_block_pass(config)
         return
 
     if total_block_needs_cleanup():

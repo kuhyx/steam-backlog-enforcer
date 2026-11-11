@@ -170,6 +170,16 @@ def uninstall_other_games(allowed_app_ids: set[int]) -> int:
     return count
 
 
+def is_infrastructure_app(app_id: int) -> bool:
+    """Return True if *app_id* is a Steam runtime or compatibility tool.
+
+    The strict subset of :func:`is_protected_app`: no exception, no zero-
+    achievement game. A research window uses it so that nothing but the one
+    allowed game survives besides the runtimes that game needs.
+    """
+    return app_id in PROTECTED_APP_IDS
+
+
 def is_protected_app(app_id: int) -> bool:
     """Return True if *app_id* must never be uninstalled.
 
@@ -186,7 +196,7 @@ def is_protected_app(app_id: int) -> bool:
         True if the app should be left alone by the enforcer.
     """
     return (
-        app_id in PROTECTED_APP_IDS
+        is_infrastructure_app(app_id)
         or app_id in get_approved_exception_ids()
         or app_id in zero_achievement_ids()
     )

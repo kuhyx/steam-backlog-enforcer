@@ -25,13 +25,13 @@ class TestEnforceLoopIterationTotalBlock:
         state = State(current_app_id=1, current_game_name="G")
         with (
             patch(f"{PKG}.is_total_block_active", return_value=True),
-            patch(f"{PKG}.enforce_total_block_tick") as mock_tick,
+            patch(f"{PKG}.total_block_pass") as mock_tick,
             patch(f"{PKG}.enforce_allowed_game") as mock_enforce,
             patch(f"{PKG}.guard_installed_games") as mock_guard,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed") as mock_installed,
         ):
             _enforce_loop_iteration(config, state, session=fake_session())
-        mock_tick.assert_called_once()
+        mock_tick.assert_called_once_with(config)
         mock_enforce.assert_not_called()
         mock_guard.assert_not_called()
         mock_installed.assert_not_called()
@@ -43,7 +43,7 @@ class TestEnforceLoopIterationTotalBlock:
         with (
             patch(f"{PKG}.is_total_block_active", return_value=False),
             patch(f"{PKG}.total_block_needs_cleanup", return_value=False),
-            patch(f"{PKG}.enforce_total_block_tick") as mock_tick,
+            patch(f"{PKG}.total_block_pass") as mock_tick,
             patch(f"{ENFORCE_STEPS_PKG}.is_game_installed", return_value=True),
         ):
             _enforce_loop_iteration(config, state, session=fake_session())
@@ -132,7 +132,7 @@ class TestPlaytimeIsEnforcedFirst:
         with (
             patch(f"{PKG}.playtime_tick") as mock_playtime,
             patch(f"{PKG}.is_total_block_active", return_value=True),
-            patch(f"{PKG}.enforce_total_block_tick"),
+            patch(f"{PKG}.total_block_pass"),
         ):
             _enforce_loop_iteration(config, state, session=fake_session())
         mock_playtime.assert_called_once()
@@ -144,7 +144,7 @@ class TestPlaytimeIsEnforcedFirst:
         with (
             patch(f"{PKG}.playtime_tick") as mock_playtime,
             patch(f"{PKG}.is_total_block_active", return_value=True),
-            patch(f"{PKG}.enforce_total_block_tick"),
+            patch(f"{PKG}.total_block_pass"),
         ):
             _enforce_loop_iteration(config, state, session=fake_session())
         assert mock_playtime.call_args.kwargs["interval"] == 3
@@ -157,7 +157,7 @@ class TestPlaytimeIsEnforcedFirst:
         with (
             patch(f"{PKG}.playtime_tick") as mock_playtime,
             patch(f"{PKG}.is_total_block_active", return_value=True),
-            patch(f"{PKG}.enforce_total_block_tick"),
+            patch(f"{PKG}.total_block_pass"),
         ):
             _enforce_loop_iteration(config, state, session=fake_session(), demo=True)
         assert mock_playtime.call_args.kwargs["demo"] is True

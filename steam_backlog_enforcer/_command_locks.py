@@ -32,12 +32,18 @@ _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
         "gaming-reset",
         # Reconciles the block's domain list; cannot shorten or end a lock.
         "total-block-refresh",
+        # Records the one bounded research window (see _research_window); the
+        # lock itself and its end date stay untouched.
+        "total-block-research",
     }
 )
 
 # Commands that remain usable while a total gaming block is active. Far
 # stricter than _MANUAL_LOCK_EXEMPT_COMMANDS: no done/pick/reset/
-# add-exception - there is no in-app way to shorten a total block.
+# add-exception - nothing here shortens or ends a total block. The one bounded
+# opening is total-block-research: root-only, a single <= 48 h window per lock
+# that only Librarian may use, recorded in a root-only state directory; the
+# daemon re-applies the full block when it expires (the lock's end is fixed).
 #
 # gaming-unblock is included because a playtime bind mount makes the total
 # block's own `pacman -R steam` fail EBUSY - it must stay reachable exactly
@@ -53,5 +59,6 @@ _TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset(
         "gaming-unblock",
         "serve",
         "total-block-refresh",
+        "total-block-research",
     }
 )

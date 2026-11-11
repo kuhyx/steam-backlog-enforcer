@@ -2,17 +2,15 @@
 
 This module owns the *state* of a total block -- the guard-lib-protected lock
 file and the status derived from it -- and orchestrates the two independent
-mechanisms that enforce it:
+mechanisms that enforce it: :mod:`steam_backlog_enforcer._total_block_purge`
+(Steam not installed) and :mod:`steam_backlog_enforcer._total_block_hosts` plus
+:mod:`steam_backlog_enforcer._total_block_iptables` (Steam unreachable).
 
-* :mod:`steam_backlog_enforcer._total_block_purge` makes Steam not installed;
-* :mod:`steam_backlog_enforcer._total_block_hosts` and
-  :mod:`steam_backlog_enforcer._total_block_iptables` make it unreachable.
-
-There is no in-app command to lift a block early. Tamper-resistance comes
-from guard-lib (~/guard-lib): the lock file's ``until`` timestamp is
-protected by a bind-mounted, chattr-immutable file-guard instance, and pacman
-itself refuses to reinstall/upgrade the ``steam`` package while the lock is
-active (package-block).
+No in-app command lifts a block early; the one bounded exception is a single
+<= 48 h Librarian-only window per lock (:mod:`._research_window`) that never
+touches the lock or its end date. Tamper-resistance is guard-lib's: the lock
+file's ``until`` sits in a chattr-immutable file-guard, and pacman refuses to
+install ``steam`` while the lock is active (package-block).
 """
 
 from __future__ import annotations
@@ -29,6 +27,7 @@ from leisure_watch.procscan import LAUNCHER_PROCESS_NAMES, kill_target_names
 from steam_backlog_enforcer import config
 from steam_backlog_enforcer._total_block_hosts import (
     apply_total_block_hosts,
+    refresh_total_block_hosts,
     remove_total_block_hosts,
 )
 from steam_backlog_enforcer._total_block_iptables import (
@@ -218,7 +217,7 @@ def enforce_total_block_tick() -> None:
     purge_steam_and_proton()
 
     apply_total_block_iptables()
-    apply_total_block_hosts()
+    refresh_total_block_hosts()  # not apply: that keeps a window's open section
 
 
 def end_total_block_cleanup() -> None:

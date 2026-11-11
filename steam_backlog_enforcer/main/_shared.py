@@ -55,7 +55,8 @@ def _show_total_block_lock_message(status: TotalBlockStatus) -> None:
     _echo(
         "\nSteam has been uninstalled, all known game/launcher processes are"
         "\nbeing killed on sight, and Steam + game-website domains are blocked."
-        "\nThere is NO in-app command to lift this early."
+        "\nThere is NO in-app command to lift this early (except one bounded"
+        "\nLibrarian-only research window per block: total-block-research)."
         f"\n\nAllowed commands: {', '.join(sorted(_TOTAL_BLOCK_EXEMPT_COMMANDS))}"
     )
     _echo("=" * 60 + "\n")

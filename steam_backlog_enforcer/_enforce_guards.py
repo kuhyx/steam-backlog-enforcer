@@ -13,6 +13,7 @@ from steam_backlog_enforcer._actions import allowed_games
 from steam_backlog_enforcer.enforcer import send_notification
 from steam_backlog_enforcer.game_uninstall import (
     get_installed_games,
+    is_infrastructure_app,
     is_protected_app,
     uninstall_game,
 )
@@ -36,23 +37,26 @@ def allowed_names(state: State) -> str:
     return ", ".join(names) if names else "your assigned game"
 
 
-def guard_installed_games(allowed: set[int]) -> int:
+def guard_installed_games(allowed: set[int], *, strict: bool = False) -> int:
     """Remove any unauthorized game manifests + files.  Runs every loop.
 
     Args:
         allowed: Every app id that may stay installed — the assignment plus
             any concurrent manual picks.
+        strict: Spare only runtimes besides *allowed*, not approved exceptions
+            or zero-achievement games (the research window).
 
     Returns number of games removed this pass.
     """
     if not allowed:
         return 0
+    spared = is_infrastructure_app if strict else is_protected_app
     installed = get_installed_games()
     count = 0
     for app_id, name in installed:
         if app_id in allowed:
             continue
-        if is_protected_app(app_id):
+        if spared(app_id):
             continue
 
         logger.warning(

@@ -194,6 +194,31 @@ def refresh_total_block_iptables() -> bool:
     return True
 
 
+def total_block_chain_exists() -> bool:
+    """Whether the total-block chain is present (a single iptables call)."""
+    return _chain_ips() is not None
+
+
+def release_total_block_iptables() -> bool:
+    """Take the chain and its OUTPUT hook down but keep the IP cache.
+
+    How a research window opens the firewall. Unlike
+    :func:`remove_total_block_iptables` the cache stays, so when the window
+    ends :func:`apply_total_block_iptables` rebuilds the chain with every IP it
+    dropped before, not only the ones DNS happens to answer that day.
+
+    Returns:
+        True once the chain is verifiably gone; False when it is still there or
+        iptables cannot be run.
+    """
+    try:
+        drop_chain(IPTABLES_CHAIN)
+        return not total_block_chain_exists()
+    except OSError, subprocess.SubprocessError:
+        logger.exception("Failed to release total-block iptables rules")
+        return False
+
+
 def remove_total_block_iptables() -> bool:
     """Remove the total-block iptables chain and its OUTPUT hook."""
     try:

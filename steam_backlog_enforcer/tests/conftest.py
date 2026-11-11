@@ -29,6 +29,7 @@ from steam_backlog_enforcer.tests._isolate_incidents import _isolate_incidents
 from steam_backlog_enforcer.tests._isolate_leisure import _isolate_leisure
 from steam_backlog_enforcer.tests._isolate_playtime import _isolate_playtime
 from steam_backlog_enforcer.tests._isolate_reading import _isolate_reading
+from steam_backlog_enforcer.tests._isolate_research import _isolate_research
 from steam_backlog_enforcer.tests._isolate_shadow import _isolate_shadow
 from steam_backlog_enforcer.tests._no_fast_install import _no_fast_install
 from steam_backlog_enforcer.tests._no_live_focus_project import _no_live_focus_project
@@ -39,6 +40,7 @@ from steam_backlog_enforcer.tests._no_real_effects import (
 from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
 from steam_backlog_enforcer.tests._no_systemd_run import _no_systemd_run
 from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
+from steam_backlog_enforcer.tests._research_fixtures import tm
 
 # Re-exported so ruff --fix does not delete the imports above: pytest
 # registers autouse fixtures by name, so they look unused to the linter.
@@ -51,6 +53,7 @@ __all__ = [
     "_isolate_leisure",
     "_isolate_playtime",
     "_isolate_reading",
+    "_isolate_research",
     "_isolate_shadow",
     "_no_fast_install",
     "_no_live_focus_project",
@@ -58,6 +61,7 @@ __all__ = [
     "_no_real_effects",
     "_no_systemd_run",
     "_no_workout_http",
+    "tm",
 ]
 
 from steam_backlog_enforcer.tests._total_block_paths import (

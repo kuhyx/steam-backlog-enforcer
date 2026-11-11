@@ -104,7 +104,7 @@ class TestEnforceTotalBlockTick:
             patch(f"{PKG}.is_steam_installed", return_value=True),
             patch(f"{PKG}.uninstall_steam_package") as mock_uninstall,
             patch(f"{PKG}.purge_steam_and_proton"),
-            patch(f"{PKG}.apply_total_block_hosts", return_value=True),
+            patch(f"{PKG}.refresh_total_block_hosts", return_value=True),
             patch(f"{PKG}.apply_total_block_iptables", return_value=True),
         ):
             enforce_total_block_tick()
@@ -117,7 +117,7 @@ class TestEnforceTotalBlockTick:
             patch(f"{PKG}.is_steam_installed", return_value=False),
             patch(f"{PKG}.uninstall_steam_package") as mock_uninstall,
             patch(f"{PKG}.purge_steam_and_proton"),
-            patch(f"{PKG}.apply_total_block_hosts", return_value=True),
+            patch(f"{PKG}.refresh_total_block_hosts", return_value=True),
             patch(f"{PKG}.apply_total_block_iptables", return_value=True),
         ):
             enforce_total_block_tick()
@@ -130,11 +130,29 @@ class TestEnforceTotalBlockTick:
             patch(f"{PKG}.is_steam_installed", return_value=False),
             patch(f"{PKG}.uninstall_steam_package"),
             patch(f"{PKG}.purge_steam_and_proton") as mock_purge,
-            patch(f"{PKG}.apply_total_block_hosts", return_value=True),
+            patch(f"{PKG}.refresh_total_block_hosts", return_value=True),
             patch(f"{PKG}.apply_total_block_iptables", return_value=True),
         ):
             enforce_total_block_tick()
         mock_purge.assert_called_once()
+
+    def test_hosts_are_reconciled_to_the_full_list_every_tick(self) -> None:
+        """Test that the tick restores Steam names after a research window.
+
+        The cheap apply leaves a present section alone, which would keep the
+        window's open section for the rest of the lock.
+        """
+        with (
+            patch(f"{PKG}.kill_steam_and_launchers", return_value=[]),
+            patch(f"{PKG}.is_steam_installed", return_value=False),
+            patch(f"{PKG}.purge_steam_and_proton"),
+            patch(f"{PKG}.apply_total_block_iptables", return_value=True),
+            patch(f"{PKG}.apply_total_block_hosts") as mock_apply,
+            patch(f"{PKG}.refresh_total_block_hosts", return_value=True) as refresh,
+        ):
+            enforce_total_block_tick()
+        refresh.assert_called_once_with()
+        mock_apply.assert_not_called()
 
 
 class TestEndTotalBlockCleanup:

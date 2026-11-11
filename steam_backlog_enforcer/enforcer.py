@@ -20,7 +20,10 @@ from steam_backlog_enforcer._desktop_env import (
     resolve_desktop_user,
 )
 from steam_backlog_enforcer._store_tools import run_quiet
-from steam_backlog_enforcer.game_uninstall import is_protected_app
+from steam_backlog_enforcer.game_uninstall import (
+    is_infrastructure_app,
+    is_protected_app,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +62,7 @@ def enforce_allowed_game(
     allowed_app_ids: set[int],
     *,
     kill_unauthorized: bool = True,
+    strict: bool = False,
 ) -> list[tuple[int, int]]:
     """Check running games; optionally kill unauthorized ones.
 
@@ -67,11 +71,14 @@ def enforce_allowed_game(
             assignment plus any concurrent manual picks. Empty disables the
             check entirely (nothing is assigned, so nothing is unauthorized).
         kill_unauthorized: Whether to kill violating processes.
+        strict: Spare only runtimes besides the allowed set, not approved
+            exceptions or zero-achievement games (the research window).
 
     Returns list of (pid, app_id) that were killed or detected.
     """
     if not allowed_app_ids:
         return []
+    spared = is_infrastructure_app if strict else is_protected_app
     running = get_running_steam_game_pids()
     violations: list[tuple[int, int]] = []
 
@@ -81,7 +88,7 @@ def enforce_allowed_game(
         # Skip Steam client itself (app_id 0 or very low IDs).
         if app_id == 0:
             continue
-        if is_protected_app(app_id):
+        if spared(app_id):
             continue
 
         violations.append((pid, app_id))

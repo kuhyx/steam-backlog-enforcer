@@ -93,6 +93,23 @@ def block_store() -> bool:
     return False
 
 
+def restore_store_block() -> bool:
+    """Re-enable the normal store block, even if something else also blocks it.
+
+    :func:`block_store` returns early at "already blocked", and the total
+    block's own /etc/hosts section null-routes the same domains: with that
+    section back, the normal lines would stay commented out after a research
+    window and the store would open the day the lock ends. This always
+    uncomments them and rebuilds the store chain.
+
+    Returns True if at least one layer was restored.
+    """
+    hosts_ok = _reblock_hosts()
+    ipt_ok = _block_store_iptables()
+    flush_dns_cache()
+    return hosts_ok or ipt_ok
+
+
 def _block_via_hosts_install() -> bool:
     """Run the hosts install.sh to apply /etc/hosts with Steam Store entries.
 

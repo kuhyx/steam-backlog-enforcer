@@ -238,6 +238,7 @@ class TestEnforceTotalBlockLock:
         assert (
             frozenset({"status", "enforce", "gaming-status", "gaming-unblock", "serve"})
             | {"total-block-refresh"}  # reconciles the list; cannot shorten the lock
+            | {"total-block-research"}  # <= 48 h, once per lock, Librarian only
             == _TOTAL_BLOCK_EXEMPT_COMMANDS
         )
         assert "gaming-reset" not in _TOTAL_BLOCK_EXEMPT_COMMANDS

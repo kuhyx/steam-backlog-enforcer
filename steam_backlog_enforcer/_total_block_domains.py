@@ -80,6 +80,15 @@ _ALL_TOTAL_BLOCK_DOMAINS = [
     if domain not in TOTAL_BLOCK_EXEMPT_DOMAINS
 ]
 
+# What /etc/hosts keeps null-routed while a research window has Steam open
+# (``total-block-research``): the browser-game sites only. Steam is the one
+# thing the window lends out, and Librarian is the one game it may be used for.
+RESEARCH_BLOCKED_DOMAINS = [
+    domain
+    for domain in _expand_with_www(GAME_WEBSITE_DOMAINS)
+    if domain not in TOTAL_BLOCK_EXEMPT_DOMAINS
+]
+
 # The null-route redirect target used to make a blocked domain resolve
 # nowhere - built from parts rather than the literal so linters don't
 # mistake it for a socket bind-all-interfaces address (it never is one).
