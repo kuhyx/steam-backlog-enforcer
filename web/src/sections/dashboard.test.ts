@@ -41,7 +41,8 @@ const show = (over: Record<string, Handler> = {}) => {
   mount(PAGE)
   return mock
 }
-const fact = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling as HTMLElement
+// A fact's term is a glyph whose label is spoken (sr-only).
+const fact = (label: string) => screen.getByText(label, { selector: 'dt .sr-only' }).closest('dt')?.nextElementSibling as HTMLElement
 const box = (name: string) => screen.getByRole('region', { name })
 
 describe('Dashboard', () => {
@@ -101,7 +102,8 @@ describe('Dashboard', () => {
       vi.setSystemTime(Date.parse('2026-10-23T11:07:58Z'))
       expect(fact('Total block')).toHaveTextContent('1h 8m left')
       vi.advanceTimersByTime(1000)
-      const first = Number(/^(\d)s left$/.exec(fact('Total block').textContent)?.[1])
+      // Painted ⏳ + number; "left" is spoken (sr-only).
+      const first = Number(/^(\d)s left$/.exec(fact('Total block').querySelector('.sr-only')?.textContent ?? '')?.[1])
       expect([3, 4]).toContain(first)
       vi.advanceTimersByTime(1000)
       expect(fact('Total block')).toHaveTextContent(`${first - 1}s left`)
@@ -152,7 +154,7 @@ describe('Dashboard', () => {
     it('keeps a failed daemon run on screen with its reason', async () => {
       const failed = { ...bg3, phase: 'failed', percent: null, elapsed_seconds: 0, error: 'Refusing to mark it as installed' }
       show({ 'GET /api/daemon': daemon([failed]) })
-      expect(await screen.findByText("Fast install of Baldur's Gate 3 failed: Refusing to mark it as installed")).toHaveClass('text-danger')
+      expect((await screen.findByText("Fast install of Baldur's Gate 3 failed: Refusing to mark it as installed")).closest('p')).toHaveClass('text-danger')
       expect(screen.getByText("Steam's own download took over.")).toBeInTheDocument()
       expect(screen.queryByRole('progressbar', { name: "Baldur's Gate 3 download" })).not.toBeInTheDocument()
     })

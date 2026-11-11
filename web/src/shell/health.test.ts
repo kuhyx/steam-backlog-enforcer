@@ -6,7 +6,7 @@ import './health'
 
 const server = (over = {}) => ({ stale: false, started_at: '2026-10-10T10:00:00Z', version: '1.2.3', ...over })
 const daemon = (state: string) => ({ state, started_at: null, pid: null, journal_tail: [], restart_available_at: null })
-const pill = (el: Element, text: string) => [...el.querySelectorAll('.pill')].find((p) => p.textContent === text)
+const pill = (el: Element, text: string) => [...el.querySelectorAll('.pill')].find((p) => p.getAttribute('data-state') === text)
 const never = () => new Promise(() => undefined)
 
 describe('<health-badges>', () => {
@@ -16,13 +16,17 @@ describe('<health-badges>', () => {
     expect(pill(el, 'Server ok')).toHaveClass('pill-success')
     expect(pill(el, 'Daemon …')).toHaveClass('pill-neutral')
     expect(pill(el, 'Server ok')).not.toHaveAttribute('title')
+    expect(pill(el, 'Server ok')?.querySelector('[aria-hidden]')).toHaveTextContent('🌐✅')
+    expect(pill(el, 'Daemon …')?.querySelector('[aria-hidden]')).toHaveTextContent('🛡️…')
   })
 
   it('shows a healthy server with its version, and a running daemon', async () => {
     stubApi({ 'GET /api/server': server(), 'GET /api/daemon': daemon('running') })
     const el = mount('<health-badges></health-badges>')
     await vi.waitFor(() => { expect(pill(el, 'Daemon running')).toHaveClass('pill-success') })
-    expect(pill(el, 'Server ok')).toHaveAttribute('title', 'v1.2.3')
+    // The version is spoken, never a tooltip (textgate).
+    expect(pill(el, 'Server ok')).not.toHaveAttribute('title')
+    expect(pill(el, 'Server ok')?.querySelector('.sr-only')).toHaveTextContent('Server ok v1.2.3')
   })
 
   it('flags a stale server and a restarting daemon', async () => {

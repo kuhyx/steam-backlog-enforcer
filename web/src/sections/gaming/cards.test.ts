@@ -74,7 +74,7 @@ describe('todayUnavailable', () => {
 describe('liveCard', () => {
   it('reports an engaged session with its game', () => {
     show(liveCard(makeBudgetSession()))
-    expect(screen.getByText(/Billing — you are playing/)).toHaveClass('budget-verdict--engaged')
+    expect(screen.getByText(/Billing — you are playing/).closest('.budget-verdict')).toHaveClass('budget-verdict--engaged')
     expect(screen.getByText(/Assigned game/)).toBeInTheDocument()
     // Engaged, so the credited game is described in the present tense.
     expect(screen.getByText(/Billing to/)).toBeInTheDocument()

@@ -3,12 +3,13 @@
 
 import type { Job } from '../api/jobContract'
 import { isActive, q } from '../api/queries'
-import { commandLabel } from '../commands/catalog'
+import { COMMAND_ICON, commandLabel } from '../commands/catalog'
 import { hub } from '../jobs/hub'
 import { progressBar } from '../jobs/progress'
 import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { jobHref } from '../lib/runner'
+import { glyph } from '../ui/build'
 
 export function jobChip(job: Job): HTMLAnchorElement {
   const live = hub.get(job.id)
@@ -24,7 +25,13 @@ export function jobChip(job: Job): HTMLAnchorElement {
       class: waiting ? 'jobchip jobchip-wait' : 'jobchip',
       'aria-label': `${label}: ${waiting ? 'needs your input' : (p?.label ?? 'running')}`,
     },
-    h('span', { class: 'jobchip-label' }, label, h('span', { class: 'jobchip-sub' }, waiting ? 'needs input' : p?.total ? `${p.step}/${p.total}` : '…')),
+    // Textgate: the command's glyph is painted; its name and "needs input" are spoken (aria-label above).
+    h(
+      'span',
+      { class: 'jobchip-label' },
+      glyph(COMMAND_ICON[job.command], label),
+      h('span', { class: 'jobchip-sub' }, waiting ? glyph('✋', 'needs input') : p?.total ? `${p.step}/${p.total}` : '…'),
+    ),
     progressBar(fraction, label, waiting ? 'warning' : 'accent', true),
   )
 }

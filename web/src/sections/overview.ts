@@ -8,7 +8,7 @@ import { applyFilters } from '../estimate'
 import { timelineChart } from '../lib/charts/timeline'
 import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
-import { card, errorNotice, link, loading } from '../ui/build'
+import { card, errorNotice, glyph, link, loading } from '../ui/build'
 import { defaultFilters } from './backlog/plannerFilters'
 import { summaryCards } from './backlog/summary'
 
@@ -19,9 +19,10 @@ export class BacklogOverviewElement extends LiveElement {
 
   protected update(): void {
     const { data, error } = q.dataset.state
-    const aside = link('/backlog/', 'Open the planner')
+    const aside = link('/backlog/', glyph('➡️', 'Open the planner'))
+    const icon = '📚'
     if (!data) {
-      this.replaceChildren(card('Backlog outlook', error ? errorNotice(error) : loading('backlog'), { aside }))
+      this.replaceChildren(card('Backlog outlook', error ? errorNotice(error) : loading('backlog'), { aside, icon }))
       return
     }
     const filters = defaultFilters(data.defaults)
@@ -43,7 +44,7 @@ export class BacklogOverviewElement extends LiveElement {
           }),
           timelineChart(result, filters, data.state),
         ),
-        { aside },
+        { aside, icon },
       ),
     )
   }

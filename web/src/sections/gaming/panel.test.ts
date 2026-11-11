@@ -41,7 +41,7 @@ describe('<budget-panel>', () => {
   it('shows a loading line before the first response', () => {
     stubApi({ 'GET /api/budget': () => new Promise(() => undefined) })
     mount('<budget-panel></budget-panel>')
-    expect(screen.getByText(/Reading budget state/)).toBeInTheDocument()
+    expect(screen.getByText(/Loading budget state/)).toBeInTheDocument()
   })
 
   it('reads the production budget and renders all four sections', async () => {
@@ -66,7 +66,7 @@ describe('<budget-panel>', () => {
   it('surfaces a transport failure', async () => {
     stubApi({ 'GET /api/budget': () => Promise.reject(new Error('API returned 500 Server Error')) })
     mount('<budget-panel></budget-panel>')
-    expect(await screen.findByText('Could not read budget state: API returned 500 Server Error')).toHaveClass('error')
+    expect((await screen.findByText('Could not read budget state: API returned 500 Server Error')).closest('p')).toHaveClass('error')
     expect(screen.getByText('./run.sh serve')).toBeInTheDocument()
   })
 
@@ -145,6 +145,6 @@ describe('<budget-panel>', () => {
     resolve(makeBudget())
     await flush(10)
     expect(el.querySelector('.budget')).toBeNull()
-    expect(el).toHaveTextContent('Reading budget state…')
+    expect(el).toHaveTextContent('Loading budget state')
   })
 })

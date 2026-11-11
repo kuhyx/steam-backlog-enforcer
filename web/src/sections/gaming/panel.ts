@@ -7,6 +7,8 @@ import { explain } from '../../api/errors'
 import { q } from '../../api/queries'
 import { define, h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
+import { commandLine, glyph, loading } from '../../ui/build'
+import { said } from '../spoken'
 import { historyCard, liveCard, rulesCard, todayCard, todayUnavailable } from './cards'
 
 /** True on `/gaming/?demo=1` (and the legacy `?demo=true`). */
@@ -19,8 +21,13 @@ export function isDemo(search: string = location.search): boolean {
 export class BudgetModeLinkElement extends LiveElement {
   protected update(): void {
     const demo = isDemo()
+    // 🧪 switches to the demo budget, 🏭 back to production; the words are spoken.
     this.replaceChildren(
-      h('a', { href: demo ? '/gaming/' : '/gaming/?demo=1', class: 'btn btn-ghost' }, demo ? 'Show production budget' : 'Show demo budget'),
+      h(
+        'a',
+        { href: demo ? '/gaming/' : '/gaming/?demo=1', class: 'btn btn-ghost' },
+        demo ? glyph('🏭', 'Show production budget') : glyph('🧪', 'Show demo budget'),
+      ),
     )
   }
 }
@@ -41,14 +48,17 @@ export class BudgetPanelElement extends LiveElement {
         h(
           'div',
           { class: 'status' },
-          h('p', { class: 'error' }, `Could not read budget state: ${explain(error).detail}`),
-          h('p', { class: 'hint' }, 'Is the backend running? Start it with ', h('code', {}, './run.sh serve'), '.'),
+          // The server's own detail is painted; the framing is spoken. The
+          // command is the recovery path, so it stays with a copy button.
+          h('p', { class: 'error' }, said(`Could not read budget state: ${explain(error).detail}`, '⛔ ', explain(error).detail)),
+          h('p', { class: 'hint' }, h('span', { class: 'sr-only' }, 'Is the backend running? Start it with')),
+          commandLine('./run.sh serve'),
         ),
       )
       return
     }
     if (!data) {
-      this.replaceChildren(h('div', { class: 'status' }, h('p', { class: 'hint' }, 'Reading budget state…')))
+      this.replaceChildren(h('div', { class: 'status' }, loading('budget state')))
       return
     }
     this.replaceChildren(

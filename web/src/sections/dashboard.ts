@@ -1,17 +1,26 @@
 // Dashboard sections (was screens/Dashboard.tsx): what the enforcer is doing
-// right now, at a glance.
+// right now, at a glance. Textgate: glyphs and numbers are painted, every
+// sentence is spoken only (sr-only), game names stay visible as content.
 
 import type { FastInstallRun, StatusPayload } from '../api/contract'
 import { q } from '../api/queries'
-import { commandLabel } from '../commands/catalog'
+import { COMMAND_ICON, commandLabel } from '../commands/catalog'
 import '../commands/commandButton'
 import { fmtDuration, fmtRemaining } from '../format'
 import { progressBar, stateBadge, type BarTone } from '../jobs/progress'
 import { define, h, hx } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { jobHref } from '../lib/runner'
-import { card, empty, errorNotice, facts, link, loading } from '../ui/build'
+import { card, empty, errorNotice, facts, glyph, link, loading } from '../ui/build'
 import { ago } from '../ui/format'
+import { said } from './spoken'
+
+/** "5 min ago" painted as 🕓 5 min (the word "ago" spoken only). */
+export function since(iso: string | null): HTMLSpanElement {
+  const spoken = ago(iso)
+  const short = spoken === 'just now' ? '<1 min' : spoken.replace(/ ago$/, '')
+  return said(spoken, '🕓 ', short)
+}
 
 /** Seconds left on the total block: from `until` when known, else the
  *  server's `days_remaining` (rounded to 0.1 d). */
@@ -29,18 +38,29 @@ export class BlockCountdownElement extends LiveElement {
 
   protected update(): void {
     const block = q.status.state.data?.total_block
-    this.replaceChildren(...(block ? [h('span', { class: 'text-danger' }, `${fmtRemaining(blockSecondsLeft(block))} left`)] : []))
+    if (!block) {
+      this.replaceChildren()
+      return
+    }
+    const left = fmtRemaining(blockSecondsLeft(block))
+    this.replaceChildren(h('span', { class: 'text-danger' }, said(`${left} left`, '⏳ ', left)))
   }
 }
 
 function statusFacts(s: StatusPayload): HTMLDListElement {
   return facts([
-    ['Installed', s.assigned_game_installed ? 'Yes' : h('span', { class: 'text-warning' }, 'No — install it from Library')],
-    ['Games finished', s.finished_count],
-    ['Store', s.store_blocked ? 'Blocked' : h('span', { class: 'text-warning' }, 'Unblocked')],
-    ['Installed games', s.installed_count],
-    ['Total block', s.total_block.active ? hx('block-countdown') : 'Off'],
-    ['Manual picks', s.manual_picks.length ? s.manual_picks.map((p) => `${p.name} (${p.age_days} d)`).join(', ') : 'None'],
+    [
+      glyph('💾', 'Installed'),
+      s.assigned_game_installed ? glyph('✅', 'Yes') : h('span', { class: 'text-warning' }, glyph('⚠️', 'No — install it from Library')),
+    ],
+    [glyph('🏆', 'Games finished'), s.finished_count],
+    [glyph('🛒', 'Store'), s.store_blocked ? glyph('🔒', 'Blocked') : h('span', { class: 'text-warning' }, glyph('🔓', 'Unblocked'))],
+    [glyph('🗂️', 'Installed games'), s.installed_count],
+    [glyph('⛔', 'Total block'), s.total_block.active ? hx('block-countdown') : glyph('➖', 'Off')],
+    [
+      glyph('📌', 'Manual picks'),
+      s.manual_picks.length ? s.manual_picks.map((p) => `${p.name} (${p.age_days} d)`).join(', ') : glyph('➖', 'None'),
+    ],
   ])
 }
 
@@ -51,13 +71,16 @@ export class DashboardStatusElement extends LiveElement {
 
   protected update(): void {
     const { data, error } = q.status.state
+    const icon = '🎯'
     if (error) {
-      this.replaceChildren(card('Assignment', errorNotice(error)))
+      this.replaceChildren(card('Assignment', errorNotice(error), { icon }))
     } else if (!data) {
-      this.replaceChildren(card('Assignment', loading('status')))
+      this.replaceChildren(card('Assignment', loading('status'), { icon }))
     } else {
+      const game = data.current_game_name ?? glyph('📭', 'Nothing assigned')
       this.replaceChildren(
-        card('Assignment', [h('p', { class: 'hero-game' }, data.current_game_name ?? 'Nothing assigned'), statusFacts(data)], {
+        card('Assignment', [h('p', { class: 'hero-game' }, game), statusFacts(data)], {
+          icon,
           // Its own element, so it follows the command catalog by itself.
           aside: hx('command-button', { name: 'check', label: 'Check now' }),
         }),
@@ -71,6 +94,12 @@ function budgetTone(blocked: boolean, used: number): BarTone {
   return used > 0.8 ? 'warning' : 'accent'
 }
 
+function billingLine(blocked: boolean, label: string): HTMLParagraphElement {
+  if (blocked) return h('p', { class: 'field-help' }, glyph('⛔', 'Blocked for today.'))
+  if (!label) return h('p', { class: 'field-help' }, said('Now: nothing billing', '⏸️'))
+  return h('p', { class: 'field-help' }, said(`Now: ${label}`, '▶️ ', label))
+}
+
 export class BudgetGlanceElement extends LiveElement {
   protected override setup(): void {
     this.watch(q.budget)
@@ -78,12 +107,13 @@ export class BudgetGlanceElement extends LiveElement {
 
   protected update(): void {
     const { data, error } = q.budget.state
+    const icon = '⏱️'
     if (error) {
-      this.replaceChildren(card('Gaming today', errorNotice(error)))
+      this.replaceChildren(card('Gaming today', errorNotice(error), { icon }))
       return
     }
     if (!data) {
-      this.replaceChildren(card('Gaming today', loading('budget')))
+      this.replaceChildren(card('Gaming today', loading('budget'), { icon }))
       return
     }
     const t = data.today
@@ -93,37 +123,35 @@ export class BudgetGlanceElement extends LiveElement {
             'p',
             { class: 'hero-num' },
             `${fmtDuration(t.seconds_remaining)} `,
-            h('span', { class: 'muted' }, `left of ${fmtDuration(t.budget_seconds)}`),
+            h('span', { class: 'muted' }, said(`left of ${fmtDuration(t.budget_seconds)}`, `/ ${fmtDuration(t.budget_seconds)}`)),
           ),
           progressBar(t.fraction_used, 'Budget used', budgetTone(t.blocked, t.fraction_used)),
-          h('p', { class: 'field-help' }, t.blocked ? 'Blocked for today.' : `Now: ${data.session.billing_label || 'nothing billing'}`),
+          billingLine(t.blocked, data.session.billing_label),
         ]
-      : h('p', { class: 'text-danger' }, data.error ?? 'Budget state unavailable.')
-    this.replaceChildren(card('Gaming today', body, { aside: link('/gaming/', 'Details') }))
+      : h('p', { class: 'text-danger' }, data.error ?? glyph('⚠️', 'Budget state unavailable.'))
+    this.replaceChildren(card('Gaming today', body, { icon, aside: link('/gaming/', glyph('➡️', 'Details')) }))
   }
-}
-
-function fastInstallLine(r: FastInstallRun): string {
-  const where = r.percent === null ? r.phase : `${Math.floor(r.percent)}% (${r.phase})`
-  return `Fast-installing ${r.name} — ${where}`
 }
 
 function fastInstallRow(r: FastInstallRun): HTMLDivElement {
   if (r.error) {
     // The daemon has no job to report to: a failure stays here until Steam finishes.
+    // The error is the daemon's own message (content), the framing is spoken.
     return h(
       'div',
       {},
-      h('p', { class: 'text-danger' }, `Fast install of ${r.name} failed: ${r.error}`),
-      h('p', { class: 'field-help' }, "Steam's own download took over."),
+      h('p', { class: 'text-danger' }, said(`Fast install of ${r.name} failed: ${r.error}`, '⛔ ', r.name, ': ', r.error)),
+      h('p', { class: 'field-help' }, glyph('↪️', "Steam's own download took over.")),
     )
   }
+  const pct = r.percent === null ? null : Math.floor(r.percent)
+  const where = pct === null ? r.phase : `${pct}% (${r.phase})`
   return h(
     'div',
     {},
-    h('p', {}, fastInstallLine(r)),
-    progressBar(r.percent === null ? null : Math.floor(r.percent) / 100, `${r.name} download`),
-    h('p', { class: 'field-help' }, `${fmtDuration(r.elapsed_seconds)} elapsed`),
+    h('p', {}, said(`Fast-installing ${r.name} — ${where}`, '⚡ ', r.name, pct === null ? '' : ` ${pct}%`)),
+    progressBar(pct === null ? null : pct / 100, `${r.name} download`),
+    h('p', { class: 'field-help' }, said(`${fmtDuration(r.elapsed_seconds)} elapsed`, '⏳ ', fmtDuration(r.elapsed_seconds))),
   )
 }
 
@@ -135,7 +163,7 @@ export class FastInstallsElement extends LiveElement {
 
   protected update(): void {
     const runs = q.daemon.state.data?.fast_installs ?? []
-    this.replaceChildren(...(runs.length ? [card('Fast install', runs.map(fastInstallRow))] : []))
+    this.replaceChildren(...(runs.length ? [card('Fast install', runs.map(fastInstallRow), { icon: '⚡' })] : []))
   }
 }
 
@@ -162,16 +190,18 @@ export class RecentJobsElement extends LiveElement {
                 h(
                   'a',
                   { href: jobHref(j.id), class: 'row-link' },
-                  h('span', {}, commandLabel(j.command)),
-                  h('span', { class: 'muted grow ellipsis' }, j.summary ?? j.progress?.label ?? ''),
-                  h('span', { class: 'muted' }, ago(j.created_at)),
+                  glyph(COMMAND_ICON[j.command], commandLabel(j.command)),
+                  // The job's summary is a server sentence: spoken here, shown in the job view.
+                  h('span', { class: 'sr-only' }, j.summary ?? j.progress?.label ?? ''),
+                  h('span', { class: 'grow' }),
+                  h('span', { class: 'muted' }, since(j.created_at)),
                   stateBadge(j.state),
                 ),
               ),
             ),
           ),
         ],
-        { aside: link('/jobs/', 'All jobs') },
+        { icon: '⚙️', aside: link('/jobs/', glyph('➡️', 'All jobs')) },
       ),
     )
   }
