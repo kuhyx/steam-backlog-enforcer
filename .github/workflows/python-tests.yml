@@ -49,13 +49,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # web/ is a pnpm project (no package-lock.json since the Astro move), so
+      # npm's cache step had no lockfile to key on and failed the job. No
+      # `version:`: pnpm/action-setup reads web/package.json's packageManager
+      # and errors if given both.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
       - uses: actions/setup-node@v4
         with:
           node-version: 26.13.0
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: vitest --coverage, 100% (web UI)
         run: |
-          npm --prefix web ci
-          npm --prefix web run coverage
+          pnpm --dir web install --frozen-lockfile
+          pnpm --dir web run coverage
