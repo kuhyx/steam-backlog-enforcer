@@ -18,7 +18,8 @@ export class Modal {
   private opener: Element | null = null
 
   constructor({ title, wide = false, onClose }: ModalOptions) {
-    this.heading = h('h2', {}, title)
+    // Textgate: the title is spoken only; the dialog's content says what it is.
+    this.heading = h('h2', { class: 'sr-only' }, title)
     const close = h(
       'button',
       { type: 'button', class: 'btn btn-ghost btn-icon dialog-close', 'aria-label': 'Close', onclick: onClose },

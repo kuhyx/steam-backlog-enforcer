@@ -75,11 +75,18 @@ export function empty(label: string): HTMLParagraphElement {
 export interface CardOptions {
   aside?: Child
   className?: string
+  icon?: string
 }
 
-export function card(title: string | null, body: Child, { aside, className = '' }: CardOptions = {}): HTMLElement {
-  const head =
-    title || aside ? h('div', { class: 'box-head' }, title ? h('h2', {}, title) : null, aside ?? null) : null
+/** A painted glyph whose meaning is spoken only (textgate: no visible words). */
+export function glyph(icon: string, spoken: string, className = 'glyph'): HTMLSpanElement {
+  return h('span', { class: className }, h('span', { 'aria-hidden': 'true' }, icon), h('span', { class: 'sr-only' }, spoken))
+}
+
+/** A card; its title is spoken only, `icon` (if any) is painted in its place. */
+export function card(title: string | null, body: Child, { aside, className = '', icon }: CardOptions = {}): HTMLElement {
+  const heading = title ? h('h2', {}, icon ? glyph(icon, title) : h('span', { class: 'sr-only' }, title)) : null
+  const head = title || aside ? h('div', { class: 'box-head' }, heading, aside ?? null) : null
   return h('section', { class: `box ${className}`.trim(), 'aria-label': title ?? '' }, head, body)
 }
 
@@ -103,9 +110,14 @@ const TONE_PILL_ICON: Record<string, string> = {
   running: '▶️',
 }
 
-export function pill(tone: string, text: string): HTMLSpanElement {
-  const icon = TONE_PILL_ICON[tone] ?? ''
-  return h('span', { class: `pill pill-${tone}` }, icon && h('span', { class: 'pill-icon', 'aria-hidden': 'true' }, icon), text)
+/** A tone badge: `icon` (else the tone's glyph) painted, `text` spoken only. */
+export function pill(tone: string, text: string, icon = TONE_PILL_ICON[tone] ?? '•'): HTMLSpanElement {
+  return h(
+    'span',
+    { class: `pill pill-${tone}` },
+    h('span', { class: 'pill-icon', 'aria-hidden': 'true' }, icon),
+    h('span', { class: 'sr-only' }, text),
+  )
 }
 
 export function link(href: string, text: Child, className = 'btn btn-ghost btn-small'): HTMLAnchorElement {
