@@ -38,7 +38,7 @@ const href = (to: string) => (to === '/' ? '/' : `${to}/`)
       <aside class="sidebar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"></span>
-          <span>Backlog<br />Enforcer</span>
+          <span class="sr-only">Backlog Enforcer</span>
         </div>
         <nav aria-label="Sections">
           <ul class="nav">
@@ -49,9 +49,11 @@ const href = (to: string) => (to === '/' ? '/' : `${to}/`)
                     href={href(n.to)}
                     class={isActive(n.to) ? 'nav-link active' : 'nav-link'}
                     aria-current={isActive(n.to) ? 'page' : undefined}
+                    aria-label={n.label}
+                    aria-keyshortcuts={`Alt+${n.key}`}
                   >
-                    <span>{n.label}</span>
-                    <kbd aria-hidden="true">Alt {n.key}</kbd>
+                    <span class="nav-icon" aria-hidden="true">{n.icon}</span>
+                    <kbd aria-hidden="true">{n.key}</kbd>
                   </a>
                 </li>
               ))
@@ -61,8 +63,8 @@ const href = (to: string) => (to === '/' ? '/' : `${to}/`)
       </aside>
       <div class="main-col">
         <header class="topbar">
-          <button type="button" class="btn btn-ghost palette-btn" data-open-palette aria-keyshortcuts="Control+K">
-            Commands <kbd>Ctrl K</kbd>
+          <button type="button" class="btn btn-ghost palette-btn" data-open-palette aria-keyshortcuts="Control+K" aria-label="Commands">
+            <span aria-hidden="true">🔍</span> <kbd aria-hidden="true">⌃K</kbd>
           </button>
           <job-indicator></job-indicator>
           <span class="grow"></span>

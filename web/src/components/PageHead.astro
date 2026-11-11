@@ -1,5 +1,5 @@
 ---
-// Page title, optional subtitle (text prop or `sub` slot) and action buttons
+// Page title and optional subtitle (spoken only, textgate) plus action buttons
 // (default slot). Was ui/Page.tsx PageHead.
 interface Props {
   title: string
@@ -11,9 +11,9 @@ const hasActions = Astro.slots.has('default')
 
 <header class="page-head">
   <div>
-    <h1>{title}</h1>
-    {sub && <p class="sub">{sub}</p>}
-    {Astro.slots.has('sub') && <p class="sub"><slot name="sub" /></p>}
+    <h1 class="sr-only">{title}</h1>
+    {sub && <p class="sr-only">{sub}</p>}
+    {Astro.slots.has('sub') && <p class="sr-only"><slot name="sub" /></p>}
   </div>
   {hasActions && <div class="page-actions"><slot /></div>}
 </header>
