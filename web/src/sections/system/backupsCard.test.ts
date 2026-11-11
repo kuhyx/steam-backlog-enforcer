@@ -25,7 +25,7 @@ const openDialog = async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'Restore…' }))
   return screen.findByRole('dialog', { name: `Restore backup ${BACKUP.id}` })
 }
-const phraseBox = () => screen.getByLabelText('Type the phrase to confirm')
+const phraseBox = () => screen.getByLabelText(/Type the phrase to confirm/)
 
 describe('restorePhrase', () => {
   it('mirrors the server friction phrase', () => {
@@ -40,7 +40,7 @@ describe('backups-card', () => {
     show()
     expect(await screen.findByText(BACKUP.id)).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'State backups' })).toBeInTheDocument()
-    expect(screen.getByText(/before reset · 2.0 KB/)).toBeInTheDocument()
+    expect(document.querySelector('[data-reason="before reset"]')).toHaveTextContent(/♻️.*before reset · 2.0 KB/)
     expect(await screen.findByRole('button', { name: 'Reset all state…' })).toBeInTheDocument()
   })
 

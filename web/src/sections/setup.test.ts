@@ -29,19 +29,23 @@ describe('setup-form', () => {
     expect(keyBox()).toHaveValue('')
     expect(keyBox()).toHaveFocus()
     await waitFor(() => {
-      expect(keyBox()).toHaveAttribute('placeholder', expect.stringContaining('A key is stored'))
+      expect(keyBox()).toHaveAttribute('data-stored', 'true')
     })
+    expect(keyBox().placeholder).toMatch(/^🔒 •{32}$/)
     expect(idBox()).toHaveValue(ID)
     expect(screen.queryByText('Not configured yet')).toBeNull()
-    expect(screen.getByRole('link', { name: 'steamcommunity.com/dev/apikey' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'steamcommunity.com/dev/apikey' })).toHaveAttribute('href', 'https://steamcommunity.com/dev/apikey')
+    expect(screen.getByRole('link', { name: 'steamid.io' })).toHaveAttribute('href', 'https://steamid.io')
   })
 
   it('warns on a first run, with a hint for the empty form', async () => {
     stubApi({ 'GET /api/setup': status({ configured: false, has_api_key: false, steam_id: null }) })
     show()
     expect(await screen.findByText('Not configured yet')).toBeInTheDocument()
-    expect(keyBox()).toHaveAttribute('placeholder', '32 hex characters')
+    expect(keyBox()).toHaveAttribute('data-stored', 'false')
+    expect(keyBox().placeholder).toHaveLength(32)
     expect(idBox()).toHaveValue('')
+    expect(idBox().placeholder).toMatch(/^7656·{13}$/)
   })
 
   it('shows loading', async () => {
@@ -68,6 +72,8 @@ describe('setup-form', () => {
     expect(screen.getByText('A SteamID64 is 17 digits and starts with 7656.')).toBeInTheDocument()
     expect(keyBox()).toHaveAttribute('aria-invalid', 'true')
     expect(keyBox()).toHaveClass('input-bad')
+    expect(keyBox().nextElementSibling).toHaveTextContent('⚠️ 6/32')
+    expect(idBox().nextElementSibling).toHaveTextContent('⚠️ 3/17')
     expect(bodiesOf(mock, 'POST /api/setup')).toEqual([])
     await userEvent.clear(keyBox())
     await userEvent.type(keyBox(), KEY)

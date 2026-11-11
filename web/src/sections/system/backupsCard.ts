@@ -15,13 +15,17 @@ import '../../jobs/jobProgress'
 import { Action } from '../../lib/action'
 import { define, h, hx } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
-import { card, empty, errorNotice, loading } from '../../ui/build'
+import { card, empty, errorNotice, glyph, loading } from '../../ui/build'
 import { Modal } from '../../ui/dialog'
 import { bytes, dateTime } from '../../ui/format'
 
 // Not in any CommandSpec (restore is not a CLI command), so the UI has to
 // know it. Mirrors FRICTION["restore-backup"] in _friction.py.
 export const restorePhrase = (id: string): string => `restore backup ${id}`
+
+/** Why a backup was taken, as a glyph (reason words spoken only). */
+const REASON_ICON: Record<string, string> = { 'before reset': '♻️', nightly: '🌙' }
+const reasonGlyph = (reason: string): HTMLSpanElement => glyph(REASON_ICON[reason] ?? '🗄️', reason)
 
 /** One restore: phrase form, then the job it started. */
 export class RestoreDialog {
@@ -57,14 +61,21 @@ export class RestoreDialog {
           if (this.matches() && !this.restore.pending) void this.run(onClose)
         },
       },
-      h('p', { class: 'm0' }, `Replaces the current state with the backup from ${dateTime(backup.created_at)} (${backup.reason}).`),
+      // Painted: the backup's id, date and reason glyph; the sentence is spoken only.
+      h(
+        'p',
+        { class: 'm0 row' },
+        h('span', { class: 'sr-only' }, `Replaces the current state with the backup from ${dateTime(backup.created_at)} (${backup.reason}).`),
+        h('span', { 'aria-hidden': 'true', class: 'mono' }, `🗄️ ${backup.id} · ${dateTime(backup.created_at)}`),
+        h('span', { 'aria-hidden': 'true' }, REASON_ICON[backup.reason] ?? '🗄️'),
+      ),
       this.field.el,
       this.failure,
       h(
         'div',
         { class: 'actions' },
         this.submit,
-        h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, 'Cancel'),
+        h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, glyph('✖️', 'Cancel')),
       ),
     )
     this.modal.render(form)
@@ -77,7 +88,7 @@ export class RestoreDialog {
 
   private sync(): void {
     this.submit.disabled = !this.matches() || this.restore.pending
-    this.submit.textContent = this.restore.pending ? 'Restoring…' : 'Restore'
+    this.submit.replaceChildren(this.restore.pending ? glyph('⏳', 'Restoring…') : glyph('⏮️', 'Restore'))
     this.failure.replaceChildren(...(this.restore.error ? [errorNotice(this.restore.error)] : []))
   }
 
@@ -90,7 +101,7 @@ export class RestoreDialog {
         'div',
         { class: 'stack' },
         hx('job-progress', { 'job-id': out.value.id }),
-        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, 'Close')),
+        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, glyph('✖️', 'Close'))),
       ),
     )
     this.modal.focusFirst()
@@ -102,8 +113,8 @@ export class BackupsCardElement extends LiveElement {
   private readonly list = h('ul', { class: 'rows' })
   private readonly root = card(
     'State backups',
-    [h('p', { class: 'field-help m0' }, 'Reset takes a timestamped backup first, so it can be undone here.'), this.status, this.list],
-    { aside: hx('command-button', { name: 'reset', label: 'Reset all state…' }) },
+    [h('p', { class: 'sr-only' }, 'Reset takes a timestamped backup first, so it can be undone here.'), this.status, this.list],
+    { aside: hx('command-button', { name: 'reset', label: 'Reset all state…' }), icon: '🗄️' },
   )
   private dialog: RestoreDialog | null = null
   private shownKey = ''
@@ -134,7 +145,13 @@ export class BackupsCardElement extends LiveElement {
           'li',
           { class: 'row' },
           h('span', { class: 'mono' }, b.id),
-          h('span', { class: 'muted grow' }, `${dateTime(b.created_at)} · ${b.reason} · ${bytes(b.size_bytes)}`),
+          h(
+            'span',
+            { class: 'muted grow', 'data-reason': b.reason },
+            `${dateTime(b.created_at)} · `,
+            reasonGlyph(b.reason),
+            ` · ${bytes(b.size_bytes)}`,
+          ),
           h(
             'button',
             {
@@ -144,7 +161,7 @@ export class BackupsCardElement extends LiveElement {
                 this.open(b)
               },
             },
-            'Restore…',
+            glyph('⏮️', 'Restore…'),
           ),
         ),
       ),

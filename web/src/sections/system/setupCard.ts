@@ -5,7 +5,7 @@ import { q } from '../../api/queries'
 import { define, h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
 import { pageHref } from '../../lib/runner'
-import { card, facts, link } from '../../ui/build'
+import { card, facts, glyph, link } from '../../ui/build'
 
 export class SetupCardElement extends LiveElement {
   protected override setup(): void {
@@ -18,11 +18,11 @@ export class SetupCardElement extends LiveElement {
       card(
         'Setup',
         facts([
-          ['Configured', data ? (data.configured ? 'Yes' : 'No') : '…'],
-          ['Steam API key', data ? (data.has_api_key ? 'Stored (never shown)' : 'Missing') : '…'],
-          ['Steam ID', h('span', { class: 'mono' }, data?.steam_id ?? '—')],
+          [glyph('⚙️', 'Configured'), data ? (data.configured ? glyph('✅', 'Yes') : glyph('❌', 'No')) : '…'],
+          [glyph('🔑', 'Steam API key'), data ? (data.has_api_key ? glyph('🔒', 'Stored (never shown)') : glyph('❌', 'Missing')) : '…'],
+          [glyph('🆔', 'Steam ID'), h('span', { class: 'mono' }, data?.steam_id ?? '—')],
         ]),
-        { aside: link(pageHref('/setup'), 'Open setup') },
+        { aside: link(pageHref('/setup'), glyph('✏️', 'Open setup')), icon: '🔧' },
       ),
     )
   }

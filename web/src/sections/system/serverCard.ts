@@ -6,7 +6,7 @@ import { q } from '../../api/queries'
 import { define, h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
 import { ServerRestart } from '../../shell/serverRestart'
-import { card, errorNotice, facts, loading, notice } from '../../ui/build'
+import { card, errorNotice, facts, glyph, loading, notice } from '../../ui/build'
 import { ago, dateTime } from '../../ui/format'
 
 export class ServerCardElement extends LiveElement {
@@ -19,7 +19,7 @@ export class ServerCardElement extends LiveElement {
       void this.restart.action.run()
     },
   })
-  private readonly root = card('Web server', [this.info, this.failure, h('div', { class: 'actions' }, this.button)])
+  private readonly root = card('Web server', [this.info, this.failure, h('div', { class: 'actions' }, this.button)], { icon: '🌐' })
   private readonly restart = new ServerRestart(() => {
     this.update()
   })
@@ -37,13 +37,13 @@ export class ServerCardElement extends LiveElement {
     this.info.replaceChildren(
       ...(error ? [errorNotice(error)] : []),
       ...(!data && !error ? [loading('server health')] : []),
-      ...(data?.stale ? [notice('warning', 'Stale', 'The code on disk is newer than this process.')] : []),
+      ...(data?.stale ? [notice('warning', null, h('span', { class: 'sr-only' }, h('strong', {}, 'Stale'), ' The code on disk is newer than this process.'))] : []),
       ...(data
         ? [
             facts([
-              ['Version', h('span', { class: 'mono' }, data.version)],
-              ['Started', `${dateTime(data.started_at)} (${ago(data.started_at)})`],
-              ['Code', data.stale ? 'stale' : 'current'],
+              [glyph('🏷️', 'Version'), h('span', { class: 'mono' }, data.version)],
+              [glyph('🕒', 'Started'), h('span', { 'aria-label': `${dateTime(data.started_at)} (${ago(data.started_at)})` }, dateTime(data.started_at))],
+              [glyph('💾', 'Code'), data.stale ? glyph('⚠️', 'stale') : glyph('✅', 'current')],
             ]),
           ]
         : []),
@@ -51,7 +51,8 @@ export class ServerCardElement extends LiveElement {
     const { action, restarting } = this.restart
     this.failure.replaceChildren(...(action.error ? [errorNotice(action.error)] : []))
     this.button.disabled = restarting || action.pending
-    this.button.textContent = restarting ? 'Restarting… the page reloads when it is back' : 'Restart server'
+    this.button.dataset.restarting = String(restarting)
+    this.button.replaceChildren(restarting ? glyph('⏳', 'Restarting… the page reloads when it is back') : glyph('🔄', 'Restart server'))
   }
 }
 

@@ -44,7 +44,8 @@ describe('daemon-card', () => {
     expect(await screen.findByText('4242')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Enforcer daemon' })).toBeInTheDocument()
     expect(screen.getByText('running')).toBeInTheDocument()
-    expect(screen.getByText(/ago/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/ago/)).toBeInTheDocument()
+    expect(screen.getByText('running').closest('[data-state]')).toHaveAttribute('data-state', 'running')
     expect(journal()).toHaveTextContent(/line one\s+line two/)
     expect(screen.queryByText('Daemon unreachable')).toBeNull()
   })
@@ -77,8 +78,8 @@ describe('daemon-card', () => {
     expect(button).toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(button)
     expect(run).not.toHaveBeenCalled()
-    expect(screen.getByText('No journal lines.')).toBeInTheDocument()
-    expect(screen.getAllByText('—')).toHaveLength(2)
+    expect(journal()).toHaveTextContent(/^—$/)
+    expect(screen.getAllByText('—')).toHaveLength(3)
   })
 
   it('offers the demo run', async () => {
