@@ -114,10 +114,10 @@ class TestCreateJob:
 
     def test_privileged_goes_to_the_daemon(self) -> None:
         """A privileged command is forwarded to the daemon unchanged."""
-        sentinel = Reply(HTTPStatus.ACCEPTED)
-        with patch(f"{_PKG}.run_privileged", return_value=sentinel) as run:
+        accepted = Reply(HTTPStatus.ACCEPTED)
+        with patch(f"{_PKG}.run_privileged", return_value=accepted) as run:
             got = _create({"command": "gaming-reset", "confirm_phrase": "p"})
-        assert got is sentinel
+        assert got is accepted
         run.assert_called_once_with("gaming-reset", {}, "p")
 
     def test_plain_job_is_created(self) -> None:
