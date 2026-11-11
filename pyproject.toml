@@ -49,6 +49,10 @@ include = ["*.py", "**/*.py"]
 # byte-identical to upstream; ruff --unsafe-fixes otherwise strips its print()
 # calls (T201) and silently guts the gate's reporting.
 exclude = [".git", ".venv", "__pycache__", "build", "dist", ".eggs", "scripts/file_length"]
+# scripts/ has no __init__.py on purpose (one would make it a second top-level
+# package for requirements-sync), yet pylint imports scripts.pylint_symilar_cache
+# from it: an implicit namespace package, declared so INP001 knows.
+namespace-packages = ["scripts"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -130,6 +134,10 @@ exclude = [".venv/"]
 # The repo root on the path, so pylint resolves the package's own imports the
 # same way pytest does instead of reporting import-error for them.
 init-hook = "import sys; sys.path.insert(0, '.')"
+# Hashes each file once for duplicate-code instead of once per file PAIR; same
+# R0801 output, whole-tree pylint fits the 60 s cap. Needs the init-hook above
+# (pylint runs it before loading config-file plugins, never CLI ones).
+load-plugins = ["scripts.pylint_symilar_cache"]
 analyse-fallback-blocks = true
 persistent = true
 # Serial on purpose: with jobs != 1 pylint ships the linter to its workers via

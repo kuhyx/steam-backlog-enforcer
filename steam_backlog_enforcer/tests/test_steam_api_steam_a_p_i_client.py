@@ -45,9 +45,18 @@ class TestSteamAPIClient:
         """A burst past the per-second budget makes the client sleep."""
         client = SteamAPIClient("key", "id")
         client.session.get = MagicMock(return_value=_owned_response())
-        with patch(
-            "steam_backlog_enforcer._steam_api_client.time.sleep",
-        ) as mock_sleep:
+        # Only sleeping advances this clock: no busy-wait for a real second.
+        clock = [1000.0]
+        with (
+            patch(
+                "steam_backlog_enforcer._steam_api_client.time.time",
+                side_effect=lambda: clock[-1],
+            ),
+            patch(
+                "steam_backlog_enforcer._steam_api_client.time.sleep",
+                side_effect=lambda seconds: clock.append(clock[-1] + seconds),
+            ) as mock_sleep,
+        ):
             # Keep requesting until the window fills and the throttle kicks in.
             for _ in range(_BURST_LIMIT):
                 client.get_owned_games()

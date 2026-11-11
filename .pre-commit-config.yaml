@@ -120,10 +120,19 @@ repos:
   # ===========================================================================
   # PYLINT
   # ===========================================================================
-  - repo: https://github.com/pylint-dev/pylint
-    rev: v4.0.9
+  # A local hook (was the pylint-dev/pylint repo at v4.0.9) so the manual
+  # ci-mirror-pylint-* shards below can share its env: pre-commit gives local
+  # `language: python` hooks with the same additional_dependencies ONE env,
+  # and the &pylint_env anchor is the single place the pylint version and its
+  # import deps are pinned.
+  - repo: local
     hooks:
       - id: pylint
+        name: pylint
+        entry: pylint
+        language: python
+        types: [python]
+        require_serial: true
         # Whole tree on every run, never the staged subset: `--fail-under`
         # grades a score, and a score over whatever happened to be staged let a
         # 9.99 tree pass at commit time and fail in CI. scripts/file_length/
@@ -137,11 +146,13 @@ repos:
           - --jobs=1
           - steam_backlog_enforcer
           - scripts/check_requirements_sync.py
+          - scripts/pylint_symilar_cache.py
         # pylint resolves imports in its OWN isolated env, so anything the
         # package imports has to be listed here or it reports import-error and
         # drags the score under --fail-under. `mcp` is a real runtime import
         # (steam_backlog_enforcer._mcp_server).
-        additional_dependencies:
+        additional_dependencies: &pylint_env
+          - pylint==4.0.9
           - aiohttp==3.14.5
           - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.21.0#subdirectory=earned_time
           - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.7
@@ -168,13 +179,97 @@ repos:
         exclude: ^(tests/|.*test.*\.py$)
 
   # ===========================================================================
-  # PYTEST + COVERAGE (push stage)
+  # CI MIRROR (manual stage: the gate steps before a push)
   # ===========================================================================
+  # One gate step per hook, each under the 60 s per-command cap even on a
+  # loaded box: `scripts/check_gate_stamp.sh step <id>` per id of
+  # `scripts/check_gate_stamp.sh full --list`; the last one stamps the tree.
+  # The pylint hook above is split into the ci-mirror-pylint-* shards and
+  # ci-mirror-precommit skips it, so the union checks exactly what CI does:
+  # - per-file checks run per shard; the shards' `files` partition the hook's
+  #   targets (tests by name: rest|test_[a-h], test_[i-r], test_[s-z]). With
+  #   --fail-under=10.0 a shard passes only with zero scored messages, so
+  #   every shard passing == the whole tree at 10.00;
+  # - the two cross-file checks (duplicate-code, cyclic-import) see the whole
+  #   tree, as in the full hook (ci-mirror-pylint-dup, ci-mirror-pylint-cycles).
   - repo: local
     hooks:
-      - id: ci-mirror
-        name: CI mirror (clean-venv pytest + pre-commit --all-files)
-        entry: bash scripts/ci_mirror.sh steam_backlog_enforcer/tests/
+      - id: ci-mirror-venv
+        name: CI mirror (clean requirements.txt venv, rebuilt on change)
+        entry: bash scripts/ci_mirror.sh venv
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [manual]
+      - id: ci-mirror-precommit
+        name: CI mirror (pre-commit --all-files, pylint via the shards)
+        entry: bash scripts/ci_mirror.sh precommit
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [manual]
+      - &pylint_shard
+        id: ci-mirror-pylint-pkg
+        name: CI mirror pylint (package + scripts, per-file checks)
+        entry: pylint
+        language: python
+        additional_dependencies: *pylint_env
+        types: [python]
+        require_serial: true
+        stages: [manual]
+        files: ^(steam_backlog_enforcer/(?!tests/).*|scripts/(check_requirements_sync|pylint_symilar_cache))\.py$
+        args: &pylint_per_file
+          - --rcfile=pyproject.toml
+          - --fail-under=10.0
+          - --jobs=1
+          - --disable=duplicate-code,cyclic-import
+      - <<: *pylint_shard
+        id: ci-mirror-pylint-tests-1
+        name: CI mirror pylint (tests helpers + test_[a-h], per-file checks)
+        files: ^steam_backlog_enforcer/tests/(?!test_[i-z]).*\.py$
+      - <<: *pylint_shard
+        id: ci-mirror-pylint-tests-2
+        name: CI mirror pylint (test_[i-r], per-file checks)
+        files: ^steam_backlog_enforcer/tests/test_[i-r][^/]*\.py$
+      - <<: *pylint_shard
+        id: ci-mirror-pylint-tests-3
+        name: CI mirror pylint (test_[s-z], per-file checks)
+        files: ^steam_backlog_enforcer/tests/test_[s-z][^/]*\.py$
+      - &pylint_whole_tree
+        <<: *pylint_shard
+        id: ci-mirror-pylint-dup
+        name: CI mirror pylint (whole tree, duplicate-code)
+        files: ''
+        pass_filenames: false
+        always_run: true
+        args:
+          - --rcfile=pyproject.toml
+          - --fail-under=10.0
+          - --jobs=1
+          - --disable=all
+          # bad-plugin-value keeps a plugin that failed to load (the
+          # duplicate-code speed-up) loud instead of silently slow.
+          - --enable=duplicate-code,bad-plugin-value
+          - steam_backlog_enforcer
+          - scripts/check_requirements_sync.py
+          - scripts/pylint_symilar_cache.py
+      - <<: *pylint_whole_tree
+        id: ci-mirror-pylint-cycles
+        name: CI mirror pylint (whole tree, cyclic-import)
+        args:
+          - --rcfile=pyproject.toml
+          - --fail-under=10.0
+          - --jobs=1
+          - --disable=all
+          - --enable=cyclic-import
+          - steam_backlog_enforcer
+          - scripts/check_requirements_sync.py
+          - scripts/pylint_symilar_cache.py
+      - id: ci-mirror-pytest
+        name: CI mirror (clean-venv pytest, xdist, 100% coverage)
+        entry: bash scripts/ci_mirror.sh pytest steam_backlog_enforcer/tests/
         language: system
         pass_filenames: false
         always_run: true
