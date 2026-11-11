@@ -1,6 +1,5 @@
 // Textgate check over the built site: list every chrome word a page paints
-// before its custom elements hydrate (layout, page heads, command-button
-// labels). Spoken-only text (.sr-only, aria-hidden, the focus-only skip link)
+// before its custom elements hydrate (layout, page heads). Spoken-only text (.sr-only, aria-hidden, the focus-only skip link)
 // is ignored. Exit 1 when any page paints a word, so it works as a gate.
 //
 // Usage: node scripts/visible_words.mjs [distDir]   (run `pnpm build` first)
@@ -31,11 +30,8 @@ export function visibleWords(html) {
     const t = n.textContent?.trim() ?? ''
     if (WORD_RE.test(t)) out.push(t)
   }
-  // command-button paints its label attribute once it hydrates.
-  for (const el of document.querySelectorAll('command-button[label]')) {
-    const t = el.getAttribute('label') ?? ''
-    if (WORD_RE.test(t)) out.push(`[button] ${t}`)
-  }
+  // command-button's `label` is spoken only (aria-label) once it hydrates;
+  // src/test/textgate.commands.guard.test.ts pins that.
   return out
 }
 
