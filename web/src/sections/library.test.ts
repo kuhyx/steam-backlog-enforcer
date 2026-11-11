@@ -108,10 +108,10 @@ describe('Library page', () => {
     view.remove()
     at('/library/#view=installed')
     window.dispatchEvent(new HashChangeEvent('hashchange'))
-    expect(view.querySelector('[aria-pressed="true"]')).toHaveTextContent('All games')
+    expect(view.querySelector('[aria-pressed="true"]')).toHaveAttribute('aria-label', 'All games')
     page.append(view) // re-attached: same controls, view re-read from the hash
     expect(view.querySelectorAll('.seg')).toHaveLength(1)
-    expect(view.querySelector('[aria-pressed="true"]')).toHaveTextContent('Installed')
+    expect(view.querySelector('[aria-pressed="true"]')).toHaveAttribute('aria-label', 'Installed')
   })
 
   it('says when nothing is installed', async () => {

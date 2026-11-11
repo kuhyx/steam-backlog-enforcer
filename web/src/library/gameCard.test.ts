@@ -1,6 +1,7 @@
 import { fireEvent } from '@testing-library/dom'
 import { describe, expect, it } from 'vitest'
 import { makeLibGame } from '../test/fixtures'
+import { visibleWords } from '../test/visibleWords'
 import { gameCard, paintCard, placeCard, type CardPaint } from './gameCard'
 
 const PLAIN: CardPaint = { reason: null, selected: false, pickMode: false }
@@ -70,8 +71,17 @@ describe('gameCard', () => {
 
   it('shows only the badge that applies', () => {
     const card = make({ installed: true })
-    expect(card.querySelector('.game-badges')).toHaveTextContent(/^installed$/)
-    expect(make({ assigned: true }).querySelector('.game-badges')).toHaveTextContent(/^assigned$/)
+    expect(card.querySelectorAll('.game-badges .pill')).toHaveLength(1)
+    expect(card.querySelector('.game-badges .pill-neutral')).toHaveTextContent('💾installed')
+    const assigned = make({ assigned: true })
+    expect(assigned.querySelectorAll('.game-badges .pill')).toHaveLength(1)
+    expect(assigned.querySelector('.game-badges .pill-accent')).toHaveTextContent('🎯assigned')
+  })
+
+  it('paints glyphs and numbers only; reasons and meta words are spoken', () => {
+    const card = make({ assigned: true, installed: true }, { pickMode: true, selected: false, reason: 'Skipped until 2026-10-17' })
+    expect(visibleWords(card, [card.querySelector('.game-title')?.textContent ?? ''])).toEqual([])
+    expect(card.querySelector('.game-reason')).toHaveTextContent('⏭️ 2026-10-17')
   })
 
   it('has no badge row for a plain game', () => {

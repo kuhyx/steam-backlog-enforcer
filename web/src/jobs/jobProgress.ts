@@ -7,11 +7,11 @@
 import { api } from '../api/client'
 import type { JobProgress as Progress, JobState } from '../api/jobContract'
 import { q } from '../api/queries'
-import { commandLabel, findCommand } from '../commands/catalog'
+import { COMMAND_ICON, commandLabel, findCommand } from '../commands/catalog'
 import { Action } from '../lib/action'
 import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
-import { errorNotice, notice } from '../ui/build'
+import { errorNotice, glyph, notice } from '../ui/build'
 import { clock, duration } from '../ui/format'
 import { hub, type LiveJob } from './hub'
 import { progressBar, stateBadge } from './progress'
@@ -130,7 +130,8 @@ export class JobProgressElement extends LiveElement {
     f.section.className = compact ? 'job job-compact' : 'job'
     f.section.dataset.state = state
     f.section.setAttribute('aria-label', `Job ${job ? commandLabel(job.command) : id}`)
-    f.title.textContent = title
+    // Textgate: the command's glyph painted, its name spoken.
+    f.title.replaceChildren(...(job ? [glyph(COMMAND_ICON[job.command], title)] : []))
     f.badge.replaceChildren(stateBadge(state))
     f.meta.replaceChildren(
       job ? duration(job.started_at, job.ended_at, now) : '',
@@ -141,11 +142,14 @@ export class JobProgressElement extends LiveElement {
             { class: live.connected ? 'dot dot-live' : 'dot dot-off', role: 'img', 'aria-label': live.connected ? 'Live' : 'Reconnecting' },
           ),
     )
+    // The server's phase sentence is spoken only; the bar, step count and
+    // state glyph carry it on screen.
     f.phase.replaceChildren(
       h(
         'span',
         { class: 'job-label' },
-        isDone(state) ? DONE_LABEL[state] : waiting ? '⏳' : (progress?.label ?? ''),
+        isDone(state) ? DONE_LABEL[state] : waiting ? '⏳' : progress ? '▶️' : '',
+        progress?.label && !finished ? h('span', { class: 'sr-only' }, progress.label) : null,
       ),
       !finished && progress && progress.total !== null
         ? h('span', { class: 'job-step' }, `${progress.step}/${progress.total}`)
@@ -171,7 +175,7 @@ export class JobProgressElement extends LiveElement {
     this.updatePrompt(f, live, state)
     f.result.replaceChildren(
       ...(live.result
-        ? [notice(live.result.ok ? 'success' : 'danger', null, live.result.summary)]
+        ? [notice(live.result.ok ? 'success' : 'danger', null, h('span', { class: 'sr-only' }, live.result.summary))]
         : []),
     )
     f.actions.replaceChildren(

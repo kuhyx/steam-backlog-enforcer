@@ -4,6 +4,7 @@
 
 import type { LibraryGame } from '../api/contract'
 import { h } from '../lib/dom'
+import { glyph } from '../ui/build'
 import { FILTERS, type BrowserState } from './browserState'
 import { SearchBox, type SearchBoxOptions } from './searchBox'
 import { SORTS, type Filters, type SortKey } from './view'
@@ -30,7 +31,7 @@ export class BrowserToolbar {
           opts.onSort(this.sortSelect.value as SortKey)
         },
       },
-      SORTS.map((s) => h('option', { value: s.key }, s.label)),
+      SORTS.map((s) => h('option', { value: s.key, 'aria-label': s.label }, s.icon)),
     )
     this.checks = new Map(
       FILTERS.map(([key]) => [
@@ -47,12 +48,12 @@ export class BrowserToolbar {
       'div',
       { class: 'lib-toolbar' },
       this.searchBox.el,
-      h('label', { class: 'lib-sort' }, h('span', { class: 'field-label' }, 'Sort'), this.sortSelect),
+      h('label', { class: 'lib-sort' }, glyph('↕️', 'Sort', 'field-label'), this.sortSelect),
       h(
         'fieldset',
         { class: 'lib-filters' },
         h('legend', { class: 'sr-only' }, 'Filters'),
-        FILTERS.map(([key, label]) => h('label', { class: 'check' }, this.checks.get(key), label)),
+        FILTERS.map(([key, label, , icon]) => h('label', { class: 'check' }, this.checks.get(key), glyph(icon, label))),
       ),
       this.count,
     )
@@ -74,7 +75,12 @@ export class BrowserToolbar {
     this.searchBox.setSuggestions(games)
   }
 
-  setCount(text: string): void {
-    this.count.textContent = text
+  /** "🎮 3/5" (+ 🔍 while a search ranks by relevance); the sentence is spoken. */
+  setCount(shown: number, total: number, byRelevance: boolean): void {
+    const spoken = `${shown} of ${total} games${byRelevance ? ' · by relevance' : ''}`
+    this.count.replaceChildren(
+      h('span', { 'aria-hidden': 'true' }, `🎮 ${shown}/${total}${byRelevance ? ' 🔍' : ''}`),
+      h('span', { class: 'sr-only' }, spoken),
+    )
   }
 }

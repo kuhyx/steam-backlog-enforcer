@@ -4,7 +4,8 @@
 
 import { ENDPOINTS, type LibraryGame } from '../api/contract'
 import { h } from '../lib/dom'
-import { metaLine } from './view'
+import { pill } from '../ui/build'
+import { metaGlyphs, metaLine, reasonGlyph, spokenGlyphs } from './view'
 
 export interface CardPaint {
   /** Why it cannot be picked here, or null. Greys the card out. */
@@ -36,13 +37,13 @@ export function gameCard(game: LibraryGame): HTMLButtonElement {
     { type: 'button', class: 'game-card', 'data-app-id': game.app_id, tabindex: -1 },
     cover(game),
     h('span', { class: 'game-title' }, game.name),
-    h('span', { class: 'game-meta' }, metaLine(game)),
+    spokenGlyphs(metaGlyphs(game), metaLine(game), 'game-meta'),
     game.assigned || game.installed
       ? h(
           'span',
           { class: 'game-badges' },
-          game.assigned ? h('span', { class: 'pill pill-accent' }, 'assigned') : null,
-          game.installed ? h('span', { class: 'pill pill-neutral' }, 'installed') : null,
+          game.assigned ? pill('accent', 'assigned', '🎯') : null,
+          game.installed ? pill('neutral', 'installed', '💾') : null,
         )
       : null,
   )
@@ -56,13 +57,15 @@ export function paintCard(card: HTMLButtonElement, { reason, selected, pickMode 
   else card.removeAttribute('aria-pressed')
   if (pickMode && reason !== null) card.setAttribute('aria-disabled', 'true')
   else card.removeAttribute('aria-disabled')
-  let line = card.querySelector('.game-reason')
+  const line = card.querySelector('.game-reason')
   if (reason === null) {
     line?.remove()
     return
   }
-  line ??= card.appendChild(h('span', { class: 'game-reason' }))
-  line.textContent = reason
+  // The reason is spoken; the card paints its glyph (and any date) greyed out.
+  const fresh = spokenGlyphs(reasonGlyph(reason), reason, 'game-reason')
+  if (line) line.replaceWith(fresh)
+  else card.append(fresh)
 }
 
 /** Place the card in the grid: its position and whether it is the tab stop. */

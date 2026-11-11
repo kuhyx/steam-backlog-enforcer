@@ -7,6 +7,11 @@ import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { card, empty, errorNotice, loading } from '../ui/build'
 
+/** Glyphs and numbers painted, the sentence spoken. */
+function glyphText(painted: string, spoken: string): HTMLSpanElement {
+  return h('span', { class: 'muted' }, h('span', { 'aria-hidden': 'true' }, painted), h('span', { class: 'sr-only' }, spoken))
+}
+
 /** Page subtitle: the assigned game, once known. */
 export class PicksSubElement extends LiveElement {
   protected override setup(): void {
@@ -41,7 +46,13 @@ export class ManualPicksElement extends LiveElement {
             h(
               'li',
               { class: 'row' },
-              h('span', { class: 'grow' }, h('strong', {}, p.name), ' ', h('span', { class: 'muted' }, `· picked ${p.age_days} d ago · ${p.app_id}`)),
+              h(
+                'span',
+                { class: 'grow' },
+                h('strong', {}, p.name),
+                ' ',
+                glyphText(`· 🕐 ${p.age_days} d · ${p.app_id}`, `· picked ${p.age_days} d ago · ${p.app_id}`),
+              ),
               abandon(p.app_id),
             ),
           ),
@@ -50,7 +61,7 @@ export class ManualPicksElement extends LiveElement {
             h(
               'li',
               { class: 'row' },
-              h('span', { class: 'grow' }, h('strong', {}, p.name), ' ', h('span', { class: 'muted' }, `· kept · no lock · ${p.app_id}`)),
+              h('span', { class: 'grow' }, h('strong', {}, p.name), ' ', glyphText(`· 📌 🔓 · ${p.app_id}`, `· kept · no lock · ${p.app_id}`)),
               abandon(p.app_id),
             ),
           ),
@@ -58,7 +69,7 @@ export class ManualPicksElement extends LiveElement {
         none
           ? h('div', { class: 'actions' }, commandButton({ name: 'abandon-pick', label: 'Abandon a pick by app id…' }))
           : null,
-      ]),
+      ], { icon: '📌' }),
     )
   }
 }

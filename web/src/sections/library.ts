@@ -8,14 +8,15 @@ import { define, h, hx } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import '../library/gameBrowser'
 import { readHash, writeHash } from '../library/hashState'
-import { card, empty, errorNotice, loading } from '../ui/build'
+import { card, empty, errorNotice, glyph, loading, pill } from '../ui/build'
 import { bytes } from '../ui/format'
 
 type View = 'all' | 'installed'
 
-const VIEWS: [View, string][] = [
-  ['all', 'All games'],
-  ['installed', 'Installed'],
+/** View key, spoken label, painted glyph. */
+const VIEWS: [View, string, string][] = [
+  ['all', 'All games', '🗂️'],
+  ['installed', 'Installed', '💾'],
 ]
 
 const viewFromHash = (): View => (readHash().get('view') === 'installed' ? 'installed' : 'all')
@@ -65,10 +66,10 @@ export class InstalledTableElement extends LiveElement {
                     h(
                       'tr',
                       {},
-                      h('th', { scope: 'col' }, 'Game'),
-                      h('th', { scope: 'col' }, 'App id'),
-                      h('th', { scope: 'col', class: 'num' }, 'Size'),
-                      h('th', { scope: 'col' }, 'Role'),
+                      h('th', { scope: 'col' }, glyph('🎮', 'Game')),
+                      h('th', { scope: 'col' }, glyph('#', 'App id')),
+                      h('th', { scope: 'col', class: 'num' }, glyph('💽', 'Size')),
+                      h('th', { scope: 'col' }, glyph('🏷️', 'Role')),
                     ),
                   ),
                   h(
@@ -84,9 +85,9 @@ export class InstalledTableElement extends LiveElement {
                         h(
                           'td',
                           {},
-                          g.assigned ? h('span', { class: 'pill pill-accent' }, 'assigned') : null,
-                          g.protected ? h('span', { class: 'pill pill-neutral' }, 'protected') : null,
-                          !g.assigned && !g.protected ? h('span', { class: 'muted' }, 'uninstall candidate') : null,
+                          g.assigned ? pill('accent', 'assigned', '🎯') : null,
+                          g.protected ? pill('neutral', 'protected', '🛡️') : null,
+                          !g.assigned && !g.protected ? glyph('🗑️', 'uninstall candidate', 'muted') : null,
                         ),
                       ),
                     ),
@@ -95,7 +96,17 @@ export class InstalledTableElement extends LiveElement {
               )
             : null,
         ],
-        { aside: data ? h('span', { class: 'muted' }, `${games.length} games · ${bytes(total)}`) : null },
+        {
+          icon: '💾',
+          aside: data
+            ? h(
+                'span',
+                { class: 'muted' },
+                h('span', { 'aria-hidden': 'true' }, `🎮 ${games.length} · 💽 ${bytes(total)}`),
+                h('span', { class: 'sr-only' }, `${games.length} games · ${bytes(total)}`),
+              )
+            : null,
+        },
       ),
     )
   }
@@ -120,18 +131,19 @@ export class LibraryViewElement extends HTMLElement {
       const seg = h(
         'div',
         { class: 'seg', role: 'group', 'aria-label': 'Library view' },
-        VIEWS.map(([key, label]) => {
+        VIEWS.map(([key, label, icon]) => {
           const btn = h(
             'button',
             {
               type: 'button',
               class: 'btn btn-ghost btn-small',
+              'aria-label': label,
               onclick: () => {
                 writeHash({ view: key === 'all' ? null : key })
                 this.show(key)
               },
             },
-            label,
+            h('span', { 'aria-hidden': 'true' }, icon),
           )
           this.buttons.set(key, btn)
           return btn

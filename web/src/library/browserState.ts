@@ -5,11 +5,11 @@
 import { readHash } from './hashState'
 import { NO_FILTERS, SORTS, type Filters, type SortKey } from './view'
 
-/** Filter key, checkbox label, and its token in the hash's `f=` list. */
-export const FILTERS: [keyof Filters, string, string][] = [
-  ['hideCompleted', 'Hide completed', 'completed'],
-  ['installedOnly', 'Installed only', 'installed'],
-  ['pickableOnly', 'Pickable only', 'pickable'],
+/** Filter key, spoken checkbox label, its token in the hash's `f=` list, painted glyph. */
+export const FILTERS: [keyof Filters, string, string, string][] = [
+  ['hideCompleted', 'Hide completed', 'completed', '🙈🏆'],
+  ['installedOnly', 'Installed only', 'installed', '💾'],
+  ['pickableOnly', 'Pickable only', 'pickable', '🎯'],
 ]
 
 export interface BrowserState {

@@ -10,8 +10,14 @@ import { PhraseField } from '../commands/phraseField'
 import { Action } from '../lib/action'
 import { h, hx } from '../lib/dom'
 import type { GameBrowserElement } from '../library/pick'
-import { errorNotice } from '../ui/build'
+import { errorNotice, glyph } from '../ui/build'
 import { hub, type PromptEvent } from './hub'
+
+/** A glyph-only button: `icon` painted, `spoken` its accessible name. */
+function sendButton(btn: HTMLButtonElement, spoken: string, icon: string): void {
+  btn.setAttribute('aria-label', spoken)
+  btn.textContent = icon
+}
 
 function answerAction(jobId: string, prompt: PromptEvent, onChange: () => void): Action<[string], void> {
   return new Action(async (value: string) => {
@@ -34,7 +40,8 @@ function answerForm(jobId: string, prompt: PromptEvent): HTMLFormElement {
   const submit = (v: string = value) => {
     void send.run(v)
   }
-  const form = h('form', { class: 'prompt', 'aria-label': 'Job question' }, h('p', { class: 'prompt-msg' }, prompt.message))
+  // Textgate: the server's question is spoken; ❓ marks that the job waits on you.
+  const form = h('form', { class: 'prompt', 'aria-label': 'Job question' }, h('p', { class: 'prompt-msg' }, glyph('❓', prompt.message)))
   form.addEventListener('submit', (e) => {
     e.preventDefault()
     if (ready()) submit()
@@ -57,8 +64,9 @@ function answerForm(jobId: string, prompt: PromptEvent): HTMLFormElement {
         'label',
         { class: 'choice' },
         radio,
-        h('span', { class: 'choice-label' }, o.label),
-        o.detail ? h('span', { class: 'choice-detail' }, o.detail) : null,
+        // Option labels are game names (content); the "own game" escape is a glyph.
+        o.value === 'own' ? glyph('🗂️', o.label, 'choice-label') : h('span', { class: 'choice-label' }, o.label),
+        o.detail ? h('span', { class: 'choice-detail sr-only' }, o.detail) : null,
       )
       label.dataset.value = o.value
       labels.push(label)
@@ -95,14 +103,14 @@ function answerForm(jobId: string, prompt: PromptEvent): HTMLFormElement {
     errorSlot.replaceChildren(...(send.error ? [errorNotice(send.error)] : []))
     if (prompt.kind === 'confirm') {
       actions.replaceChildren(
-        h('button', { type: 'button', class: 'btn btn-primary', autofocus: prompt.default !== 'no', disabled: send.pending, onclick: () => { submit('yes') } }, 'Yes'),
-        h('button', { type: 'button', class: 'btn btn-ghost', autofocus: prompt.default === 'no', disabled: send.pending, onclick: () => { submit('no') } }, 'No'),
+        h('button', { type: 'button', class: 'btn btn-primary', 'aria-label': 'Yes', autofocus: prompt.default !== 'no', disabled: send.pending, onclick: () => { submit('yes') } }, '✔️'),
+        h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'No', autofocus: prompt.default === 'no', disabled: send.pending, onclick: () => { submit('no') } }, '✖️'),
       )
       return
     }
     const btn = actions.querySelector('button') ?? actions.appendChild(h('button', { type: 'submit', class: 'btn btn-primary' }))
     btn.disabled = !ready() || send.pending
-    btn.textContent = send.pending ? 'Sending…' : 'Answer'
+    sendButton(btn, send.pending ? 'Sending…' : 'Answer', send.pending ? '⏳' : '↵')
   }
   refresh()
   return form
@@ -127,12 +135,18 @@ function gamePrompt(jobId: string, prompt: PromptEvent): HTMLFormElement {
   }
   browser.pick = { appIds, selected, onSelect: pick }
   const pickBtn = h('button', { type: 'submit', class: 'btn btn-primary' })
-  const backBtn = h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => void send.run('') }, 'Back to the list')
+  const backBtn = h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Back to the list', onclick: () => void send.run('') }, '↩️')
   const errorSlot = h('div', { class: 'contents' })
   const form = h(
     'form',
     { class: 'prompt prompt-game', 'aria-label': 'Job question' },
-    h('p', { class: 'prompt-msg' }, prompt.message, ' ', h('span', { class: 'muted' }, `· ${appIds.size} games can be picked`)),
+    h(
+      'p',
+      { class: 'prompt-msg' },
+      glyph('❓', prompt.message),
+      ' ',
+      h('span', { class: 'muted' }, h('span', { 'aria-hidden': 'true' }, `· 🎮 ${appIds.size}`), h('span', { class: 'sr-only' }, `· ${appIds.size} games can be picked`)),
+    ),
     browser,
     errorSlot,
     h('div', { class: 'actions prompt-game-bar' }, pickBtn, backBtn),
@@ -145,7 +159,13 @@ function gamePrompt(jobId: string, prompt: PromptEvent): HTMLFormElement {
   function refresh(): void {
     const name = q.library.state.data?.games.find((g) => g.app_id === selected)?.name ?? String(selected)
     pickBtn.disabled = selected === null || send.pending
-    pickBtn.textContent = send.pending ? 'Sending…' : selected === null ? 'Select a game' : `Pick ${name}`
+    // 🎯 + the chosen game's name (content) painted; the verb is spoken.
+    if (send.pending) sendButton(pickBtn, 'Sending…', '⏳')
+    else if (selected === null) sendButton(pickBtn, 'Select a game', '🎯')
+    else {
+      pickBtn.setAttribute('aria-label', `Pick ${name}`)
+      pickBtn.replaceChildren(h('span', { 'aria-hidden': 'true' }, `🎯 ${name}`))
+    }
     backBtn.disabled = send.pending
     errorSlot.replaceChildren(...(send.error ? [errorNotice(send.error)] : []))
   }

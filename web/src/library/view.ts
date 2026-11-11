@@ -2,14 +2,16 @@
 // the grid component only wires state to them.
 
 import type { LibraryGame } from '../api/contract'
+import { h } from '../lib/dom'
 
 export type SortKey = 'name' | 'recent' | 'completion' | 'hltb'
 
-export const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'recent', label: 'Recently played' },
-  { key: 'completion', label: 'Completion' },
-  { key: 'hltb', label: 'Shortest (HLTB)' },
+/** `label` is spoken only; the sort select paints `icon`. */
+export const SORTS: { key: SortKey; label: string; icon: string }[] = [
+  { key: 'name', label: 'Name', icon: '🔤' },
+  { key: 'recent', label: 'Recently played', icon: '🕐' },
+  { key: 'completion', label: 'Completion', icon: '🏆' },
+  { key: 'hltb', label: 'Shortest (HLTB)', icon: '⏱️' },
 ]
 
 export interface Filters {
@@ -58,7 +60,7 @@ export function filterGames(
   )
 }
 
-/** "45% · 12 h HLTB · 3.2 h played", the card's one meta line. */
+/** "45% · 12 h HLTB · 3.2 h played", the card's meta line (spoken only). */
 export function metaLine(g: LibraryGame): string {
   const pct = completion(g)
   const parts = [pct === null ? 'No achievements' : `${Math.floor(pct)}%`]
@@ -67,6 +69,34 @@ export function metaLine(g: LibraryGame): string {
   return parts.join(' · ')
 }
 
+/** The painted meta line: "🏆 45% · ⏱️ 12 h · ▶️ 3.2 h" (🏆 — without achievements). */
+export function metaGlyphs(g: LibraryGame): string {
+  const pct = completion(g)
+  const parts = [`🏆 ${pct === null ? '—' : `${Math.floor(pct)}%`}`]
+  if (g.hltb_hours !== null) parts.push(`⏱️ ${hours(g.hltb_hours)}`)
+  if (g.playtime_minutes > 0) parts.push(`▶️ ${hours(g.playtime_minutes / 60)}`)
+  return parts.join(' · ')
+}
+
 function hours(h: number): string {
   return h >= 10 ? `${Math.round(h)} h` : `${h.toFixed(1)} h`
+}
+
+/** Glyph for a server ineligibility reason; a date in it stays painted. */
+export function reasonGlyph(reason: string): string {
+  const date = /\d{4}-\d{2}-\d{2}/.exec(reason)?.[0]
+  if (reason.includes('100%')) return '🏆✅'
+  if (/no achievements/i.test(reason)) return '🏆🚫'
+  if (/skip/i.test(reason)) return date ? `⏭️ ${date}` : '⏭️'
+  return date ? `⛔ ${date}` : '⛔'
+}
+
+/** Glyphs painted, words spoken: `text` shown as `painted` with an sr-only twin. */
+export function spokenGlyphs(painted: string, text: string, className: string): HTMLSpanElement {
+  return h('span', { class: className }, h('span', { 'aria-hidden': 'true' }, painted), h('span', { class: 'sr-only' }, text))
+}
+
+/** A suggestion's second line: the reason it cannot be picked, else the meta line. */
+export function reasonOrMeta(reason: string | null, g: LibraryGame, className: string): HTMLSpanElement {
+  return reason === null ? spokenGlyphs(metaGlyphs(g), metaLine(g), className) : spokenGlyphs(reasonGlyph(reason), reason, className)
 }

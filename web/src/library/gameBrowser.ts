@@ -15,7 +15,7 @@ import type { LibraryGame } from '../api/contract'
 import { q } from '../api/queries'
 import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
-import { errorNotice, loading } from '../ui/build'
+import { empty, errorNotice, loading } from '../ui/build'
 import { stateFromHash, stateToHash, type BrowserState } from './browserState'
 import { BrowserToolbar } from './browserToolbar'
 import { buildIndex, search, type Searchable } from './fuzzy'
@@ -191,8 +191,8 @@ export class GameBrowser extends LiveElement implements GameBrowserElement {
     }
     this.grid.show(this.visible.map((g) => this.card(g)))
     const query = this.state.query.trim()
-    this.toolbar.setCount(`${this.visible.length} of ${games.length} games${query ? ' · by relevance' : ''}`)
-    this.none.replaceChildren(...(this.visible.length === 0 ? [h('p', { class: 'muted' }, 'No game matches.')] : []))
+    this.toolbar.setCount(this.visible.length, games.length, query !== '')
+    this.none.replaceChildren(...(this.visible.length === 0 ? [empty('No game matches.')] : []))
   }
 
   /** A click: becomes the tab stop; in pick mode an eligible card is selected. */

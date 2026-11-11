@@ -6,7 +6,7 @@
 import type { LibraryGame } from '../api/contract'
 import { h } from '../lib/dom'
 import { uid } from '../lib/ids'
-import { metaLine } from './view'
+import { reasonOrMeta } from './view'
 
 export interface SearchBoxOptions {
   /** Every edit of the text (typing, or Escape clearing it). */
@@ -36,7 +36,7 @@ export class SearchBox {
       'aria-expanded': 'false',
       'aria-controls': this.listId,
       'aria-autocomplete': 'list',
-      placeholder: 'Search your games (typos are fine)…',
+      placeholder: '🔍',
     })
     this.list = h('ul', { id: this.listId, role: 'listbox', class: 'lib-suggest', hidden: true, 'aria-label': 'Suggestions' })
     this.el = h('div', { class: 'lib-search' }, this.input, this.list)
@@ -138,7 +138,7 @@ export class SearchBox {
                 },
               },
               h('span', { class: 'lib-suggest-name' }, g.name),
-              h('span', { class: 'lib-suggest-meta' }, this.opts.reason(g) ?? metaLine(g)),
+              reasonOrMeta(this.opts.reason(g), g, 'lib-suggest-meta'),
             ),
           )
         : []),

@@ -37,10 +37,12 @@ describe('jobs list', () => {
     expect(await screen.findByRole('table')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Jobs', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Pick manual' })).toHaveAttribute('href', '/jobs/?id=a')
-    expect(screen.getByText('app_id=5 note=x')).toBeInTheDocument()
+    // Param values painted, keys and the server's summary spoken only.
+    expect(screen.getByText('5 x')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText('app_id=5 note=x')).toHaveClass('sr-only')
     expect(screen.getByText('1:05')).toBeInTheDocument()
-    expect(screen.getByText('Picked 5')).toBeInTheDocument()
-    expect(screen.getByText('Scanning')).toBeInTheDocument()
+    expect(screen.getByText('Picked 5')).toHaveClass('sr-only')
+    expect(screen.getByText('Scanning')).toHaveClass('sr-only')
     expect(screen.getAllByLabelText('running')).toHaveLength(2)
   })
 
@@ -106,7 +108,9 @@ describe('job detail', () => {
     stubApi({ 'GET /api/jobs/nope': apiError(404, 'not_found', 'No job nope.') })
     mount('<jobs-page></jobs-page>')
     expect(await screen.findByRole('heading', { name: 'Job not found', level: 1 })).toBeInTheDocument()
-    expect(screen.getByText('No job nope.')).toBeInTheDocument()
+    const notice = document.querySelector('[data-code="not_found"]')
+    expect(notice?.getAttribute('aria-label')).toMatch(/No job nope\.$/)
+    expect(notice).toHaveTextContent('nope')
     expect(screen.getByRole('link', { name: 'See all jobs' })).toHaveAttribute('href', '/jobs/')
     expect(document.querySelector('job-progress')).toBeNull()
     expect(FakeEventSource.all).toHaveLength(0)
@@ -127,8 +131,9 @@ describe('job detail', () => {
     at('/jobs/?id=gone')
     stubApi({ 'GET /api/jobs/gone': apiError(404, 'not_found') })
     mount('<jobs-page></jobs-page>')
-    const title = await screen.findByText('Job not found', { selector: '.notice-title' })
-    expect(title.parentElement?.querySelectorAll('p')).toHaveLength(2)
+    await screen.findByRole('heading', { name: 'Job not found', level: 1 })
+    const notice = document.querySelector('[data-code="not_found"]')
+    expect(notice?.getAttribute('aria-label')).toMatch(/keeps the last 50\.$/)
   })
 
   it('treats a bare <job-detail> as an unknown job', async () => {

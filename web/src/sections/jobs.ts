@@ -6,13 +6,13 @@ import { ApiFailure } from '../api/client'
 import { explain } from '../api/errors'
 import type { Job } from '../api/jobContract'
 import { q } from '../api/queries'
-import { commandLabel } from '../commands/catalog'
+import { COMMAND_ICON, commandLabel } from '../commands/catalog'
 import '../jobs/jobProgress'
 import { stateBadge } from '../jobs/progress'
 import { define, h, hx } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { jobHref, pageHref } from '../lib/runner'
-import { card, empty, errorNotice, link, loading, notice } from '../ui/build'
+import { card, empty, errorNotice, glyph, link, loading, notice } from '../ui/build'
 import { dateTime, duration } from '../ui/format'
 
 /** The `id` query parameter, or null for the list (an empty `?id=` too). */
@@ -27,18 +27,32 @@ function params(j: Job): string {
     .join(' ')
 }
 
+/** The command's glyph painted, its name spoken. */
+function commandGlyph(command: Job['command']): HTMLSpanElement {
+  return glyph(COMMAND_ICON[command], commandLabel(command), 'job-cmd')
+}
+
 /** One row, plus its duration cell so ticks can refresh just that. */
 function row(j: Job): { tr: HTMLTableRowElement; took: HTMLTableCellElement } {
   const args = params(j)
+  // Param values are content (ids, minutes); their keys are spoken only.
+  const values = Object.values(j.params).map(String).join(' ')
   const took = h('td', { class: 'num mono' })
+  const summary = j.summary ?? j.progress?.label ?? ''
   const tr = h(
     'tr',
     {},
-    h('td', {}, h('a', { href: jobHref(j.id) }, commandLabel(j.command)), args ? h('span', { class: 'muted mono' }, ` ${args}`) : null),
+    h(
+      'td',
+      {},
+      h('a', { href: jobHref(j.id) }, commandGlyph(j.command)),
+      args ? h('span', { class: 'muted mono' }, h('span', { 'aria-hidden': 'true' }, ` ${values}`), h('span', { class: 'sr-only' }, ` ${args}`)) : null,
+      // The server's summary sentence is spoken only; the state badge paints the outcome.
+      summary ? h('span', { class: 'sr-only' }, ` ${summary}`) : null,
+    ),
     h('td', {}, stateBadge(j.state)),
     h('td', { class: 'muted' }, dateTime(j.created_at)),
     took,
-    h('td', { class: 'ellipsis' }, j.summary ?? j.progress?.label ?? ''),
   )
   return { tr, took }
 }
@@ -72,18 +86,17 @@ export class JobListElement extends LiveElement {
           h(
             'tr',
             {},
-            h('th', { scope: 'col' }, 'Command'),
-            h('th', { scope: 'col' }, 'State'),
-            h('th', { scope: 'col' }, 'Started'),
-            h('th', { scope: 'col', class: 'num' }, 'Took'),
-            h('th', { scope: 'col' }, 'Summary'),
+            h('th', { scope: 'col' }, glyph('⌨️', 'Command')),
+            h('th', { scope: 'col' }, glyph('🚦', 'State')),
+            h('th', { scope: 'col' }, glyph('🕐', 'Started')),
+            h('th', { scope: 'col', class: 'num' }, glyph('⏱️', 'Took')),
           ),
         ),
         this.body,
       ),
     )
-    const title = h('h1', {}, 'Jobs')
-    const sub = h('p', { class: 'sub' }, 'The last 50 jobs. They keep running if you close the page.')
+    const title = h('h1', { class: 'sr-only' }, 'Jobs')
+    const sub = h('p', { class: 'sr-only' }, 'The last 50 jobs. They keep running if you close the page.')
     this.replaceChildren(pageHead(title, sub, null), card(null, [this.status, this.table]))
     this.watch(q.jobs)
     this.tick(1000)
@@ -112,13 +125,16 @@ export class JobListElement extends LiveElement {
 }
 
 function notFound(id: string, error: ApiFailure): HTMLDivElement {
-  return notice(
+  // ❓ + the id painted; the explanation and the server's message are spoken.
+  const el = notice(
     'warning',
-    'Job not found',
-    h('p', { class: 'm0' }, 'There is no job ', h('span', { class: 'mono' }, id), '. It may have been pruned: the history keeps the last 50.'),
-    error.message ? h('p', { class: 'm0 muted' }, error.message) : null,
-    h('p', { class: 'm0' }, h('a', { href: pageHref('/jobs') }, 'See all jobs')),
+    null,
+    h('p', { class: 'm0' }, h('span', { 'aria-hidden': 'true' }, '❓ '), h('span', { class: 'mono' }, id)),
+    h('p', { class: 'm0' }, link(pageHref('/jobs'), glyph('📋', 'See all jobs'), '')),
   )
+  el.dataset.code = 'not_found'
+  el.setAttribute('aria-label', `Job not found. There is no job ${id}. It may have been pruned: the history keeps the last 50.${error.message ? ` ${error.message}` : ''}`)
+  return el
 }
 
 /** `/jobs/?id=…`: one job. `<job-progress>` is mounted once and owns itself. */
@@ -139,7 +155,7 @@ export class JobDetailElement extends LiveElement {
     this.sub = h('p', { class: 'sub' })
     this.status = h('div', { class: 'contents' })
     this.mounted = false
-    this.replaceChildren(pageHead(this.heading, this.sub, link(pageHref('/jobs'), 'All jobs', 'btn btn-ghost')), this.status)
+    this.replaceChildren(pageHead(this.heading, this.sub, link(pageHref('/jobs'), glyph('📋', 'All jobs'), 'btn btn-ghost')), this.status)
     // Subscribed by hand, not via watch(): an unknown id stops polling.
     let live = true
     const off = q.job(this.jobId).subscribe(() => {
@@ -156,8 +172,13 @@ export class JobDetailElement extends LiveElement {
     const id = this.jobId
     const { data, error, loading: waiting } = q.job(id).state
     const missing = !data && error instanceof ApiFailure && error.code === 'not_found' ? error : null
-    this.heading.textContent = data ? commandLabel(data.command) : missing ? 'Job not found' : 'Job'
-    this.sub.replaceChildren('Job ', h('span', { class: 'mono' }, id), data ? ` · created ${dateTime(data.created_at)}` : '')
+    // Heading: the command's glyph (❓ when the id is unknown, ⚙️ while loading), name spoken.
+    this.heading.replaceChildren(data ? commandGlyph(data.command) : missing ? glyph('❓', 'Job not found') : glyph('⚙️', 'Job'))
+    this.sub.replaceChildren(
+      h('span', { class: 'sr-only' }, 'Job '),
+      h('span', { class: 'mono' }, id),
+      data ? h('span', {}, h('span', { 'aria-hidden': 'true' }, ' · 🕐 '), h('span', { class: 'sr-only' }, ' · created '), dateTime(data.created_at)) : '',
+    )
     this.status.replaceChildren(
       ...(missing ? [notFound(id, missing)] : error ? [errorNotice(error)] : waiting ? [loading('job')] : []),
     )
