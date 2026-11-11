@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import logging
+import subprocess
 from typing import TYPE_CHECKING
 
 from leisure_watch.procscan import LAUNCHER_PROCESS_NAMES, kill_target_names
@@ -100,7 +101,12 @@ def total_block_pass(config: Config) -> None:
     at = window.now()
     record = window.live_record(at)
     if record is not None and record.is_open(at):
-        _research_pass(record)
+        # A loaded machine can push pacman/iptables past their timeouts; that
+        # costs this tick (the next one retries), never the daemon.
+        try:
+            _research_pass(record)
+        except OSError, subprocess.SubprocessError:
+            logger.exception("Research window pass failed; retrying next tick")
         return
     if record is not None and not record.closed and at >= record.until:
         record = _latch_closed(record)

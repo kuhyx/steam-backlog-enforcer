@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
+
+import pytest
+
 from steam_backlog_enforcer import _research_record as store
 from steam_backlog_enforcer import _research_window as window
 from steam_backlog_enforcer import config as cfg
@@ -106,3 +110,24 @@ class TestOpenWindow:
         run_pass()
         assert cfg.STATE_FILE.read_bytes() == before
         assert tm.enforce.call_args.args[0] == {window.LIBRARIAN_APP_ID}
+
+
+class TestSlowSystem:
+    """A command that times out costs one tick, never the daemon."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [subprocess.TimeoutExpired(["pacman", "-Qi", "steam"], 10), OSError("busy")],
+    )
+    def test_failed_reconcile_is_retried_next_tick(
+        self, tm: Mocks, error: Exception
+    ) -> None:
+        """Test that a timed-out pacman/iptables call does not crash the loop."""
+        tm.reconcile.side_effect = error
+        window.write_record(make_record())
+        run_pass()
+        tm.block_tick.assert_not_called()
+        tm.enforce.assert_not_called()
+        tm.reconcile.side_effect = None
+        run_pass()
+        tm.enforce.assert_called_once()
