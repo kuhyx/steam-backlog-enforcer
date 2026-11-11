@@ -25,6 +25,7 @@ def _raw(**changes: object) -> str:
         "until": NOW + HOUR,
         "closed": False,
         "store_reblocked": False,
+        "extended_until": None,
     }
     for key, value in changes.items():
         if value is None:
@@ -66,9 +67,14 @@ class TestParse:
             _raw(lock_until=LOCK_START),
             _raw(until=LOCK_END + 1),
             _raw(opened_at=LOCK_END - HOUR, until=LOCK_END + HOUR),
-            _raw(until=NOW - 60 + 48 * HOUR + 2),
             _raw(closed="yes"),
             _raw(store_reblocked=1),
+            _raw(extended_until="later"),
+            _raw(extended_until=True),
+            _raw(extended_until=float("nan")),
+            _raw(extended_until=NOW + HOUR),
+            _raw(extended_until=NOW),
+            _raw(extended_until=LOCK_END + 1),
         ],
     )
     def test_invalid_is_an_error(self, raw: str) -> None:
@@ -76,10 +82,19 @@ class TestParse:
         with pytest.raises(store.ResearchStateError):
             store.parse_record(raw)
 
-    def test_exactly_48_hours_is_valid(self) -> None:
-        """Test that the cap is inclusive."""
-        parsed = store.parse_record(_raw(until=NOW - 60 + 48 * HOUR))
-        assert parsed.until - parsed.opened_at == 48 * HOUR
+    def test_no_cap_but_the_lock_end(self) -> None:
+        """Test that a window may run to the lock's end, however long."""
+        parsed = store.parse_record(_raw(until=LOCK_END))
+        assert parsed.until - parsed.opened_at > 48 * HOUR
+
+    def test_extension_roundtrip_and_old_records_have_none(self) -> None:
+        """Test that extended_until survives and is absent in an old record."""
+        record = make_record(extended_until=LOCK_END)
+        assert store.parse_record(record.to_json()) == record
+        assert store.parse_record(_raw(extended_until=None)).extended_until is None
+        old = json.loads(_raw())
+        del old["extended_until"]
+        assert store.parse_record(json.dumps(old)).extended_until is None
 
 
 class TestReadWrite:
@@ -133,6 +148,17 @@ class TestIsOpen:
     def test_after_deadline_is_closed(self) -> None:
         """Test that a late clock is closed."""
         assert not make_record().is_open(NOW + 5 * HOUR)
+
+    def test_extension_moves_the_deadline(self) -> None:
+        """Test that an extended window is open past its first deadline."""
+        record = make_record(extended_until=NOW + 5 * HOUR)
+        assert record.ends_at == NOW + 5 * HOUR
+        assert record.is_open(NOW + 2 * HOUR)
+        assert not record.is_open(NOW + 5 * HOUR)
+
+    def test_without_extension_ends_at_until(self) -> None:
+        """Test that ends_at is the plain deadline by default."""
+        assert make_record().ends_at == NOW + HOUR
 
     def test_latch_wins_over_the_clock(self) -> None:
         """Test that a closed record stays closed even for an in-range clock."""

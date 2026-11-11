@@ -31,6 +31,7 @@ class Paths:
     hosts_file: Path
     purge_log_file: Path
     remnant_paths: tuple[Path, ...]
+    steam_dir: Path
 
 
 def build_paths(tmp_path: Path) -> Paths:
@@ -57,6 +58,7 @@ def build_paths(tmp_path: Path) -> Paths:
         hosts_file=tmp_path / "hosts",
         purge_log_file=tmp_path / "total_block_purge_log.json",
         remnant_paths=remnant_paths,
+        steam_dir=remnant_paths[2],
     )
 
 

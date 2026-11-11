@@ -6,6 +6,10 @@ so the unprivileged user can neither forge a window nor delete the used-up
 marker. It holds numbers and two latches only; no free text. Anything that
 does not parse exactly, or that no legitimate open could have produced, is an
 error: the caller treats that as "no window" (fail closed).
+
+The one extension is a separate ``extended_until`` beside the original
+``until`` (never an overwrite of it): a daemon still on the earlier code reads
+the record as the original window instead of rejecting it as corrupt.
 """
 
 from __future__ import annotations
@@ -18,7 +22,6 @@ from typing import Final
 
 from steam_backlog_enforcer.config import atomic_write
 
-MAX_WINDOW_SECONDS: Final = 48 * 3600.0
 RESEARCH_FILE: Final = Path("/var/lib/steam-backlog-enforcer/total_block_research.json")
 
 _NUMBER_KEYS: Final = ("lock_started_at", "lock_until", "opened_at", "until")
@@ -41,10 +44,17 @@ class ResearchRecord:
     """Latched once the deadline passed: a clock set back cannot reopen it."""
     store_reblocked: bool = False
     """Latched once the normal store block is back after the window."""
+    extended_until: float | None = None
+    """The deadline after the window's single extension, if it was extended."""
+
+    @property
+    def ends_at(self) -> float:
+        """The deadline in force: the extension if there is one, else ``until``."""
+        return self.until if self.extended_until is None else self.extended_until
 
     def is_open(self, at: float) -> bool:
         """Whether the window is open at *at* (epoch seconds)."""
-        return not self.closed and self.opened_at <= at < self.until
+        return not self.closed and self.opened_at <= at < self.ends_at
 
     def to_json(self) -> str:
         """The record as the JSON text stored on disk."""
@@ -66,6 +76,11 @@ def _number(data: dict[str, object], key: str) -> float:
         msg = f"{key} is not finite"
         raise ResearchStateError(msg)
     return number
+
+
+def _optional_number(data: dict[str, object], key: str) -> float | None:
+    """A finite number, or None when the key is absent or null."""
+    return None if data.get(key) is None else _number(data, key)
 
 
 def _flag(data: dict[str, object], key: str) -> bool:
@@ -94,7 +109,8 @@ def parse_record(raw: str) -> ResearchRecord:
         raise ResearchStateError(msg)
     numbers = {key: _number(data, key) for key in _NUMBER_KEYS}
     flags = {key: _flag(data, key) for key in _FLAG_KEYS}
-    record = ResearchRecord(**numbers, **flags)
+    extended = _optional_number(data, "extended_until")
+    record = ResearchRecord(**numbers, **flags, extended_until=extended)
     _check_policy(record)
     return record
 
@@ -105,10 +121,10 @@ def _check_policy(record: ResearchRecord) -> None:
         msg = "lock ends before it starts"
     elif not record.opened_at < record.until:
         msg = "window ends before it opens"
-    elif record.until - record.opened_at > MAX_WINDOW_SECONDS:
-        msg = "window is longer than 48 h"
-    elif record.until > record.lock_until:
+    elif record.ends_at > record.lock_until:
         msg = "window outlives its lock"
+    elif record.extended_until is not None and record.extended_until <= record.until:
+        msg = "extension does not extend"
     else:
         return
     raise ResearchStateError(msg)

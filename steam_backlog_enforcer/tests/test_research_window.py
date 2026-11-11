@@ -7,6 +7,8 @@ import logging
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pytest
+
 from steam_backlog_enforcer import _research_record as store
 from steam_backlog_enforcer import _research_window as window
 from steam_backlog_enforcer.tests._research_helpers import (
@@ -19,8 +21,6 @@ from steam_backlog_enforcer.tests._research_helpers import (
 )
 
 if TYPE_CHECKING:
-    import pytest
-
     from steam_backlog_enforcer.tests._total_block_paths import Paths
 
 NOW_PATCH = "steam_backlog_enforcer._research_window.now"
@@ -143,3 +143,46 @@ class TestOpenNow:
         with patch("steam_backlog_enforcer._research_window.time.time") as clock:
             clock.return_value = 42.5
             assert window.now() == 42.5
+
+
+class TestResearchUsed:
+    """research_used decides whether the Steam folder may be purged."""
+
+    @staticmethod
+    def _used() -> bool:
+        with patch(NOW_PATCH, return_value=NOW):
+            return window.research_used()
+
+    def test_never_used(self, total_block_paths: Paths) -> None:
+        """Test that a lock without a record purges as before."""
+        lock(total_block_paths)
+        assert self._used() is False
+
+    def test_no_lock(self) -> None:
+        """Test that without a total block nothing is kept on its account."""
+        window.write_record(make_record())
+        assert self._used() is False
+
+    @pytest.mark.parametrize("closed", [False, True])
+    def test_used_for_this_lock(
+        self, total_block_paths: Paths, *, closed: bool
+    ) -> None:
+        """Test that an open or ended window both protect the Steam folder."""
+        lock(total_block_paths)
+        window.write_record(make_record(closed=closed))
+        assert self._used() is True
+
+    def test_other_locks_record_does_not_protect(
+        self, total_block_paths: Paths
+    ) -> None:
+        """Test that last lock's window gives this lock no exemption."""
+        lock(total_block_paths)
+        window.write_record(make_record(lock_started_at=LOCK_START - 99.0))
+        assert self._used() is False
+
+    def test_unreadable_record_keeps_the_data(self, total_block_paths: Paths) -> None:
+        """Test that when the record cannot say, nothing irreversible happens."""
+        lock(total_block_paths)
+        store.RESEARCH_FILE.parent.mkdir(parents=True)
+        store.RESEARCH_FILE.write_text("{oops", encoding="utf-8")
+        assert self._used() is True

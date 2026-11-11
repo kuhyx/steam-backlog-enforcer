@@ -19,7 +19,7 @@ class TestFullBlock:
     def test_no_record_runs_the_full_tick(self, tm: Mocks) -> None:
         """Test that the default is the full block."""
         run_pass()
-        tm.block_tick.assert_called_once_with()
+        tm.block_tick.assert_called_once_with(keep_steam_dir=False)
         tm.reconcile.assert_not_called()
         tm.enforce.assert_not_called()
 
@@ -28,14 +28,14 @@ class TestFullBlock:
         store.RESEARCH_FILE.parent.mkdir(parents=True)
         store.RESEARCH_FILE.write_text("{oops", encoding="utf-8")
         run_pass()
-        tm.block_tick.assert_called_once_with()
+        tm.block_tick.assert_called_once_with(keep_steam_dir=True)
         tm.reconcile.assert_not_called()
 
     def test_clock_before_opening_blocks_without_latching(self, tm: Mocks) -> None:
         """Test that a clock set back blocks, but does not burn the window."""
         window.write_record(make_record())
         run_pass(NOW - 3 * HOUR)
-        tm.block_tick.assert_called_once_with()
+        tm.block_tick.assert_called_once_with(keep_steam_dir=True)
         tm.reconcile.assert_not_called()
         record = window.read_record()
         assert record is not None
@@ -45,12 +45,21 @@ class TestFullBlock:
         """Test that a finished window costs nothing but the block tick."""
         window.write_record(make_record(closed=True, store_reblocked=True))
         run_pass(NOW + 5 * HOUR)
-        tm.block_tick.assert_called_once_with()
+        tm.block_tick.assert_called_once_with(keep_steam_dir=True)
         tm.restore_store.assert_not_called()
 
 
 class TestOpenWindow:
     """Inside the window: Steam is left alone, everything but Librarian is not."""
+
+    def test_extended_window_stays_open_past_its_first_deadline(
+        self, tm: Mocks
+    ) -> None:
+        """Test that the extension keeps the research pass running."""
+        window.write_record(make_record(extended_until=NOW + 9 * HOUR))
+        run_pass(NOW + 4 * HOUR)
+        tm.reconcile.assert_called_once()
+        tm.block_tick.assert_not_called()
 
     def test_reconciles_and_skips_the_full_block(self, tm: Mocks) -> None:
         """Test that the open window replaces the block tick."""

@@ -36,7 +36,7 @@ python -m python_pkg.steam_backlog_enforcer.main setup
 | `unblock [minutes]` | Unblock the store for a window (default 15, max 30); the daemon keeps it open and re-blocks after |
 | `buy-dlc`   | Same 15-minute store window, to buy a game or DLC |
 | `reset`     | Reset all state                            |
-| `total-block-research --until T` | Root. One window per total block (at most 48 h): Steam and the store open, only Librarian may be played; the daemon re-applies the full block at `T` |
+| `total-block-research --until T` | Root. One window per total block, up to its end, extendable once: Steam and the store open, only Librarian may be played; the daemon re-applies the full block at `T` and keeps `~/.local/share/Steam` |
 | `installed` | List currently installed Steam games       |
 | `uninstall` | Interactively uninstall non-assigned games |
 | `setup`     | First-time configuration                   |

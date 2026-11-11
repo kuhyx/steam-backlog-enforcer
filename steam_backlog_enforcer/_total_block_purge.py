@@ -41,10 +41,12 @@ _STEAM_PURGE_LOG_FILE = CONFIG_DIR / "total_block_purge_log.json"
 # machine: ~/.steam (symlink farm), ~/steam (secondary/portable install),
 # ~/.local/share/Steam (the real install - steamapps, userdata, screenshots,
 # and compatibilitytools.d's GE-Proton builds all live under here).
+STEAM_DATA_DIR = Path.home() / ".local" / "share" / "Steam"
+
 _STEAM_REMNANT_PATHS: tuple[Path, ...] = (
     Path.home() / ".steam",
     Path.home() / "steam",
-    Path.home() / ".local" / "share" / "Steam",
+    STEAM_DATA_DIR,
     Path.home() / ".steampath",
     Path.home() / ".steampid",
     Path.home() / ".config" / "steamtinkerlaunch",
@@ -153,8 +155,12 @@ def _uninstall_proton_helpers() -> list[str]:
     return removed
 
 
-def _remove_steam_remnants() -> list[str]:
+def _remove_steam_remnants(*, keep_steam_dir: bool = False) -> list[str]:
     """Delete the curated Steam/Proton filesystem remnants that exist.
+
+    With *keep_steam_dir* the Steam data folder itself is spared (a research
+    window was used: its install and local saves stay); every other remnant,
+    the secondary ``~/steam`` included, is still removed.
 
     Symlinks are unlinked directly rather than following them into
     :func:`shutil.rmtree`, since e.g. ``~/.steampath`` -> a file inside
@@ -162,6 +168,8 @@ def _remove_steam_remnants() -> list[str]:
     """
     removed: list[str] = []
     for path in _STEAM_REMNANT_PATHS:
+        if keep_steam_dir and path == STEAM_DATA_DIR:
+            continue
         if not (path.is_symlink() or path.exists()):
             continue
         try:
@@ -201,14 +209,18 @@ def _log_steam_purge(removed_paths: list[str], removed_packages: list[str]) -> N
     _atomic_write(_STEAM_PURGE_LOG_FILE, json.dumps(existing, indent=2) + "\n")
 
 
-def purge_steam_and_proton() -> None:
+def purge_steam_and_proton(*, keep_steam_dir: bool = False) -> None:
     """Remove curated Steam/Proton filesystem remnants and helper packages.
+
+    Args:
+        keep_steam_dir: Spare ``~/.local/share/Steam`` (see
+            :func:`_remove_steam_remnants`).
 
     Best-effort and re-run every enforce tick, same as the Steam-package
     reappearance check: a stat() per fixed path and a ``pacman -Qi`` per
     helper package are cheap even when there is nothing left to do.
     """
-    removed_paths = _remove_steam_remnants()
+    removed_paths = _remove_steam_remnants(keep_steam_dir=keep_steam_dir)
     removed_packages = _uninstall_proton_helpers()
     if removed_paths or removed_packages:
         logger.info(

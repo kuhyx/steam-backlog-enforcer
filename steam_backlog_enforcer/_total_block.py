@@ -7,10 +7,10 @@ mechanisms that enforce it: :mod:`steam_backlog_enforcer._total_block_purge`
 :mod:`steam_backlog_enforcer._total_block_iptables` (Steam unreachable).
 
 No in-app command lifts a block early; the one bounded exception is a single
-<= 48 h Librarian-only window per lock (:mod:`._research_window`) that never
-touches the lock or its end date. Tamper-resistance is guard-lib's: the lock
-file's ``until`` sits in a chattr-immutable file-guard, and pacman refuses to
-install ``steam`` while the lock is active (package-block).
+Librarian-only window per lock (:mod:`._research_window`, extendable once, to
+the lock's end) that never touches the lock or its end date. Tamper-resistance
+is guard-lib's: the lock file's ``until`` sits in a chattr-immutable file-guard,
+and pacman refuses to install ``steam`` while the lock is active (package-block).
 """
 
 from __future__ import annotations
@@ -201,11 +201,12 @@ def start_total_block(days: int) -> bool:
     return True
 
 
-def enforce_total_block_tick() -> None:
-    """Re-assert the total block.
+def enforce_total_block_tick(*, keep_steam_dir: bool = False) -> None:
+    """Re-assert the total block (every pass while it is active).
 
-    Called every enforce-loop iteration while :func:`is_total_block_active`
-    is True.
+    Args:
+        keep_steam_dir: Spare ``~/.local/share/Steam`` in the purge: a research
+            window was used in this lock, so Librarian's install and saves stay.
     """
     kill_steam_and_launchers(LAUNCHER_PROCESS_NAMES)
     kill_processes_by_name(kill_target_names(config.CONFIG_FILE))
@@ -214,7 +215,7 @@ def enforce_total_block_tick() -> None:
         logger.warning("Steam reappeared during total block - removing again")
         uninstall_steam_package()
 
-    purge_steam_and_proton()
+    purge_steam_and_proton(keep_steam_dir=keep_steam_dir)
 
     apply_total_block_iptables()
     refresh_total_block_hosts()  # not apply: that keeps a window's open section

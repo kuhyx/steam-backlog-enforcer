@@ -1,4 +1,4 @@
-"""The `total-block-research` command: root-only, bounded, lock-exempt."""
+"""The `total-block-research` command: root-only, to the lock end, lock-exempt."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from steam_backlog_enforcer._command_locks import (
 )
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import _dispatch_extra_command
-from steam_backlog_enforcer.tests._research_helpers import HOUR, NOW, lock
+from steam_backlog_enforcer.tests._research_helpers import HOUR, LOCK_END, NOW, lock
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -72,19 +72,41 @@ class TestCommand:
             assert cmd.cmd_total_block_research(["--until", UNTIL]) == 1
         assert window.read_record() is None
 
-    def test_over_48_hours_is_refused(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Test that the cap is enforced by the command."""
-        late = datetime.fromtimestamp(NOW + 49 * HOUR, tz=UTC).isoformat()
+    def test_after_the_lock_end_is_refused(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that the lock's end is the ceiling, with the reason printed."""
+        late = datetime.fromtimestamp(LOCK_END + 1, tz=UTC).isoformat()
         assert cmd.cmd_total_block_research(["--until", late]) == 1
-        assert "48" in capsys.readouterr().out
+        assert "end of the total block" in capsys.readouterr().out
         assert window.read_record() is None
 
-    def test_second_run_is_refused(self) -> None:
-        """Test that the second run is refused and the first expiry stands."""
+    def test_second_run_extends_once(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that a later expiry extends the open window, one time only."""
         assert cmd.cmd_total_block_research(["--until", UNTIL]) == 0
         first = window.read_record()
+        assert first is not None
+        assert "extendable once" in capsys.readouterr().out
         later = datetime.fromtimestamp(NOW + 30 * HOUR, tz=UTC).isoformat()
-        assert cmd.cmd_total_block_research(["--until", later]) == 1
+        assert cmd.cmd_total_block_research(["--until", later]) == 0
+        out = capsys.readouterr().out
+        assert "extended until" in out
+        assert "extendable once" not in out
+        assert "the one extension" in out
+        record = window.read_record()
+        assert record is not None
+        assert (record.opened_at, record.until) == (first.opened_at, first.until)
+        assert record.extended_until == NOW + 30 * HOUR
+        again = datetime.fromtimestamp(NOW + 31 * HOUR, tz=UTC).isoformat()
+        assert cmd.cmd_total_block_research(["--until", again]) == 1
+        assert window.read_record() == record
+
+    def test_earlier_expiry_never_shortens(self) -> None:
+        """Test that a rerun with an earlier time leaves the window alone."""
+        assert cmd.cmd_total_block_research(["--until", UNTIL]) == 0
+        first = window.read_record()
+        sooner = datetime.fromtimestamp(NOW + HOUR, tz=UTC).isoformat()
+        assert cmd.cmd_total_block_research(["--until", sooner]) == 1
         assert window.read_record() == first
 
     def test_no_active_block_is_refused(self, total_block_paths: Paths) -> None:

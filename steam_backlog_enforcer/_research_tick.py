@@ -8,10 +8,13 @@ real assignment in ``state.json`` is never read or written, so there is
 nothing to restore afterwards. Everything else the block does to Steam itself
 (kill, uninstall, purge) is skipped while the window is open.
 
-Once the deadline passes the record is latched closed (a clock set back cannot
-reopen it) and every pass is the ordinary :func:`enforce_total_block_tick`
-again: it kills Steam, removes the package, purges its files, rebuilds the
-firewall chain from the kept IP cache, and puts the full hosts section back.
+Once the deadline (the extension's, if the window was extended) passes, the
+record is latched closed (a clock set back cannot reopen it) and every pass is
+the ordinary :func:`enforce_total_block_tick` again: it kills Steam, removes the
+package, rebuilds the firewall chain from the kept IP cache, and puts the full
+hosts section back. The purge spares ``~/.local/share/Steam`` for the rest of
+the lock (Librarian's install and saves stay), and since that install could
+otherwise be launched without the package, every Steam game is killed on sight.
 The lock's end date is never involved.
 """
 
@@ -86,10 +89,16 @@ def _research_pass(record: ResearchRecord) -> None:
     if not steam_is_installed():
         return
     allowed = {window.LIBRARIAN_APP_ID}
-    killed = enforce_allowed_game(allowed, kill_unauthorized=True, strict=True)
-    for _pid, app_id in killed:
-        send_notification("⛔🎮", f"{app_id} → 🎯 {window.LIBRARIAN_NAME}")
+    _kill_games_except(allowed)
     guard_installed_games(allowed, strict=True)
+
+
+def _kill_games_except(allowed: set[int]) -> None:
+    """Kill every running Steam game outside *allowed* (runtimes excepted)."""
+    for _pid, app_id in enforce_allowed_game(
+        allowed, kill_unauthorized=True, strict=True
+    ):
+        send_notification("⛔🎮", f"{app_id} → 🎯 {window.LIBRARIAN_NAME}")
 
 
 def total_block_pass(config: Config) -> None:
@@ -108,8 +117,14 @@ def total_block_pass(config: Config) -> None:
         except OSError, subprocess.SubprocessError:
             logger.exception("Research window pass failed; retrying next tick")
         return
-    if record is not None and not record.closed and at >= record.until:
+    if record is not None and not record.closed and at >= record.ends_at:
         record = _latch_closed(record)
-    enforce_total_block_tick()
+    # Used window (or a record that cannot say): the Steam folder is kept, and
+    # so no Steam game may run from it. {0} only makes the allowed set non-empty;
+    # app 0 is the client itself, which the block's own tick kills by name.
+    used = record is not None or window.research_used(at)
+    enforce_total_block_tick(keep_steam_dir=used)
+    if used:
+        _kill_games_except({0})
     if record is not None and record.closed and not record.store_reblocked:
         _reblock_store(config, record)

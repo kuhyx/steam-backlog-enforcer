@@ -20,7 +20,7 @@ class TestExpiry:
         record = window.read_record()
         assert record is not None
         assert record.closed is True
-        tm.block_tick.assert_called_once_with()
+        tm.block_tick.assert_called_once_with(keep_steam_dir=True)
         tm.reconcile.assert_not_called()
 
     def test_store_is_reblocked_once(self, tm: Mocks) -> None:
@@ -79,5 +79,44 @@ class TestExpiry:
         window.write_record(make_record())
         with patch.object(window, "write_record", side_effect=OSError("ro")):
             run_pass(NOW + 2 * HOUR)
-        tm.block_tick.assert_called_once_with()
+        tm.block_tick.assert_called_once_with(keep_steam_dir=True)
         tm.reconcile.assert_not_called()
+
+
+class TestAfterTheWindow:
+    """The block returns without the purge, and no Steam game may run."""
+
+    def test_steam_folder_is_kept_for_the_rest_of_the_lock(self, tm: Mocks) -> None:
+        """Test that every later tick also keeps the folder."""
+        window.write_record(make_record())
+        for later in (2 * HOUR, 3 * HOUR, 30 * HOUR):
+            run_pass(NOW + later)
+        assert [c.kwargs for c in tm.block_tick.call_args_list] == [
+            {"keep_steam_dir": True}
+        ] * 3
+
+    def test_extended_window_expires_at_the_extension(self, tm: Mocks) -> None:
+        """Test that the latch waits for the extended deadline."""
+        window.write_record(make_record(extended_until=NOW + 9 * HOUR))
+        run_pass(NOW + 4 * HOUR)
+        record = window.read_record()
+        assert record is not None
+        assert record.closed is False
+        run_pass(NOW + 9 * HOUR)
+        record = window.read_record()
+        assert record is not None
+        assert record.closed is True
+        tm.block_tick.assert_called_once_with(keep_steam_dir=True)
+
+    def test_any_steam_game_is_killed_once_the_window_is_over(self, tm: Mocks) -> None:
+        """Test that the kept install cannot be played outside the window."""
+        tm.enforce.return_value = [(4242, window.LIBRARIAN_APP_ID)]
+        window.write_record(make_record(closed=True, store_reblocked=True))
+        run_pass(NOW + 5 * HOUR)
+        tm.enforce.assert_called_once_with({0}, kill_unauthorized=True, strict=True)
+        tm.notify.assert_called_once()
+
+    def test_no_game_scan_when_no_window_was_ever_used(self, tm: Mocks) -> None:
+        """Test that an untouched total block keeps its old behaviour."""
+        run_pass()
+        tm.enforce.assert_not_called()

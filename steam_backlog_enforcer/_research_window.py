@@ -4,8 +4,9 @@ kuhy 2026-11-11: to research a game by playing it ("Librarian: Tidy Up the
 Arcane Library", app 4197610) he needs Steam during a total block. This module
 is the one bounded way to get it, and the rules are all here:
 
-* **At most 48 hours**, as an explicit expiry (``--until``), never an
-  open-ended switch; a rerun never extends it.
+* **Bounded by the lock**: an explicit expiry (``--until``) no later than the
+  lock's end, never an open-ended switch. While open, the window may be
+  extended once (to the lock's end at most); nothing shortens it.
 * **Once per lock**: the record names the lock it was spent on (that lock's
   ``started_at``/``until``) and stays after the window ends.
 * **Fail closed**: a missing, unreadable, unparsable or out-of-policy record
@@ -19,6 +20,7 @@ is the one bounded way to get it, and the rules are all here:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 import logging
 import time
@@ -26,7 +28,6 @@ from typing import Final
 
 from steam_backlog_enforcer import _research_record as store
 from steam_backlog_enforcer._research_record import (
-    MAX_WINDOW_SECONDS,
     ResearchRecord,
     ResearchStateError,
     read_record,
@@ -115,7 +116,11 @@ def parse_until(raw: str) -> datetime:
 
 
 def open_research_window(until: datetime) -> ResearchRecord:
-    """Record a research window ending at *until* for the lock in force.
+    """Record a research window ending at *until*, or extend the one in force.
+
+    The first call for a lock opens the window. While that window is open, one
+    later call may extend it, to the lock's end at most. Nothing else reopens,
+    lengthens or shortens it.
 
     Args:
         until: The expiry (timezone-aware).
@@ -125,9 +130,10 @@ def open_research_window(until: datetime) -> ResearchRecord:
 
     Raises:
         ResearchRefusedError: With the reason: no active total block, an
-            unreadable record (fail closed), a window already spent on this
-            lock, an expiry that is past, over 48 h away or beyond the lock's
-            end, or a record that cannot be written.
+            unreadable record (fail closed), an expiry that is past (or, for
+            an extension, not later than the current one) or beyond the lock's
+            end, a window already ended or already extended once, or a record
+            that cannot be written.
     """
     at = now()
     lock = current_lock(at)
@@ -139,20 +145,50 @@ def open_research_window(until: datetime) -> ResearchRecord:
     except ResearchStateError as exc:
         msg = f"research record unreadable ({exc}); refusing (fail closed)"
         raise ResearchRefusedError(msg) from exc
-    if previous is not None and _same_lock(previous, lock):
-        ended = datetime.fromtimestamp(previous.until).astimezone()
-        msg = f"a window was already used for this lock (until {ended:%F %H:%M})"
-        raise ResearchRefusedError(msg)
     deadline = until.timestamp()
+    if previous is not None and _same_lock(previous, lock):
+        return _store(_extend(previous, deadline, at, lock[1]))
     if deadline <= at:
         msg = "--until must be in the future"
-    elif deadline - at > MAX_WINDOW_SECONDS:
-        msg = "--until is more than 48 h from now"
     elif deadline > lock[1]:
         msg = "--until is after the end of the total block"
     else:
         return _store(ResearchRecord(lock[0], lock[1], at, deadline))
     raise ResearchRefusedError(msg)
+
+
+def _extend(
+    previous: ResearchRecord, deadline: float, at: float, lock_end: float
+) -> ResearchRecord:
+    """*previous* with its single extension, or a refusal saying why not."""
+    if previous.extended_until is not None:
+        msg = "the window was already extended once"
+    elif not previous.is_open(at):
+        msg = "a window was already used for this lock and it has ended"
+    elif deadline <= previous.until:
+        msg = "--until must be later than the window's current end"
+    elif deadline > lock_end:
+        msg = "--until is after the end of the total block"
+    else:
+        return replace(previous, extended_until=deadline)
+    raise ResearchRefusedError(msg)
+
+
+def research_used(at: float | None = None) -> bool:
+    """Whether a research window was spent on the lock in force.
+
+    Gates the one irreversible step of the block, the purge of the Steam
+    folder. A record that cannot be read counts as used: when the answer is
+    unknown, nothing is deleted (the block itself stays fully applied).
+    """
+    lock = current_lock(now() if at is None else at)
+    if lock is None:
+        return False
+    try:
+        record = read_record()
+    except ResearchStateError:
+        return True
+    return record is not None and _same_lock(record, lock)
 
 
 def _store(record: ResearchRecord) -> ResearchRecord:

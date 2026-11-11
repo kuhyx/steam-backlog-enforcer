@@ -241,5 +241,6 @@ def total_block_paths(tmp_path: Path) -> Iterator[Paths]:
         patch(f"{HOSTS}.HOSTS_FILE", built.hosts_file),
         patch(f"{PURGE}._STEAM_PURGE_LOG_FILE", built.purge_log_file),
         patch(f"{PURGE}._STEAM_REMNANT_PATHS", built.remnant_paths),
+        patch(f"{PURGE}.STEAM_DATA_DIR", built.steam_dir),
     ):
         yield built

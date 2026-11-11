@@ -1,7 +1,8 @@
-"""Opening a research window: the 48 h cap, once per lock, fail closed."""
+"""Opening a research window: up to the lock end, one extension, fail closed."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 import os
 import time
@@ -58,14 +59,16 @@ class TestOpen:
         assert (record.opened_at, record.until) == (NOW, NOW + 10 * HOUR)
         assert (record.closed, record.store_reblocked) == (False, False)
 
-    def test_exactly_48_hours_is_allowed(self) -> None:
-        """Test that the cap is inclusive."""
-        assert _open(48 * HOUR).until == NOW + 48 * HOUR
+    def test_up_to_the_lock_end_is_allowed(self) -> None:
+        """Test that the only cap is the end of the lock (no 48 h limit)."""
+        record = _open(LOCK_END - NOW)
+        assert record.until == LOCK_END
+        assert record.until - record.opened_at > 48 * HOUR
 
-    def test_more_than_48_hours_is_refused(self) -> None:
-        """Test that one second over the cap is refused and nothing written."""
-        with pytest.raises(window.ResearchRefusedError, match="48"):
-            _open(48 * HOUR + 1)
+    def test_one_second_past_the_lock_end_is_refused(self) -> None:
+        """Test that the lock's end is a hard ceiling and nothing is written."""
+        with pytest.raises(window.ResearchRefusedError, match="end of the total"):
+            _open(LOCK_END - NOW + 1)
         assert window.read_record() is None
 
     @pytest.mark.parametrize("offset", [0.0, -1.0, -3 * HOUR])
@@ -113,15 +116,64 @@ class TestNoLock:
 
 @pytest.mark.usefixtures("live")
 class TestOncePerLock:
-    """One window per lock, however it ended; reruns never extend."""
+    """One window per lock; the open one may be extended once, never more."""
 
-    def test_second_open_is_refused_and_changes_nothing(self) -> None:
-        """Test that a rerun with a later expiry never extends the window."""
+    def test_extension_moves_only_the_deadline(self) -> None:
+        """Test that a later expiry extends an open window, nothing else."""
+        first = _open(2 * HOUR)
+        extended = _open(40 * HOUR)
+        assert extended == replace(first, extended_until=NOW + 40 * HOUR)
+        assert window.read_record() == extended
+
+    def test_extension_up_to_the_lock_end(self) -> None:
+        """Test that the extension may reach the lock end exactly."""
         _open(2 * HOUR)
+        assert _open(LOCK_END - NOW).extended_until == LOCK_END
+
+    def test_extension_past_the_lock_end_is_refused(self) -> None:
+        """Test that no extension goes beyond the lock, even by a second."""
+        first = _open(2 * HOUR)
+        with pytest.raises(window.ResearchRefusedError, match="end of the total"):
+            _open(LOCK_END - NOW + 1)
+        assert window.read_record() == first
+
+    @pytest.mark.parametrize("offset", [2 * HOUR, 2 * HOUR - 1, HOUR, 60.0])
+    def test_same_or_earlier_expiry_is_refused(self, offset: float) -> None:
+        """Test that an extension can only make the window longer."""
+        first = _open(2 * HOUR)
         before = store.RESEARCH_FILE.read_bytes()
-        with pytest.raises(window.ResearchRefusedError, match="already"):
-            _open(40 * HOUR)
+        with pytest.raises(window.ResearchRefusedError, match="later"):
+            _open(offset)
         assert store.RESEARCH_FILE.read_bytes() == before
+        assert window.read_record() == first
+
+    def test_only_one_extension(self) -> None:
+        """Test that the second extension is refused and changes nothing."""
+        _open(2 * HOUR)
+        _open(40 * HOUR)
+        before = store.RESEARCH_FILE.read_bytes()
+        with pytest.raises(window.ResearchRefusedError, match="once"):
+            _open(60 * HOUR)
+        assert store.RESEARCH_FILE.read_bytes() == before
+
+    def test_an_ended_window_cannot_be_extended(self) -> None:
+        """Test that extending after the deadline would be a second window."""
+        _open(2 * HOUR)
+        with (
+            patch(NOW_PATCH, return_value=NOW + 3 * HOUR),
+            pytest.raises(window.ResearchRefusedError, match="already"),
+        ):
+            window.open_research_window(_at(40 * HOUR))
+
+    def test_extension_write_failure_is_a_refusal(self) -> None:
+        """Test that a failing write on extension is reported."""
+        first = _open(2 * HOUR)
+        with (
+            patch.object(window, "write_record", side_effect=OSError("ro")),
+            pytest.raises(window.ResearchRefusedError, match="write"),
+        ):
+            _open(40 * HOUR)
+        assert window.read_record() == first
 
     def test_used_window_stays_used_after_it_closed(self) -> None:
         """Test that an expired, latched window is not a free second window."""
