@@ -1,7 +1,8 @@
 import { screen } from '@testing-library/dom'
 import { describe, expect, it } from 'vitest'
 import { makeBudgetRules, makeBudgetSession, makeBudgetToday } from '../../test/factories'
-import { historyCard, liveCard, rulesCard, todayCard, todayUnavailable } from './cards'
+import { OTHER_KEY, UNATTRIBUTED_KEY } from '../../budgetSeries'
+import { historyCard, liveCard, rulesCard, seriesLabel, todayCard, todayUnavailable } from './cards'
 
 const show = (el: HTMLElement) => {
   document.body.replaceChildren(el)
@@ -105,6 +106,58 @@ describe('liveCard', () => {
   it('says when no verdict has been logged', () => {
     show(liveCard(makeBudgetSession({ available: false })))
     expect(screen.getByText(/No verdict has been logged yet/)).toBeInTheDocument()
+  })
+})
+
+describe('liveCard reading age', () => {
+  const painted = () => document.querySelector('.hint:last-child [aria-hidden="true"]')?.textContent
+  const spoken = () => document.querySelector('.hint:last-child .sr-only')?.textContent
+
+  it('paints a clock and "<10s" for a fresh reading', () => {
+    show(liveCard(makeBudgetSession()))
+    expect(painted()).toBe('🕓 <10s')
+    expect(spoken()).toBe('as of just now')
+  })
+
+  it('paints the age without "ago" for an older reading', () => {
+    show(liveCard(makeBudgetSession({ observed_at: new Date(Date.now() - 125_000).toISOString() })))
+    expect(painted()).toMatch(/^🕓 2m/)
+    expect(spoken()).toMatch(/^as of 2m.* ago$/)
+  })
+
+  it('paints "?" when the reading time is unknown', () => {
+    show(liveCard(makeBudgetSession({ observed_at: '' })))
+    expect(painted()).toBe('🕓 ?')
+    expect(spoken()).toBe('as of unknown')
+  })
+})
+
+describe('seriesLabel', () => {
+  const paintedOf = (el: HTMLElement) => el.querySelector('[aria-hidden="true"]')?.textContent
+  const spokenOf = (el: HTMLElement) => el.querySelector('.sr-only')?.textContent
+
+  it('paints a plus for the grouped remainder and speaks its label', () => {
+    const el = seriesLabel(OTHER_KEY, 'Other games')
+    expect(paintedOf(el)).toBe('➕')
+    expect(spokenOf(el)).toBe('Other games')
+  })
+
+  it('paints a question mark for unattributed time', () => {
+    const el = seriesLabel(UNATTRIBUTED_KEY, 'Unattributed')
+    expect(paintedOf(el)).toBe('❔')
+    expect(spokenOf(el)).toBe('Unattributed')
+  })
+
+  it('paints a rocket and the bare name for a launcher, speaking the full label', () => {
+    const el = seriesLabel('launcher:steam', 'Steam (launcher)')
+    expect(paintedOf(el)).toBe('🚀 Steam')
+    expect(spokenOf(el)).toBe('Steam (launcher)')
+  })
+
+  it('paints a game name as plain text', () => {
+    const el = seriesLabel('app:1', 'Titan Quest')
+    expect(el.textContent).toBe('Titan Quest')
+    expect(el.querySelector('.sr-only')).toBeNull()
   })
 })
 

@@ -8,7 +8,7 @@ import { flush, mount, stubApi } from '../../test/harness'
 import { GAMES, panel, show } from '../../test/plannerHelpers'
 import { visibleWords } from '../../test/visibleWords'
 import { ANY_GLYPH, KEEP_GLYPH, styleGlyph, tierGlyphs } from './glyphs'
-import { painted } from './painted.testutil'
+import { painted } from '../../test/painted'
 
 afterEach(() => {
   history.replaceState(null, '', '/')

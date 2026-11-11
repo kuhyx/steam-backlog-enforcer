@@ -50,6 +50,12 @@ describe('daemon-card', () => {
     expect(screen.queryByText('Daemon unreachable')).toBeNull()
   })
 
+  it('paints a just-started daemon as 0 min and speaks "just now"', async () => {
+    show(daemon({ started_at: new Date().toISOString() }))
+    const up = await screen.findByLabelText('just now')
+    expect(up.querySelector('[aria-hidden="true"]')?.textContent).toBe('0 min')
+  })
+
   it('restarts through the runner when allowed', async () => {
     show(daemon())
     await userEvent.click(await screen.findByRole('button', { name: 'Restart daemon…' }))

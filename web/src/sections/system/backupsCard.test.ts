@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { q } from '../../api/queries'
 import { makeJob, makeSpec } from '../../test/fixtures'
 import { apiError, bodiesOf, flush, installEventSource, mount, stubApi, type Handler } from '../../test/harness'
+import { dateTime } from '../../ui/format'
 import { restorePhrase } from './backupsCard'
 
 const BACKUP = { id: '20261010-100000', created_at: '2026-10-10T10:00:00Z', reason: 'before reset', size_bytes: 2048 }
@@ -42,6 +43,18 @@ describe('backups-card', () => {
     expect(screen.getByRole('region', { name: 'State backups' })).toBeInTheDocument()
     expect(document.querySelector('[data-reason="before reset"]')).toHaveTextContent(/♻️.*before reset · 2.0 KB/)
     expect(await screen.findByRole('button', { name: 'Reset all state…' })).toBeInTheDocument()
+  })
+
+  it('paints a generic archive glyph for an unknown reason, in the list and the dialog', async () => {
+    show({ 'GET /api/backups': [{ ...BACKUP, reason: 'manual' }] })
+    expect(await screen.findByText(BACKUP.id)).toBeInTheDocument()
+    const row = document.querySelector('[data-reason="manual"]')
+    expect(row?.querySelector('[aria-hidden="true"]')?.textContent).toBe('🗄️')
+    expect(row?.querySelector('.sr-only')?.textContent).toBe('manual')
+    await userEvent.click(screen.getByRole('button', { name: 'Restore…' }))
+    const dialog = await screen.findByRole('dialog', { name: `Restore backup ${BACKUP.id}` })
+    const painted = [...(dialog.querySelector('p.row')?.querySelectorAll(':scope > [aria-hidden="true"]') ?? [])].map((e) => e.textContent)
+    expect(painted).toEqual([`🗄️ ${BACKUP.id} · ${dateTime(BACKUP.created_at)}`, '🗄️'])
   })
 
   it('says when there are none', async () => {

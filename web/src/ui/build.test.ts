@@ -81,6 +81,16 @@ describe('small builders', () => {
     expect(el.querySelector('.pill-icon')).not.toBeNull()
   })
 
+  it('pill paints a bullet for an unknown tone and speaks its text', () => {
+    const el = pill('mystery', 'odd one')
+    expect(el.querySelector('.pill-icon')?.textContent).toBe('•')
+    expect(el.querySelector('.sr-only')?.textContent).toBe('odd one')
+  })
+
+  it('pill paints the icon it is given over the tone glyph', () => {
+    expect(pill('danger', 'x', '🔥').querySelector('.pill-icon')?.textContent).toBe('🔥')
+  })
+
   it('link is an anchor', () => {
     const a = link('/library/', 'Open')
     expect(a.getAttribute('href')).toBe('/library/')

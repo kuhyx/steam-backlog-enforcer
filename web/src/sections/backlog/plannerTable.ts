@@ -38,11 +38,9 @@ export function hltbUrl(game: WebGame): string {
 
 // Textgate: select options paint glyphs; the value (kept/excluded, a
 // tierLabel string) is what the hash stores and what the option speaks.
-const optionLabel = (c: Column, v: string) => {
-  if (c.key === 'keep') return KEEP_GLYPH[v] ?? v
-  if (c.key === 'proton') return tierGlyphs(v)
-  return v
-}
+// Only the keep and proton columns have a select filter; keep's options are
+// always kept/excluded, so every one has a glyph.
+const optionLabel = (c: Column, v: string) => (c.key === 'keep' ? KEEP_GLYPH[v] : tierGlyphs(v))
 const option = (c: Column, v: string) =>
   h('option', { value: v, 'aria-label': v || 'All' }, v ? optionLabel(c, v) : ANY_GLYPH)
 

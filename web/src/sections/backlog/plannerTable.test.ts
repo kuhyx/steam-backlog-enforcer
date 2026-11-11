@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/dom'
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeGame } from '../../test/factories'
 import { GAMES, hash, header, names, show, table } from '../../test/plannerHelpers'
+import { ANY_GLYPH } from './glyphs'
 import { hltbUrl } from './plannerTable'
 
 afterEach(() => {
@@ -113,6 +114,16 @@ describe('<game-table> table', () => {
     await show([makeGame({ app_id: 1, name: 'Alpha', rush_hours: -1, leisure_hours: -1, worst_hours: -1 })])
     expect(screen.getByText('no data')).toBeInTheDocument()
     expect(screen.getByText('Fallback estimate', { exact: false })).toBeVisible()
+  })
+
+  it('paints the keep options as glyphs and speaks their values', async () => {
+    await show()
+    const options = [...screen.getByRole('combobox', { name: 'Filter Keep' }).querySelectorAll('option')]
+    expect(options.map((o) => [o.value, o.textContent, o.getAttribute('aria-label')])).toEqual([
+      ['', ANY_GLYPH, 'All'],
+      ['kept', '📌', 'kept'],
+      ['excluded', '🚫', 'excluded'],
+    ])
   })
 
   it('caps the table and notes the overflow', async () => {

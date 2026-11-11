@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { q } from '../../api/queries'
 import { makeDataset, makeGame, makeState } from '../../test/factories'
 import { big, GAMES, hash, header, names, panel, show, table } from '../../test/plannerHelpers'
-import { painted } from './painted.testutil'
+import { painted } from '../../test/painted'
 
 afterEach(() => {
   history.replaceState(null, '', '/')

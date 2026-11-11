@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeLibGame } from '../test/fixtures'
-import { completion, filterGames, isCompleted, metaLine, NO_FILTERS, sortGames } from './view'
+import { completion, filterGames, isCompleted, metaGlyphs, metaLine, NO_FILTERS, reasonGlyph, reasonOrMeta, sortGames } from './view'
 
 const g = makeLibGame
 
@@ -66,5 +66,43 @@ describe('metaLine', () => {
   })
   it('says so without achievements, HLTB or playtime', () => {
     expect(metaLine(g({ achievements_total: 0, hltb_hours: null, playtime_minutes: 0 }))).toBe('No achievements')
+  })
+})
+
+describe('metaGlyphs', () => {
+  it('paints trophy, clock and play with their values', () => {
+    expect(metaGlyphs(g({ achievements_total: 8, achievements_unlocked: 3, hltb_hours: 12, playtime_minutes: 192 })))
+      .toBe('🏆 37% · ⏱️ 12 h · ▶️ 3.2 h')
+  })
+  it('paints a dash for no achievements and drops unknown HLTB and zero playtime', () => {
+    expect(metaGlyphs(g({ achievements_total: 0, hltb_hours: null, playtime_minutes: 0 }))).toBe('🏆 —')
+  })
+})
+
+describe('reasonGlyph', () => {
+  it.each([
+    ['Already 100% complete', '🏆✅'],
+    ['No achievements', '🏆🚫'],
+    ['Skipped by you', '⏭️'],
+    ['Skipped until 2026-09-01', '⏭️ 2026-09-01'],
+    ['Something else', '⛔'],
+    ['Blocked until 2026-10-02', '⛔ 2026-10-02'],
+  ])('%s paints %s', (reason, painted) => {
+    expect(reasonGlyph(reason)).toBe(painted)
+  })
+})
+
+describe('reasonOrMeta', () => {
+  it('paints the meta glyphs and speaks the meta line when pickable', () => {
+    const game = g({ achievements_total: 8, achievements_unlocked: 3, hltb_hours: 12, playtime_minutes: 192 })
+    const el = reasonOrMeta(null, game, 'sub')
+    expect(el.className).toBe('sub')
+    expect(el.querySelector('[aria-hidden="true"]')?.textContent).toBe(metaGlyphs(game))
+    expect(el.querySelector('.sr-only')?.textContent).toBe(metaLine(game))
+  })
+  it('paints the reason glyph and speaks the reason when not pickable', () => {
+    const el = reasonOrMeta('No achievements', g(), 'sub')
+    expect(el.querySelector('[aria-hidden="true"]')?.textContent).toBe('🏆🚫')
+    expect(el.querySelector('.sr-only')?.textContent).toBe('No achievements')
   })
 })

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { applyFilters } from '../../estimate'
 import { makeDataset, makeFilters, makeGame, makePaceVsHltb, makeState } from '../../test/factories'
 import type { Filters, PaceVsHLTB } from '../../types'
-import { painted } from './painted.testutil'
+import { painted } from '../../test/painted'
 import { summaryCards } from './summary'
 
 const NOW = new Date('2026-01-01T00:00:00Z')
