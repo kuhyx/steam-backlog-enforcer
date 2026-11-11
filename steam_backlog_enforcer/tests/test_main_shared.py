@@ -233,11 +233,11 @@ class TestEnforceTotalBlockLock:
         total block's own `pacman -R steam` fail EBUSY - it has to stay
         reachable exactly when the two collide. gaming-reset is deliberately
         absent: it would shorten enforcement. serve changes nothing itself
-        (each job it starts is lock-checked) and refusing it took the web UI
-        down for the whole block.
+        (each job it starts is lock-checked); refusing it took the web UI down.
         """
         assert (
             frozenset({"status", "enforce", "gaming-status", "gaming-unblock", "serve"})
+            | {"total-block-refresh"}  # reconciles the list; cannot shorten the lock
             == _TOTAL_BLOCK_EXEMPT_COMMANDS
         )
         assert "gaming-reset" not in _TOTAL_BLOCK_EXEMPT_COMMANDS

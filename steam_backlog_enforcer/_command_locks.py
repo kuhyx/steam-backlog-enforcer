@@ -30,6 +30,8 @@ _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
         "gaming-status",
         "gaming-unblock",
         "gaming-reset",
+        # Reconciles the block's domain list; cannot shorten or end a lock.
+        "total-block-refresh",
     }
 )
 
@@ -44,5 +46,12 @@ _MANUAL_LOCK_EXEMPT_COMMANDS = frozenset(
 # and refusing it took the web UI down for the whole block, crash-looping its
 # systemd unit, the first time anything restarted it.
 _TOTAL_BLOCK_EXEMPT_COMMANDS = frozenset(
-    {"status", "enforce", "gaming-status", "gaming-unblock", "serve"}
+    {
+        "status",
+        "enforce",
+        "gaming-status",
+        "gaming-unblock",
+        "serve",
+        "total-block-refresh",
+    }
 )

@@ -43,6 +43,7 @@ EXTRA_COMMAND_DESCRIPTIONS: Final[dict[str, str]] = {
     "block-gaming": "Block ALL gaming for <days> days, no in-app undo",
     "enforce": "Run enforcer: block, uninstall, kill, hide (--demo for a 60s budget)",
     "gaming-unblock": "Force-release playtime bind mounts (root; recovery hatch)",
+    "total-block-refresh": "Apply the current domain list to a live total block (root)",
 }
 
 ALL_COMMAND_DESCRIPTIONS: Final[dict[str, str]] = (

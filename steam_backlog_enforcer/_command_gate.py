@@ -29,7 +29,9 @@ if TYPE_CHECKING:
 # Usable before an API key exists: setup creates one, add-exception never
 # talks to Steam, and serve hosts the web Setup page that asks for the key
 # (refusing it left a fresh install with no way into the UI's setup).
-UNCONFIGURED_OK: Final = frozenset({"setup", "add-exception", "serve"})
+UNCONFIGURED_OK: Final = frozenset(
+    {"setup", "add-exception", "serve", "total-block-refresh"}
+)
 NOT_CONFIGURED_MSG: Final = "Not configured. Run 'setup' first."
 
 

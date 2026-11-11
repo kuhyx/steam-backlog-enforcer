@@ -23,6 +23,7 @@ from steam_backlog_enforcer._cmd_playtime import (
     cmd_gaming_status,
     cmd_gaming_unblock,
 )
+from steam_backlog_enforcer._cmd_total_block_refresh import cmd_total_block_refresh
 from steam_backlog_enforcer._command_help import (
     COMMAND_DESCRIPTIONS,
     EXTRA_COMMAND_DESCRIPTIONS,
@@ -182,6 +183,8 @@ def _dispatch_extra_command(command: str, config: Config, state: State) -> bool:
         sys.exit(cmd_enforce(config, state, args))
     if command == "gaming-unblock":
         sys.exit(cmd_gaming_unblock(args))
+    if command == "total-block-refresh":
+        sys.exit(cmd_total_block_refresh(args))
     handlers: dict[str, Callable[[], object]] = {
         "add-exception": lambda: cmd_add_exception(args),
         "unblock": lambda: cmd_unblock(config, state, args),

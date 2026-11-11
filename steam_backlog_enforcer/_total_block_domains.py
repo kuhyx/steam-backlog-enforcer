@@ -7,6 +7,8 @@ storefront here should not mean touching blocking code.
 
 from __future__ import annotations
 
+from typing import Final
+
 from steam_backlog_enforcer.config import BLOCKED_DOMAINS
 
 TOTAL_BLOCK_DOMAINS = [
@@ -21,8 +23,8 @@ TOTAL_BLOCK_DOMAINS = [
     "cdn.steamstatic.com",
 ]
 
-# Browser/flash game sites. Note itch.io overlaps with the "itch" desktop
-# app process kill above (web storefront vs. desktop client).
+# Browser/flash game sites. itch.io is deliberately absent: see
+# TOTAL_BLOCK_EXEMPT_DOMAINS below.
 GAME_WEBSITE_DOMAINS = [
     "newgrounds.com",
     "armorgames.com",
@@ -33,8 +35,26 @@ GAME_WEBSITE_DOMAINS = [
     "addictinggames.com",
     "y8.com",
     "coolmathgames.com",
-    "itch.io",
 ]
+
+# EXCEPTION (kuhy, 2026-11-11: "itch io should be unblocked but only it"):
+# a permanent, narrow hole so butler can publish his game and he can manage the
+# itch page, while every other game site and Steam stay blocked. Nothing here is
+# ever null-routed in /etc/hosts and its IPs are never dropped in iptables.
+# Hosts: itch.io + www.itch.io (the page), api.itch.io and static.itch.io (both
+# strings in the butler binary), kuhyx.itch.io (his account's page). butler
+# uploads go to Google Cloud Storage via a URL the API returns (resumable
+# upload), which is not blocked anywhere, so it needs no entry.
+# TRADEOFF: itch is on shared Cloudflare IPs, and the iptables layer works per
+# IP. When a still-blocked site sits on the same IP, the exception wins for
+# that IP; /etc/hosts stays the primary block for the other site.
+TOTAL_BLOCK_EXEMPT_DOMAINS: Final = (
+    "itch.io",
+    "www.itch.io",
+    "api.itch.io",
+    "static.itch.io",
+    "kuhyx.itch.io",
+)
 
 
 def _expand_with_www(domains: list[str]) -> list[str]:
@@ -54,9 +74,11 @@ def _expand_with_www(domains: list[str]) -> list[str]:
     return expanded
 
 
-_ALL_TOTAL_BLOCK_DOMAINS = _expand_with_www(
-    [*TOTAL_BLOCK_DOMAINS, *GAME_WEBSITE_DOMAINS]
-)
+_ALL_TOTAL_BLOCK_DOMAINS = [
+    domain
+    for domain in _expand_with_www([*TOTAL_BLOCK_DOMAINS, *GAME_WEBSITE_DOMAINS])
+    if domain not in TOTAL_BLOCK_EXEMPT_DOMAINS
+]
 
 # The null-route redirect target used to make a blocked domain resolve
 # nowhere - built from parts rather than the literal so linters don't

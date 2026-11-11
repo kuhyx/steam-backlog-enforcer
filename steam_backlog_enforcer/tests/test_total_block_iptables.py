@@ -7,6 +7,7 @@ import socket
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+from steam_backlog_enforcer._total_block_domains import TOTAL_BLOCK_EXEMPT_DOMAINS
 from steam_backlog_enforcer._total_block_iptables import (
     _iptables_chain_intact,
     _load_cached_ips,
@@ -122,12 +123,15 @@ class TestApplyTotalBlockIptables:
 
     def test_rebuilds_when_not_intact(self) -> None:
         """Test that rebuilds when not intact."""
+
+        def resolve(host: str, *_a: object, **_k: object) -> list[tuple[object, ...]]:
+            if host in TOTAL_BLOCK_EXEMPT_DOMAINS:
+                raise OSError
+            return [(None, None, None, None, ("9.9.9.9", 443))]
+
         with (
             patch(f"{PKG}.subprocess.run", return_value=MagicMock(returncode=0)),
-            patch(
-                f"{PKG}.socket.getaddrinfo",
-                return_value=[(None, None, None, None, ("9.9.9.9", 443))],
-            ),
+            patch(f"{PKG}.socket.getaddrinfo", side_effect=resolve),
         ):
             assert apply_total_block_iptables() is True
         assert "9.9.9.9" in _load_cached_ips()

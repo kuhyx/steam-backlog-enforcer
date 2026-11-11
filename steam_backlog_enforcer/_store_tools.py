@@ -87,6 +87,13 @@ def add_drop_rule(chain: str, ip: str) -> None:
     )
 
 
+def delete_drop_rule(chain: str, ip: str) -> bool:
+    """Remove the rule dropping ``ip`` from ``chain``; False if iptables refuses."""
+    return (
+        run_quiet([SUDO, IPTABLES, "-D", chain, "-d", ip, "-j", "DROP"]).returncode == 0
+    )
+
+
 def drop_chain(chain: str) -> None:
     """Unhook ``chain`` from OUTPUT, flush it and delete it.
 

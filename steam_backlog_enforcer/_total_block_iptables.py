@@ -10,6 +10,7 @@ their real addresses and could not be re-derived.
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import json
 import logging
 import socket
@@ -20,12 +21,14 @@ from steam_backlog_enforcer._store_tools import (
     SUDO,
     add_drop_rule,
     create_fresh_chain,
+    delete_drop_rule,
     drop_chain,
     ensure_chain_in_output,
 )
 from steam_backlog_enforcer._total_block_domains import (
     _ALL_TOTAL_BLOCK_DOMAINS,
     NULL_ROUTE_IP,
+    TOTAL_BLOCK_EXEMPT_DOMAINS,
 )
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
@@ -54,14 +57,8 @@ def _save_cached_ips(ips: set[str]) -> None:
     _atomic_write(_IPTABLES_IP_CACHE_FILE, json.dumps(sorted(ips)) + "\n")
 
 
-def _iptables_chain_intact(expected_ips: set[str]) -> bool:
-    """Cheap check for whether the chain and its OUTPUT hook are intact.
-
-    One `-S` + one `-C` call (two forks), versus the ~30 forks a full
-    rebuild costs - this is what keeps :func:`_apply_total_block_iptables`
-    from re-resolving DNS and re-forking a subprocess per IP on every
-    3-second enforce tick.
-    """
+def _chain_ips() -> set[str] | None:
+    """IPs the chain currently drops, or None when the chain does not exist."""
     listing = subprocess.run(
         [SUDO, IPTABLES, "-S", IPTABLES_CHAIN],
         capture_output=True,
@@ -70,7 +67,7 @@ def _iptables_chain_intact(expected_ips: set[str]) -> bool:
         check=False,
     )
     if listing.returncode != 0:
-        return False
+        return None
 
     current_ips: set[str] = set()
     for line in listing.stdout.splitlines():
@@ -79,8 +76,29 @@ def _iptables_chain_intact(expected_ips: set[str]) -> bool:
             idx = parts.index("-d")
             if idx + 1 < len(parts):
                 current_ips.add(parts[idx + 1].split("/")[0])
+    return current_ips
 
-    if not expected_ips.issubset(current_ips):
+
+def _resolve_exempt_ips() -> set[str]:
+    """Real public IPs of the exempt domains (null-routed answers do not count)."""
+    ips: set[str] = set()
+    for domain in TOTAL_BLOCK_EXEMPT_DOMAINS:
+        with contextlib.suppress(OSError):
+            for _, _, _, _, addr in socket.getaddrinfo(domain, 443, socket.AF_INET):
+                ips.add(str(addr[0]))
+    return {ip for ip in ips if ipaddress.ip_address(ip).is_global}
+
+
+def _iptables_chain_intact(expected_ips: set[str]) -> bool:
+    """Cheap check for whether the chain and its OUTPUT hook are intact.
+
+    One `-S` + one `-C` call (two forks), versus the ~30 forks a full
+    rebuild costs - this is what keeps :func:`_apply_total_block_iptables`
+    from re-resolving DNS and re-forking a subprocess per IP on every
+    3-second enforce tick.
+    """
+    current_ips = _chain_ips()
+    if current_ips is None or not expected_ips.issubset(current_ips):
         return False
 
     hook = subprocess.run(
@@ -125,7 +143,8 @@ def apply_total_block_iptables() -> bool:
                 for _, _, _, _, addr in socket.getaddrinfo(domain, 443, socket.AF_INET):
                     resolved_ips.add(str(addr[0]))
 
-        blocked_ips = (cached | resolved_ips) - {NULL_ROUTE_IP}
+        # The itch exception wins over a shared IP (TOTAL_BLOCK_EXEMPT_DOMAINS).
+        blocked_ips = (cached | resolved_ips) - {NULL_ROUTE_IP} - _resolve_exempt_ips()
         _save_cached_ips(blocked_ips)
 
         for ip in blocked_ips:
@@ -136,6 +155,42 @@ def apply_total_block_iptables() -> bool:
         logger.exception("Failed to apply total-block iptables rules")
         return False
     logger.info("Total block: %d domain IP(s) blocked via iptables.", len(blocked_ips))
+    return True
+
+
+def refresh_total_block_iptables() -> bool:
+    """Release the exempt domains' IPs from a live chain, never opening a gap.
+
+    Rules are deleted one by one (no flush), so every other IP stays dropped
+    throughout. The cache is saved first: a half-done run then still looks
+    intact to the 3 s tick (cache is a subset of the chain) and the next run
+    finishes the deletes. Fails closed: when the exempt names resolve to no
+    public IP (hosts still null-route them, or DNS is down) nothing changes.
+    A missing chain is rebuilt by :func:`apply_total_block_iptables`.
+    """
+    exempt = _resolve_exempt_ips()
+    if not exempt:
+        logger.error("Exempt domains resolve to no public IP; iptables unchanged")
+        return False
+    try:
+        in_chain = _chain_ips()
+        cached = _load_cached_ips()
+        if in_chain is None:
+            _save_cached_ips(cached - exempt)
+            return apply_total_block_iptables()
+        if not (cached | in_chain) & exempt:
+            return True
+        _save_cached_ips(cached - exempt)
+        failed = [
+            ip for ip in in_chain & exempt if not delete_drop_rule(IPTABLES_CHAIN, ip)
+        ]
+    except OSError, subprocess.SubprocessError:
+        logger.exception("Failed to refresh total-block iptables rules")
+        return False
+    if failed:
+        logger.error("Could not delete iptables rule(s) for %s", sorted(failed))
+        return False
+    logger.info("Total block: released %d exempt IP(s).", len(exempt))
     return True
 
 
