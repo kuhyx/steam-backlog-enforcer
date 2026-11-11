@@ -1,4 +1,4 @@
-"""Tests for the main CLI: enforce and gaming-unblock dispatch."""
+"""Tests for the main CLI: enforce, gaming-unblock, total-block-refresh dispatch."""
 
 from unittest.mock import patch
 
@@ -56,3 +56,15 @@ class TestMainDispatchGamingCommands:
         ):
             main()
         mock_cmd.assert_called_once_with([])
+
+    def test_total_block_refresh_dispatches_with_its_tail_args(self) -> None:
+        """total-block-refresh hands its argv tail to the handler and exits."""
+        argv = ["prog", "total-block-refresh", "--dry-run"]
+        with (
+            cli_run(argv, total_block=False),
+            patch(f"{PKG}.cmd_total_block_refresh", return_value=3) as mock_cmd,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 3
+        mock_cmd.assert_called_once_with(["--dry-run"])
