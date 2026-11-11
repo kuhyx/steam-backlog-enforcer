@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { applyFilters } from '../../estimate'
 import { makeDataset, makeFilters, makeGame, makePaceVsHltb, makeState } from '../../test/factories'
 import type { Filters, PaceVsHLTB } from '../../types'
+import { painted } from './painted.testutil'
 import { summaryCards } from './summary'
 
 const NOW = new Date('2026-01-01T00:00:00Z')
@@ -35,12 +36,14 @@ describe('summaryCards', () => {
 
   it('drops the match badge when the count differs from the CLI', () => {
     const el = cards({}, 0, null, 7)
-    expect(el.querySelector('.parity')?.textContent).toBe('CLI default qualifies 7')
+    expect(painted(el.querySelector('.parity'))).toBe('⌨️ 7')
+    expect(el.querySelector('.parity')).toHaveAttribute('data-match', 'false')
   })
 
   it('marks the active basis card and lists presets for hour bases only', () => {
     const el = cards({ basis: 'rush' })
-    expect(el.querySelector('.card.active .card-title')?.textContent).toBe('Rush')
+    expect(el.querySelector('.card.active')).toHaveAttribute('data-basis', 'rush')
+    expect(painted(el.querySelector('.card.active .card-title'))).toBe('🐇')
     expect(el.querySelectorAll('.cards .card')).toHaveLength(4)
     expect(el.querySelectorAll('.cards .presets')).toHaveLength(3)
     expect(el.querySelector('.card .card-total')?.textContent).toBe('10 h')
@@ -53,22 +56,23 @@ describe('summaryCards', () => {
   it('shows the pace card ETA when a pace is known', () => {
     const el = cards({}, 0.5)
     const pace = [...el.querySelectorAll('.card')].at(-1)
-    expect(pace?.querySelector('.card-total')?.textContent).toBe('0.5 games/day')
+    expect(painted(pace?.querySelector('.card-total'))).toBe('0.5 🎮/d')
     expect(pace?.querySelector('.card-eta')?.textContent).toMatch(/^2 days · /)
   })
 
   it('renders the target-date banner with required hours/day', () => {
     const banner = cards({ targetDate: '2026-01-11', basis: 'leisure' }).querySelector('.target-banner')
-    expect(banner?.textContent).toBe('To finish 1 games by 2026-01-11 (10 days) on the leisure model, you need 2.0 h/day.')
+    expect(painted(banner)).toBe('🎮 1 🏁 2026-01-11 (10 d) 🐢 → 2.0 h/day')
+    expect(banner).toHaveTextContent(/on the leisure model, you need/)
   })
 
   it('renders the target banner in games/day for the pace basis', () => {
     const banner = cards({ targetDate: '2099-01-01', basis: 'pace' }, 0.9).querySelector('.target-banner')
-    expect(banner?.textContent).toMatch(/games\/day/i)
+    expect(painted(banner)).toMatch(/👤 → [\d.]+ 🎮\/d$/)
   })
 
   it('counts a past target as one day', () => {
-    expect(cards({ targetDate: '2020-01-01' }).querySelector('.target-banner')?.textContent).toMatch(/\(1 days\)/)
+    expect(painted(cards({ targetDate: '2020-01-01' }).querySelector('.target-banner'))).toMatch(/\(1 d\)/)
   })
 
   it('defaults the clock to now', () => {
@@ -94,9 +98,12 @@ describe('player insight', () => {
     expect(getByText(el, /Calibration games/i)).toBeInTheDocument()
     expect(getByText(el, /vs Rush speed/i)).toBeInTheDocument()
     expect(getByText(el, 'Play style')).toBeInTheDocument()
-    expect(getByText(el, /Between rush and leisure/i)).toHaveClass('player-insight-style--rush_to_leisure')
+    const style = el.querySelector('.player-insight-style--rush_to_leisure')
+    expect(style).toHaveTextContent(/Between rush and leisure/)
+    expect(painted(style)).toBe('🐇↔🐢')
     expect(getByText(el, '1.05×')).toHaveClass('player-insight-slow')
-    expect(getByText(el, '0.050')).toHaveAttribute('title', '0 = rush speed · 1 = leisure speed')
+    expect(getByText(el, '0.050')).not.toHaveAttribute('title')
+    expect(getByText(el, /0 = rush speed, 1 = leisure speed/)).toHaveClass('sr-only')
   })
 
   it('shows the estimated total at the player’s pace', () => {

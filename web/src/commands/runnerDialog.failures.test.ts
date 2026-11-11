@@ -22,7 +22,7 @@ describe('<runner-dialog> locked', () => {
     const lock = must(document.querySelector('.notice-warning'))
     expect(lock).toHaveAttribute('aria-label', 'Locked: Manual pick active')
     expect(lock).toHaveTextContent('🔒')
-    expect(field(/N$/)).toBeDisabled()
+    expect(field('N')).toBeDisabled()
     expect(document.querySelector('.phrase')).toBeNull()
     expect(run).toBeDisabled()
     submit(run)

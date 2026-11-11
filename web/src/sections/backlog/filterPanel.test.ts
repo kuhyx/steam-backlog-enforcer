@@ -121,7 +121,7 @@ describe('FilterPanel', () => {
   it('shows each slider value, the hours cap as off or N h', () => {
     const { el, panel } = setup()
     expect(getByText(el, '4 h/day')).toBeInTheDocument()
-    expect(getByText(el, 'off')).toBeInTheDocument()
+    expect(getByText(el, '∞')).toBeInTheDocument()
     panel.sync(makeFilters({ maxHoursPerGame: 50 }))
     expect(getByText(el, '50 h')).toBeInTheDocument()
   })

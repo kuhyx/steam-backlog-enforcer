@@ -11,7 +11,8 @@ describe('<game-table> loading', () => {
   it('shows loading until the dataset arrives', () => {
     stubApi({ 'GET /api/dataset': () => new Promise(() => undefined) })
     mount('<game-table></game-table>')
-    expect(screen.getByText(/Loading your backlog/i)).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading backlog')
+    expect(document.querySelector('game-table .spinner')).not.toBeNull()
   })
 
   it('renders the planner once data loads', async () => {
@@ -24,7 +25,7 @@ describe('<game-table> loading', () => {
     stubApi({ 'GET /api/dataset': apiError(500, 'boom') })
     mount('<game-table></game-table>')
     await flush()
-    expect(screen.getByText('Could not load data: API returned 500 Error')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveAttribute('data-code')
     expect(screen.getByText('./run.sh serve')).toBeInTheDocument()
   })
 

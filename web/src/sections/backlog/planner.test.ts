@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { q } from '../../api/queries'
 import { makeDataset, makeGame, makeState } from '../../test/factories'
 import { big, GAMES, hash, header, names, panel, show, table } from '../../test/plannerHelpers'
+import { painted } from './painted.testutil'
 
 afterEach(() => {
   history.replaceState(null, '', '/')
@@ -13,21 +14,21 @@ describe('<game-table> planner', () => {
     await show(GAMES, {
       state: makeState({ current_game_name: 'Hollow Knight', games_done_since_start: 3, enforcement_started_at: '2026-03-04T00:00:00+00:00' }),
     })
-    expect(document.querySelector('.app-head .sub')?.textContent).toBe(
-      'Currently playing Hollow Knight · 3 games finished since 2026-03-04 · 3 candidates',
-    )
+    const sub = document.querySelector('.app-head .sub')
+    expect(painted(sub)).toBe('▶️ Hollow Knight · 🏆 3 · 📅 2026-03-04 · 🎮 3')
+    expect(sub).toHaveTextContent(/Currently playing/)
   })
 
   it('dashes a missing start date', async () => {
     await show()
-    expect(document.querySelector('.app-head .sub')?.textContent).toBe('0 games finished since — · 3 candidates')
+    expect(painted(document.querySelector('.app-head .sub'))).toBe('🏆 0 · 📅 — · 🎮 3')
   })
 
   it('recomputes scope when basis changes and a game is excluded', async () => {
     const { user } = await show(GAMES.slice(0, 2), { state: makeState({ pace_games_per_day: 0.9 }) })
     expect(big()).toBe('2')
     await user.click(panel().getByRole('button', { name: 'Rush' }))
-    expect(document.querySelector('.card.active .card-title')?.textContent).toBe('Rush')
+    expect(document.querySelector('.card.active')).toHaveAttribute('data-basis', 'rush')
     expect(hash().get('basis')).toBe('rush')
 
     const box = within(table()).getAllByRole('checkbox')[0]
@@ -68,7 +69,7 @@ describe('<game-table> planner', () => {
     q.dataset.set(makeDataset([...GAMES, makeGame({ app_id: 4, name: 'Delta', protondb_tier: 'native', protondb_trending_tier: '' })]))
     expect(screen.getByRole('searchbox', { name: 'Filter Game' })).toHaveValue('a')
     expect(names()).toContain('Delta')
-    expect(document.querySelector('.app-head .sub')?.textContent).toMatch(/4 candidates/)
+    expect(painted(document.querySelector('.app-head .sub'))).toMatch(/🎮 4$/)
     const proton = screen.getByRole('combobox', { name: 'Filter ProtonDB' })
     expect([...(proton as HTMLSelectElement).options].map((o) => o.value)).toEqual(['', 'gold', 'gold / platinum', 'native', 'platinum'])
   })

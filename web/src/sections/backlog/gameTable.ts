@@ -6,9 +6,8 @@
 import { q } from '../../api/queries'
 import { h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
+import { commandLine, errorNotice, loading } from '../../ui/build'
 import { Planner } from './planner'
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export class GameTableElement extends LiveElement {
   private planner: Planner | null = null
@@ -24,15 +23,10 @@ export class GameTableElement extends LiveElement {
     const { data, error } = q.dataset.state
     if (!data) {
       this.planner = null
+      // Textgate: ⛔ + the server's own message + the recovery command; the
+      // explanation is spoken only (errorNotice).
       this.replaceChildren(
-        error
-          ? h(
-              'div',
-              { class: 'status' },
-              h('p', { class: 'error' }, `Could not load data: ${message(error)}`),
-              h('p', { class: 'hint' }, 'Is the backend running? Start it with ', h('code', {}, './run.sh serve'), '.'),
-            )
-          : h('div', { class: 'status' }, h('p', { class: 'hint' }, 'Loading your backlog…')),
+        h('div', { class: 'status' }, error ? errorNotice(error, commandLine('./run.sh serve')) : loading('backlog')),
       )
       return
     }

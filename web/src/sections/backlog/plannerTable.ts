@@ -8,6 +8,8 @@ import { fmtHoursPrecise, fmtPlaytime } from '../../format'
 import { h } from '../../lib/dom'
 import { tierLabel } from '../../protondb'
 import type { WebGame } from '../../types'
+import { glyph } from '../../ui/build'
+import { ANY_GLYPH, KEEP_GLYPH, tierGlyphs } from './glyphs'
 import { COLUMNS, optionsFor, type Column, type ColumnKey, type TableState } from './tableState'
 
 export const DISPLAY_CAP = 300
@@ -34,7 +36,15 @@ export function hltbUrl(game: WebGame): string {
   return `https://howlongtobeat.com/?q=${encodeURIComponent(game.name)}`
 }
 
-const optionLabel = (c: Column, v: string) => (c.key === 'keep' ? (v === 'kept' ? 'Kept' : 'Excluded') : v)
+// Textgate: select options paint glyphs; the value (kept/excluded, a
+// tierLabel string) is what the hash stores and what the option speaks.
+const optionLabel = (c: Column, v: string) => {
+  if (c.key === 'keep') return KEEP_GLYPH[v] ?? v
+  if (c.key === 'proton') return tierGlyphs(v)
+  return v
+}
+const option = (c: Column, v: string) =>
+  h('option', { value: v, 'aria-label': v || 'All' }, v ? optionLabel(c, v) : ANY_GLYPH)
 
 // Textgate: column headers are pictograms; the column name is the button's
 // aria-label (spoken only), the sort arrow stays visible.
@@ -106,7 +116,7 @@ export class PlannerTable {
         return h('td', { class: 'range-filter' }, h('div', {}, bound('min'), bound('max')))
       }
       if (c.filter === 'select') {
-        const select = h('select', { 'aria-label': `Filter ${c.label}` }, h('option', { value: '' }, 'All'))
+        const select = h('select', { 'aria-label': `Filter ${c.label}` }, option(c, ''))
         this.selects.push([c, select])
         return h('td', {}, field(c.key, select))
       }
@@ -153,7 +163,7 @@ export class PlannerTable {
       keep.addEventListener('change', () => { this.opts.onToggle(id) })
       const link = h('a', { target: '_blank', rel: 'noreferrer' })
       const name = h('td', { class: 'name' }, link)
-      row = { tr: h('tr', {}, name, cells, h('td', { class: 'num' }, keep)), name, link, badge: h('span', { class: 'badge' }, 'no data'), cells, keep }
+      row = { tr: h('tr', {}, name, cells, h('td', { class: 'num' }, keep)), name, link, badge: glyph('❓', 'no data', 'badge'), cells, keep }
       this.rows.set(id, row)
     }
     const g = r.game
@@ -162,16 +172,19 @@ export class PlannerTable {
     row.link.textContent = g.name
     if (r.noData) row.name.append(row.badge)
     else row.badge.remove()
+    const tier = tierLabel(g.protondb_tier, g.protondb_trending_tier)
     const texts = [
       g.completion_pct.toFixed(0),
-      fmtPlaytime(g.playtime_minutes),
+      // fmtPlaytime says "untouched" for 0; the table paints the number.
+      g.playtime_minutes > 0 ? fmtPlaytime(g.playtime_minutes) : '0 h',
       fmtHoursPrecise(r.rush),
       fmtHoursPrecise(r.leisure),
       fmtHoursPrecise(r.worst),
       String(g.count_comp),
-      tierLabel(g.protondb_tier, g.protondb_trending_tier),
+      tierGlyphs(tier),
     ]
     texts.forEach((text, i) => { row.cells[i].textContent = text })
+    row.cells[6].setAttribute('aria-label', tier)
     row.keep.checked = !r.excluded
     row.keep.setAttribute('aria-label', r.excluded ? 'Re-include' : 'Exclude')
     return row.tr
@@ -183,7 +196,7 @@ export class PlannerTable {
       const want = ['', ...optionsFor(c, all, current)]
       const have = [...select.options].map((o) => o.value)
       if (want.join('\n') !== have.join('\n')) {
-        select.replaceChildren(...want.map((v) => h('option', { value: v }, v ? optionLabel(c, v) : 'All')))
+        select.replaceChildren(...want.map((v) => option(c, v)))
       }
       select.value = current
     }

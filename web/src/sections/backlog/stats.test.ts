@@ -11,7 +11,8 @@ async function show(reply: unknown) {
   mount('<backlog-stats></backlog-stats>')
   await flush()
 }
-const fact = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling
+// A fact's label is spoken only (sr-only inside the dt's glyph).
+const fact = (label: string) => screen.getByText(label, { selector: 'dt .sr-only' }).closest('dt')?.nextElementSibling
 
 describe('<backlog-stats>', () => {
   it('shows the estimates for the default filters', async () => {
@@ -35,7 +36,8 @@ describe('<backlog-stats>', () => {
 
   it('dashes a ratio the server could not compute', async () => {
     await show(stats(makePaceVsHltb({ player_style: 'unknown', ratio_vs_rush: -1, ratio_vs_leisure: -1 })))
-    expect(screen.getByText('Not enough finished games yet')).toBeInTheDocument()
+    expect(screen.getByText('Not enough finished games yet')).toHaveClass('sr-only')
+    expect(fact('Your pace')?.querySelector('.player-insight-style--unknown')).not.toBeNull()
     expect(fact('vs rush')).toHaveTextContent('—')
     expect(fact('vs leisure')).toHaveTextContent('—')
   })

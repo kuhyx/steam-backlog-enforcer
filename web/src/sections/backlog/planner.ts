@@ -13,6 +13,7 @@ import { timelineChart } from '../../lib/charts/timeline'
 import { h } from '../../lib/dom'
 import { buildIndex, type Searchable } from '../../library/fuzzy'
 import type { Filters, WebDataset } from '../../types'
+import { glyph } from '../../ui/build'
 import { FilterPanel } from './filterPanel'
 import { defaultFilters, readFilters, writeFilters } from './plannerFilters'
 import { PlannerTable } from './plannerTable'
@@ -59,7 +60,8 @@ export class Planner {
     this.panel = new FilterPanel(data.defaults, (patch) => { this.patch(patch) }, () => { this.reset() })
     const content = h('div', { class: 'content' }, this.summary, this.chart, this.view.el)
     this.nodes = [
-      h('header', { class: 'app-head' }, h('div', {}, h('h1', {}, 'Backlog Completion Planner'), this.sub)),
+      // Textgate: the heading is spoken only; the page's rail icon names it.
+      h('header', { class: 'app-head' }, h('div', {}, h('h1', { class: 'sr-only' }, 'Backlog Completion Planner'), this.sub)),
       h('div', { class: 'layout' }, this.panel.el, content),
     ]
     this.restore()
@@ -110,8 +112,13 @@ export class Planner {
   private syncSub(): void {
     const s = this.data.state
     this.sub.replaceChildren(
-      ...(s.current_game_name ? ['Currently playing ', h('strong', {}, s.current_game_name), ' · '] : []),
-      `${s.games_done_since_start} games finished since ${s.enforcement_started_at.slice(0, 10) || '—'} · ${this.data.games.length} candidates`,
+      ...(s.current_game_name ? [glyph('▶️', 'Currently playing '), ' ', h('strong', {}, s.current_game_name), ' · '] : []),
+      glyph('🏆', 'games finished'),
+      ` ${s.games_done_since_start} · `,
+      glyph('📅', 'since'),
+      ` ${s.enforcement_started_at.slice(0, 10) || '—'} · `,
+      glyph('🎮', 'candidates'),
+      ` ${this.data.games.length}`,
     )
   }
 

@@ -89,7 +89,7 @@ describe('<game-table> table', () => {
     expect(names()).toEqual(['Beta'])
     await user.click(within(table()).getAllByRole('checkbox')[0])
     await user.selectOptions(proton, '')
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter Keep' }), 'Excluded')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter Keep' }), 'excluded')
     expect(names()).toEqual(['Beta'])
     expect(hash().get('f.keep')).toBe('excluded')
   })
@@ -104,7 +104,8 @@ describe('<game-table> table', () => {
   it('formats each cell like the CLI list', async () => {
     await show(GAMES.slice(0, 1))
     const cells = [...table().querySelectorAll('tbody td')].map((td) => td.textContent)
-    expect(cells.slice(0, 8)).toEqual(['Alpha', '10', '1.0 h', '5.0', '30.0', '40.0', '20', 'gold'])
+    expect(cells.slice(0, 8)).toEqual(['Alpha', '10', '1.0 h', '5.0', '30.0', '40.0', '20', '🥇'])
+    expect(table().querySelector('td.proton')).toHaveAttribute('aria-label', 'gold')
   })
 
   it('shows a no-data badge for games without HLTB times when they are included', async () => {

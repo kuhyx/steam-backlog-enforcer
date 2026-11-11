@@ -27,9 +27,10 @@ export async function found(text: string): Promise<HTMLButtonElement> {
   return vi.waitFor(() => button(document.body, text))
 }
 
-/** The input whose label starts with `label`. */
+/** The input whose spoken label (its .sr-only text, else its text) starts with `label`. */
 export function field(label: string | RegExp): HTMLInputElement {
-  const l = [...document.querySelectorAll('label')].find((x) => (typeof label === 'string' ? x.textContent.startsWith(label) : label.test(x.textContent)))
+  const spoken = (x: Element) => x.querySelector('.sr-only')?.textContent ?? x.textContent
+  const l = [...document.querySelectorAll('label')].find((x) => (typeof label === 'string' ? spoken(x).startsWith(label) : label.test(spoken(x))))
   return document.getElementById(l?.getAttribute('for') ?? '') as HTMLInputElement
 }
 
