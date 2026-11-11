@@ -68,7 +68,7 @@ export function empty(label: string): HTMLParagraphElement {
     'p',
     { class: 'empty', 'aria-label': label },
     h('span', { class: 'empty-icon', 'aria-hidden': 'true' }, '📭'),
-    ...(label ? [h('span', { class: 'sr-only' }, label)] : []),
+    h('span', { class: 'sr-only' }, label),
   )
 }
 
