@@ -44,6 +44,36 @@ export const COMMAND_HOME = {
   'restore-backup': '/system',
 } as const satisfies Record<CommandName, SectionPath>
 
+/** The glyph a command's button paints (textgate: its label is spoken only). */
+export const COMMAND_ICON = {
+  status: '📊',
+  list: '📋',
+  stats: '📈',
+  installed: '💾',
+  'gaming-status': '⏱️',
+  check: '🔄',
+  scan: '🔎',
+  done: '🏆',
+  pick: '🎲',
+  'pick-manual': '📌',
+  'abandon-pick': '❌',
+  install: '⬇️',
+  uninstall: '🗑️',
+  hide: '🙈',
+  unhide: '👁️',
+  'buy-dlc': '💳',
+  unblock: '🔓',
+  'add-exception': '🎫',
+  'block-gaming': '⛔',
+  reset: '♻️',
+  setup: '🔧',
+  enforce: '🛡️',
+  'gaming-reset': '⏪',
+  'gaming-unblock': '🔌',
+  serve: '🌐',
+  'restore-backup': '🗄️',
+} as const satisfies Record<CommandName, string>
+
 /** Title-case label for buttons and the palette (`pick-manual` → `Pick manual`). */
 export function commandLabel(name: CommandName): string {
   const s = name.replace(/-/g, ' ')

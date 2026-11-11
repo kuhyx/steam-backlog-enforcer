@@ -145,3 +145,5 @@
 .countdown-clock { display: flex; align-items: baseline; gap: var(--space-3); }
 .countdown-num { font-size: var(--text-display); letter-spacing: var(--tracking-display); font-weight: 650; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .row-link > .muted:not(.grow) { white-space: nowrap; }
+.cmd-icon { font-size: var(--text-subtitle); line-height: 1; }
+.cmd-lock { margin-left: var(--space-1); font-size: var(--text-label); }

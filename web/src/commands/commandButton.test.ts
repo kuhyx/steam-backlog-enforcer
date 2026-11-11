@@ -26,7 +26,7 @@ describe('<command-button>', () => {
     loaded([makeSpec('scan')])
     const el = mount(`<command-button name="scan" preset='{"app_id":4}'></command-button>`)
     await vi.waitFor(() => {
-      expect(el.querySelector('button')).toHaveTextContent('Run scan')
+      expect(el.querySelector('button')).toHaveAttribute('aria-label', 'Run scan')
     })
     const btn = must(el.querySelector('button'))
     expect(btn).toHaveAttribute('aria-disabled', 'false')
@@ -39,7 +39,7 @@ describe('<command-button>', () => {
     loaded([])
     const el = mount('<command-button></command-button>')
     const btn = must(el.querySelector('button'))
-    expect(btn).toHaveTextContent('Open Status')
+    expect(btn).toHaveAttribute('aria-label', 'Open Status')
     expect(btn).toHaveAttribute('aria-disabled', 'true')
     btn.click()
     await vi.waitFor(() => {
@@ -52,10 +52,12 @@ describe('<command-button>', () => {
     loaded([makeSpec('pick', { locked_reason: 'Locked by a manual pick' })])
     const el = mount('<command-button name="pick" label="Pick it" tone="danger"></command-button>')
     const btn = must(el.querySelector('button'))
-    expect(btn).toHaveTextContent('Pick it')
+    expect(btn).toHaveAttribute('aria-label', 'Pick it')
+    expect(btn.querySelector('.cmd-lock')).toBeNull()
     await vi.waitFor(() => {
       expect(el.querySelector('button')).toHaveAttribute('title', 'Locked by a manual pick')
     })
+    expect(el.querySelector('.cmd-lock')).not.toBeNull()
     expect(el.querySelector('button')).toHaveAttribute('aria-disabled', 'true')
     expect(el.querySelector('button')).toHaveClass('btn-danger')
     el.querySelector('button')?.click()
@@ -69,7 +71,7 @@ describe('<command-button>', () => {
       expect(el.querySelector('a')).not.toBeNull()
     })
     const link = must(el.querySelector('a'))
-    expect(link).toHaveTextContent('Open Status')
+    expect(link).toHaveAttribute('aria-label', 'Open Status')
     expect(link).toHaveAttribute('href', '/')
     expect(link).toHaveClass('btn-primary')
   })
@@ -78,7 +80,7 @@ describe('<command-button>', () => {
     loaded([makeSpec('scan')])
     const el = mount('<command-button name="scan"></command-button>')
     await vi.waitFor(() => {
-      expect(el.querySelector('button')).toHaveTextContent('Run scan')
+      expect(el.querySelector('button')).toHaveAttribute('aria-label', 'Run scan')
     })
     el.querySelector('button')?.click()
     expect(requests).toEqual([{ name: 'scan' }])
@@ -109,9 +111,9 @@ describe('<command-card>', () => {
     loaded([makeSpec('gaming-reset', { privileged: true, friction: { phrase_template: 'x', countdown_seconds: 300 } })])
     const el = mount('<command-card name="gaming-reset"></command-card>')
     await vi.waitFor(() => {
-      expect(el).toHaveTextContent('root')
+      expect(el.querySelector('[aria-label="root"]')).not.toBeNull()
     })
-    expect(el).toHaveTextContent('countdown')
+    expect(el.querySelector('[aria-label="countdown"]')).not.toBeNull()
   })
 
   it('shows no countdown pill for a friction command without one', async () => {
