@@ -38,7 +38,10 @@ describe('PendingCountdown', () => {
     await tick(10_000)
     expect(text()).toContain('0:21')
     expect(el.querySelector('[role=progressbar]')).toHaveAttribute('aria-valuenow', '32')
-    expect(text()).toContain('Closing this dialog')
+    expect(el.querySelector('.notice-warning')).toHaveAttribute(
+      'aria-label',
+      'Closing this dialog, navigating away or closing the tab cancels the countdown.',
+    )
     expect(button(el, 'Cancel countdown')).toHaveAttribute('autofocus')
   })
 

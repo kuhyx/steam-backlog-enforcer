@@ -8,15 +8,19 @@ import { define, h } from '../lib/dom'
 import { uid } from '../lib/ids'
 import { pageHref, runner } from '../lib/runner'
 import { NAV } from '../shell/nav'
-import { errorNotice, loading, pill } from '../ui/build'
+import { empty, errorNotice, glyph, loading, pill } from '../ui/build'
 import { Modal } from '../ui/dialog'
-import { COMMAND_HOME, commandLabel } from './catalog'
+import { COMMAND_HOME, COMMAND_ICON, commandLabel } from './catalog'
 
 interface Entry {
   key: string
   title: string
   detail: string
   hint: string
+  /** Painted in place of the title (textgate). */
+  icon: string
+  /** Painted in place of the hint: ▶️ run, ↗️ open, 🧭 navigate. */
+  hintIcon: string
   locked: string | null
   act: () => void
 }
@@ -45,7 +49,7 @@ export class CommandPaletteElement extends HTMLElement {
       'aria-expanded': 'true',
       'aria-controls': `${this.listId}-list`,
       'aria-label': 'Search commands',
-      placeholder: 'Type a command or section…',
+      placeholder: '🔍',
       autofocus: true,
     })
     this.list = h('ul', { id: `${this.listId}-list`, role: 'listbox', class: 'palette-list', 'aria-label': 'Commands' })
@@ -56,7 +60,12 @@ export class CommandPaletteElement extends HTMLElement {
     this.input.addEventListener('keydown', (e) => {
       this.onKey(e)
     })
-    this.modal.render(this.input, this.status, this.list, h('p', { class: 'field-help' }, '↑↓ to move · Enter to run · Esc to close'))
+    this.modal.render(this.input, this.status, this.list, h(
+        'p',
+        { class: 'field-help' },
+        h('span', { 'aria-hidden': 'true' }, '↑↓ · ⏎ · ⎋'),
+        h('span', { class: 'sr-only' }, '↑↓ to move · Enter to run · Esc to close'),
+      ))
   }
 
   get isOpen(): boolean {
@@ -108,6 +117,8 @@ export class CommandPaletteElement extends HTMLElement {
         title: commandLabel(c.name),
         detail: c.description,
         hint: c.kind === 'job' ? (c.friction ? 'run · confirm' : 'run') : `open ${COMMAND_HOME[c.name]}`,
+        icon: COMMAND_ICON[c.name],
+        hintIcon: c.kind === 'job' ? (c.friction ? '▶️⌨️' : '▶️') : '↗️',
         locked: c.locked_reason,
         act: () => {
           if (c.kind === 'job') runner.run(c.name)
@@ -122,6 +133,8 @@ export class CommandPaletteElement extends HTMLElement {
         title: `Go to ${n.label}`,
         detail: n.blurb,
         hint: 'navigate',
+        icon: n.icon,
+        hintIcon: '🧭',
         locked: null,
         act: () => {
           this.close()
@@ -143,9 +156,10 @@ export class CommandPaletteElement extends HTMLElement {
         const li = h(
           'li',
           { id: `${this.listId}-${i}`, role: 'option', 'aria-selected': String(i === this.active), class: i === this.active ? 'palette-item active' : 'palette-item' },
-          h('span', { class: 'palette-title' }, e.title, e.locked ? pill('warning', 'locked') : null),
-          h('span', { class: 'palette-detail' }, e.locked ?? e.detail),
-          h('span', { class: 'palette-hint' }, e.hint),
+          // Textgate: glyphs painted; title, detail and hint spoken only.
+          h('span', { class: 'palette-title' }, glyph(e.icon, e.title), e.locked ? pill('warning', 'locked', '🔒') : null),
+          h('span', { class: 'palette-detail sr-only' }, e.locked ?? e.detail),
+          h('span', { class: 'palette-hint' }, glyph(e.hintIcon, e.hint)),
         )
         li.addEventListener('mousemove', () => {
           if (this.active !== i) this.setActive(i)
@@ -154,7 +168,7 @@ export class CommandPaletteElement extends HTMLElement {
         return li
       }),
     )
-    if (this.shown.length === 0) this.list.append(h('li', { class: 'empty' }, `No command matches “${this.input.value}”.`))
+    if (this.shown.length === 0) this.list.append(h('li', {}, empty(`No command matches “${this.input.value}”.`)))
     this.syncActive()
   }
 

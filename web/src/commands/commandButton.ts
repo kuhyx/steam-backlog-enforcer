@@ -46,7 +46,8 @@ export function commandButton({ name, preset, label, tone = 'ghost' }: ButtonPro
       class: `btn btn-${tone}`,
       'aria-label': spoken,
       'aria-disabled': String(locked !== null || !spec),
-      title: locked,
+      // The lock reason is spoken (no hover tooltip: textgate R7); 🔒 paints it.
+      'aria-description': locked,
       onclick: () => {
         if (spec && !locked) runner.run(name, preset)
       },

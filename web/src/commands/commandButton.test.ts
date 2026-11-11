@@ -55,7 +55,7 @@ describe('<command-button>', () => {
     expect(btn).toHaveAttribute('aria-label', 'Pick it')
     expect(btn.querySelector('.cmd-lock')).toBeNull()
     await vi.waitFor(() => {
-      expect(el.querySelector('button')).toHaveAttribute('title', 'Locked by a manual pick')
+      expect(el.querySelector('button')).toHaveAttribute('aria-description', 'Locked by a manual pick')
     })
     expect(el.querySelector('.cmd-lock')).not.toBeNull()
     expect(el.querySelector('button')).toHaveAttribute('aria-disabled', 'true')

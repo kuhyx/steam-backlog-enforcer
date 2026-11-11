@@ -9,7 +9,7 @@ import { define, h, hx } from '../lib/dom'
 import { runner, jobHref, type RunRequest } from '../lib/runner'
 import { errorNotice, loading, notice } from '../ui/build'
 import { Modal } from '../ui/dialog'
-import { commandLabel, findCommand } from './catalog'
+import { COMMAND_ICON, commandLabel, findCommand } from './catalog'
 import type { PendingCountdown } from './pendingCountdown'
 import { Runner, type NextPhase } from './runnerForm'
 
@@ -94,7 +94,12 @@ export class RunnerDialogElement extends HTMLElement {
       return
     }
     if (error) this.modal.render(errorNotice(error))
-    else if (commands) this.modal.render(notice('danger', 'Not in the server catalog', `The server does not offer "${req.name}".`))
+    else if (commands) {
+      // ⛔ + the command's glyph; the sentence is spoken only.
+      const el = notice('danger', null, h('span', { 'aria-hidden': 'true' }, COMMAND_ICON[req.name]))
+      el.setAttribute('aria-label', `Not in the server catalog: the server does not offer "${req.name}".`)
+      this.modal.render(el)
+    }
     else this.modal.render(loading('commands'))
   }
 
@@ -111,8 +116,8 @@ export class RunnerDialogElement extends HTMLElement {
           h(
             'div',
             { class: 'actions' },
-            h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { this.close() } }, 'Close (job keeps running)'),
-            h('a', { href: jobHref(next.id), class: 'btn btn-ghost' }, 'Open in Jobs'),
+            h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Close (job keeps running)', onclick: () => { this.close() } }, '✖️'),
+            h('a', { href: jobHref(next.id), class: 'btn btn-ghost', 'aria-label': 'Open in Jobs' }, '⚙️'),
           ),
         ),
       )

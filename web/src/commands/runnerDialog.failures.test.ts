@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { q } from '../api/queries'
 import { makeSpec } from '../test/fixtures'
-import { submit } from '../test/events'
+import { must, submit } from '../test/events'
 import { apiError, Reply } from '../test/harness'
 import { field, found, openRunner, text } from '../test/runnerHelpers'
 
@@ -18,8 +18,11 @@ describe('<runner-dialog> locked', () => {
     })
     openRunner([spec], 'pick')
     const run = await found('Run pick')
-    expect(text()).toContain('Manual pick active')
-    expect(field('N')).toBeDisabled()
+    // The reason is spoken only; 🔒 is painted in the notice.
+    const lock = must(document.querySelector('.notice-warning'))
+    expect(lock).toHaveAttribute('aria-label', 'Locked: Manual pick active')
+    expect(lock).toHaveTextContent('🔒')
+    expect(field(/N$/)).toBeDisabled()
     expect(document.querySelector('.phrase')).toBeNull()
     expect(run).toBeDisabled()
     submit(run)
@@ -38,7 +41,10 @@ describe('<runner-dialog> start failures', () => {
   it('offers the sudo fallback when the daemon is down', async () => {
     openRunner([makeSpec('gaming-unblock')], 'gaming-unblock', { extra: { 'POST /api/jobs': apiError(502, 'daemon_unreachable') } })
     submit(await found('Run gaming-unblock'))
-    await waitText('Run it from a terminal instead:')
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-code="daemon_unreachable"] p')).toHaveAttribute('aria-label', 'Run it from a terminal instead:')
+    })
+    expect(document.querySelector('[data-code="daemon_unreachable"] p')).toHaveTextContent('💻')
     expect(text()).toContain('sudo ./run.sh gaming-unblock')
   })
 

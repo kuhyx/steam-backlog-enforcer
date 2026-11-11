@@ -7,6 +7,34 @@ import { h } from '../lib/dom'
 import { uid } from '../lib/ids'
 import { paramError, type GameOption, type ParamValues } from './params'
 
+/** Painted glyph per parameter (textgate); the catalog label is spoken only. */
+const PARAM_ICON: Record<string, string> = {
+  app_id: '🎮',
+  backup_id: '🗄️',
+  days: '📅',
+  minutes: '⏱️',
+  reason: '💬',
+  replace: '🔁',
+  demo: '🧪',
+}
+
+function paramGlyph(spec: ParamSpec): HTMLSpanElement {
+  return h(
+    'span',
+    {},
+    h('span', { 'aria-hidden': 'true' }, PARAM_ICON[spec.name] ?? '✏️'),
+    h('span', { class: 'sr-only' }, spec.label),
+  )
+}
+
+/** Field help: optional painted mark, sentence spoken only. */
+function spokenHelp(el: HTMLElement, mark: string | null, sentence: string): void {
+  el.replaceChildren(
+    mark ? h('span', { 'aria-hidden': 'true' }, mark) : '',
+    sentence ? h('span', { class: 'sr-only' }, sentence) : '',
+  )
+}
+
 interface Field {
   wrap: HTMLDivElement
   spec: ParamSpec
@@ -64,7 +92,7 @@ export class ParamsForm {
       input.addEventListener('change', () => {
         emit(input.checked ? '1' : '0')
       })
-      const wrap = h('div', { class: 'form-field' }, h('label', { class: 'check', for: id }, input, spec.label), help)
+      const wrap = h('div', { class: 'form-field' }, h('label', { class: 'check', for: id }, input, paramGlyph(spec)), help)
       return { wrap, spec, input, help, datalist: null }
     }
     const numeric = spec.type !== 'string'
@@ -89,7 +117,7 @@ export class ParamsForm {
     const wrap = h(
       'div',
       { class: 'form-field' },
-      h('label', { for: id, class: 'field-label' }, spec.label, spec.required ? h('span', { 'aria-hidden': 'true' }, ' *') : null),
+      h('label', { for: id, class: 'field-label' }, paramGlyph(spec), spec.required ? h('span', { 'aria-hidden': 'true' }, ' *') : null),
       input,
       datalist,
       help,
@@ -99,7 +127,7 @@ export class ParamsForm {
 
   private refreshField({ spec, input, help, datalist }: Field): void {
     if (spec.type === 'bool') {
-      help.textContent = spec.help ?? ' '
+      spokenHelp(help, null, spec.help ?? '')
       return
     }
     const raw = this.values[spec.name] ?? ''
@@ -109,11 +137,11 @@ export class ParamsForm {
     input.setAttribute('aria-invalid', String(bad))
     help.className = bad ? 'field-help text-danger' : 'field-help'
     const game = spec.type === 'app_id' ? this.games.find((g) => g.app_id === Number(raw)) : undefined
-    help.textContent = bad
-      ? err
-      : game
-        ? game.name
-        : (spec.help ?? (spec.type === 'app_id' ? 'Type an app id or pick a game from the list.' : ' '))
+    // Textgate: an error paints ⚠️, a matched game paints its name (content);
+    // the error sentence and the field help are spoken only.
+    if (bad) spokenHelp(help, '⚠️', err)
+    else if (game) help.replaceChildren(game.name)
+    else spokenHelp(help, null, spec.help ?? (spec.type === 'app_id' ? 'Type an app id or pick a game from the list.' : ''))
     if (datalist && datalist.childElementCount !== this.games.length) {
       datalist.replaceChildren(...this.games.map((g) => h('option', { value: g.app_id }, g.name)))
     }

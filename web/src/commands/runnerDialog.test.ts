@@ -24,8 +24,14 @@ describe('<runner-dialog> catalog states', () => {
 
   it('says so when the server does not offer the command', async () => {
     openRunner([makeSpec('done')], 'scan')
-    await waitText('Not in the server catalog')
-    expect(text()).toContain('does not offer "scan"')
+    // Spoken only; the command's glyph is painted beside ⛔.
+    await vi.waitFor(() => {
+      expect(document.querySelector('.notice-danger')).toHaveAttribute(
+        'aria-label',
+        'Not in the server catalog: the server does not offer "scan".',
+      )
+    })
+    expect(document.querySelector('.notice-danger')).toHaveTextContent('🔎')
   })
 
   it('titles the dialog with the command label', async () => {
@@ -136,7 +142,7 @@ describe('<runner-dialog> parameters', () => {
     await found('Close (job keeps running)')
     q.dataset.invalidate()
     await vi.waitFor(() => { expect(q.dataset.state.loading).toBe(false) })
-    expect(text()).toContain('Open in Jobs')
+    expect(document.querySelector('a[aria-label="Open in Jobs"]')).toHaveAttribute('href', '/jobs/?id=j1')
   })
 })
 
@@ -149,7 +155,10 @@ describe('<runner-dialog> friction', () => {
   it('shows the exact phrase once its fields are known, and sends it', async () => {
     const { mock } = openRunner([spec], 'uninstall', { extra: { 'POST /api/jobs': makeJob({ id: 'j1' }) } })
     const run = await found('Run uninstall')
-    expect(text()).toMatch(/Fill in the fields above to see the exact phrase \(game_name\)/)
+    expect(document.querySelector('.notice-info')).toHaveAttribute(
+      'aria-label',
+      'Fill in the fields above to see the exact phrase (game_name).',
+    )
     setValue(field(/Game/), '7')
     await vi.waitFor(() => { expect(phraseInput()).toBeInTheDocument() })
     expect(run).toBeDisabled()

@@ -26,7 +26,9 @@ function make(over: { specs?: ParamSpec[]; values?: ParamValues; disabled?: bool
 }
 
 function labelFor(text: RegExp | string): string {
-  const label = [...document.querySelectorAll('label')].find((l) => (typeof text === 'string' ? l.textContent === text : text.test(l.textContent)))
+  // The spoken label sits in an sr-only span; the painted part is a glyph.
+  const spoken = (l: HTMLLabelElement) => l.querySelector('.sr-only')?.textContent ?? ''
+  const label = [...document.querySelectorAll('label')].find((l) => (typeof text === 'string' ? spoken(l) === text : text.test(spoken(l))))
   return label?.getAttribute('for') ?? ''
 }
 
@@ -37,7 +39,9 @@ describe('ParamsForm', () => {
     expect(input(/Game/)).toHaveAttribute('inputmode', 'numeric')
     expect(input(/Game/)).toHaveAttribute('autofocus')
     expect(input(/Game/)).toBeRequired()
-    expect(document.body).toHaveTextContent('Game *')
+    expect(document.querySelector(`label[for="${input(/Game/).id}"]`)).toHaveTextContent('Game *')
+    expect(document.querySelector(`label[for="${input(/Game/).id}"] [aria-hidden]`)).toHaveTextContent('🎮')
+    expect(document.querySelector(`label[for="${input('Days').id}"]`)).not.toHaveTextContent('*')
     expect(input('Days')).toHaveAttribute('type', 'number')
     expect(input('Days')).toHaveAttribute('min', '1')
     expect(input('Days')).toHaveAttribute('max', '9')
@@ -129,6 +133,6 @@ describe('ParamsForm', () => {
     const box: ParamSpec[] = [{ name: 'on', label: 'On', type: 'bool', required: false }]
     const { input } = make({ specs: box, values: {} })
     expect(input('On')).not.toBeChecked()
-    expect(document.querySelector('.field-help')?.textContent).toBe(' ')
+    expect(document.querySelector('.field-help')?.textContent).toBe('')
   })
 })

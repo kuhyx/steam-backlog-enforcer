@@ -21,6 +21,13 @@ import { PhraseField } from './phraseField'
  */
 export const CLOCK_SLACK_MS = 1000
 
+/** ⚠️ 🚪: leaving cancels the countdown; the sentence is spoken only. */
+function stayNotice(): HTMLDivElement {
+  const el = notice('warning', null, h('span', { 'aria-hidden': 'true' }, '🚪✖️'))
+  el.setAttribute('aria-label', 'Closing this dialog, navigating away or closing the tab cancels the countdown.')
+  return el
+}
+
 export interface CountdownCallbacks {
   onCommitted: (job: Job) => void
   onCancel: () => void
@@ -102,7 +109,7 @@ export class PendingCountdown {
       this.el.className = 'stack'
       this.el.replaceChildren(
         errorNotice(this.beatError),
-        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-primary', autofocus: true, onclick: this.cb.onRearm }, 'Arm again')),
+        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-primary', autofocus: true, 'aria-label': 'Arm again', onclick: this.cb.onRearm }, '🔁')),
       )
       this.el.querySelector<HTMLElement>('[autofocus]')?.focus()
       return
@@ -113,11 +120,23 @@ export class PendingCountdown {
     const left = Math.max(0, (ready - now) / 1000)
     const isReady = left <= 0
     this.parts.num.textContent = clock(left)
-    this.parts.caption.textContent = isReady ? 'Ready to commit' : 'until commit unlocks'
+    // Textgate: 🔓/🔒 painted beside the clock; 💓 + seconds since the last
+    // heartbeat (red 💔 when failing). Sentences are spoken only.
+    this.parts.caption.replaceChildren(
+      h('span', { 'aria-hidden': 'true' }, isReady ? '🔓' : '🔒'),
+      h('span', { class: 'sr-only' }, isReady ? 'Ready to commit' : 'until commit unlocks'),
+    )
     this.parts.bar.replaceChildren(progressBar(Math.min(1, (now - armed) / (ready - armed)), 'Countdown', isReady ? 'success' : 'warning'))
+    const sinceBeat = Math.round((now - this.lastBeat) / 1000)
+    const failing = this.beatError !== null
     this.parts.beat.replaceChildren(
-      `Keep this window open. Heartbeat every ${Math.round(this.pending.heartbeat_interval_seconds / 2)} s · last ${Math.round((now - this.lastBeat) / 1000)} s ago`,
-      this.beatError !== null ? h('span', { class: 'text-danger' }, ' · heartbeat failing, retrying') : '',
+      h('span', { 'aria-hidden': 'true', class: failing ? 'text-danger' : '' }, `${failing ? '💔' : '💓'} ${sinceBeat}s`),
+      h(
+        'span',
+        { class: 'sr-only' },
+        `Keep this window open. Heartbeat every ${Math.round(this.pending.heartbeat_interval_seconds / 2)} s · last ${sinceBeat} s ago`,
+        failing ? ' · heartbeat failing, retrying' : '',
+      ),
     )
     this.parts.live.textContent = isReady ? 'Countdown finished. Retype the phrase to commit.' : ''
     if (isReady !== this.shownReady) this.renderBody(isReady)
@@ -128,11 +147,15 @@ export class PendingCountdown {
     this.shownReady = isReady
     if (!isReady) {
       this.parts.body.replaceChildren(
-        notice('warning', null, 'Closing this dialog, navigating away or closing the tab cancels the countdown.'),
+        stayNotice(),
         h(
           'div',
           { class: 'actions' },
-          h('button', { type: 'button', class: 'btn btn-ghost', autofocus: true, onclick: () => void this.doCancel() }, this.cancel.pending ? 'Cancelling…' : 'Cancel countdown'),
+          h(
+            'button',
+            { type: 'button', class: 'btn btn-ghost', autofocus: true, 'aria-label': this.cancel.pending ? 'Cancelling…' : 'Cancel countdown', onclick: () => void this.doCancel() },
+            this.cancel.pending ? '⏳' : '✖️',
+          ),
         ),
       )
       return
@@ -153,7 +176,7 @@ export class PendingCountdown {
         { class: 'stack' },
         this.phrase.el,
         errorSlot,
-        h('div', { class: 'actions' }, submitBtn, h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => void this.doCancel() }, 'Cancel')),
+        h('div', { class: 'actions' }, submitBtn, h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Cancel', onclick: () => void this.doCancel() }, '✖️')),
       )
       form.addEventListener('submit', (e) => {
         e.preventDefault()
@@ -165,7 +188,8 @@ export class PendingCountdown {
     }
     const { submit, errors } = this.commitForm as { submit: HTMLButtonElement; errors: HTMLDivElement }
     submit.disabled = !phraseMatches(this.pending.phrase, this.phrase.value) || this.commit.pending
-    submit.textContent = this.commit.pending ? 'Committing…' : 'Commit'
+    submit.textContent = this.commit.pending ? '⏳' : '✔️'
+    submit.setAttribute('aria-label', this.commit.pending ? 'Committing…' : 'Commit')
     errors.replaceChildren(...(this.commit.error ? [errorNotice(this.commit.error)] : []))
   }
 

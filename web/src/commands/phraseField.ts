@@ -48,7 +48,7 @@ export class PhraseField {
     this.el = h(
       'div',
       { class: 'phrase' },
-      h('label', { for: id, class: 'field-label' }, label),
+      h('label', { for: id, class: 'field-label' }, h('span', { 'aria-hidden': 'true' }, '⌨️'), h('span', { class: 'sr-only' }, label)),
       this.target,
       this.input,
       h('p', { class: 'sr-only' }, `Phrase: ${phrase}`),
@@ -71,10 +71,12 @@ export class PhraseField {
     this.input.className = `input mono ${ok ? 'input-ok' : prefixOk ? '' : 'input-bad'}`.trim()
     this.input.setAttribute('aria-invalid', String(!prefixOk))
     this.status.className = `field-help ${ok ? 'text-success' : prefixOk ? '' : 'text-danger'}`.trim()
-    this.status.textContent = ok
-      ? 'Matches.'
+    // Textgate: ✅ / count / ❌ painted; the sentence is spoken only.
+    const [mark, spoken] = ok
+      ? ['✅', 'Matches.']
       : prefixOk
-        ? `${typed.length} of ${this.phrase.length} characters`
-        : 'Does not match — check case and spacing.'
+        ? [`${typed.length}/${this.phrase.length}`, `${typed.length} of ${this.phrase.length} characters`]
+        : ['❌', 'Does not match — check case and spacing.']
+    this.status.replaceChildren(h('span', { 'aria-hidden': 'true' }, mark), h('span', { class: 'sr-only' }, spoken))
   }
 }
