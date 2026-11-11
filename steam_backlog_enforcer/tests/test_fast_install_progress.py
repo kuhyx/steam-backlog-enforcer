@@ -213,7 +213,7 @@ class TestWaitReporter:
         progress.phase.assert_called_once_with(
             "Fast-installing G: shutting Steam down", None
         )
-        progress.advance.assert_called_once_with("12s elapsed", step=0)
+        progress.advance.assert_called_once_with("⏱️ 12s", step=0)
 
     def test_echo_is_throttled_to_30_seconds(self, tmp_path: Path) -> None:
         reporter = self._reporter(tmp_path, _upto(" 46.90%"))

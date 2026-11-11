@@ -241,7 +241,8 @@ class WaitReporter:
             # Floor, so 99.99 never reads as done before the depot is.
             progress.advance(self._label, step=int(snap.percent or 0))
         else:
-            progress.advance(f"{_clock(snap.elapsed_seconds)} elapsed", step=0)
+            # The web UI paints the item (textgate): glyph + number, no word.
+            progress.advance(f"⏱️ {_clock(snap.elapsed_seconds)}", step=0)
         if now - self._last_echo >= ECHO_SECONDS:
             self._last_echo = now
             _echo(f"  Fast-installing {self._label}: {snap.describe()}")

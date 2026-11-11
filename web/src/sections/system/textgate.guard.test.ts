@@ -13,8 +13,8 @@ import './daemonCard'
 import './serverCard'
 import './setupCard'
 
-/** Content inside a painted string: dates as dateTime() paints them, sizes, ids. */
-const CONTENT = [/[A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2}( [AP]M)?/g, /\d[\d.,]* (B|KB|MB|GB)\b/g, /\d{8}-\d{6}/g]
+/** Content inside a painted string: sizes and backup ids (dates are numeric). */
+const CONTENT = [/\d[\d.,]* (B|KB|MB|GB)\b/g, /\d{8}-\d{6}/g]
 const chrome = (root: Element, allowed: string[] = []): string[] =>
   visibleWords(root, allowed).filter((w) => /[A-Za-z]{2,}/.test(CONTENT.reduce((s, re) => s.replace(re, ''), w)))
 

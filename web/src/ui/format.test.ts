@@ -31,7 +31,7 @@ describe('ui format', () => {
 
   it('dateTime formats or dashes', () => {
     expect(dateTime(null)).toBe('—')
-    expect(dateTime('2026-10-10T12:00:00Z')).toMatch(/\d/)
+    expect(dateTime('2026-10-10T12:00:00Z')).toMatch(/^\d\d-\d\d \d\d:\d\d$/)
   })
 
   it('duration spans start to end, or to now while running', () => {

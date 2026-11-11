@@ -91,7 +91,7 @@ const install: Script = async (ctx) => {
   const dir = await ctx.prompt('text', 'Steam library folder to install into:', { default: '/mnt/games/SteamLibrary' })
   ctx.log(`steam://install/${world.currentAppId} → ${dir || '/mnt/games/SteamLibrary'}`)
   for (let i = 1; i <= 20; i += 1) {
-    ctx.progress(i, 20, 'Downloading', `${name} — ${(i * 0.6).toFixed(1)} of 12.0 GB`, (20 - i) * 0.4)
+    ctx.progress(i, 20, 'Downloading', `${name} · ${(i * 0.6).toFixed(1)}/12.0 GB`, (20 - i) * 0.4)
     await ctx.sleep(400)
   }
   return { summary: `${name} installed.` }
