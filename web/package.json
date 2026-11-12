@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@kuhyx/web-ui": "github:kuhyx/utils#web_ui-v0.5.0&path:/web_ui",
-    "astro": "7.4.8"
+    "astro": "7.4.10"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
