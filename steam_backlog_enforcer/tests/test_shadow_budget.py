@@ -16,6 +16,7 @@ from steam_backlog_enforcer import _mcp_gaming_time as mcp_gaming_time
 from steam_backlog_enforcer._budget_resolve import resolve_budget
 from steam_backlog_enforcer._gaming_days import held_shadow_today
 from steam_backlog_enforcer._playtime import playtime_tick
+from steam_backlog_enforcer._playtime_record import ShadowLedger
 from steam_backlog_enforcer._playtime_state import (
     PlaytimeState,
     load_state,
@@ -84,12 +85,16 @@ class TestHeldShadow:
 
     def test_same_day_holds_the_high_water(self) -> None:
         """A stored budget from today is held."""
-        stored = PlaytimeState(day_key=_TODAY, shadow_budget_seconds=9 * HOUR)
+        stored = PlaytimeState(
+            day_key=_TODAY, shadow=ShadowLedger(budget_seconds=9 * HOUR)
+        )
         assert held_shadow_today(stored, _NOW) == 9 * HOUR
 
     def test_another_day_or_no_state_holds_nothing(self) -> None:
         """A budget from another day, or none at all, holds nothing."""
-        stored = PlaytimeState(day_key="2026-07-26", shadow_budget_seconds=HOUR)
+        stored = PlaytimeState(
+            day_key="2026-07-26", shadow=ShadowLedger(budget_seconds=HOUR)
+        )
         assert held_shadow_today(stored, _NOW) == 0.0
         assert held_shadow_today(None, _NOW) == 0.0
 
@@ -135,9 +140,9 @@ class TestShadowTick:
         state = load_state(demo=False)
         assert state is not None
         assert (state.seconds, state.per_game) == (3.0, {"app:440": 3.0})
-        assert state.shadow_seconds == 3.0
-        assert state.shadow_per_source == {"app:440": 3.0}
-        assert state.shadow_budget_seconds > 0.0
+        assert state.shadow.seconds == 3.0
+        assert state.shadow.per_source == {"app:440": 3.0}
+        assert state.shadow.budget_seconds > 0.0
 
     def test_no_game_and_no_watcher_fails_closed(self) -> None:
         """With no game and no watcher the shadow bills the fail-closed key."""
@@ -145,15 +150,15 @@ class TestShadowTick:
         state = load_state(demo=False)
         assert state is not None
         assert state.seconds == 0.0
-        assert state.shadow_per_source == {_shadow.FAILCLOSED_KEY: 3.0}
+        assert state.shadow.per_source == {_shadow.FAILCLOSED_KEY: 3.0}
 
     def test_no_shadow_under_a_total_block(self) -> None:
         """A total block bills no shadow seconds but keeps the budget."""
         self._tick({}, total_block=True)
         state = load_state(demo=False)
         assert state is not None
-        assert state.shadow_seconds == 0.0
-        assert state.shadow_budget_seconds > 0.0
+        assert state.shadow.seconds == 0.0
+        assert state.shadow.budget_seconds > 0.0
 
     def test_the_session_journals_the_shadow_verdict(self) -> None:
         """The tick journals the shadow verdict through the session."""
@@ -183,10 +188,12 @@ class TestShadowViews:
         stored = PlaytimeState(
             day_key=_TODAY,
             seconds=10.0,
-            shadow_seconds=40.0,
-            shadow_budget_seconds=100.0,
-            shadow_per_source={"app:440": 40.0},
-            shadow_paused_seconds=5.0,
+            shadow=ShadowLedger(
+                seconds=40.0,
+                budget_seconds=100.0,
+                per_source={"app:440": 40.0},
+                paused_seconds=5.0,
+            ),
         )
         with (
             patch.object(budget_view, "load_state", return_value=stored),
@@ -204,7 +211,7 @@ class TestShadowViews:
 
     def test_would_block_at_zero(self) -> None:
         """A spent shadow budget reports would_block with zero remaining."""
-        stored = PlaytimeState(shadow_seconds=100.0, shadow_budget_seconds=100.0)
+        stored = PlaytimeState(shadow=ShadowLedger(seconds=100.0, budget_seconds=100.0))
         shadow = budget_view.build_today(stored, rules_for(Config(), demo=True))
         assert shadow["shadow"]["would_block"] is True
         assert shadow["shadow"]["seconds_remaining"] == 0.0

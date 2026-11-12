@@ -173,16 +173,19 @@ def shadow_accumulate(
         return state
     credited = min(delta, interval * _DELTA_CLAMP_FACTOR)
     if verdict.paused_by is not None:
-        paused = state.shadow_paused_seconds + credited
-        return replace(state, shadow_paused_seconds=paused)
+        paused = state.shadow.paused_seconds + credited
+        return replace(state, shadow=replace(state.shadow, paused_seconds=paused))
     if not verdict.keys:
         return state
     share = credited / len(verdict.keys)
-    per_source = dict(state.shadow_per_source)
+    per_source = dict(state.shadow.per_source)
     for key in verdict.keys:
         per_source[key] = per_source.get(key, 0.0) + share
     return replace(
         state,
-        shadow_seconds=state.shadow_seconds + credited,
-        shadow_per_source=per_source,
+        shadow=replace(
+            state.shadow,
+            seconds=state.shadow.seconds + credited,
+            per_source=per_source,
+        ),
     )

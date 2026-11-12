@@ -109,7 +109,7 @@ class TestRulesHold:
         ):
             rules = rules_for(Config(), demo=False)
         assert rules.budget_seconds == 10 * HOUR
-        assert rules.budget_reason.endswith("; held at 10.0h (earned earlier today)")
+        assert rules.breakdown.reason.endswith("; held at 10.0h (earned earlier today)")
 
     def test_a_higher_live_answer_wins_silently(self) -> None:
         """A live budget above the held one wins with no held note."""
@@ -118,4 +118,4 @@ class TestRulesHold:
         ):
             rules = rules_for(Config(), demo=False)
         assert rules.budget_seconds > HOUR
-        assert "held at" not in rules.budget_reason
+        assert "held at" not in rules.breakdown.reason

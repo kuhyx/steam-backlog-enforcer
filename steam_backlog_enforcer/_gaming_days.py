@@ -75,4 +75,4 @@ def held_shadow_today(stored: PlaytimeState | None, now: datetime) -> float:
     """
     if stored is None or stored.day_key != gaming_day_key(now):
         return 0.0
-    return stored.shadow_budget_seconds
+    return stored.shadow.budget_seconds

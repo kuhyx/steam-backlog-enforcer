@@ -7,16 +7,19 @@ import json
 from steam_backlog_enforcer import _playtime_log as log_mod
 from steam_backlog_enforcer._budget_log_tail import last_verdict
 from steam_backlog_enforcer._playtime_log import BudgetLog
+from steam_backlog_enforcer._playtime_record import ShadowLedger
 from steam_backlog_enforcer._playtime_state import PlaytimeState
 from steam_backlog_enforcer._shadow import ShadowVerdict
 from steam_backlog_enforcer._shadow_log import EVENT_SHADOW_CHANGE, ShadowJournal
 
 _STATE = PlaytimeState(
     day_key="2026-10-19",
-    shadow_seconds=30.0,
-    shadow_budget_seconds=36000.0,
-    shadow_per_source={"app:440": 30.0},
-    shadow_paused_seconds=6.0,
+    shadow=ShadowLedger(
+        seconds=30.0,
+        budget_seconds=36000.0,
+        per_source={"app:440": 30.0},
+        paused_seconds=6.0,
+    ),
 )
 
 

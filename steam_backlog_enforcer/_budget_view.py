@@ -168,12 +168,12 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
         # Read off the rules, never re-resolved: resolving a second time here
         # is what would let this view report a budget the daemon is not
         # enforcing. See _budget_resolve's "one seam".
-        "budget_reason": rules.budget_reason,
+        "budget_reason": rules.breakdown.reason,
         "bonuses": {
-            "base": rules.base_seconds,
-            "workout": rules.workout_seconds,
-            "leetcode": rules.leetcode_seconds,
-            "reading": rules.reading_seconds,
+            "base": rules.breakdown.base_seconds,
+            "workout": rules.breakdown.workout_seconds,
+            "leetcode": rules.breakdown.leetcode_seconds,
+            "reading": rules.breakdown.reading_seconds,
         },
         # The registry, in its order: what each earner adds today and what it
         # would add once done. The bar renders "+<icon><size>" for every
@@ -183,7 +183,7 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
             {
                 "name": earner.name,
                 "label": earner.label,
-                "earned_seconds": rules.earned_seconds.get(earner.name, 0.0),
+                "earned_seconds": rules.breakdown.earned_seconds.get(earner.name, 0.0),
                 # A full day pays up to the tutor's 60 credited units.
                 "bonus_seconds": _most(earner) * 60,
             }

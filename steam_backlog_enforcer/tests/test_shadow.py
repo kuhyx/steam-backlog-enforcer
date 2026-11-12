@@ -9,6 +9,7 @@ from leisure_watch.facts import Focus, Now, Reason
 import pytest
 
 from steam_backlog_enforcer import _shadow
+from steam_backlog_enforcer._playtime_record import ShadowLedger
 from steam_backlog_enforcer._playtime_state import PlaytimeState
 from steam_backlog_enforcer._shadow import (
     FAILCLOSED_KEY,
@@ -142,9 +143,9 @@ class TestShadowAccumulate:
     def test_paused_goes_to_paused_seconds_only(self) -> None:
         """A paused tick only adds to paused seconds."""
         out = self._bill(_state(), ShadowVerdict("i3lock", ()))
-        assert out.shadow_paused_seconds == 3.0
-        assert out.shadow_seconds == 0.0
-        assert out.shadow_per_source == {}
+        assert out.shadow.paused_seconds == 3.0
+        assert out.shadow.seconds == 0.0
+        assert out.shadow.per_source == {}
 
     def test_free_bills_nothing(self) -> None:
         """A free tick leaves the state unchanged."""
@@ -154,16 +155,16 @@ class TestShadowAccumulate:
     def test_one_source_takes_the_whole_tick(self) -> None:
         """A single source is billed the whole tick."""
         out = self._bill(_state(), ShadowVerdict(None, ("app:440",)))
-        assert out.shadow_seconds == 3.0
-        assert out.shadow_per_source == {"app:440": 3.0}
+        assert out.shadow.seconds == 3.0
+        assert out.shadow.per_source == {"app:440": 3.0}
 
     def test_overlapping_sources_bill_once_and_split(self) -> None:
         """Overlapping sources share one tick, never billing it twice."""
-        state = _state(shadow_per_source={"a": 1.0}, shadow_seconds=1.0)
+        state = _state(shadow=ShadowLedger(per_source={"a": 1.0}, seconds=1.0))
         out = self._bill(state, ShadowVerdict(None, ("a", "b")))
-        assert out.shadow_seconds == 4.0
-        assert out.shadow_per_source == {"a": 2.5, "b": 1.5}
-        assert sum(out.shadow_per_source.values()) <= out.shadow_seconds + 1e-9
+        assert out.shadow.seconds == 4.0
+        assert out.shadow.per_source == {"a": 2.5, "b": 1.5}
+        assert sum(out.shadow.per_source.values()) <= out.shadow.seconds + 1e-9
 
     def test_the_delta_is_clamped_like_the_enforced_one(self) -> None:
         """A long gap is clamped exactly like the enforced budget."""
@@ -173,7 +174,7 @@ class TestShadowAccumulate:
             interval=3.0,
             verdict=ShadowVerdict(None, (FAILCLOSED_KEY,)),
         )
-        assert out.shadow_seconds == 6.0
+        assert out.shadow.seconds == 6.0
 
     def test_never_touches_enforced_fields(self) -> None:
         """Shadow billing leaves every enforced field as it was."""

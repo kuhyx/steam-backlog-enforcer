@@ -7,16 +7,21 @@ survive a restart mid-session.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._budget_resolve import resolve_budget
+from steam_backlog_enforcer._flat_record import from_flat, to_flat
 from steam_backlog_enforcer._gaming_days import held_shadow_today, held_today
 from steam_backlog_enforcer._playtime_legacy import without_legacy_carry
-from steam_backlog_enforcer._playtime_record import _SCHEMA_VERSION, PlaytimeState
+from steam_backlog_enforcer._playtime_record import (
+    _SCHEMA_VERSION,
+    BudgetBreakdown,
+    PlaytimeState,
+)
 from steam_backlog_enforcer._whitelist_locking import (
     _try_set_immutable,
     unlock_for_write,
@@ -26,6 +31,7 @@ from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from steam_backlog_enforcer._budget_resolve import BudgetResolution
     from steam_backlog_enforcer.config import Config
 
 # Explicit because PlaytimeState now lives in _playtime_record: every existing
@@ -88,13 +94,8 @@ class PlaytimeRules:
     count_launchers: bool
     enforcement: bool
     demo: bool
-    # Today's breakdown, carried so it is resolved once; earned_seconds by name.
-    base_seconds: float = 0.0
-    workout_seconds: float = 0.0
-    leetcode_seconds: float = 0.0
-    reading_seconds: float = 0.0
-    earned_seconds: dict[str, float] = field(default_factory=dict)
-    budget_reason: str = ""
+    # Today's breakdown, carried so it is resolved once.
+    breakdown: BudgetBreakdown = field(default_factory=BudgetBreakdown)
     # The shadow leisure budget (C4), held like budget_seconds; never enforced.
     shadow_budget_seconds: float = 0.0
     # Phase 2: the billed gaming day is on the leisure budget (set per tick by
@@ -132,21 +133,24 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         count_launchers=config.playtime.count_launcher_processes,
         enforcement=config.playtime.playtime_enforcement,
         demo=demo,
-        base_seconds=_DEMO_BUDGET_SECONDS
-        if resolved is None
-        else resolved.base_seconds,
-        workout_seconds=0.0 if resolved is None else resolved.workout_seconds,
-        leetcode_seconds=0.0 if resolved is None else resolved.leetcode_seconds,
-        reading_seconds=0.0 if resolved is None else resolved.reading_seconds,
-        earned_seconds={} if resolved is None else dict(resolved.earned_seconds),
-        budget_reason=(
-            "demo run"
-            if resolved is None
-            else resolved.reason + (held_note if held > live else "")
-        ),
+        breakdown=_breakdown(resolved, held_note if held > live else ""),
         shadow_budget_seconds=0.0
         if resolved is None
         else max(resolved.shadow_seconds, held_shadow_today(stored, now)),
+    )
+
+
+def _breakdown(resolved: BudgetResolution | None, held_note: str) -> BudgetBreakdown:
+    """The breakdown of *resolved*, or the demo run's when it is ``None``."""
+    if resolved is None:
+        return BudgetBreakdown(base_seconds=_DEMO_BUDGET_SECONDS, reason="demo run")
+    return BudgetBreakdown(
+        base_seconds=resolved.base_seconds,
+        workout_seconds=resolved.workout_seconds,
+        leetcode_seconds=resolved.leetcode_seconds,
+        reading_seconds=resolved.reading_seconds,
+        earned_seconds=dict(resolved.earned_seconds),
+        reason=resolved.reason + held_note,
     )
 
 
@@ -190,8 +194,7 @@ def load_state(*, demo: bool) -> PlaytimeState | None:
     if not isinstance(data, dict) or data.get("schema_version") != _SCHEMA_VERSION:
         logger.warning("Playtime state at %s has an unknown schema.", path)
         return None
-    known = {f.name for f in fields(PlaytimeState)}
-    state = PlaytimeState(**{k: v for k, v in data.items() if k in known})
+    state = from_flat(PlaytimeState, data)
     return without_legacy_carry(state, data.get("carry"))
 
 
@@ -210,6 +213,6 @@ def save_state(state: PlaytimeState, *, demo: bool) -> None:
     path = state_path(demo=demo)
     if not demo:
         unlock_for_write(path)
-    _atomic_write(path, json.dumps(state.__dict__, indent=2) + "\n", mode=STATE_MODE)
+    _atomic_write(path, json.dumps(to_flat(state), indent=2) + "\n", mode=STATE_MODE)
     if not demo:
         _try_set_immutable(path, immutable=True)

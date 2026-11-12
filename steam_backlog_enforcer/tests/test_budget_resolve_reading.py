@@ -192,14 +192,14 @@ class TestReadingReachesTheRulesAndTheView:
             return_value=resolution,
         ):
             rules = rules_for(Config(), demo=False)
-        assert rules.reading_seconds == HOUR
+        assert rules.breakdown.reading_seconds == HOUR
         with patch.object(view, "mounted_targets", return_value=set()):
             bonuses = view.build_rules(rules)["bonuses"]
         assert bonuses["reading"] == HOUR
 
     def test_a_demo_run_earns_no_reading(self) -> None:
         """A demo run never earns the reading hour."""
-        assert rules_for(Config(), demo=True).reading_seconds == 0.0
+        assert rules_for(Config(), demo=True).breakdown.reading_seconds == 0.0
 
     def test_a_resolution_defaults_to_no_reading(self) -> None:
         """A resolution built without reading defaults to zero."""

@@ -22,12 +22,12 @@ def shadow_view(state: PlaytimeState) -> dict[str, Any]:
         Used/budget/remaining seconds, whether the leisure budget would block
         now, paused seconds, and the per-source split.
     """
-    remaining = max(0.0, state.shadow_budget_seconds - state.shadow_seconds)
+    remaining = max(0.0, state.shadow.budget_seconds - state.shadow.seconds)
     return {
-        "seconds_used": round(state.shadow_seconds, 1),
-        "budget_seconds": state.shadow_budget_seconds,
+        "seconds_used": round(state.shadow.seconds, 1),
+        "budget_seconds": state.shadow.budget_seconds,
         "seconds_remaining": round(remaining, 1),
         "would_block": remaining <= 0.0,
-        "paused_seconds": round(state.shadow_paused_seconds, 1),
-        "per_source": {k: round(v, 1) for k, v in state.shadow_per_source.items()},
+        "paused_seconds": round(state.shadow.paused_seconds, 1),
+        "per_source": {k: round(v, 1) for k, v in state.shadow.per_source.items()},
     }

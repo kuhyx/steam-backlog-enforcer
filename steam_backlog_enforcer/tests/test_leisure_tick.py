@@ -108,7 +108,7 @@ class TestDormant:
             state, spy = _tick({})
         assert spy.calls == []
         # Games-only, exactly as before: the fail-closed shadow does not bill.
-        assert (state.seconds, state.shadow_seconds) == (0.0, 3.0)
+        assert (state.seconds, state.shadow.seconds) == (0.0, 3.0)
 
     def test_games_still_bill_games_only(self) -> None:
         """A running game is billed per game as before."""
@@ -130,8 +130,8 @@ class TestLive:
         """The fail-closed shadow count becomes the billed count."""
         _go_live(tmp_path)
         state, spy = _tick({})
-        assert state.seconds == state.shadow_seconds == 3.0
-        assert state.shadow_per_source == {_shadow.FAILCLOSED_KEY: 3.0}
+        assert state.seconds == state.shadow.seconds == 3.0
+        assert state.shadow.per_source == {_shadow.FAILCLOSED_KEY: 3.0}
         assert len(spy.calls) == 1
         _seen, rules = spy.calls[0]
         assert rules.leisure
@@ -141,7 +141,7 @@ class TestLive:
         _go_live(tmp_path)
         with patch.object(_shadow, "paused_by", return_value="i3lock"):
             state, _ = _tick({7: "app:440"})
-        assert (state.seconds, state.shadow_paused_seconds) == (0.0, 3.0)
+        assert (state.seconds, state.shadow.paused_seconds) == (0.0, 3.0)
 
     def test_at_zero_the_cutoff_says_leisure_and_kills_run(
         self, tmp_path: Path, notify: MagicMock

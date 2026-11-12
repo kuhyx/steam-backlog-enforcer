@@ -9,11 +9,46 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from steam_backlog_enforcer._flat_record import flat_group
+
 # Unchanged by per-game attribution: `load_state` keeps only keys that are
 # dataclass fields, so a record written before `per_game` existed loads with
 # the field's empty default. A bump would buy nothing and would route the
 # live file through the fail-closed unknown-schema path.
 _SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ShadowLedger:
+    """Shadow leisure accounting (C4): measured, never enforced.
+
+    No :class:`PlaytimeState` field outside this group is ever written by the
+    shadow path, and these never feed a cutoff. Stored flat with a
+    ``shadow_`` key prefix (``shadow_seconds``, ...).
+    """
+
+    seconds: float = 0.0
+    """Leisure seconds billed during ``day_key`` (wall clock, once per tick)."""
+    budget_seconds: float = 0.0
+    """Highest ``resolve(leisure=True)`` budget of ``day_key``, in seconds."""
+    per_source: dict[str, float] = field(default_factory=dict)
+    """Source key to shadow seconds; overlapping sources split a tick."""
+    paused_seconds: float = 0.0
+    """Seconds a held locker grab or i3lock paused shadow billing."""
+
+
+@dataclass(frozen=True)
+class BudgetBreakdown:
+    """Where one day's budget came from, resolved once per tick."""
+
+    base_seconds: float = 0.0
+    workout_seconds: float = 0.0
+    leetcode_seconds: float = 0.0
+    reading_seconds: float = 0.0
+    earned_seconds: dict[str, float] = field(default_factory=dict)
+    """Seconds earned today, by earner name."""
+    reason: str = ""
+    """One line explaining the budget in force."""
 
 
 @dataclass
@@ -51,22 +86,16 @@ class PlaytimeState:
 
     What ``held_today`` holds the day at when a live re-resolution dips.
     """
-    # Shadow leisure accounting (C4): measured, never enforced. No field
-    # above is ever written by the shadow path, and these never feed a cutoff.
-    shadow_seconds: float = 0.0
-    """Leisure seconds billed during ``day_key`` (wall clock, once per tick)."""
-    shadow_budget_seconds: float = 0.0
-    """Highest ``resolve(leisure=True)`` budget of ``day_key``, in seconds."""
-    shadow_per_source: dict[str, float] = field(default_factory=dict)
-    """Source key to shadow seconds; overlapping sources split a tick."""
-    shadow_paused_seconds: float = 0.0
-    """Seconds a held locker grab or i3lock paused shadow billing."""
+    shadow: ShadowLedger = field(
+        default_factory=ShadowLedger, metadata=flat_group(ShadowLedger, "shadow_")
+    )
+    """Shadow leisure accounting (C4), stored as the ``shadow_*`` keys."""
 
     def is_blocked(self) -> bool:
         """Whether the cutoff has engaged for this gaming day.
 
-        Deliberately a method rather than a field: ``save`` serialises
-        ``self.__dict__``, so a derived field would be persisted and could
+        Deliberately a method rather than a field: ``save`` serialises every
+        field, so a derived field would be persisted and could
         drift out of step with ``blocked_at``.
         """
         return self.blocked_at > 0.0

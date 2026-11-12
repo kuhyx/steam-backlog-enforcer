@@ -152,7 +152,7 @@ class TestLeisureBilled:
             tick = Tick(now=now, interval=3.0, owners={}, verdict=verdict)
             state = leisure_billed(state, tick)
             moved = state.seconds - before.seconds
-            assert moved == state.shadow_seconds - before.shadow_seconds
+            assert moved == state.shadow.seconds - before.shadow.seconds
 
 
 class TestDormantBilling:

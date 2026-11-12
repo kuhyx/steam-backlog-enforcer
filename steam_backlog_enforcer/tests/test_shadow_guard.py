@@ -147,7 +147,7 @@ def test_tick_completes_and_enforced_count_is_untouched(
     state = load_state(demo=False)
     assert state.seconds == seconds
     assert state.last_tick_at == T0
-    assert state.shadow_per_source == {shadow: 3.0}
+    assert state.shadow.per_source == {shadow: 3.0}
 
 
 def test_errors_older_than_the_window_are_forgotten() -> None:

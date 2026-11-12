@@ -41,18 +41,18 @@ class ShadowJournal:
         if verdict == self._last:
             return
         self._last = verdict
-        remaining = state.shadow_budget_seconds - state.shadow_seconds
+        remaining = state.shadow.budget_seconds - state.shadow.seconds
         self._log.record(
             EVENT_SHADOW_CHANGE,
             shadow_state=verdict.state,
             paused_by=verdict.paused_by,
             sources=list(verdict.keys),
             day_key=state.day_key,
-            shadow_seconds=round(state.shadow_seconds, 3),
-            shadow_budget_seconds=round(state.shadow_budget_seconds, 3),
+            shadow_seconds=round(state.shadow.seconds, 3),
+            shadow_budget_seconds=round(state.shadow.budget_seconds, 3),
             shadow_remaining_seconds=round(remaining, 3),
-            shadow_paused_seconds=round(state.shadow_paused_seconds, 3),
+            shadow_paused_seconds=round(state.shadow.paused_seconds, 3),
             shadow_per_source={
-                k: round(v, 3) for k, v in state.shadow_per_source.items()
+                k: round(v, 3) for k, v in state.shadow.per_source.items()
             },
         )

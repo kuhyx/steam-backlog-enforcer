@@ -103,8 +103,11 @@ def playtime_tick(
     state = replace(
         state,
         budget_seconds=max(state.budget_seconds, rules.budget_seconds),
-        shadow_budget_seconds=max(
-            state.shadow_budget_seconds, rules.shadow_budget_seconds
+        shadow=replace(
+            state.shadow,
+            budget_seconds=max(
+                state.shadow.budget_seconds, rules.shadow_budget_seconds
+            ),
         ),
     )
 
