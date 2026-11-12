@@ -68,12 +68,12 @@ class TestBuildGames:
         rows = self._run([_gi(app_id=1, completionist_hours=0.0)], set(), raw, proton)
         assert len(rows) == 1
         row = rows[0]
-        assert row.rush_hours == 9.0
-        assert row.leisure_hours == 22.0
-        assert row.worst_hours == 22.0  # max(cache 18, leisure 22)
-        assert row.count_comp == 30
-        assert row.comp_100_count == 7
-        assert row.hltb_game_id == 555
+        assert row.hltb.rush_hours == 9.0
+        assert row.hltb.leisure_hours == 22.0
+        assert row.hltb.worst_hours == 22.0  # max(cache 18, leisure 22)
+        assert row.hltb.count_comp == 30
+        assert row.hltb.comp_100_count == 7
+        assert row.hltb.hltb_game_id == 555
         assert row.protondb_tier == "platinum"
         assert row.protondb_trending_tier == "gold"
 
@@ -82,9 +82,9 @@ class TestBuildGames:
         rows = self._run([_gi(app_id=1, completionist_hours=12.0)], set())
         assert len(rows) == 1
         row = rows[0]
-        assert row.rush_hours == -1
-        assert row.leisure_hours == -1
-        assert row.worst_hours == 12.0  # completionist only
+        assert row.hltb.rush_hours == -1
+        assert row.hltb.leisure_hours == -1
+        assert row.hltb.worst_hours == 12.0  # completionist only
         assert row.protondb_tier == ""  # no protondb entry
 
 

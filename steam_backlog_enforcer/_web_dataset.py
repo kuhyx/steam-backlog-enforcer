@@ -41,6 +41,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from steam_backlog_enforcer._actions import allowed_app_ids
+from steam_backlog_enforcer._flat_record import to_flat
 from steam_backlog_enforcer._hltb_types import _read_raw_cache
 from steam_backlog_enforcer._scanning_confidence import (
     _MIN_COMP_100_POLLS,
@@ -177,5 +178,7 @@ def build_web_dataset(state: State) -> WebDataset:
 
 
 def dataset_to_payload(dataset: WebDataset) -> dict[str, Any]:
-    """Serialize a ``WebDataset`` to a JSON-ready dict."""
-    return asdict(dataset)
+    """Serialize a ``WebDataset`` to a JSON-ready dict; game rows stay flat."""
+    payload = asdict(dataset)
+    payload["games"] = [to_flat(game) for game in dataset.games]
+    return payload

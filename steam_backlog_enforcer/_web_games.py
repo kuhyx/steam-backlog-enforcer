@@ -14,7 +14,7 @@ from steam_backlog_enforcer._scanning_confidence import (
     _MIN_CONFIDENCE_SUM,
     _MIN_COUNT_COMP,
 )
-from steam_backlog_enforcer._web_models import DefaultSummary, WebGame
+from steam_backlog_enforcer._web_models import DefaultSummary, WebGame, WebHltb
 from steam_backlog_enforcer.protondb import (
     ProtonDBRating,
     _load_cache,
@@ -38,16 +38,17 @@ def _worst_hours(game: GameInfo, cache_hours: float, leisure: float) -> float:
 
 def _passes_default_confidence(game: WebGame) -> bool:
     """True if the game clears all three CLI HLTB-confidence thresholds."""
-    if game.comp_100_count < _MIN_COMP_100_POLLS:
+    if game.hltb.comp_100_count < _MIN_COMP_100_POLLS:
         return False
-    if game.count_comp < _MIN_COUNT_COMP:
+    if game.hltb.count_comp < _MIN_COUNT_COMP:
         return False
-    return game.comp_100_count + game.count_comp >= _MIN_CONFIDENCE_SUM
+    return game.hltb.comp_100_count + game.hltb.count_comp >= _MIN_CONFIDENCE_SUM
 
 
 def _has_any_time(game: WebGame) -> bool:
     """True if the game has at least one positive time estimate."""
-    return game.worst_hours > 0 or game.rush_hours > 0 or game.leisure_hours > 0
+    hltb = game.hltb
+    return hltb.worst_hours > 0 or hltb.rush_hours > 0 or hltb.leisure_hours > 0
 
 
 def _build_games(games: list[GameInfo], exclude: set[int]) -> list[WebGame]:
@@ -80,12 +81,14 @@ def _build_games(games: list[GameInfo], exclude: set[int]) -> list[WebGame]:
                 name=game.name,
                 completion_pct=round(game.completion_pct, 1),
                 playtime_minutes=game.playtime_minutes,
-                rush_hours=rush,
-                leisure_hours=leisure,
-                worst_hours=_worst_hours(game, cache_hours, leisure),
-                count_comp=count_comp,
-                comp_100_count=comp_100_count,
-                hltb_game_id=hltb_game_id,
+                hltb=WebHltb(
+                    rush_hours=rush,
+                    leisure_hours=leisure,
+                    worst_hours=_worst_hours(game, cache_hours, leisure),
+                    count_comp=count_comp,
+                    comp_100_count=comp_100_count,
+                    hltb_game_id=hltb_game_id,
+                ),
                 protondb_tier=rating.tier,
                 protondb_trending_tier=rating.trending_tier,
                 protondb_score=rating.score,
@@ -115,7 +118,7 @@ def _default_qualifying(rows: list[WebGame]) -> list[WebGame]:
 
 def _sum_positive(rows: list[WebGame], attr: str) -> float:
     """Sum a positive-only hour attribute across rows (matches ``_sum_hours``)."""
-    total = sum(getattr(g, attr) for g in rows if getattr(g, attr) > 0)
+    total = sum(getattr(g.hltb, attr) for g in rows if getattr(g.hltb, attr) > 0)
     return round(total, 1)
 
 

@@ -8,28 +8,41 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from steam_backlog_enforcer._flat_record import flat_group
+
 # Mirrors ``_stats._HOURS_PER_DAY_PRESETS`` but mutable/JSON-friendly.
 HOURS_PER_DAY_PRESETS = [2.0, 4.0, 6.0, 8.0]
 
 
 @dataclass
-class WebGame:
-    """One incomplete candidate game, with raw filterable fields.
+class WebHltb:
+    """A game's HLTB times and poll counts, as one :class:`WebGame` group.
 
     Hour fields use ``-1`` to mean "no data" (matching the cache convention),
     so the client can choose to include or exclude unknown-length games.
     """
 
-    app_id: int
-    name: str
-    completion_pct: float
-    playtime_minutes: int
     rush_hours: float
     leisure_hours: float
     worst_hours: float
     count_comp: int
     comp_100_count: int
     hltb_game_id: int
+
+
+@dataclass
+class WebGame:
+    """One incomplete candidate game, with raw filterable fields.
+
+    Served flat: :func:`~_flat_record.to_flat` inlines ``hltb`` so the browser
+    sees ``rush_hours`` etc. beside ``app_id``.
+    """
+
+    app_id: int
+    name: str
+    completion_pct: float
+    playtime_minutes: int
+    hltb: WebHltb = field(metadata=flat_group(WebHltb))
     protondb_tier: str
     protondb_trending_tier: str
     protondb_score: float

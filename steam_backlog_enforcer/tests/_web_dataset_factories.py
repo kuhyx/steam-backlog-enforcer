@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from steam_backlog_enforcer._flat_record import from_flat
 from steam_backlog_enforcer._web_dataset import WebGame
 from steam_backlog_enforcer.steam_api import GameInfo
 
@@ -25,23 +26,23 @@ def _gi(**over: object) -> GameInfo:
 
 
 def _wg(**over: object) -> WebGame:
-    """Build a WebGame with field overrides."""
-    base = WebGame(
-        app_id=1,
-        name="Game1",
-        completion_pct=0.0,
-        playtime_minutes=60,
-        rush_hours=10.0,
-        leisure_hours=20.0,
-        worst_hours=25.0,
-        count_comp=20,
-        comp_100_count=5,
-        hltb_game_id=0,
-        protondb_tier="gold",
-        protondb_trending_tier="gold",
-        protondb_score=0.8,
-    )
-    return replace(base, **over)
+    """Build a WebGame with overrides named by its flat (served) keys."""
+    base = {
+        "app_id": 1,
+        "name": "Game1",
+        "completion_pct": 0.0,
+        "playtime_minutes": 60,
+        "rush_hours": 10.0,
+        "leisure_hours": 20.0,
+        "worst_hours": 25.0,
+        "count_comp": 20,
+        "comp_100_count": 5,
+        "hltb_game_id": 0,
+        "protondb_tier": "gold",
+        "protondb_trending_tier": "gold",
+        "protondb_score": 0.8,
+    }
+    return from_flat(WebGame, base | over)
 
 
 def _complete_game(
