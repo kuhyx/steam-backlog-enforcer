@@ -11,9 +11,11 @@ import difflib
 import logging
 import re
 
+from steam_backlog_enforcer._allowed_games import allowed_games
+
 # _allowed_games, not _actions: _actions imports game_uninstall, which
 # imports this module. The leaf module has the same function and no cycle.
-from steam_backlog_enforcer._allowed_games import allowed_games
+from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer.config import State
 
 logger = logging.getLogger(__name__)
@@ -69,8 +71,8 @@ def _protected_name_stems() -> list[str]:
     """
     try:
         return [name for _, name in allowed_games(State.load()) if name]
-    # Catch-all on purpose: a best-effort safety net, not a hard dependency.
-    except Exception:  # pylint: disable=broad-exception-caught
+    # Best effort, not a hard dependency: an unreadable state protects nothing.
+    except FAIL_SAFE_ERRORS:
         logger.exception("Could not load allowed games for the deletion safety net")
         return []
 

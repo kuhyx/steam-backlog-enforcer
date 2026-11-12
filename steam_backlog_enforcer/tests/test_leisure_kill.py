@@ -183,6 +183,16 @@ class TestEnforce:
                 killer.enforce(_SPENT, _RULES, verdict=_verdict(None), stamp=stamp)
         assert sum("Leisure kill failed" in r.message for r in caplog.records) == 1
 
+    def test_a_programming_bug_is_loud(self) -> None:
+        """An error outside FAIL_SAFE_ERRORS propagates instead of being logged."""
+        killer = LeisureKiller(None)
+        with (
+            patch.object(_leisure_kill, "sweep_targets", side_effect=AttributeError),
+            pytest.raises(AttributeError),
+        ):
+            for stamp in range(0, 34, 3):
+                killer.enforce(_SPENT, _RULES, verdict=_verdict(None), stamp=stamp)
+
     def test_a_failed_sigkill_is_retried_and_logged_once_delivered(
         self, proc: Path, kill: MagicMock
     ) -> None:

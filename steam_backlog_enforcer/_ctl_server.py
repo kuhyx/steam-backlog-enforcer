@@ -41,6 +41,7 @@ from steam_backlog_enforcer._ctl_wire import (
     read_line,
     socket_is_live,
 )
+from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -172,8 +173,8 @@ class CtlServer:
             line = read_line(conn)
             if line is not None:
                 self._write(conn, self.dispatch(line, uid))
-        # Catch-all on purpose: a dying connection must not kill its thread.
-        except Exception:  # pylint: disable=broad-exception-caught
+        # A dying connection (timeout, hang-up) must not kill its thread.
+        except OSError:
             logger.debug("Control connection dropped", exc_info=True)
         finally:
             conn.close()
@@ -186,14 +187,15 @@ class CtlServer:
         conn.sendall(payload)
 
     def dispatch(self, line: bytes, uid: int) -> bytes:
-        """Turn a request line into a response line. Never raises."""
+        """Turn a request line into a response line; op failures become errors."""
         try:
             return ok_response(self.run(line, uid))
         except CtlError as exc:
             logger.info("Control socket: refused (%s)", exc.code)
             return error_response(exc)
-        # Catch-all on purpose: any op bug answers "internal error", never raises.
-        except Exception:  # pylint: disable=broad-exception-caught
+        # A failing op answers "internal error"; a bug outside the tuple ends
+        # only this connection's thread (``handle`` still frees its slot).
+        except FAIL_SAFE_ERRORS:
             logger.exception("Control socket op crashed")
             return error_response(CtlError(OP_FAILED, "internal error"))
 

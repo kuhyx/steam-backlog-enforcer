@@ -229,3 +229,15 @@ class TestRunJob:
         events = read_events(path)
         assert [e["type"] for e in events[-2:]] == ["result", "state"]
         assert events[-1]["state"] == state
+
+    def test_a_programming_bug_writes_a_result_then_raises(self) -> None:
+        """An error outside FAIL_SAFE_ERRORS still ends the job, then is loud."""
+        path = make_job()
+        with (
+            patch(_RUN, side_effect=AttributeError("bug")),
+            pytest.raises(AttributeError, match="bug"),
+        ):
+            _runner.run_job(path)
+        result = json.loads((path / RESULT_NAME).read_text(encoding="utf-8"))
+        assert (result["state"], result["summary"]) == ("failed", "AttributeError: bug")
+        assert read_events(path)[-1]["state"] == "failed"

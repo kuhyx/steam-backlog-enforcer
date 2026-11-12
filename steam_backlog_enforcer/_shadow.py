@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Final
 from leisure_watch.facts import read_now
 from leisure_watch.lockstate import paused_by
 
+from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer._playtime_state import _DELTA_CLAMP_FACTOR
 
 if TYPE_CHECKING:
@@ -120,8 +121,8 @@ def observe_shadow(owners: dict[int, str], *, stamp: float) -> ShadowVerdict:
         if paused is not None:
             return ShadowVerdict(paused_by=paused, keys=())
         fact = read_now(NOW_PATH, stamp, max_age=_MAX_AGE_SECONDS)
-    # Catch-all on purpose: the loop must outlive any shadow input bug.
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    # The loop must outlive any unreadable shadow input; a bug stays loud.
+    except FAIL_SAFE_ERRORS as exc:
         if _should_warn(exc):
             logger.warning(
                 "Shadow inputs unreadable (%r); failing closed.", exc, exc_info=True

@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from steam_backlog_enforcer import _web_auth, _web_process
+from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer._serve_stale import outdated_source
 from steam_backlog_enforcer._web_errors import ApiError, not_found
 from steam_backlog_enforcer._web_io import (
@@ -101,8 +102,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._dispatch(method, split.path, _query(split.query))
         except ApiError as exc:
             send_error(self, exc)
-        # Catch-all on purpose: any bug answers 500, the server keeps serving.
-        except Exception:  # pylint: disable=broad-exception-caught
+        # A failing route answers 500 and the server keeps serving; a bug
+        # outside the tuple goes to http.server's own error report.
+        except FAIL_SAFE_ERRORS:
             logger.exception("%s %s failed", method, split.path)
             msg = "The server failed to answer this request; see its log."
             send_error(

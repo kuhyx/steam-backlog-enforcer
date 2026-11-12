@@ -34,6 +34,7 @@ import os
 import signal
 from typing import TYPE_CHECKING, Final, Protocol
 
+from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer._leisure_never_kill import never_kill
 from steam_backlog_enforcer._leisure_procs import (
     exe_name,
@@ -138,9 +139,8 @@ class LeisureKiller:
         """
         try:
             self._enforce(state, rules, verdict=verdict, stamp=stamp)
-        # Never raises: the enforce loop has no per-tick guard and must outlive
-        # any kill bug, so this catch-all is on purpose.
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        # No per-tick guard upstream: outlive a failed kill; a bug stays loud.
+        except FAIL_SAFE_ERRORS as exc:
             message = f"{type(exc).__name__}: {exc}"
             if message != self._last_error:
                 self._last_error = message

@@ -8,6 +8,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from steam_backlog_enforcer._game_names import (
     _is_protected_name,
     _normalize_game_name,
@@ -68,6 +70,17 @@ class TestProtectedNameStems:
         ):
             stems = _protected_name_stems()
         assert stems == []
+
+    def test_a_programming_bug_is_loud(self) -> None:
+        """An error outside FAIL_SAFE_ERRORS propagates."""
+        with (
+            patch(
+                "steam_backlog_enforcer.config.State.load",
+                side_effect=AttributeError("bug"),
+            ),
+            pytest.raises(AttributeError, match="bug"),
+        ):
+            _protected_name_stems()
 
 
 class TestIsProtectedName:

@@ -80,6 +80,16 @@ def test_a_successful_pause_check_still_pauses() -> None:
         assert observe_shadow({}, stamp=T0) == ShadowVerdict("i3lock", ())
 
 
+def test_a_programming_bug_is_loud() -> None:
+    """An error outside FAIL_SAFE_ERRORS reaches the caller."""
+    with (
+        patch.object(_shadow, "paused_by", return_value=None),
+        patch.object(_shadow, "read_now", side_effect=AttributeError("bug")),
+        pytest.raises(AttributeError, match="bug"),
+    ):
+        observe_shadow({}, stamp=T0)
+
+
 def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
 

@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from http.client import HTTPConnection
 import json
-import threading
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -16,7 +14,10 @@ from steam_backlog_enforcer._web_io import Reply, Request, ok
 from steam_backlog_enforcer._web_server import _STALE_MSG
 from steam_backlog_enforcer.jobs._daemon_jobs import DaemonOutcome, record_daemon_job
 from steam_backlog_enforcer.jobs._events import now_iso
-from steam_backlog_enforcer.tests._web_process_state import clean_process_state
+from steam_backlog_enforcer.tests._web_process_state import (
+    clean_process_state,
+    running_server,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -31,20 +32,7 @@ def _clean_process_state() -> Iterator[None]:
     yield from clean_process_state()
 
 
-@contextmanager
-def _running() -> Iterator[_web_server.WebServer]:
-    """Serve on an ephemeral loopback port in a thread."""
-    server = _web_server.create_server("127.0.0.1", 0)
-    thread = threading.Thread(
-        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
-    )
-    thread.start()
-    try:
-        yield server
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
+_running = running_server
 
 
 def _auth(server: _web_server.WebServer) -> dict[str, str]:

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 from steam_backlog_enforcer._command_gate import lock_reason
 from steam_backlog_enforcer._echo import routed_echo
+from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer._progress import use_progress
 from steam_backlog_enforcer._prompter import PromptAbortedError, use_prompter
 from steam_backlog_enforcer.config import Config, State, _atomic_write
@@ -208,13 +209,17 @@ def run_job(job_dir: Path) -> int:
         outcome = _failed(exc.message, EXIT_REFUSED)
     except PrivilegedViaDaemonError as exc:
         outcome = _failed(str(exc), EXIT_REFUSED)
-    # Catch-all on purpose: every job ends with a result, however it fails.
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except FAIL_SAFE_ERRORS as exc:
         logger.exception("Job %s crashed", job_dir.name)
         outcome = _failed(f"{type(exc).__name__}: {exc}")
-    # SystemExit from outside a handler, etc.: still write the result.
-    except BaseException as exc:  # pylint: disable=broad-exception-caught
+    # SystemExit from outside a handler: still write the result.
+    except SystemExit as exc:
         logger.exception("Job %s stopped", job_dir.name)
         outcome = _failed(f"{type(exc).__name__}: {exc}")
+    # A bug: the job still ends with a result, then the process fails loudly.
+    except BaseException as exc:
+        logger.exception("Job %s crashed on a bug", job_dir.name)
+        _finish(job_dir, writer, _failed(f"{type(exc).__name__}: {exc}"))
+        raise
     _finish(job_dir, writer, outcome)
     return outcome.exit_code

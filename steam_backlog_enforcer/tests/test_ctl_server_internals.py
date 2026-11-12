@@ -176,6 +176,21 @@ class TestHandle:
         for _ in range(_ctl_server.MAX_CONNECTIONS):
             assert srv.take_slot()
 
+    def test_a_bug_ends_the_thread_but_frees_the_slot(self) -> None:
+        """A bug outside FAIL_SAFE_ERRORS escapes; the socket and slot do not leak."""
+        srv = _server()
+        conn = MagicMock()
+        assert srv.take_slot()
+        with (
+            patch.object(_ctl_server, "read_line", return_value=b"x"),
+            patch.object(srv, "dispatch", side_effect=AttributeError("bug")),
+            pytest.raises(AttributeError),
+        ):
+            srv.handle(conn, 7)
+        conn.close.assert_called_once()
+        for _ in range(_ctl_server.MAX_CONNECTIONS):
+            assert srv.take_slot()
+
 
 class TestDispatch:
     """_dispatch never raises."""
@@ -196,6 +211,15 @@ class TestDispatch:
         srv = _server()
         with patch.object(srv, "run", side_effect=RuntimeError("x")):
             assert b'"error":"op_failed"' in srv.dispatch(b"", 0)
+
+    def test_a_programming_bug_is_loud(self) -> None:
+        """An error outside FAIL_SAFE_ERRORS is not dressed up as op_failed."""
+        srv = _server()
+        with (
+            patch.object(srv, "run", side_effect=AttributeError("bug")),
+            pytest.raises(AttributeError),
+        ):
+            srv.dispatch(b"", 0)
 
     def test_run_rejects_unknown(self) -> None:
         """An unknown op raises CtlError."""

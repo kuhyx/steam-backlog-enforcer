@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+import threading
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-from steam_backlog_enforcer import _web_process
+from steam_backlog_enforcer import _web_process, _web_server
 from steam_backlog_enforcer._web_process import _server
 
 if TYPE_CHECKING:
@@ -23,3 +25,19 @@ def clean_process_state() -> Iterator[None]:
         yield
     _web_process.RETIRING.clear()
     _server.clear()
+
+
+@contextmanager
+def running_server() -> Iterator[_web_server.WebServer]:
+    """Serve on an ephemeral loopback port in a thread."""
+    server = _web_server.create_server("127.0.0.1", 0)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
