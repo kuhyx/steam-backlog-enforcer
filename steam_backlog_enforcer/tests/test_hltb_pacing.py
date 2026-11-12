@@ -15,7 +15,11 @@ import pytest
 from steam_backlog_enforcer import _hltb_pacing
 from steam_backlog_enforcer._hltb_comp_extract import _fetch_detail_one
 from steam_backlog_enforcer._hltb_failures import BREAKER_LIMIT, shared_breaker
-from steam_backlog_enforcer._hltb_search_one import _search_one, _SearchCtx
+from steam_backlog_enforcer._hltb_search_one import (
+    _AuthSlot,
+    _search_one,
+    _SearchCtx,
+)
 from steam_backlog_enforcer._hltb_types import MAX_CONCURRENT, _AuthInfo
 from steam_backlog_enforcer.tests._hltb_fake_transport import (
     MATCH,
@@ -49,7 +53,7 @@ def _ctx(session: FakeSession) -> _SearchCtx:
         search_url="https://example.invalid/api/finder",
         headers={},
         cache={},
-        auth=_AuthInfo("t"),
+        auth=_AuthSlot(_AuthInfo("t")),
         counter={"done": 0, "found": 0, "failed": 0},
     )
 

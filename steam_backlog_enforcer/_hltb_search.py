@@ -27,7 +27,12 @@ from steam_backlog_enforcer._hltb_search_api import (
     _get_hltb_search_url,
     forget_hltb_search_url,
 )
-from steam_backlog_enforcer._hltb_search_one import _search_one, _SearchCtx
+from steam_backlog_enforcer._hltb_search_one import (
+    _AuthSlot,
+    _search_one,
+    _SearchCtx,
+    _SearchResults,
+)
 from steam_backlog_enforcer._hltb_types import (
     MAX_CONCURRENT,
     HLTBResult,
@@ -71,7 +76,7 @@ def _check_batch(ctx: _SearchCtx) -> None:
         ctx.total,
     )
     if ctx.breaker.tripped:
-        record_breaker(ctx.failed_ids)
+        record_breaker(ctx.results.failed_ids)
     if failed == ctx.total:
         msg = f"HLTB: all {failed} lookups failed, nothing refreshed"
         raise _fail_batch(msg)
@@ -155,9 +160,8 @@ async def _search_batch(
             search_url=search_url,
             headers=_search_headers(auth),
             cache=cache,
-            polls=polls,
-            extras=extras,
-            auth=auth,
+            results=_SearchResults(polls=polls, extras=extras),
+            auth=_AuthSlot(auth),
             counter={"done": 0, "found": 0, "failed": 0},
             total=len(games),
             progress_cb=progress_cb,

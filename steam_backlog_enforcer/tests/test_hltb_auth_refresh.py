@@ -19,7 +19,11 @@ from steam_backlog_enforcer._hltb_failures import (
     Breaker,
     failure_summary_lines,
 )
-from steam_backlog_enforcer._hltb_search_one import _search_one, _SearchCtx
+from steam_backlog_enforcer._hltb_search_one import (
+    _AuthSlot,
+    _search_one,
+    _SearchCtx,
+)
 from steam_backlog_enforcer._hltb_types import _AuthInfo
 from steam_backlog_enforcer.tests._hltb_fake_transport import MATCH, FakeResp
 
@@ -84,10 +88,9 @@ def _ctx(session: _RotatingSession, clock: _Clock) -> _SearchCtx:
         search_url="https://example.invalid/api/finder",
         headers={"x-auth-token": "tok0", "x-hp-key": "hp", "x-hp-val": "v0"},
         cache={},
-        auth=_AuthInfo("tok0", "hp", "v0"),
+        auth=_AuthSlot(_AuthInfo("tok0", "hp", "v0"), issued_at=clock.t),
         counter={"done": 0, "found": 0, "failed": 0},
         breaker=Breaker(),
-        auth_at=clock.t,
     )
 
 
@@ -119,7 +122,7 @@ def test_aged_token_is_refreshed_into_headers_and_body() -> None:
     _lookups(ctx, clock, [0, _AGE + 1])
     assert session.gets == 1
     assert session.posts == [("tok0", "v0"), ("tok1", "v1")]
-    assert ctx.auth == _AuthInfo("tok1", "hp", "v1")
+    assert ctx.auth.info == _AuthInfo("tok1", "hp", "v1")
 
 
 def test_one_refresh_per_elapsed_interval() -> None:

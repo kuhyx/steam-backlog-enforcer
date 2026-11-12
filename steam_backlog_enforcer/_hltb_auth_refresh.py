@@ -39,15 +39,15 @@ def apply_auth(headers: dict[str, str], auth: _AuthInfo) -> None:
 
 
 async def ensure_fresh_auth(ctx: _SearchCtx) -> str | None:
-    """Renew ``ctx.auth`` once it is too old.
+    """Renew ``ctx.auth.info`` once it is too old.
 
     Returns ``None`` when the auth is usable, else the failure reason. A
     failed renewal trips the breaker: the stale token is never used again.
     """
-    if _now() - ctx.auth_at < AUTH_MAX_AGE_S:
+    if _now() - ctx.auth.issued_at < AUTH_MAX_AGE_S:
         return None
-    async with ctx.auth_lock:
-        if _now() - ctx.auth_at < AUTH_MAX_AGE_S:
+    async with ctx.auth.lock:
+        if _now() - ctx.auth.issued_at < AUTH_MAX_AGE_S:
             return None  # another lookup renewed it while we waited
         failures: list[str] = []
         auth = await _get_auth_info(ctx.search_url, ctx.session, failures)
@@ -55,8 +55,8 @@ async def ensure_fresh_auth(ctx: _SearchCtx) -> str | None:
         if auth is None:
             ctx.breaker.tripped = True
             return f"auth refresh {failures[0] if failures else 'no token'}"
-        ctx.auth = auth
+        ctx.auth.info = auth
         apply_auth(ctx.headers, auth)
-        ctx.auth_at = _now()
+        ctx.auth.issued_at = _now()
         logger.info("HLTB auth token refreshed.")
         return None

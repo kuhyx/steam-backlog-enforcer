@@ -47,7 +47,7 @@ class TestSearchOne:
         ctx = _ctx(make_session(FakeResponse(200, hit("TF2", 180000, 0))))
         result = run_search(ctx)
         assert result is not None
-        assert 440 not in ctx.extras.hltb_game_id
+        assert 440 not in ctx.results.extras.hltb_game_id
 
     def test_not_found(self) -> None:
         """Test not found."""

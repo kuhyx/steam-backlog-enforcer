@@ -48,6 +48,27 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class _AuthSlot:
+    """The search token, when it was issued (monotonic), its renewal lock."""
+
+    info: _AuthInfo | None = None
+    issued_at: float = field(default_factory=time.monotonic)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+@dataclass
+class _SearchResults:
+    """What the lookups record besides hours: polls, extras and failures."""
+
+    polls: dict[int, int] = field(default_factory=dict)
+    extras: _HLTBExtras = field(default_factory=_HLTBExtras)
+    failed_ids: set[int] = field(default_factory=set)
+    """Games whose lookup failed (the breaker reports them by id)."""
+    dirty: bool = False
+    """Only flush incrementally once something was actually written."""
+
+
+@dataclass
 class _SearchCtx:
     """Shared context for HLTB search requests."""
 
@@ -55,20 +76,12 @@ class _SearchCtx:
     search_url: str
     headers: dict[str, str]
     cache: dict[int, float]
-    polls: dict[int, int] = field(default_factory=dict)
-    extras: _HLTBExtras = field(default_factory=_HLTBExtras)
-    auth: _AuthInfo | None = None
+    results: _SearchResults = field(default_factory=_SearchResults)
+    auth: _AuthSlot = field(default_factory=_AuthSlot)
     counter: dict[str, int] = field(default_factory=dict)
     total: int = 0
     progress_cb: ProgressCb | None = None
     breaker: Breaker = field(default_factory=Breaker)
-    # When ``auth`` was issued (monotonic) and the lock for renewing it.
-    auth_at: float = field(default_factory=time.monotonic)
-    auth_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    # Games whose lookup failed (the breaker reports them by id).
-    failed_ids: set[int] = field(default_factory=set)
-    # Only flush incrementally once something was actually written.
-    dirty: bool = False
 
 
 _Best = tuple[dict[str, Any], float]
@@ -107,7 +120,7 @@ async def _query_variant(
     Returns ``(best, None)`` on a match, ``(None, None)`` on a clean 200 with
     no usable entry, and ``(None, reason)`` when the request itself failed.
     """
-    payload = _build_search_payload(query_name, ctx.auth)
+    payload = _build_search_payload(query_name, ctx.auth.info)
     try:
         async with ctx.session.post(
             ctx.search_url, headers=ctx.headers, data=payload
@@ -135,23 +148,23 @@ def _record_outcome(
     """Write a match or a clean miss; a failed lookup keeps the old entry."""
     if result is not None:
         ctx.cache[app_id] = result.completionist_hours
-        ctx.polls[app_id] = result.comp_100_count
-        ctx.extras.count_comp[app_id] = result.count_comp
+        ctx.results.polls[app_id] = result.comp_100_count
+        ctx.results.extras.count_comp[app_id] = result.count_comp
         if result.hltb_game_id > 0:
-            ctx.extras.hltb_game_id[app_id] = result.hltb_game_id
+            ctx.results.extras.hltb_game_id[app_id] = result.hltb_game_id
         ctx.counter["found"] += 1
-        ctx.dirty = True
+        ctx.results.dirty = True
         record_success()
     elif failure is not None:
         ctx.counter["failed"] += 1
-        ctx.failed_ids.add(app_id)
+        ctx.results.failed_ids.add(app_id)
         record_failure(failure)
     else:
         # Every variant answered cleanly with nothing usable: a real miss.
         ctx.cache[app_id] = -1
-        ctx.polls[app_id] = 0
-        ctx.extras.count_comp[app_id] = 0
-        ctx.dirty = True
+        ctx.results.polls[app_id] = 0
+        ctx.results.extras.count_comp[app_id] = 0
+        ctx.results.dirty = True
         record_success()
 
 
@@ -188,8 +201,8 @@ async def _search_one(
         done = ctx.counter["done"]
 
         # Incremental save every _SAVE_INTERVAL lookups.
-        if ctx.dirty and not done % _SAVE_INTERVAL:
-            save_hltb_cache(ctx.cache, ctx.polls, ctx.extras)
+        if ctx.results.dirty and not done % _SAVE_INTERVAL:
+            save_hltb_cache(ctx.cache, ctx.results.polls, ctx.results.extras)
 
         # Report progress.
         if ctx.progress_cb is not None:

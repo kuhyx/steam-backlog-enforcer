@@ -15,7 +15,12 @@ from steam_backlog_enforcer._hltb_failures import (
     failure_summary_lines,
     reset_failures,
 )
-from steam_backlog_enforcer._hltb_search_one import _search_one, _SearchCtx
+from steam_backlog_enforcer._hltb_search_one import (
+    _AuthSlot,
+    _search_one,
+    _SearchCtx,
+    _SearchResults,
+)
 from steam_backlog_enforcer._hltb_types import _AuthInfo, _HLTBExtras
 from steam_backlog_enforcer.tests._hltb_fake_transport import (
     MATCH,
@@ -25,15 +30,19 @@ from steam_backlog_enforcer.tests._hltb_fake_transport import (
 )
 
 
+def _saved(ctx: _SearchCtx) -> tuple[float, int, int]:
+    """Game 1's cached hours, poll count and completionist count."""
+    return ctx.cache[1], ctx.results.polls[1], ctx.results.extras.count_comp[1]
+
+
 def _ctx(session: FakeSession, total: int = 1) -> _SearchCtx:
     return _SearchCtx(
         session=cast("aiohttp.ClientSession", session),
         search_url="https://example.invalid/api/finder",
         headers={},
         cache={1: 50.0},
-        polls={1: 120},
-        extras=_HLTBExtras(count_comp={1: 900}),
-        auth=_AuthInfo("t"),
+        results=_SearchResults(polls={1: 120}, extras=_HLTBExtras(count_comp={1: 900})),
+        auth=_AuthSlot(_AuthInfo("t")),
         counter={"done": 0, "found": 0, "failed": 0},
         total=total,
     )
@@ -64,8 +73,8 @@ def test_failed_search_keeps_prior_entry(kind: str) -> None:
     ctx = _ctx(FakeSession({"*": _FAILURES[kind]}))
     _run(ctx, 1, "Celeste")
     assert ctx.cache[1] == 50.0
-    assert ctx.polls[1] == 120
-    assert ctx.extras.count_comp[1] == 900
+    assert ctx.results.polls[1] == 120
+    assert ctx.results.extras.count_comp[1] == 900
     assert ctx.counter["failed"] == 1
     assert ctx.counter["found"] == 0
 
@@ -75,7 +84,11 @@ def test_failed_variant_blocks_a_miss() -> None:
     routes = {"Vox Populi Poland 2023": FakeResp(200, NO_MATCH), "*": FakeResp(429)}
     ctx = _ctx(FakeSession(routes))
     _run(ctx, 1, "Vox Populi: Poland 2023")
-    assert (ctx.cache[1], ctx.polls[1], ctx.extras.count_comp[1]) == (50.0, 120, 900)
+    assert _saved(ctx) == (
+        50.0,
+        120,
+        900,
+    )
     assert ctx.counter["failed"] == 1
 
 
@@ -84,7 +97,11 @@ def test_match_beats_failed_sibling_variant() -> None:
     routes = {"Vox Populi Poland 2023": FakeResp(429), "*": FakeResp(200, MATCH)}
     ctx = _ctx(FakeSession(routes))
     _run(ctx, 1, "Vox Populi: Poland 2023")
-    assert (ctx.cache[1], ctx.polls[1], ctx.extras.count_comp[1]) == (10.0, 42, 300)
+    assert _saved(ctx) == (
+        10.0,
+        42,
+        300,
+    )
     assert ctx.counter == {"done": 1, "found": 1, "failed": 0}
 
 
@@ -92,7 +109,11 @@ def test_clean_no_match_still_writes_a_miss() -> None:
     """Every variant answered 200 with nothing usable: that is a real miss."""
     ctx = _ctx(FakeSession({"*": FakeResp(200, NO_MATCH)}))
     _run(ctx, 1, "Vox Populi: Poland 2023")
-    assert (ctx.cache[1], ctx.polls[1], ctx.extras.count_comp[1]) == (-1, 0, 0)
+    assert _saved(ctx) == (
+        -1,
+        0,
+        0,
+    )
     assert ctx.counter["failed"] == 0
 
 
@@ -101,8 +122,8 @@ def test_failure_without_prior_entry_writes_nothing() -> None:
     ctx = _ctx(FakeSession({"*": FakeResp(429)}))
     _run(ctx, 2, "Celeste")
     assert 2 not in ctx.cache
-    assert 2 not in ctx.polls
-    assert 2 not in ctx.extras.count_comp
+    assert 2 not in ctx.results.polls
+    assert 2 not in ctx.results.extras.count_comp
     assert ctx.counter == {"done": 1, "found": 0, "failed": 1}
 
 
