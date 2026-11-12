@@ -15,6 +15,7 @@ import pytest
 from steam_backlog_enforcer import _mcp_actions as mcp_actions
 from steam_backlog_enforcer._actions import allowed_app_ids, apply_manual_pick
 from steam_backlog_enforcer._allowed_games import active_manual_picks
+from steam_backlog_enforcer._config_groups import AssignmentTimes
 from steam_backlog_enforcer.config import Config, State
 from steam_backlog_enforcer.main import cmd_pick_manual
 from steam_backlog_enforcer.tests._main_helpers import STARTED_AT
@@ -36,7 +37,7 @@ def _state(*kept: tuple[int, str], current: tuple[int, str] = (1, "Current")) ->
     return State(
         current_app_id=current[0],
         current_game_name=current[1],
-        current_assigned_at=STARTED_AT,
+        assignment=AssignmentTimes(current_assigned_at=STARTED_AT),
         manual_picks=[_kept(a, n) for a, n in kept],
     )
 

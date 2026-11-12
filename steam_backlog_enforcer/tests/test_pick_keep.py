@@ -56,8 +56,8 @@ def _state_on(
     state = State(manual_picks=manual_picks or [])
     state.current_app_id = app_id
     state.current_game_name = name
-    state.current_assigned_at = STARTED_AT
-    state.last_assigned_at[str(app_id)] = STARTED_AT
+    state.assignment.current_assigned_at = STARTED_AT
+    state.assignment.last_assigned_at[str(app_id)] = STARTED_AT
     return state
 
 
@@ -123,7 +123,7 @@ class TestKeep:
         assert kept["released_at"]
         assert active_manual_picks(state) == []
         assert state.finished_app_ids == []
-        assert state.released_at == {}
+        assert state.assignment.released_at == {}
 
     def test_allowed_games_are_not_offered(self) -> None:
         """Games already allowed are not offered as candidates."""

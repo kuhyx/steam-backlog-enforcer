@@ -88,7 +88,7 @@ def _unexpected_unlocks(
         Tuple of (name, app_id, diff) if tampering detected, else None.
     """
     app_id = entry["app_id"]
-    released = iso_to_epoch(state.released_at.get(str(app_id), ""))
+    released = iso_to_epoch(state.assignment.released_at.get(str(app_id), ""))
     if released is not None:
         # Released below 100%: the snapshot predates the unlocks earned while
         # it was assigned, so only unlocks after the release are suspicious.

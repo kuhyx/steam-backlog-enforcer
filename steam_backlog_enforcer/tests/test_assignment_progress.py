@@ -15,6 +15,7 @@ from steam_backlog_enforcer._assignment_progress import (
     release_game,
     release_verdict,
 )
+from steam_backlog_enforcer._config_groups import AssignmentTimes
 from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.steam_api import AchievementInfo, GameInfo
 
@@ -57,7 +58,7 @@ def assigned_state(app_id: int = 1) -> State:
     return State(
         current_app_id=app_id,
         current_game_name="G",
-        current_assigned_at=ASSIGNED.isoformat(),
+        assignment=AssignmentTimes(current_assigned_at=ASSIGNED.isoformat()),
     )
 
 
@@ -151,8 +152,8 @@ class TestRecordAssignment:
         state = State()
         record_assignment(state, 7, "Seven", at="T")
         assert (state.current_app_id, state.current_game_name) == (7, "Seven")
-        assert state.current_assigned_at == "T"
-        assert state.last_assigned_at == {"7": "T"}
+        assert state.assignment.current_assigned_at == "T"
+        assert state.assignment.last_assigned_at == {"7": "T"}
         assert state.enforcement_started_at == "T"
 
     def test_keeps_the_first_enforcement_start(self) -> None:
@@ -160,7 +161,7 @@ class TestRecordAssignment:
         state = State(enforcement_started_at="FIRST")
         record_assignment(state, 7, "Seven")
         assert state.enforcement_started_at == "FIRST"
-        assert iso_to_epoch(state.current_assigned_at) is not None
+        assert iso_to_epoch(state.assignment.current_assigned_at) is not None
 
 
 class TestLastAssignedEpoch:
@@ -172,7 +173,9 @@ class TestLastAssignedEpoch:
 
     def test_reads_the_stamp(self) -> None:
         """A stored stamp reads back as its epoch seconds."""
-        state = State(last_assigned_at={"1": ASSIGNED.isoformat()})
+        state = State(
+            assignment=AssignmentTimes(last_assigned_at={"1": ASSIGNED.isoformat()})
+        )
         assert last_assigned_epoch(state, 1) == ASSIGNED.timestamp()
 
 
@@ -197,7 +200,7 @@ class TestReleaseGame:
         release_game(state, game(("a", AFTER)))
         assert state.finished_app_ids == []
         assert state.manual_picks[0]["released_at"]
-        assert "1" in state.released_at
+        assert "1" in state.assignment.released_at
         expiry = datetime.fromisoformat(state.skipped_until["1"])
         assert expiry > datetime.now(UTC) + timedelta(days=RELEASE_COOLDOWN_DAYS - 1)
 

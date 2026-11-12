@@ -62,15 +62,15 @@ def record_assignment(
     stamp = at or _now_iso()
     state.current_app_id = app_id
     state.current_game_name = game_name
-    state.current_assigned_at = stamp
-    state.last_assigned_at[str(app_id)] = stamp
+    state.assignment.current_assigned_at = stamp
+    state.assignment.last_assigned_at[str(app_id)] = stamp
     if not state.enforcement_started_at:
         state.enforcement_started_at = stamp
 
 
 def last_assigned_epoch(state: State, app_id: int) -> float:
     """Return when *app_id* was last assigned, ``0.0`` if never (sorts first)."""
-    return iso_to_epoch(state.last_assigned_at.get(str(app_id), "")) or 0.0
+    return iso_to_epoch(state.assignment.last_assigned_at.get(str(app_id), "")) or 0.0
 
 
 def assignment_baseline(state: State, app_id: int) -> str:
@@ -86,7 +86,7 @@ def assignment_baseline(state: State, app_id: int) -> str:
         if pick.get("app_id") == app_id and pick.get("started_at"):
             return str(pick["started_at"])
     if app_id == state.current_app_id:
-        return state.current_assigned_at
+        return state.assignment.current_assigned_at
     return ""
 
 
@@ -158,5 +158,5 @@ def release_game(state: State, game: GameInfo) -> None:
     for pick in state.manual_picks:
         if pick.get("app_id") == game.app_id and not pick.get("released_at"):
             pick["released_at"] = now
-    state.released_at[str(game.app_id)] = now
+    state.assignment.released_at[str(game.app_id)] = now
     state.skip_for_days(game.app_id, RELEASE_COOLDOWN_DAYS)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 import json
 import logging
@@ -12,6 +12,13 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from steam_backlog_enforcer._config_groups import (
+    AssignmentTimes,
+    EarnSources,
+    LegacyManualPick,
+    PlaytimePolicy,
+)
+from steam_backlog_enforcer._flat_record import flat_group, from_flat, to_flat
 from steam_backlog_enforcer._state_migrations import (
     backfill_assignment_times,
     migrate_legacy_manual_pick,
@@ -76,11 +83,6 @@ def _atomic_write(path: Path, data: str, *, mode: int | None = None) -> None:
 atomic_write = _atomic_write
 
 
-def _field_names(cls: type) -> frozenset[str]:
-    """The dataclass's own field names, for filtering a loaded JSON object."""
-    return frozenset(f.name for f in fields(cls))
-
-
 @dataclass
 class Config:
     """User configuration."""
@@ -97,48 +99,18 @@ class Config:
     All active picks stay installed and visible; the enforcer treats them as
     one allowed set. Raising this weakens enforcement proportionally.
     """
-    book_ledger_path: str = "~/.local/share/book_guard/ledger.json"
-    """book-guard's signed ledger: the reading hour's only transport."""
-    workout_status_url: str = "http://127.0.0.1:8770/api/status"
-    """Where to ask whether today has a counted workout. Loopback only."""
-    workout_log_path: str = "~/src/screen-locker/screen_locker/log.json"
-    """screen-locker's log.json; a change re-asks that URL at once."""
-    leetcode_ledger_path: str = "~/.local/share/leetcode_guard/ledger.json"
-    leetcode_status_url: str = "http://127.0.0.1:8771/api/status"
-    """LeetCode's transports: ledger first, this loopback URL as fallback."""
-    count_launcher_processes: bool = True
-    """Whether time spent in non-Steam launchers counts against the budget.
-
-    Set False if a launcher legitimately idles in the tray all day. Leaving it
-    True is the safer default: under-counting is the failure mode that quietly
-    defeats the budget entirely.
-    """
-    counted_processes: list[dict[str, Any]] | None = None
-    """Non-Steam games that count against the budget, beyond the launcher set.
-
-    Each entry is ``{"id": ..., "label": ..., "names": [...]}``. ``None`` means
-    "use the built-in defaults" (osu!lazer); an explicit ``[]`` means "none",
-    which is why this is not simply an empty list. Parsed and validated by
-    ``leisure_watch.procscan`` (once ``_counted_procs``) — the field exists
-    here only so that ``save()`` round-trips a hand-edited list instead of
-    dropping it.
-
-    Deliberately separate from ``LAUNCHER_PROCESS_NAMES``: that frozenset is
-    also the total-block kill list, so adding a game there has side effects
-    this list does not.
-    """
-    playtime_enforcement: bool = True
-    """Master switch for the daily gaming budget.
-
-    Disabling stops the cutoff but never strands a live block — the release
-    path runs regardless, so "disabled" cannot come to mean "blocked forever".
-    """
+    earn: EarnSources = field(
+        default_factory=EarnSources, metadata=flat_group(EarnSources)
+    )
+    playtime: PlaytimePolicy = field(
+        default_factory=PlaytimePolicy, metadata=flat_group(PlaytimePolicy)
+    )
 
     def save(self) -> None:
         """Persist config to disk."""
         _atomic_write(
             CONFIG_FILE,
-            json.dumps(self.__dict__, indent=2) + "\n",
+            json.dumps(to_flat(self), indent=2) + "\n",
         )
 
     @classmethod
@@ -146,7 +118,7 @@ class Config:
         """Load config from disk, or return defaults."""
         if CONFIG_FILE.exists():
             data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            return cls(**{k: v for k, v in data.items() if k in _field_names(cls)})
+            return from_flat(cls, data)
         return cls()
 
 
@@ -166,27 +138,20 @@ class State:
     """
     enforcement_started_at: str = ""
     """ISO-8601 UTC timestamp set on the first game assignment."""
-    manual_pick_app_id: int | None = None
-    manual_pick_game_name: str = ""
-    manual_pick_started_at: str = ""
-    """Legacy single-slot manual pick, migrated into ``manual_picks`` on load.
-
-    Kept as fields so an older ``state.json`` still deserialises; they are
-    blanked once migrated and are never written again.
-    """
+    legacy_pick: LegacyManualPick = field(
+        default_factory=LegacyManualPick,
+        metadata=flat_group(LegacyManualPick, "manual_pick_"),
+    )
     manual_picks: list[dict[str, Any]] = field(default_factory=list)
     """Manual picks, newest last; inactive ones stay until a new choice.
 
     Each entry is ``{"app_id": int, "game_name": str, "started_at": iso}``,
     plus ``"released_at": iso`` once it earned a new achievement. Plain dicts
-    because ``save`` serialises ``self.__dict__`` straight to JSON.
+    because ``save`` serialises them straight to JSON.
     """
-    current_assigned_at: str = ""
-    """ISO time the current game was assigned; unlocks after it release it."""
-    last_assigned_at: dict[str, str] = field(default_factory=dict)
-    """``str(app_id)`` → ISO time of its latest assignment (pick ordering)."""
-    released_at: dict[str, str] = field(default_factory=dict)
-    """``str(app_id)`` → ISO time it was released below 100% (tampering)."""
+    assignment: AssignmentTimes = field(
+        default_factory=AssignmentTimes, metadata=flat_group(AssignmentTimes)
+    )
     store_unblocked_until: str = ""
     """ISO deadline of the open store window (``unblock``); CLI-written only."""
 
@@ -222,7 +187,7 @@ class State:
         """Persist state to disk."""
         _atomic_write(
             STATE_FILE,
-            json.dumps(self.__dict__, indent=2) + "\n",
+            json.dumps(to_flat(self), indent=2) + "\n",
         )
 
     @classmethod
@@ -234,7 +199,7 @@ class State:
             except json.JSONDecodeError, OSError, ValueError:
                 logger.warning("Corrupt state file, using defaults.")
                 return cls()
-            state = cls(**{k: v for k, v in data.items() if k in _field_names(cls)})
+            state = from_flat(cls, data)
             migrated = migrate_legacy_manual_pick(state)
             if backfill_assignment_times(state) or migrated:
                 state.save()

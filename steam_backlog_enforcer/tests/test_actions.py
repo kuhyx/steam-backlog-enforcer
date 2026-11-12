@@ -9,6 +9,7 @@ from steam_backlog_enforcer._actions import (
     apply_manual_pick,
     is_manual_pick_locked,
 )
+from steam_backlog_enforcer._config_groups import LegacyManualPick
 from steam_backlog_enforcer._manual_pick_lifecycle import manual_pick_age_days
 from steam_backlog_enforcer.config import State
 from steam_backlog_enforcer.tests._manual_pick_rows import iso_days_ago, pick_row
@@ -77,18 +78,16 @@ class TestLegacyManualPickMigration:
         """Test legacy pick is migrated on load."""
         started = iso_days_ago(1)
         State(
-            manual_pick_app_id=5,
-            manual_pick_game_name="Legacy",
-            manual_pick_started_at=started,
+            legacy_pick=LegacyManualPick(5, "Legacy", started),
         ).save()
 
         loaded = State.load()
         assert loaded.manual_picks == [
             {"app_id": 5, "game_name": "Legacy", "started_at": started}
         ]
-        assert loaded.manual_pick_app_id is None
-        assert loaded.manual_pick_game_name == ""
-        assert loaded.manual_pick_started_at == ""
+        assert loaded.legacy_pick.app_id is None
+        assert loaded.legacy_pick.game_name == ""
+        assert loaded.legacy_pick.started_at == ""
         assert is_manual_pick_locked(loaded) is True
 
     def test_new_format_is_left_alone(self) -> None:

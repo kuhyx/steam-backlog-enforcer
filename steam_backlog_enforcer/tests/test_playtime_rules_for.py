@@ -6,6 +6,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from steam_backlog_enforcer._config_groups import PlaytimePolicy
 from steam_backlog_enforcer._playtime_state import rules_for
 from steam_backlog_enforcer.config import Config
 from steam_backlog_enforcer.tests._no_workout_http import fixed_budget
@@ -41,26 +42,36 @@ class TestRulesFor:
         """count_launcher_processes becomes count_launchers."""
         assert (
             rules_for(
-                Config(count_launcher_processes=False), demo=False
+                Config(playtime=PlaytimePolicy(count_launcher_processes=False)),
+                demo=False,
             ).count_launchers
             is False
         )
         assert (
-            rules_for(Config(count_launcher_processes=True), demo=False).count_launchers
+            rules_for(
+                Config(playtime=PlaytimePolicy(count_launcher_processes=True)),
+                demo=False,
+            ).count_launchers
             is True
         )
 
     def test_enforcement_toggle_is_carried_through(self) -> None:
         """playtime_enforcement off becomes enforcement off."""
         assert (
-            rules_for(Config(playtime_enforcement=False), demo=False).enforcement
+            rules_for(
+                Config(playtime=PlaytimePolicy(playtime_enforcement=False)), demo=False
+            ).enforcement
             is False
         )
 
     def test_demo_uses_the_same_qualifying_predicate(self) -> None:
         """Demo may differ in budget and warnings only."""
-        prod = rules_for(Config(count_launcher_processes=True), demo=False)
-        demo = rules_for(Config(count_launcher_processes=True), demo=True)
+        prod = rules_for(
+            Config(playtime=PlaytimePolicy(count_launcher_processes=True)), demo=False
+        )
+        demo = rules_for(
+            Config(playtime=PlaytimePolicy(count_launcher_processes=True)), demo=True
+        )
         assert prod.count_launchers == demo.count_launchers
 
     def test_rules_are_frozen(self) -> None:

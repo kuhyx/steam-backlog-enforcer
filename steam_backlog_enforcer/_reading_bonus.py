@@ -59,7 +59,7 @@ def read_ledger_read_today(path: Path) -> bool | None:
 
 def read_today(config: Config) -> bool | None:
     """Today's reading answer, memoised like the other earners."""
-    path = Path(config.book_ledger_path).expanduser()
+    path = Path(config.earn.book_ledger_path).expanduser()
     # Stat before reading, so a credit landing mid-read is re-read next tick.
     stamp = file_stamp(path)
     cached = _cache.fresh(_CACHE_KEY, stamp=stamp)

@@ -100,7 +100,7 @@ def abandon_manual_pick(state: State, app_id: int) -> bool:
         if survivor is None:
             state.current_app_id = None
             state.current_game_name = ""
-            state.current_assigned_at = ""
+            state.assignment.current_assigned_at = ""
         else:
             # The survivor has been assigned since it was picked.
             record_assignment(

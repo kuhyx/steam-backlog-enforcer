@@ -44,7 +44,7 @@ def keep_outgoing_assignment(state: State) -> dict[str, Any] | None:
     entry: dict[str, Any] = {
         "app_id": app_id,
         "game_name": state.current_game_name,
-        "started_at": state.current_assigned_at or now,
+        "started_at": state.assignment.current_assigned_at or now,
         # Released, not active: allowed, but no lock and no pick slot.
         "released_at": now,
     }

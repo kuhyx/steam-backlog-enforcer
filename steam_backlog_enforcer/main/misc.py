@@ -102,13 +102,13 @@ def cmd_reset(config: Config, state: State) -> None:
     state.current_app_id = None
     state.current_game_name = ""
     state.finished_app_ids = []
-    state.manual_pick_app_id = None
-    state.manual_pick_game_name = ""
-    state.manual_pick_started_at = ""
+    state.legacy_pick.app_id = None
+    state.legacy_pick.game_name = ""
+    state.legacy_pick.started_at = ""
     state.manual_picks = []
-    state.current_assigned_at = ""
-    state.last_assigned_at = {}
-    state.released_at = {}
+    state.assignment.current_assigned_at = ""
+    state.assignment.last_assigned_at = {}
+    state.assignment.released_at = {}
     state.save()
     _echo("State reset. Store left blocked: open a timed window with 'unblock'.")
 

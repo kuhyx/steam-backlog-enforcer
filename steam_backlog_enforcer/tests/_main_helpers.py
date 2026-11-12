@@ -123,7 +123,7 @@ def abandonable_state(app_id: int = 100, started_at: str = RECENT_PICK) -> State
     """
     state = locked_state(app_id=app_id, started_at=started_at)
     state.current_app_id = app_id
-    state.current_game_name = state.manual_pick_game_name
+    state.current_game_name = state.legacy_pick.game_name
     return state
 
 

@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from steam_backlog_enforcer._config_groups import EarnSources
 from steam_backlog_enforcer._reading_bonus import (
     read_ledger_read_today,
     read_today,
@@ -199,7 +200,9 @@ class TestTheMemo:
     def test_reads_the_configured_ledger(self, tmp_path: Path) -> None:
         """read_today reads the ledger named in the config."""
         ledger = write_ledger(tmp_path, [reading(when=_now())])
-        assert read_today(Config(book_ledger_path=str(ledger))) is True
+        assert (
+            read_today(Config(earn=EarnSources(book_ledger_path=str(ledger)))) is True
+        )
 
     def test_a_cached_answer_is_served_without_a_reread(self) -> None:
         """A cached answer is served without reading the ledger again."""
@@ -225,4 +228,4 @@ class TestTheMemo:
 
     def test_the_default_path_is_book_guards(self) -> None:
         """The default ledger path points at book_guard's ledger."""
-        assert Config().book_ledger_path.endswith("book_guard/ledger.json")
+        assert Config().earn.book_ledger_path.endswith("book_guard/ledger.json")

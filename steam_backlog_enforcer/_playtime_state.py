@@ -129,8 +129,8 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         budget_seconds=_DEMO_BUDGET_SECONDS if resolved is None else max(live, held),
         warn_at=_DEMO_WARN_AT if demo else _WARN_AT,
         sigkill_after=(_DEMO_SIGKILL_AFTER_SECONDS if demo else _SIGKILL_AFTER_SECONDS),
-        count_launchers=config.count_launcher_processes,
-        enforcement=config.playtime_enforcement,
+        count_launchers=config.playtime.count_launcher_processes,
+        enforcement=config.playtime.playtime_enforcement,
         demo=demo,
         base_seconds=_DEMO_BUDGET_SECONDS
         if resolved is None

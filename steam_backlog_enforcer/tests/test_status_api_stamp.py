@@ -151,7 +151,7 @@ class TestWorkoutLogPath:
     def test_expands_the_home_directory(self) -> None:
         """A ~ in the configured path expands to the home directory."""
         config = Config()
-        config.workout_log_path = "~/locker/log.json"
+        config.earn.workout_log_path = "~/locker/log.json"
         assert workout_log_path(config) == Path.home() / "locker" / "log.json"
 
     def test_default_points_at_screen_locker(self) -> None:

@@ -27,18 +27,18 @@ def migrate_legacy_manual_pick(state: State) -> bool:
     Returns:
         Whether a legacy pick was migrated.
     """
-    if state.manual_pick_app_id is None or state.manual_picks:
+    if state.legacy_pick.app_id is None or state.manual_picks:
         return False
     state.manual_picks = [
         {
-            "app_id": state.manual_pick_app_id,
-            "game_name": state.manual_pick_game_name,
-            "started_at": state.manual_pick_started_at,
+            "app_id": state.legacy_pick.app_id,
+            "game_name": state.legacy_pick.game_name,
+            "started_at": state.legacy_pick.started_at,
         }
     ]
-    state.manual_pick_app_id = None
-    state.manual_pick_game_name = ""
-    state.manual_pick_started_at = ""
+    state.legacy_pick.app_id = None
+    state.legacy_pick.game_name = ""
+    state.legacy_pick.started_at = ""
     return True
 
 
@@ -67,18 +67,20 @@ def backfill_assignment_times(state: State) -> bool:
         changed |= _stamp_if_missing(state, app_id, started_at)
     current = state.current_app_id
     if current is not None:
-        if not state.current_assigned_at:
+        if not state.assignment.current_assigned_at:
             # A current game that is also a pick was assigned when picked.
-            state.current_assigned_at = pick_started.get(current) or (
+            state.assignment.current_assigned_at = pick_started.get(current) or (
                 datetime.now(UTC).isoformat()
             )
             changed = True
-        changed |= _stamp_if_missing(state, current, state.current_assigned_at)
+        changed |= _stamp_if_missing(
+            state, current, state.assignment.current_assigned_at
+        )
     return changed
 
 
 def _stamp_if_missing(state: State, app_id: int, stamp: str) -> bool:
-    if str(app_id) in state.last_assigned_at:
+    if str(app_id) in state.assignment.last_assigned_at:
         return False
-    state.last_assigned_at[str(app_id)] = stamp
+    state.assignment.last_assigned_at[str(app_id)] = stamp
     return True

@@ -13,6 +13,7 @@ from datetime import (
 )
 from unittest.mock import patch
 
+from steam_backlog_enforcer._config_groups import PlaytimePolicy
 from steam_backlog_enforcer._playtime import (
     _policy,
 )
@@ -28,8 +29,8 @@ NOW = datetime(2026, 7, 27, 20, 0, tzinfo=LOCAL)
 TODAY = "2026-07-27"
 
 
-def _rules(*, demo: bool = False, **cfg: object) -> object:
-    return rules_for(Config(**cfg), demo=demo)
+def _rules(*, demo: bool = False, **policy: bool) -> object:
+    return rules_for(Config(playtime=PlaytimePolicy(**policy)), demo=demo)
 
 
 class TestPolicyBelowBudget:

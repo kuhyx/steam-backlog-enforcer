@@ -13,6 +13,7 @@ import json
 import sys
 
 from steam_backlog_enforcer import config as config_mod
+from steam_backlog_enforcer._flat_record import to_flat
 from steam_backlog_enforcer._prompter import current_prompter
 from steam_backlog_enforcer.config import Config
 
@@ -45,7 +46,7 @@ def save_credentials(api_key: str, steam_id: str) -> Config:
     # world-readable, nor be written to the real config during a test run.
     path = config_mod.CONFIG_FILE
     on_disk = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    merged = on_disk | config.__dict__
+    merged = on_disk | to_flat(config)
     config_mod.atomic_write(path, json.dumps(merged, indent=2) + "\n")
     path.chmod(0o600)
     return config

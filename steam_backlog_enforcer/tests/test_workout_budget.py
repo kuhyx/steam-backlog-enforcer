@@ -52,9 +52,9 @@ def _config(**over: object) -> Config:
         A Config instance; never loaded from or saved to disk.
     """
     config = Config()
-    config.workout_status_url = "http://127.0.0.1:8770/api/status"
+    config.earn.workout_status_url = "http://127.0.0.1:8770/api/status"
     for key, value in over.items():
-        setattr(config, key, value)
+        setattr(config.earn, key, value)
     return config
 
 

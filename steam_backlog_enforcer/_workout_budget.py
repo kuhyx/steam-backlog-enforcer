@@ -36,7 +36,7 @@ def reset_cache() -> None:
 
 def workout_log_path(config: Config) -> Path:
     """screen-locker's ``log.json``, which ``gaming.workout_today`` derives from."""
-    return Path(config.workout_log_path).expanduser()
+    return Path(config.earn.workout_log_path).expanduser()
 
 
 def _fetch_workout_today(url: str) -> bool:
@@ -67,7 +67,7 @@ def workout_logged_today(config: Config) -> bool | None:
         reached or its answer could not be understood. ``None`` is deliberately
         distinct from ``False`` so the caller can log which one happened.
     """
-    url = config.workout_status_url
+    url = config.earn.workout_status_url
     # Stat before asking: a credited workout rewrites log.json, and the new
     # stamp re-asks on the very next tick instead of after the cache TTL.
     stamp = file_stamp(workout_log_path(config))

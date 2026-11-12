@@ -124,8 +124,8 @@ def leetcode_solved_today(config: Config) -> bool | None:
         can log which one happened -- and so an unreadable ledger raises an
         incident while an honest "not solved yet" does not.
     """
-    url = config.leetcode_status_url
-    path = Path(config.leetcode_ledger_path).expanduser()
+    url = config.earn.leetcode_status_url
+    path = Path(config.earn.leetcode_ledger_path).expanduser()
     # A new credit row rewrites the ledger; its stamp drops the memo at once.
     stamp = file_stamp(path)
     cached = _cache.fresh(url, stamp=stamp)
