@@ -176,11 +176,9 @@ disable = [
 [tool.pylint.design]
 min-public-methods = 0
 max-module-lines = 250
-# 15 = the widest persisted record (config.Config). Config, State and
-# PlaytimeState are flat JSON files the live daemon reads and writes; WebGame
-# is the UI's row shape. Splitting them under 10 would change the on-disk shape
-# or hide it behind property forwarders written only for this check.
-max-attributes = 15
+# 10, the repo's original value: wider persisted records group their
+# fields into nested dataclasses and keep a flat on-disk JSON shape.
+max-attributes = 10
 
 [tool.pylint.typecheck]
 generated-members = [

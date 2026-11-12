@@ -72,9 +72,9 @@ class TestOpenWindow:
         """Test that the destructive half of the block stays off."""
         window.write_record(make_record())
         run_pass()
-        tm.steam_kill.assert_not_called()
-        tm.steam_uninstall.assert_not_called()
-        tm.steam_purge.assert_not_called()
+        tm.steam.kill.assert_not_called()
+        tm.steam.uninstall.assert_not_called()
+        tm.steam.purge.assert_not_called()
 
     def test_other_launchers_and_counted_games_are_still_killed(
         self, tm: Mocks
@@ -105,7 +105,7 @@ class TestOpenWindow:
         self, tm: Mocks
     ) -> None:
         """Test that the install gap does not scan an absent library."""
-        tm.steam_installed.return_value = False
+        tm.steam.installed.return_value = False
         window.write_record(make_record())
         run_pass()
         tm.enforce.assert_not_called()

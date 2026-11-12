@@ -23,6 +23,16 @@ NOW_PATCH = "steam_backlog_enforcer._research_window.now"
 
 
 @dataclass
+class SteamMocks:
+    """The pass's Steam package effects."""
+
+    installed: MagicMock
+    kill: MagicMock
+    uninstall: MagicMock
+    purge: MagicMock
+
+
+@dataclass
 class Mocks:
     """The collaborators of one pass, all stand-ins."""
 
@@ -30,14 +40,11 @@ class Mocks:
     reconcile: MagicMock
     launchers: MagicMock
     counted: MagicMock
-    steam_installed: MagicMock
     enforce: MagicMock
     guard: MagicMock
     notify: MagicMock
     restore_store: MagicMock
-    steam_kill: MagicMock
-    steam_uninstall: MagicMock
-    steam_purge: MagicMock
+    steam: SteamMocks
 
 
 @pytest.fixture
@@ -63,14 +70,11 @@ def tm(total_block_paths: Paths) -> Iterator[Mocks]:
             reconcile,
             launchers,
             counted,
-            installed,
             enforce,
             guard,
             notify,
             restore_store,
-            steam_kill,
-            steam_uninstall,
-            steam_purge,
+            SteamMocks(installed, steam_kill, steam_uninstall, steam_purge),
         )
 
 
