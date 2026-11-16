@@ -5,7 +5,7 @@
 
 import { api } from '../api/client'
 import { q } from '../api/queries'
-import { iconMark, iconWord } from '../icons/render'
+import { iconInline, iconMark, iconWord } from '../icons/render'
 import { define, h, hx } from '../lib/dom'
 import { runner, jobHref, type RunRequest } from '../lib/runner'
 import { errorNotice, loading, notice } from '../ui/build'
@@ -117,8 +117,8 @@ export class RunnerDialogElement extends HTMLElement {
           h(
             'div',
             { class: 'actions' },
-            h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Close (job keeps running)', onclick: () => { this.close() } }, '✖️'),
-            h('a', { href: jobHref(next.id), class: 'btn btn-ghost', 'aria-label': 'Open in Jobs' }, '⚙️'),
+            h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Close (job keeps running)', onclick: () => { this.close() } }, iconInline('action.cancel')),
+            h('a', { href: jobHref(next.id), class: 'btn btn-ghost', 'aria-label': 'Open in Jobs' }, iconInline('nav.jobs')),
           ),
         ),
       )

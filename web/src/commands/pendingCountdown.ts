@@ -6,6 +6,7 @@
 
 import { api, ApiFailure } from '../api/client'
 import type { Job, PendingAction } from '../api/jobContract'
+import { iconInline } from '../icons/render'
 import { progressBar } from '../jobs/progress'
 import { Action } from '../lib/action'
 import { h } from '../lib/dom'
@@ -21,9 +22,9 @@ import { PhraseField } from './phraseField'
  */
 export const CLOCK_SLACK_MS = 1000
 
-/** ⚠️ 🚪: leaving cancels the countdown; the sentence is spoken only. */
+/** Warning plus the leave mark: leaving cancels the countdown; the sentence is spoken only. */
 function stayNotice(): HTMLDivElement {
-  const el = notice('warning', null, h('span', { 'aria-hidden': 'true' }, '🚪✖️'))
+  const el = notice('warning', null, iconInline('pending.leave'))
   el.setAttribute('aria-label', 'Closing this dialog, navigating away or closing the tab cancels the countdown.')
   return el
 }
@@ -109,7 +110,7 @@ export class PendingCountdown {
       this.el.className = 'stack'
       this.el.replaceChildren(
         errorNotice(this.beatError),
-        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-primary', autofocus: true, 'aria-label': 'Arm again', onclick: this.cb.onRearm }, '🔁')),
+        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-primary', autofocus: true, 'aria-label': 'Arm again', onclick: this.cb.onRearm }, iconInline('pending.rearm'))),
       )
       this.el.querySelector<HTMLElement>('[autofocus]')?.focus()
       return
@@ -120,17 +121,18 @@ export class PendingCountdown {
     const left = Math.max(0, (ready - now) / 1000)
     const isReady = left <= 0
     this.parts.num.textContent = clock(left)
-    // Textgate: 🔓/🔒 painted beside the clock; 💓 + seconds since the last
-    // heartbeat (red 💔 when failing). Sentences are spoken only.
+    // Textgate: the lock mark painted beside the clock; the heartbeat mark +
+    // seconds since the last heartbeat (red broken heart when failing).
+    // Sentences are spoken only.
     this.parts.caption.replaceChildren(
-      h('span', { 'aria-hidden': 'true' }, isReady ? '🔓' : '🔒'),
+      iconInline(isReady ? 'state.unlocked' : 'state.locked'),
       h('span', { class: 'sr-only' }, isReady ? 'Ready to commit' : 'until commit unlocks'),
     )
     this.parts.bar.replaceChildren(progressBar(Math.min(1, (now - armed) / (ready - armed)), 'Countdown', isReady ? 'success' : 'warning'))
     const sinceBeat = Math.round((now - this.lastBeat) / 1000)
     const failing = this.beatError !== null
     this.parts.beat.replaceChildren(
-      h('span', { 'aria-hidden': 'true', class: failing ? 'text-danger' : '' }, `${failing ? '💔' : '💓'} ${sinceBeat}s`),
+      h('span', { 'aria-hidden': 'true', class: failing ? 'text-danger' : '' }, iconInline(failing ? 'pending.beat-lost' : 'pending.beat'), ` ${sinceBeat}s`),
       h(
         'span',
         { class: 'sr-only' },
@@ -154,7 +156,7 @@ export class PendingCountdown {
           h(
             'button',
             { type: 'button', class: 'btn btn-ghost', autofocus: true, 'aria-label': this.cancel.pending ? 'Cancelling…' : 'Cancel countdown', onclick: () => void this.doCancel() },
-            this.cancel.pending ? '⏳' : '✖️',
+            iconInline(this.cancel.pending ? 'state.wait' : 'action.cancel'),
           ),
         ),
       )
@@ -176,7 +178,7 @@ export class PendingCountdown {
         { class: 'stack' },
         this.phrase.el,
         errorSlot,
-        h('div', { class: 'actions' }, submitBtn, h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Cancel', onclick: () => void this.doCancel() }, '✖️')),
+        h('div', { class: 'actions' }, submitBtn, h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Cancel', onclick: () => void this.doCancel() }, iconInline('action.cancel'))),
       )
       form.addEventListener('submit', (e) => {
         e.preventDefault()
@@ -188,7 +190,7 @@ export class PendingCountdown {
     }
     const { submit, errors } = this.commitForm as { submit: HTMLButtonElement; errors: HTMLDivElement }
     submit.disabled = !phraseMatches(this.pending.phrase, this.phrase.value) || this.commit.pending
-    submit.textContent = this.commit.pending ? '⏳' : '✔️'
+    submit.replaceChildren(iconInline(this.commit.pending ? 'state.wait' : 'action.confirm'))
     submit.setAttribute('aria-label', this.commit.pending ? 'Committing…' : 'Commit')
     errors.replaceChildren(...(this.commit.error ? [errorNotice(this.commit.error)] : []))
   }

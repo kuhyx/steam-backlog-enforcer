@@ -5,11 +5,11 @@
 import { ApiFailure, startJob } from '../api/client'
 import type { CommandName, CommandSpec } from '../api/contract'
 import { q } from '../api/queries'
-import { iconMark, iconWord } from '../icons/render'
+import { iconInline, iconMark, iconWord } from '../icons/render'
 import { Action } from '../lib/action'
 import { h } from '../lib/dom'
 import type { Preset } from '../lib/runner'
-import { commandLine, errorNotice, notice, pill } from '../ui/build'
+import { errorNotice } from '../ui/build'
 import { commandIcon, fillPhrase, phraseMatches } from './catalog'
 import { enforcePreset } from './enforcePreset'
 import { gameLookup } from './gameLookup'
@@ -17,27 +17,11 @@ import { initialValues, paramError, toParams, type ParamValues } from './params'
 import { ParamsForm } from './paramsForm'
 import { PendingCountdown } from './pendingCountdown'
 import { PhraseField } from './phraseField'
+import { commandFlags, fillHint, lockedNotice, terminalFallback } from './runnerParts'
 
 /** Recovery commands the UI offers when the root daemon is down. */
 const FALLBACK: Partial<Record<CommandName, string>> = {
   'gaming-unblock': 'sudo ./run.sh gaming-unblock',
-}
-
-
-/** ⏳ plus the minutes (a number, so painted); the word is spoken only. */
-function countdownPill(seconds: number): HTMLSpanElement {
-  const minutes = Math.round(seconds / 60)
-  const el = pill('warning', `${minutes} min countdown`, '⏳')
-  el.append(h('span', { class: 'pill-num', 'aria-hidden': 'true' }, `${minutes}′`))
-  return el
-}
-
-/** 🔒 warning notice; the server's lock reason is spoken only. */
-function lockedNotice(reason: string): HTMLDivElement {
-  const el = notice('warning', null)
-  el.querySelector('.notice-icon')?.replaceChildren('🔒')
-  el.setAttribute('aria-label', `Locked: ${reason}`)
-  return el
 }
 
 export type NextPhase = { k: 'pending'; countdown: PendingCountdown } | { k: 'job'; id: string } | { k: 'form'; runner: Runner }
@@ -85,7 +69,6 @@ export class Runner {
     this.start = new Action(startJob, () => {
       this.refresh()
     })
-    const countdown = spec.friction?.countdown_seconds
     this.submitBtn = h('button', {
       type: 'submit',
       class: 'btn btn-primary',
@@ -100,10 +83,7 @@ export class Runner {
         'div',
         { class: 'tags' },
         h('span', { class: 'runner-mark' }, iconMark(commandIcon(spec.name), 'runner-glyph'), iconWord(commandIcon(spec.name))),
-        spec.privileged ? pill('neutral', 'Runs as root via the daemon', '🔑') : null,
-        spec.mutating ? pill('neutral', 'Changes state', '✏️') : pill('neutral', 'Read-only', '👁️'),
-        spec.cancellable ? pill('neutral', 'Cancellable', '⏹️') : null,
-        countdown ? countdownPill(countdown) : null,
+        commandFlags(spec),
       ),
       spec.locked_reason !== null ? lockedNotice(spec.locked_reason) : null,
       this.form.nodes,
@@ -113,7 +93,7 @@ export class Runner {
         'div',
         { class: 'actions' },
         this.submitBtn,
-        h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Cancel', onclick: () => { cb.onClose() } }, '✖️'),
+        h('button', { type: 'button', class: 'btn btn-ghost', 'aria-label': 'Cancel', onclick: () => { cb.onClose() } }, iconInline('action.cancel')),
       ),
     )
     this.el.addEventListener('submit', (e) => {
@@ -159,10 +139,7 @@ export class Runner {
     if (key !== this.phraseKey) {
       this.phraseKey = key
       if (phrase && phrase.missing.length > 0) {
-        // ℹ️ ⬆️: fill the fields above first; the sentence is spoken only.
-        const hint = notice('info', null, h('span', { 'aria-hidden': 'true' }, '⬆️'))
-        hint.setAttribute('aria-label', `Fill in the fields above to see the exact phrase (${phrase.missing.join(', ')}).`)
-        this.phraseSlot.replaceChildren(hint)
+        this.phraseSlot.replaceChildren(fillHint(phrase.missing))
       } else if (phrase && !locked) {
         this.typed = ''
         const field = new PhraseField({
@@ -187,7 +164,7 @@ export class Runner {
             errorNotice(
               err,
               failure?.code === 'daemon_unreachable' && fallback
-                ? [h('p', { class: 'm0', 'aria-label': 'Run it from a terminal instead:' }, h('span', { 'aria-hidden': 'true' }, '💻')), commandLine(fallback)]
+                ? terminalFallback(fallback)
                 : null,
             ),
           ]
@@ -196,8 +173,8 @@ export class Runner {
     const countdown = this.spec.friction?.countdown_seconds
     this.submitBtn.className = phrase ? 'btn btn-danger' : 'btn btn-primary'
     this.submitBtn.disabled = !this.canSubmit() || this.start.pending
-    // Glyph painted, label spoken: ⏳ starting, ⏲️ arm countdown, ▶️ run.
-    this.submitBtn.textContent = this.start.pending ? '⏳' : countdown ? '⏲️' : '▶️'
+    // Icon painted, label spoken: busy while starting, arm countdown, or run.
+    this.submitBtn.replaceChildren(iconInline(this.start.pending ? 'state.wait' : countdown ? 'runner.arm' : 'runner.run'))
     this.submitBtn.setAttribute('aria-label', this.start.pending ? 'Starting…' : countdown ? 'Arm countdown' : `Run ${this.spec.name}`)
   }
 

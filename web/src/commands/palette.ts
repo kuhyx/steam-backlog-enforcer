@@ -4,6 +4,8 @@
 // via aria-activedescendant.
 
 import { q } from '../api/queries'
+import { iconText } from '../icons/iconText'
+import type { IconId } from '../icons/registry'
 import { define, h } from '../lib/dom'
 import { uid } from '../lib/ids'
 import { pageHref, runner } from '../lib/runner'
@@ -17,10 +19,9 @@ interface Entry {
   title: string
   detail: string
   hint: string
-  /** A registered icon id (painted with the user's word) or a raw glyph. */
-  icon: string
-  /** Painted in place of the hint: ▶️ run, ↗️ open, 🧭 navigate. */
-  hintIcon: string
+  icon: IconId
+  /** Painted in place of the hint: run, open the page, or navigate. */
+  hintIcon: IconId
   locked: string | null
   act: () => void
 }
@@ -49,7 +50,7 @@ export class CommandPaletteElement extends HTMLElement {
       'aria-expanded': 'true',
       'aria-controls': `${this.listId}-list`,
       'aria-label': 'Search commands',
-      placeholder: '🔍',
+      placeholder: iconText('cmdpal.search'),
       autofocus: true,
     })
     this.list = h('ul', { id: `${this.listId}-list`, role: 'listbox', class: 'palette-list', 'aria-label': 'Commands' })
@@ -112,13 +113,13 @@ export class CommandPaletteElement extends HTMLElement {
 
   private entries(): Entry[] {
     return [
-      ...(q.commands.state.data ?? []).map((c) => ({
+      ...(q.commands.state.data ?? []).map((c): Entry => ({
         key: c.name,
         title: commandLabel(c.name),
         detail: c.description,
         hint: c.kind === 'job' ? (c.friction ? 'run · confirm' : 'run') : `open ${COMMAND_HOME[c.name]}`,
         icon: commandIcon(c.name),
-        hintIcon: c.kind === 'job' ? (c.friction ? '▶️⌨️' : '▶️') : '↗️',
+        hintIcon: c.kind === 'job' ? (c.friction ? 'cmdpal.run-phrase' : 'runner.run') : 'cmdpal.open',
         locked: c.locked_reason,
         act: () => {
           if (c.kind === 'job') runner.run(c.name)
@@ -128,13 +129,13 @@ export class CommandPaletteElement extends HTMLElement {
           }
         },
       })),
-      ...[...NAV, ...PALETTE_PAGES].map((n) => ({
+      ...[...NAV, ...PALETTE_PAGES].map((n): Entry => ({
         key: `nav:${n.to}`,
         title: `Go to ${n.label}`,
         detail: n.blurb,
         hint: 'navigate',
         icon: n.icon,
-        hintIcon: '🧭',
+        hintIcon: 'cmdpal.go',
         locked: null,
         act: () => {
           this.close()
@@ -157,7 +158,7 @@ export class CommandPaletteElement extends HTMLElement {
           'li',
           { id: `${this.listId}-${i}`, role: 'option', 'aria-selected': String(i === this.active), class: i === this.active ? 'palette-item active' : 'palette-item' },
           // Textgate: glyphs painted; title, detail and hint spoken only.
-          h('span', { class: 'palette-title' }, glyph(e.icon, e.title), e.locked ? pill('warning', 'locked', '🔒') : null),
+          h('span', { class: 'palette-title' }, glyph(e.icon, e.title), e.locked ? pill('warning', 'locked', 'state.locked') : null),
           h('span', { class: 'palette-detail sr-only' }, e.locked ?? e.detail),
           h('span', { class: 'palette-hint' }, glyph(e.hintIcon, e.hint)),
         )

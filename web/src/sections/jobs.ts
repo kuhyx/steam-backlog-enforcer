@@ -7,6 +7,7 @@ import { explain } from '../api/errors'
 import type { Job } from '../api/jobContract'
 import { q } from '../api/queries'
 import { commandIcon, commandLabel } from '../commands/catalog'
+import { iconInline } from '../icons/render'
 import '../jobs/jobProgress'
 import { stateBadge } from '../jobs/progress'
 import { define, h, hx } from '../lib/dom'
@@ -86,10 +87,10 @@ export class JobListElement extends LiveElement {
           h(
             'tr',
             {},
-            h('th', { scope: 'col' }, glyph('⌨️', 'Command')),
-            h('th', { scope: 'col' }, glyph('🚦', 'State')),
-            h('th', { scope: 'col' }, glyph('🕐', 'Started')),
-            h('th', { scope: 'col', class: 'num' }, glyph('⏱️', 'Took')),
+            h('th', { scope: 'col' }, glyph('jobs.command', 'Command')),
+            h('th', { scope: 'col' }, glyph('jobs.state', 'State')),
+            h('th', { scope: 'col' }, glyph('jobs.started', 'Started')),
+            h('th', { scope: 'col', class: 'num' }, glyph('jobs.took', 'Took')),
           ),
         ),
         this.body,
@@ -125,12 +126,12 @@ export class JobListElement extends LiveElement {
 }
 
 function notFound(id: string, error: ApiFailure): HTMLDivElement {
-  // ❓ + the id painted; the explanation and the server's message are spoken.
+  // The not-found icon + the id painted; the explanation and the server's message are spoken.
   const el = notice(
     'warning',
     null,
-    h('p', { class: 'm0' }, h('span', { 'aria-hidden': 'true' }, '❓ '), h('span', { class: 'mono' }, id)),
-    h('p', { class: 'm0' }, link(pageHref('/jobs'), glyph('📋', 'See all jobs'), '')),
+    h('p', { class: 'm0' }, h('span', { 'aria-hidden': 'true' }, iconInline('jobs.not-found'), ' '), h('span', { class: 'mono' }, id)),
+    h('p', { class: 'm0' }, link(pageHref('/jobs'), glyph('jobs.all', 'See all jobs'), '')),
   )
   el.dataset.code = 'not_found'
   el.setAttribute('aria-label', `Job not found. There is no job ${id}. It may have been pruned: the history keeps the last 50.${error.message ? ` ${error.message}` : ''}`)
@@ -155,7 +156,7 @@ export class JobDetailElement extends LiveElement {
     this.sub = h('p', { class: 'sub' })
     this.status = h('div', { class: 'contents' })
     this.mounted = false
-    this.replaceChildren(pageHead(this.heading, this.sub, link(pageHref('/jobs'), glyph('📋', 'All jobs'), 'btn btn-ghost')), this.status)
+    this.replaceChildren(pageHead(this.heading, this.sub, link(pageHref('/jobs'), glyph('jobs.all', 'All jobs'), 'btn btn-ghost')), this.status)
     // Subscribed by hand, not via watch(): an unknown id stops polling.
     let live = true
     const off = q.job(this.jobId).subscribe(() => {
@@ -172,12 +173,12 @@ export class JobDetailElement extends LiveElement {
     const id = this.jobId
     const { data, error, loading: waiting } = q.job(id).state
     const missing = !data && error instanceof ApiFailure && error.code === 'not_found' ? error : null
-    // Heading: the command's glyph (❓ when the id is unknown, ⚙️ while loading), name spoken.
-    this.heading.replaceChildren(data ? commandGlyph(data.command) : missing ? glyph('❓', 'Job not found') : glyph('⚙️', 'Job'))
+    // Heading: the command's glyph (the not-found icon when the id is unknown, the job icon while loading), name spoken.
+    this.heading.replaceChildren(data ? commandGlyph(data.command) : missing ? glyph('jobs.not-found', 'Job not found') : glyph('jobs.job', 'Job'))
     this.sub.replaceChildren(
       h('span', { class: 'sr-only' }, 'Job '),
       h('span', { class: 'mono' }, id),
-      data ? h('span', {}, h('span', { 'aria-hidden': 'true' }, ' · 🕐 '), h('span', { class: 'sr-only' }, ' · created '), dateTime(data.created_at)) : '',
+      data ? h('span', {}, h('span', { 'aria-hidden': 'true' }, ' · ', iconInline('jobs.started'), ' '), h('span', { class: 'sr-only' }, ' · created '), dateTime(data.created_at)) : '',
     )
     this.status.replaceChildren(
       ...(missing ? [notFound(id, missing)] : error ? [errorNotice(error)] : waiting ? [loading('job')] : []),

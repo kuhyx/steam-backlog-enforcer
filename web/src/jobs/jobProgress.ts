@@ -7,7 +7,9 @@
 import { api } from '../api/client'
 import type { JobProgress as Progress, JobState } from '../api/jobContract'
 import { q } from '../api/queries'
-import { COMMAND_ICON, commandLabel, findCommand } from '../commands/catalog'
+import { commandIcon, commandLabel, findCommand } from '../commands/catalog'
+import type { IconId } from '../icons/registry'
+import { iconInline } from '../icons/render'
 import { Action } from '../lib/action'
 import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
@@ -26,11 +28,11 @@ export function eta(p: Progress, live: LiveJob, now: number): number | null {
 }
 
 const DONE: ReadonlySet<JobState> = new Set(['succeeded', 'failed', 'cancelled'])
-const DONE_LABEL: Record<'succeeded' | 'failed' | 'cancelled', string> = {
-  succeeded: '✅',
-  failed: '⛔',
-  cancelled: '🚫',
-}
+const DONE_LABEL = {
+  succeeded: 'job.state.succeeded',
+  failed: 'job.state.failed',
+  cancelled: 'job.state.cancelled',
+} as const satisfies Record<'succeeded' | 'failed' | 'cancelled', IconId>
 const isDone = (s: JobState): s is keyof typeof DONE_LABEL => DONE.has(s)
 
 export class JobProgressElement extends LiveElement {
@@ -130,8 +132,8 @@ export class JobProgressElement extends LiveElement {
     f.section.className = compact ? 'job job-compact' : 'job'
     f.section.dataset.state = state
     f.section.setAttribute('aria-label', `Job ${job ? commandLabel(job.command) : id}`)
-    // Textgate: the command's glyph painted, its name spoken.
-    f.title.replaceChildren(...(job ? [glyph(COMMAND_ICON[job.command], title)] : []))
+    // Textgate: the command's glyph (and its word) painted, its name spoken.
+    f.title.replaceChildren(...(job ? [glyph(commandIcon(job.command), title)] : []))
     f.badge.replaceChildren(stateBadge(state))
     f.meta.replaceChildren(
       job ? duration(job.started_at, job.ended_at, now) : '',
@@ -148,7 +150,7 @@ export class JobProgressElement extends LiveElement {
       h(
         'span',
         { class: 'job-label' },
-        isDone(state) ? DONE_LABEL[state] : waiting ? '⏳' : progress ? '▶️' : '',
+        isDone(state) ? iconInline(DONE_LABEL[state]) : waiting ? iconInline('jobs.waiting') : progress ? iconInline('job.state.running') : '',
         progress?.label && !finished ? h('span', { class: 'sr-only' }, progress.label) : null,
       ),
       !finished && progress && progress.total !== null
@@ -188,7 +190,7 @@ export class JobProgressElement extends LiveElement {
               h(
                 'button',
                 { type: 'button', class: 'btn btn-ghost', disabled: this.cancel.pending, onclick: () => void this.cancel.run(), 'aria-label': this.cancel.pending ? 'Cancelling…' : 'Cancel job' },
-                this.cancel.pending ? '⏳' : '✕',
+                iconInline(this.cancel.pending ? 'state.wait' : 'jobs.cancel'),
               ),
             ),
           ]
@@ -209,7 +211,7 @@ export class JobProgressElement extends LiveElement {
   private updateLog(f: NonNullable<JobProgressElement['frame']>, live: LiveJob, finished: boolean, compact: boolean): void {
     const logs = live.logs
     f.summary.replaceChildren(
-      h('span', { class: 'log-count-icon', 'aria-hidden': 'true' }, '📋'),
+      iconInline('jobs.log', 'log-count-icon'),
       h('span', { class: 'log-count', 'aria-hidden': 'true' }, String(logs.length)),
     )
     f.summary.setAttribute('aria-label', `${logs.length} lines`)

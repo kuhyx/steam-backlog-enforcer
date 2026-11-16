@@ -5,7 +5,6 @@
 
 import type { CommandName, CommandSpec, InstalledGame } from '../api/contract'
 import type { IconId } from '../icons/registry'
-import { iconFor } from '../icons/render'
 
 export type SectionPath =
   | '/'
@@ -50,21 +49,6 @@ export const COMMAND_HOME = {
 export function commandIcon(name: CommandName): IconId {
   return `cmd.${name}` as const satisfies IconId
 }
-
-/**
- * The glyph a command paints, for sites not yet on `glyph(commandIcon(…))`
- * (they get the chosen alternative glyph, not the word). Live getters, so a
- * ledger change shows without re-importing.
- */
-export const COMMAND_ICON: Readonly<Record<CommandName, string>> = Object.defineProperties(
-  {},
-  Object.fromEntries(
-    (Object.keys(COMMAND_HOME) as CommandName[]).map((name) => [
-      name,
-      { enumerable: true, get: () => iconFor(commandIcon(name)).glyph },
-    ]),
-  ),
-) as Record<CommandName, string>
 
 /** Title-case label for buttons and the palette (`pick-manual` → `Pick manual`). */
 export function commandLabel(name: CommandName): string {

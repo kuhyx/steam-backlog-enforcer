@@ -3,34 +3,32 @@
 // never re-creates an input.
 
 import type { ParamSpec } from '../api/contract'
+import type { IconId } from '../icons/registry'
+import { iconInline } from '../icons/render'
 import { h } from '../lib/dom'
 import { uid } from '../lib/ids'
+import { glyph } from '../ui/build'
 import { paramError, type GameOption, type ParamValues } from './params'
 
-/** Painted glyph per parameter (textgate); the catalog label is spoken only. */
-const PARAM_ICON: Record<string, string> = {
-  app_id: '🎮',
-  backup_id: '🗄️',
-  days: '📅',
-  minutes: '⏱️',
-  reason: '💬',
-  replace: '🔁',
-  demo: '🧪',
+/** Painted icon per parameter (textgate); the catalog label is spoken only. */
+const PARAM_ICON: Record<string, IconId> = {
+  app_id: 'params.app_id',
+  backup_id: 'params.backup_id',
+  days: 'params.days',
+  minutes: 'params.minutes',
+  reason: 'params.reason',
+  replace: 'params.replace',
+  demo: 'params.demo',
 }
 
 function paramGlyph(spec: ParamSpec): HTMLSpanElement {
-  return h(
-    'span',
-    {},
-    h('span', { 'aria-hidden': 'true' }, PARAM_ICON[spec.name] ?? '✏️'),
-    h('span', { class: 'sr-only' }, spec.label),
-  )
+  return glyph(PARAM_ICON[spec.name] ?? 'params.other', spec.label)
 }
 
 /** Field help: optional painted mark, sentence spoken only. */
-function spokenHelp(el: HTMLElement, mark: string | null, sentence: string): void {
+function spokenHelp(el: HTMLElement, mark: IconId | null, sentence: string): void {
   el.replaceChildren(
-    mark ? h('span', { 'aria-hidden': 'true' }, mark) : '',
+    mark ? iconInline(mark) : '',
     sentence ? h('span', { class: 'sr-only' }, sentence) : '',
   )
 }
@@ -137,9 +135,9 @@ export class ParamsForm {
     input.setAttribute('aria-invalid', String(bad))
     help.className = bad ? 'field-help text-danger' : 'field-help'
     const game = spec.type === 'app_id' ? this.games.find((g) => g.app_id === Number(raw)) : undefined
-    // Textgate: an error paints ⚠️, a matched game paints its name (content);
-    // the error sentence and the field help are spoken only.
-    if (bad) spokenHelp(help, '⚠️', err)
+    // Textgate: an error paints the warn mark, a matched game paints its name
+    // (content); the error sentence and the field help are spoken only.
+    if (bad) spokenHelp(help, 'state.warn', err)
     else if (game) help.replaceChildren(game.name)
     else spokenHelp(help, null, spec.help ?? (spec.type === 'app_id' ? 'Type an app id or pick a game from the list.' : ''))
     if (datalist && datalist.childElementCount !== this.games.length) {

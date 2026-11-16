@@ -6,7 +6,8 @@
 
 import type { CommandName } from '../api/contract'
 import { q } from '../api/queries'
-import { iconMark, iconWord } from '../icons/render'
+import type { IconId } from '../icons/registry'
+import { iconInline, iconMark, iconWord } from '../icons/render'
 import { define, h, jsonAttr } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { pageHref, runner, type Preset } from '../lib/runner'
@@ -54,13 +55,13 @@ export function commandButton({ name, preset, label, tone = 'ghost' }: ButtonPro
       },
     },
     glyph,
-    locked === null ? null : h('span', { class: 'cmd-lock', 'aria-hidden': 'true' }, '🔒'),
+    locked === null ? null : h('span', { class: 'cmd-lock', 'aria-hidden': 'true' }, iconInline('state.locked')),
   )
 }
 
 /** A card flag (root, countdown): glyph painted, its word spoken. */
-function flag(glyph: string, spoken: string): HTMLSpanElement {
-  return h('span', { class: 'pill pill-neutral', 'aria-label': spoken, role: 'img' }, glyph)
+function flag(id: IconId, spoken: string): HTMLSpanElement {
+  return h('span', { class: 'pill pill-neutral', 'aria-label': spoken, role: 'img' }, iconInline(id))
 }
 
 export class CommandButtonElement extends LiveElement {
@@ -90,8 +91,8 @@ export class CommandCardElement extends LiveElement {
           'h3',
           { class: 'cmd-name' },
           h('span', { class: 'sr-only' }, commandLabel(p.name)),
-          spec?.privileged ? flag('🔑', 'root') : null,
-          spec?.friction?.countdown_seconds ? flag('⏳', 'countdown') : null,
+          spec?.privileged ? flag('cmdflag.root', 'root') : null,
+          spec?.friction?.countdown_seconds ? flag('cmdflag.countdown', 'countdown') : null,
         ),
         h('p', { class: 'cmd-desc sr-only' }, locked ?? spec?.description ?? '…'),
         commandButton(p),
