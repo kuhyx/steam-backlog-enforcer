@@ -63,46 +63,37 @@ function warningLine(today: BudgetToday, maskedCount: number): HTMLElement {
 /** The "no limit" mark: the registry's no-cap icon. */
 const unlimitedMark = (): HTMLElement => glyph('filter.no-cap', 'No gaming limit')
 
+/** The painted tail both usage lines share: the gaming day and when it starts. */
+const dayTail = (t: BudgetToday) => [
+  ' · ',
+  iconInline('gaming.day'),
+  ' ',
+  t.gaming_day,
+  ' · ',
+  iconInline('gaming.day_start'),
+  ' ',
+  t.day_starts_at.replace(/\s*local$/, ''),
+]
+
 function usageLine(t: BudgetToday): HTMLElement {
-  if (t.unlimited) {
-    return said(
-      `${fmtDuration(t.seconds_used)} played · gaming day ${t.gaming_day} (starts ${t.day_starts_at})`,
-      fmtDuration(t.seconds_used),
-      ' · ',
-      iconInline('gaming.day'),
-      ' ',
-      t.gaming_day,
-      ' · ',
-      iconInline('gaming.day_start'),
-      ' ',
-      t.day_starts_at.replace(/\s*local$/, ''),
-    )
+  const { budget_seconds: budget, fraction_used: fraction } = t
+  const day = `gaming day ${t.gaming_day} (starts ${t.day_starts_at})`
+  if (t.unlimited || budget === null || fraction === null) {
+    return said(`${fmtDuration(t.seconds_used)} played · ${day}`, fmtDuration(t.seconds_used), ...dayTail(t))
   }
-  const used = `${fmtDuration(t.seconds_used)} / ${fmtDuration(t.budget_seconds ?? 0)} · ${Math.round((t.fraction_used ?? 0) * 100)}%`
-  const spoken =
-    `${fmtDuration(t.seconds_used)} of ${fmtDuration(t.budget_seconds ?? 0)} used · ` +
-    `${Math.round((t.fraction_used ?? 0) * 100)}% · gaming day ${t.gaming_day} (starts ${t.day_starts_at})`
-  return said(
-    spoken,
-    used,
-    ' · ',
-    iconInline('gaming.day'),
-    ' ',
-    t.gaming_day,
-    ' · ',
-    iconInline('gaming.day_start'),
-    ' ',
-    t.day_starts_at.replace(/\s*local$/, ''),
-  )
+  const used = `${fmtDuration(t.seconds_used)} / ${fmtDuration(budget)} · ${Math.round(fraction * 100)}%`
+  const spoken = `${fmtDuration(t.seconds_used)} of ${fmtDuration(budget)} used · ${Math.round(fraction * 100)}% · ${day}`
+  return said(spoken, used, ...dayTail(t))
 }
 
 export function todayCard(today: BudgetToday, legend: readonly BudgetLegendEntry[], maskedCount: number): HTMLElement {
   // Colour by the chart's legend position so a game reads the same in both
   // places; games the capped legend left out fall back to their row order.
   const indexFor = new Map(legend.map((e, i) => [e.key, i]))
+  const { fraction_used: fraction, seconds_remaining: remaining } = today
+  const unlimited = today.unlimited || fraction === null || remaining === null
   const fill = h('div', { class: 'budget-meter-fill' })
-  fill.style.width = `${((today.fraction_used ?? 0) * 100).toFixed(1)}%`
-  const unlimited = today.unlimited
+  if (!unlimited) fill.style.width = `${(fraction * 100).toFixed(1)}%`
   return h(
     'section',
     { class: 'budget-today' },
@@ -110,7 +101,7 @@ export function todayCard(today: BudgetToday, legend: readonly BudgetLegendEntry
     h(
       'p',
       { class: 'budget-hero' },
-      h('strong', {}, unlimited ? unlimitedMark() : fmtDuration(today.seconds_remaining ?? 0)),
+      h('strong', {}, unlimited ? unlimitedMark() : fmtDuration(remaining)),
       unlimited ? null : h('span', { class: 'sr-only' }, ' left'),
     ),
     // No budget, no meter and no warnings: there is nothing to fill or warn of.
