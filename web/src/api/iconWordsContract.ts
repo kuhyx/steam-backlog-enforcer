@@ -1,4 +1,4 @@
-// Icon words: the TS mirror of DOCS-web-control-api.md, "Icon words".
+// Icon words: the TS mirror of DOCS-icon-words.md.
 // Split out of contract.ts like jobContract.ts; contract.ts re-exports it.
 
 /** One icon's picks. No `word` key: not answered; `word: null`: skipped; `glyph: null`: default. */
