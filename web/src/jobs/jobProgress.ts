@@ -180,7 +180,7 @@ export class JobProgressElement extends LiveElement {
     )
     f.actions.replaceChildren(
       ...(this.cancel.error ? [errorNotice(this.cancel.error)] : []),
-      ...((spec?.cancellable || waiting) && !finished
+      ...((spec?.cancellable || waiting || live.cancelWindowOpen) && !finished
         ? [
             h(
               'div',

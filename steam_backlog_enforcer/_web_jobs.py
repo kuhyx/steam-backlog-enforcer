@@ -119,7 +119,7 @@ def answer_view(request: Request) -> Reply:
 
 
 def cancel_view(request: Request) -> Reply:
-    """``POST /api/jobs/{id}/cancel`` — only for cancellable commands."""
+    """``POST /api/jobs/{id}/cancel`` — cancellable, or inside a cancel window."""
     try:
         cancel(request.args[0])
     except JobError as exc:

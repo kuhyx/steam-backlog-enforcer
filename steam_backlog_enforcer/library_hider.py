@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
 from steam_backlog_enforcer._actions import allowed_app_ids as _allowed_ids_of
+from steam_backlog_enforcer._cancel_window import cancel_window
 from steam_backlog_enforcer._cdp import _cdp_result_value, _evaluate_js
 from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
@@ -186,7 +187,10 @@ def try_hide_other_games(
     progress = current_progress()
     progress.phase("Hiding games in the Steam library", 1)
     try:
-        return hide_other_games(owned_app_ids, allowed_app_ids), None
+        # A web job may be cancelled here (the Steam launch can wait a while);
+        # the cancel raises a SteamUnavailableError, handled just below.
+        with cancel_window():
+            return hide_other_games(owned_app_ids, allowed_app_ids), None
     except SteamUnavailableError as exc:
         return 0, str(exc)
     finally:

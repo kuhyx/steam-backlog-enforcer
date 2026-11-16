@@ -60,7 +60,7 @@ mirror is `web/src/api/contract.ts`; change both together or neither.
 | GET | `/api/jobs/{id}` | – | `Job` |
 | GET | `/api/jobs/{id}/events` | `?token=&after=<seq>` | SSE stream of `JobEvent` |
 | POST | `/api/jobs/{id}/answer` | `PromptAnswer` | `204` |
-| POST | `/api/jobs/{id}/cancel` | – | `204` (only if `CommandSpec.cancellable`) |
+| POST | `/api/jobs/{id}/cancel` | – | `204` (only if `CommandSpec.cancellable`, or while the job's `cancel_window` is open) |
 | POST | `/api/pending/{id}/heartbeat` | – | `PendingAction` |
 | POST | `/api/pending/{id}/commit` | `{confirm_phrase}` | `Job` |
 | DELETE | `/api/pending/{id}` | – | `204` |
@@ -134,7 +134,14 @@ with explicit params, a `Progress` reporter and a `Prompter`.
   `result.json`. The server only tails files, so jobs survive both page
   reloads and server restarts (including `_serve_stale` retirement).
 - At most **one mutating job** at a time (`busy` otherwise). Read-only jobs
-  (`check`, `stats`, `list`, …) may run alongside.
+  (`stats`, `list`) may run alongside. `check` is mutating, like `done`: a
+  new achievement releases the game and assigns the next one.
+- `done`, `check`, `pick`, `pick-manual` and `hide` cannot be cancelled,
+  except while they hide games in the Steam library (the `cancel_window`
+  event below; `check` has the flag but no hide step today, so it never
+  opens a window). That phase can wait on a Steam launch, and the job holds
+  the mutating lock throughout. Cancelling there skips the hide; the job then carries on and ends normally, so the
+  lock drops.
 - History: last 50 job dirs kept, older ones pruned at job start. Job ids
   are `<UTC yyyymmddThhmmss + microseconds>Z-<6 hex>`, so sorting by id is
   creation order even within one second.
@@ -157,6 +164,14 @@ with explicit params, a `Progress` reporter and a `Prompter`.
 - `progress` — `{step, total, label, item?, eta_seconds?}`; `total` may be
   `null` for indeterminate phases. Any operation over 2 s must emit
   determinate progress.
+- `cancel_window` — `{open}`, only from commands flagged `cancel_window` in
+  `jobs/_specs.py` (`done`, `check`, `pick`, `pick-manual`, `hide`):
+  `open: true` when the job starts hiding games in the Steam library,
+  `open: false` when it stops (also after a cancel). The job installs its SIGTERM handler before it
+  writes `open: true` and restores the previous one before `open: false`.
+  `POST /api/jobs/{id}/cancel` is accepted exactly while the latest
+  `cancel_window` event says `open`, else `not_cancellable`; the UI shows
+  its Cancel button on the same condition. Declared in `jobContract.ts`.
 - `prompt` — `{prompt_id, kind, message, options?, phrase?, default?,
   app_ids?}`; `kind` is `choice` (pick one of `options`), `confirm`
   (yes/no), `phrase` (type `phrase` exactly), `text` or `game`. The job

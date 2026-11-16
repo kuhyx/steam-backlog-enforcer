@@ -60,3 +60,13 @@ class FastInstallInProgressError(SteamUnavailableError):
     underneath it discards the manifest the installer is about to write and
     resumes the slow client download - so every launch path defers instead.
     """
+
+
+class HidingCancelledError(SteamUnavailableError):
+    """Raised inside a job's library-hiding phase when the user cancels it.
+
+    Subclasses :class:`SteamUnavailableError` so ``try_hide_other_games``
+    already turns it into a skipped hide: the job carries on and ends
+    normally, releasing the one-mutating-job lock, instead of waiting out a
+    Steam launch that may never finish.
+    """

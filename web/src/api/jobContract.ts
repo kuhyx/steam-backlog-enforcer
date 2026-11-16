@@ -61,6 +61,13 @@ export type JobEvent =
   | (JobEventBase & { type: 'state'; state: JobState })
   | (JobEventBase & { type: 'log'; level: 'info' | 'warning' | 'error'; message: string })
   | (JobEventBase & { type: 'progress' } & JobProgress)
+  /**
+   * Sent only by commands with a cancel window (`done`, `pick`, `pick-manual`,
+   * `hide`; `check` has the flag but no hide step yet). The job is cancellable only while `open` is true
+   * (it is hiding games in the Steam library); `POST …/cancel` is refused
+   * outside it.
+   */
+  | (JobEventBase & { type: 'cancel_window'; open: boolean })
   | (JobEventBase & {
       type: 'prompt'
       prompt_id: string

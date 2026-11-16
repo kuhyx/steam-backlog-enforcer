@@ -24,27 +24,34 @@ class JobFlags:
         mutating: Takes the one-mutating-job lock.
         cancellable: SIGTERM cancels it (only where stopping midway is safe).
         privileged: Runs in the root daemon; never spawned as a job.
+        cancel_window: Cancellable only while the job reports an open
+            ``cancel_window`` (hiding games in the Steam library); the work
+            before it cannot be stopped midway.
     """
 
     mutating: bool = True
     cancellable: bool = False
     privileged: bool = False
+    cancel_window: bool = False
 
 
 _PRIVILEGED = JobFlags(privileged=True)
 
 JOB_FLAGS: Final[dict[str, JobFlags]] = {
     # check is mutating: a new achievement releases the game and assigns
-    # the next one, exactly like done.
-    "check": JobFlags(),
+    # the next one, exactly like done. Every command that hides games in the
+    # Steam library (try_hide_other_games, which may wait on a Steam launch)
+    # can be stopped only during that step. do_check never hides today, so
+    # check's window is inert until it gains one.
+    "check": JobFlags(cancel_window=True),
     "scan": JobFlags(cancellable=True),
-    "done": JobFlags(),
-    "pick": JobFlags(),
-    "pick-manual": JobFlags(),
+    "done": JobFlags(cancel_window=True),
+    "pick": JobFlags(cancel_window=True),
+    "pick-manual": JobFlags(cancel_window=True),
     "abandon-pick": JobFlags(),
     "install": JobFlags(),
     "uninstall": JobFlags(),
-    "hide": JobFlags(),
+    "hide": JobFlags(cancel_window=True),
     "unhide": JobFlags(),
     "add-exception": JobFlags(),
     "reset": JobFlags(),

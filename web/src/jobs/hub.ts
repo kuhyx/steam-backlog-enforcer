@@ -24,14 +24,16 @@ export interface LiveJob {
   connected: boolean
   /** Seconds since epoch of the first progress event, for rate display. */
   startedProgressAt: number | null
+  /** A job that is not cancellable as a command can be, right now. */
+  cancelWindowOpen: boolean
 }
 
 const EMPTY: LiveJob = {
   lastSeq: 0, state: null, progress: null, logs: [], prompt: null, result: null,
-  connected: false, startedProgressAt: null,
+  connected: false, startedProgressAt: null, cancelWindowOpen: false,
 }
 const TERMINAL = new Set<JobState>(['succeeded', 'failed', 'cancelled'])
-const EVENT_TYPES = ['state', 'log', 'progress', 'prompt', 'result'] as const
+const EVENT_TYPES = ['state', 'log', 'progress', 'cancel_window', 'prompt', 'result'] as const
 const MAX_LOGS = 500
 
 function reduce(live: LiveJob, e: JobEvent): LiveJob {
@@ -50,6 +52,9 @@ function reduce(live: LiveJob, e: JobEvent): LiveJob {
       next.startedProgressAt ??= Date.now() / 1000
       break
     }
+    case 'cancel_window':
+      next.cancelWindowOpen = e.open
+      break
     case 'prompt':
       next.prompt = e
       break

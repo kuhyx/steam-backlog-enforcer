@@ -18,6 +18,7 @@ import os
 import signal
 from typing import TYPE_CHECKING, Any, Final
 
+from steam_backlog_enforcer._cancel_window import use_cancel_window
 from steam_backlog_enforcer._command_gate import lock_reason
 from steam_backlog_enforcer._echo import routed_echo
 from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
@@ -25,6 +26,7 @@ from steam_backlog_enforcer._progress import use_progress
 from steam_backlog_enforcer._prompter import PromptAbortedError, use_prompter
 from steam_backlog_enforcer.config import Config, State, _atomic_write
 from steam_backlog_enforcer.jobs import _spawn, _store
+from steam_backlog_enforcer.jobs._cancel_window import JobCancelWindow
 from steam_backlog_enforcer.jobs._errors import (
     JobCancelledError,
     JobError,
@@ -156,6 +158,8 @@ def _run_command(
         stack.callback(logging.getLogger().removeHandler, handler)
         _on_sigterm(cancellable=flags.cancellable)
         stack.callback(signal.signal, signal.SIGTERM, signal.SIG_IGN)
+        if flags.cancel_window:
+            stack.enter_context(use_cancel_window(JobCancelWindow(writer)))
 
         config = Config.load()
         try:

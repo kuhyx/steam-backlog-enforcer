@@ -35,6 +35,13 @@ def _open_prompt_id(job_id: str) -> str | None:
     return None if latest in answered else latest
 
 
+def _cancel_window_open(job_id: str) -> bool:
+    """Whether the job's latest ``cancel_window`` event says it is open."""
+    path = _store.job_dir(job_id)
+    windows = [e for e in read_events(path) if e.get("type") == "cancel_window"]
+    return bool(windows) and bool(windows[-1].get("open"))
+
+
 def write_answer(job_id: str, prompt_id: str, value: str) -> None:
     """Deliver the user's answer to the prompt the job is waiting on.
 
@@ -60,7 +67,11 @@ def write_answer(job_id: str, prompt_id: str, value: str) -> None:
 def cancel(job_id: str) -> None:
     """Ask a job to stop: any job waiting on a prompt, else cancellable ones.
 
-    A cancellable job gets SIGTERM, to its own process only.
+    A cancellable job gets SIGTERM, to its own process only. So does a
+    cancel-window job (``done``, ``check``, ``pick``, ``pick-manual``,
+    ``hide``), but only while its ``cancel_window`` is open (it is hiding
+    games in the Steam library); the runner turns that SIGTERM into a skipped
+    hide and the job finishes normally.
 
     Only the job's pid is signalled, never its process group: a job may
     have started Steam, and cancelling a scan must not take Steam down.
@@ -77,7 +88,9 @@ def cancel(job_id: str) -> None:
         (_store.job_dir(job_id) / CANCEL_NAME).touch()
         return
     flags = JOB_FLAGS.get(job["command"])
-    if flags is None or not flags.cancellable:
+    if flags is None or not (
+        flags.cancellable or (flags.cancel_window and _cancel_window_open(job_id))
+    ):
         msg = f"{job['command']} cannot be cancelled once started."
         raise JobError(msg, code="not_cancellable")
     if job["state"] in TERMINAL_STATES:
