@@ -108,6 +108,22 @@ class TestFrontendIsStale:
         _touch(web / "dist" / "index.html", 2000.0)
         assert _web_build.frontend_is_stale() is False
 
+    def test_icon_word_ledger_is_runtime_data_not_a_build_input(
+        self, web: Path
+    ) -> None:
+        # The server reads the ledger per page; a pick must not make the
+        # next `serve` rebuild (a unit without pnpm on PATH would crash-loop).
+        """The ledger, its temp files and corrupt copies never mark dist stale."""
+        _touch(web / "src" / "app.tsx", 1000.0)
+        _touch(web / "dist" / "index.html", 2000.0)
+        for name in (
+            "icon_words.json",
+            ".icon_words.json.ab.tmp",
+            "icon_words.json.corrupt",
+        ):
+            _touch(web / "src" / "ui" / name, 3000.0)
+        assert _web_build.frontend_is_stale() is False
+
     def test_directories_in_src_are_skipped(self, web: Path) -> None:
         # A directory's own mtime bumps whenever a file inside it is added or
         # removed, so counting it would report staleness after a build.

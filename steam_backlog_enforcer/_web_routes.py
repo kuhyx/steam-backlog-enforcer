@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Final
 from steam_backlog_enforcer import (
     _web_art,
     _web_daemon,
+    _web_icon_words,
     _web_jobs,
     _web_library,
     _web_process,
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 type Route = Callable[[Request], Reply]
 
 _ID = r"([0-9A-Za-z_-]{1,64})"
+# Icon ids are dotted (``job.state.waiting_input``); the registry re-checks them.
+_ICON = r"([a-z][a-z0-9_.-]{0,63})"
 # Matched before the table by the server: it streams instead of replying.
 EVENTS_PATH: Final = re.compile(rf"^/api/jobs/{_ID}/events$")
 
@@ -43,8 +46,9 @@ class _Entry:
 
 
 def _r(method: str, path: str, route: Route) -> _Entry:
-    """Build an entry; ``{id}`` in *path* captures one id segment."""
-    return _Entry(method, re.compile("^" + path.replace("{id}", _ID) + "$"), route)
+    """Build an entry; ``{id}`` / ``{icon}`` in *path* capture one segment."""
+    pattern = path.replace("{id}", _ID).replace("{icon}", _ICON)
+    return _Entry(method, re.compile("^" + pattern + "$"), route)
 
 
 ROUTES: Final[tuple[_Entry, ...]] = (
@@ -71,6 +75,9 @@ ROUTES: Final[tuple[_Entry, ...]] = (
     _r("POST", "/api/pending/{id}/heartbeat", _web_daemon.heartbeat_view),
     _r("POST", "/api/pending/{id}/commit", _web_daemon.commit_view),
     _r("DELETE", "/api/pending/{id}", _web_daemon.cancel_pending_view),
+    _r("GET", "/api/icon-words", _web_icon_words.icon_words_view),
+    _r("POST", "/api/icon-words/{icon}", _web_icon_words.set_icon_word_view),
+    _r("PUT", "/api/icon-words/{icon}", _web_icon_words.set_icon_word_view),
 )
 
 

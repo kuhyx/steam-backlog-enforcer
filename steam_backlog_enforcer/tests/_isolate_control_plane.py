@@ -1,9 +1,9 @@
 """Autouse isolation of the control plane and the HLTB endpoint memo.
 
 Redirects the web cover-art caches, the daemon control socket, restart
-markers, backups and web job store (all under ``/var/lib``, ``/run`` or the
-real ``~/.local/state``) into ``tmp_path``, and forgets the remembered HLTB
-search URL around every test.
+markers, backups, web job store (all under ``/var/lib``, ``/run`` or the
+real ``~/.local/state``) and the repo's icon-word ledger into
+``tmp_path``, and forgets the remembered HLTB search URL around every test.
 
 Split out of ``conftest.py`` to keep every file inside the 250-line cap;
 ``conftest`` imports the fixtures by name, which is what registers them.
@@ -18,6 +18,7 @@ import pytest
 
 from steam_backlog_enforcer._hltb_failures import reset_failures
 from steam_backlog_enforcer._hltb_search_api import forget_hltb_search_url
+from steam_backlog_enforcer._icon_ledger import LEDGER_ENV
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -38,6 +39,8 @@ def _isolate_control_plane(
     """
     state = tmp_path / "ctl_state"
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "xdg_runtime"))
+    # The icon-word ledger is a committed repo file: never write the real one.
+    monkeypatch.setenv(LEDGER_ENV, str(tmp_path / "icon_words.json"))
     with (
         patch("steam_backlog_enforcer._ctl_gap.RESTART_EXIT_FILE", state / "exit.json"),
         patch(

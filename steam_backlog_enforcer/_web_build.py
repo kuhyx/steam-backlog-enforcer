@@ -13,6 +13,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from steam_backlog_enforcer._icon_ledger import is_ledger_file
 from steam_backlog_enforcer.game_install import _echo
 
 WEB_DIR = (Path(__file__).resolve().parent.parent / "web").resolve()
@@ -61,7 +62,13 @@ def frontend_is_stale() -> bool:
     sources = list(_SOURCE_FILES)
     for source_dir in _SOURCE_DIRS:
         if source_dir.is_dir():
-            sources.extend(path for path in source_dir.rglob("*") if path.is_file())
+            sources.extend(
+                path
+                for path in source_dir.rglob("*")
+                # The icon-word ledger lives in src/ but the server reads it per
+                # page; counting it would rebuild on every pick.
+                if path.is_file() and not is_ledger_file(path)
+            )
     return any(_mtime(path) > built for path in sources)
 
 

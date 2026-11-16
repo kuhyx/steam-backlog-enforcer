@@ -5,7 +5,7 @@ DNS-rebinding guard, :mod:`._web_auth`), fails closed on stale code
 (:mod:`._serve_stale`), checks ``Origin`` and the per-launch token on
 anything that is not a GET (and on the SSE stream), then hands off to a
 route from :mod:`._web_routes`, the SSE streamer (:mod:`._web_sse`) or the
-static bundle (``web/dist``, with the token injected into every ``.html`` page).
+static bundle (``web/dist``; ``.html`` pages get the token and icon words).
 
 Binds to loopback only; never serves secrets and never sends CORS headers.
 In development the Vite dev server proxies ``/api`` here; in production the
@@ -21,7 +21,7 @@ import mimetypes
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from steam_backlog_enforcer import _web_auth, _web_process
+from steam_backlog_enforcer import _web_auth, _web_icon_words, _web_process
 from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer._serve_stale import outdated_source
 from steam_backlog_enforcer._web_errors import ApiError, not_found
@@ -87,6 +87,10 @@ class _Handler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         """Handle a DELETE."""
         self._handle("DELETE")
+
+    def do_PUT(self) -> None:
+        """Handle a PUT (``/api/icon-words/{icon}`` takes PUT or POST)."""
+        self._handle("PUT")
 
     def _handle(self, method: str) -> None:
         """Run the checks, then dispatch; every refusal is a JSON error."""
@@ -184,9 +188,9 @@ class _Handler(BaseHTTPRequestHandler):
         body = candidate.read_bytes()
         headers: dict[str, str] = {}
         if candidate.suffix == ".html":
-            # Carries this launch's token: never cache it.
             body = _web_auth.inject_token(body, self.server.token)
-            headers["Cache-Control"] = "no-store"
+            body = _web_icon_words.inject_icon_words(body)
+            headers["Cache-Control"] = "no-store"  # carries token + icon words
         send_bytes(self, status, body, ctype, headers)
 
 
