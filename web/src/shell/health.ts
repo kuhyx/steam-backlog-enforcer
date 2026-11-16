@@ -10,14 +10,14 @@ import { errorNotice, glyph } from '../ui/build'
 import { ServerRestart } from './serverRestart'
 
 const DAEMON_TONE = { running: 'success', restarting: 'warning', unreachable: 'danger' } as const
-const STATE_ICON: Record<string, IconId> = { success: 'health.ok', warning: 'health.warn', danger: 'health.bad', neutral: 'health.unknown' }
+const STATE_ICON = { success: 'health.ok', warning: 'health.warn', danger: 'health.bad', neutral: 'health.unknown' } as const satisfies Record<string, IconId>
 
 /** A health pill: the subject and state icons painted, `text` (+ `extra`) spoken. `data-state` holds the words for tests. */
-function badge(tone: string, subject: IconId, text: string, extra = ''): HTMLSpanElement {
+function badge(tone: keyof typeof STATE_ICON, subject: IconId, text: string, extra = ''): HTMLSpanElement {
   return h(
     'span',
     { class: `pill pill-${tone}`, 'data-state': text },
-    h('span', { class: 'has-word', 'aria-hidden': 'true' }, iconInline(subject), iconInline(STATE_ICON[tone] ?? 'health.unknown')),
+    h('span', { class: 'has-word', 'aria-hidden': 'true' }, iconInline(subject), iconInline(STATE_ICON[tone])),
     h('span', { class: 'sr-only' }, text + extra),
   )
 }
