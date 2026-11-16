@@ -234,3 +234,6 @@ export const TOKEN_META = 'sbe-token'
 export const TOKEN_HEADER = 'X-SBE-Token'
 
 export type { BudgetSnapshot, WebDataset }
+
+// Icon words (DOCS-web-control-api.md, "Icon words"): types in iconWordsContract.ts.
+export * from './iconWordsContract'

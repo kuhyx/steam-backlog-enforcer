@@ -4,7 +4,7 @@
 
 import type { FastInstallRun, StatusPayload } from '../api/contract'
 import { q } from '../api/queries'
-import { COMMAND_ICON, commandLabel } from '../commands/catalog'
+import { commandIcon, commandLabel } from '../commands/catalog'
 import '../commands/commandButton'
 import { fmtDuration, fmtRemaining } from '../format'
 import { progressBar, stateBadge, type BarTone } from '../jobs/progress'
@@ -190,7 +190,7 @@ export class RecentJobsElement extends LiveElement {
                 h(
                   'a',
                   { href: jobHref(j.id), class: 'row-link' },
-                  glyph(COMMAND_ICON[j.command], commandLabel(j.command)),
+                  glyph(commandIcon(j.command), commandLabel(j.command)),
                   // The job's summary is a server sentence: spoken here, shown in the job view.
                   h('span', { class: 'sr-only' }, j.summary ?? j.progress?.label ?? ''),
                   h('span', { class: 'grow' }),

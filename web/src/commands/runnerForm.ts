@@ -5,11 +5,12 @@
 import { ApiFailure, startJob } from '../api/client'
 import type { CommandName, CommandSpec } from '../api/contract'
 import { q } from '../api/queries'
+import { iconMark, iconWord } from '../icons/render'
 import { Action } from '../lib/action'
 import { h } from '../lib/dom'
 import type { Preset } from '../lib/runner'
 import { commandLine, errorNotice, notice, pill } from '../ui/build'
-import { COMMAND_ICON, fillPhrase, phraseMatches } from './catalog'
+import { commandIcon, fillPhrase, phraseMatches } from './catalog'
 import { enforcePreset } from './enforcePreset'
 import { gameLookup } from './gameLookup'
 import { initialValues, paramError, toParams, type ParamValues } from './params'
@@ -98,7 +99,7 @@ export class Runner {
       h(
         'div',
         { class: 'tags' },
-        h('span', { class: 'runner-glyph', 'aria-hidden': 'true' }, COMMAND_ICON[spec.name]),
+        h('span', { class: 'runner-mark' }, iconMark(commandIcon(spec.name), 'runner-glyph'), iconWord(commandIcon(spec.name))),
         spec.privileged ? pill('neutral', 'Runs as root via the daemon', '🔑') : null,
         spec.mutating ? pill('neutral', 'Changes state', '✏️') : pill('neutral', 'Read-only', '👁️'),
         spec.cancellable ? pill('neutral', 'Cancellable', '⏹️') : null,

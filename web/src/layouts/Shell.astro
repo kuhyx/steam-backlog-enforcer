@@ -9,7 +9,9 @@ import '../styles/app.css'
 import '../styles/controls.css'
 import '../styles/screens.css'
 import '../styles/library.css'
+import '../styles/icons.css'
 import DevToken from '../components/DevToken.astro'
+import { iconEntry } from '../icons/registry'
 import { BUILD_STAMP } from '../lib/buildStamp'
 import { NAV } from '../shell/nav'
 
@@ -52,7 +54,7 @@ const href = (to: string) => (to === '/' ? '/' : `${to}/`)
                     aria-label={n.label}
                     aria-keyshortcuts={`Alt+${n.key}`}
                   >
-                    <span class="nav-icon" aria-hidden="true">{n.icon}</span>
+                    <span class="nav-icon" aria-hidden="true" data-icon={n.icon}>{iconEntry(n.icon).glyph}</span>
                     <kbd aria-hidden="true">{n.key}</kbd>
                   </a>
                 </li>
@@ -64,7 +66,7 @@ const href = (to: string) => (to === '/' ? '/' : `${to}/`)
       <div class="main-col">
         <header class="topbar">
           <button type="button" class="btn btn-ghost palette-btn" data-open-palette aria-keyshortcuts="Control+K" aria-label="Commands">
-            <span aria-hidden="true">🔍</span> <kbd aria-hidden="true">⌃K</kbd>
+            <span aria-hidden="true" data-icon="palette.open">{iconEntry('palette.open').glyph}</span> <kbd aria-hidden="true">⌃K</kbd>
           </button>
           <job-indicator></job-indicator>
           <span class="grow"></span>

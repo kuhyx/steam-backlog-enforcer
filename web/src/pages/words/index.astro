@@ -1,0 +1,16 @@
+---
+// The icon-word picker: the one page that carries text on purpose (the user
+// asked for it; descriptions and suggestions are for reading). Reached from
+// the command palette. All of it is rendered by <icon-words-picker>.
+import PageHead from '../../components/PageHead.astro'
+import Shell from '../../layouts/Shell.astro'
+---
+
+<Shell title="Icon words">
+  <PageHead title="Icon words" sub="Pick the word drawn next to each icon, or skip it." />
+  <icon-words-picker></icon-words-picker>
+</Shell>
+
+<script>
+  import '../../icons/picker'
+</script>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NAV } from '../shell/nav'
+import { NAV, PALETTE_PAGES } from '../shell/nav'
 import { runner, type RunRequest } from '../lib/runner'
 import { must, setValue } from '../test/events'
 import { makeSpec } from '../test/fixtures'
@@ -12,7 +12,8 @@ const SPECS = [
   makeSpec('status', { kind: 'view', description: 'Show status.' }),
   makeSpec('pick', { description: 'Pick next.', locked_reason: 'Locked by a pick' }),
 ]
-const TOTAL = SPECS.length + NAV.length
+const PAGES = NAV.length + PALETTE_PAGES.length
+const TOTAL = SPECS.length + PAGES
 
 const assign = vi.fn()
 const runs: RunRequest[] = []
@@ -111,7 +112,7 @@ describe('CommandPaletteElement', () => {
       expect(document.body).toHaveTextContent('catalog broken')
     })
     expect(document.body).not.toHaveTextContent('Loading commands')
-    expect(options()).toHaveLength(NAV.length)
+    expect(options()).toHaveLength(PAGES)
   })
 
   it('filters by text and says when nothing matches', async () => {

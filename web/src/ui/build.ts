@@ -3,28 +3,37 @@
 // for content a custom element renders from live data.
 
 import { explain } from '../api/errors'
+import { isIconId, type IconId } from '../icons/registry'
+import { iconFor, iconMark, iconWord } from '../icons/render'
 import { h, type Child } from '../lib/dom'
 
 export type Tone = 'info' | 'success' | 'warning' | 'danger'
 
-const TONE_ICON: Record<Tone, string> = {
-  info: 'ℹ️',
-  success: '✅',
-  warning: '⚠️',
-  danger: '⛔',
-}
+const TONE_ICON = {
+  info: 'notice.info',
+  success: 'notice.success',
+  warning: 'notice.warning',
+  danger: 'notice.danger',
+} as const satisfies Record<Tone, IconId>
 
 export function notice(tone: Tone, title: string | null, ...children: Child[]): HTMLDivElement {
   const el = h(
     'div',
     { class: `notice notice-${tone}`, role: tone === 'danger' ? 'alert' : 'status' },
-    h('span', { class: 'notice-icon', 'aria-hidden': 'true' }, TONE_ICON[tone]),
+    noticeMark(TONE_ICON[tone]),
     title ? h('strong', { class: 'notice-title' }, title) : null,
   )
   if (children.length) {
     el.append(h('div', { class: 'notice-text' }, ...children))
   }
   return el
+}
+
+/** The tone icon; with a word, icon and word share one row (the notice is a column). */
+function noticeMark(id: IconId): HTMLElement {
+  const icon = iconMark(id, 'notice-icon')
+  const word = iconWord(id)
+  return word ? h('span', { class: 'notice-mark has-word' }, icon, word) : icon
 }
 
 export function errorNotice(error: unknown, ...children: Child[]): HTMLDivElement {
@@ -78,9 +87,27 @@ export interface CardOptions {
   icon?: string
 }
 
-/** A painted glyph whose meaning is spoken only (textgate: no visible words). */
-export function glyph(icon: string, spoken: string, className = 'glyph'): HTMLSpanElement {
-  return h('span', { class: className }, h('span', { 'aria-hidden': 'true' }, icon), h('span', { class: 'sr-only' }, spoken))
+/**
+ * A painted glyph whose meaning is spoken (.sr-only). With a registered id the
+ * glyph comes from the registry (the user's alternative applied) and his word,
+ * if any, is drawn right of it; `spoken` then defaults to the registry name.
+ * A raw glyph (`glyph('🧭', 'navigate')`) paints just that, as before.
+ */
+export function glyph(id: IconId, spoken?: string, className?: string): HTMLSpanElement
+export function glyph(icon: string, spoken: string, className?: string): HTMLSpanElement
+export function glyph(icon: string, spoken?: string, className = 'glyph'): HTMLSpanElement {
+  if (!isIconId(icon)) {
+    return h('span', { class: className }, h('span', { 'aria-hidden': 'true' }, icon), h('span', { class: 'sr-only' }, spoken))
+  }
+  const { glyph: painted, spoken: name } = iconFor(icon)
+  const word = iconWord(icon)
+  return h(
+    'span',
+    { class: word ? `${className} has-word` : className },
+    h('span', { 'aria-hidden': 'true', 'data-icon': icon }, painted),
+    word,
+    h('span', { class: 'sr-only' }, spoken ?? name),
+  )
 }
 
 /** A card; its title is spoken only, `icon` (if any) is painted in its place. */

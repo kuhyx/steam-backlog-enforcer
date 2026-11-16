@@ -3,7 +3,7 @@
 
 import type { Job } from '../api/jobContract'
 import { isActive, q } from '../api/queries'
-import { COMMAND_ICON, commandLabel } from '../commands/catalog'
+import { commandIcon, commandLabel } from '../commands/catalog'
 import { hub } from '../jobs/hub'
 import { progressBar } from '../jobs/progress'
 import { define, h } from '../lib/dom'
@@ -29,7 +29,7 @@ export function jobChip(job: Job): HTMLAnchorElement {
     h(
       'span',
       { class: 'jobchip-label' },
-      glyph(COMMAND_ICON[job.command], label),
+      glyph(commandIcon(job.command), label),
       h('span', { class: 'jobchip-sub' }, waiting ? glyph('✋', 'needs input') : p?.total ? `${p.step}/${p.total}` : '…'),
     ),
     progressBar(fraction, label, waiting ? 'warning' : 'accent', true),

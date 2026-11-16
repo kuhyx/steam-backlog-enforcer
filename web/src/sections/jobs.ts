@@ -6,7 +6,7 @@ import { ApiFailure } from '../api/client'
 import { explain } from '../api/errors'
 import type { Job } from '../api/jobContract'
 import { q } from '../api/queries'
-import { COMMAND_ICON, commandLabel } from '../commands/catalog'
+import { commandIcon, commandLabel } from '../commands/catalog'
 import '../jobs/jobProgress'
 import { stateBadge } from '../jobs/progress'
 import { define, h, hx } from '../lib/dom'
@@ -29,7 +29,7 @@ function params(j: Job): string {
 
 /** The command's glyph painted, its name spoken. */
 function commandGlyph(command: Job['command']): HTMLSpanElement {
-  return glyph(COMMAND_ICON[command], commandLabel(command), 'job-cmd')
+  return glyph(commandIcon(command), commandLabel(command), 'job-cmd')
 }
 
 /** One row, plus its duration cell so ticks can refresh just that. */

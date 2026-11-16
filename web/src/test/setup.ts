@@ -1,6 +1,8 @@
 import { configure } from '@testing-library/dom'
 import * as matchers from '@testing-library/jest-dom/matchers'
 import { afterEach, expect, vi } from 'vitest'
+import { ICON_WORDS_SCRIPT } from '../api/iconWordsContract'
+import { resetLedger } from '../icons/ledger'
 import { resetAll } from '../lib/query'
 
 // Registered by hand: jest-dom 7 still augments vitest's old Assertion<T>
@@ -26,8 +28,12 @@ Element.prototype.scrollIntoView = () => undefined
 window.scrollTo = () => undefined
 
 // Queries are module-level singletons: no test may see another's cache.
+// The icon-word ledger and its hide setting are page-wide state too.
 afterEach(() => {
   document.body.replaceChildren()
+  document.getElementById(ICON_WORDS_SCRIPT)?.remove()
+  resetLedger()
+  localStorage.clear()
   resetAll()
   vi.useRealTimers()
   vi.unstubAllGlobals()

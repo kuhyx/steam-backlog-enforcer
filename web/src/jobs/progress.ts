@@ -1,16 +1,18 @@
 // Job state pill and progress bar (was jobs/ProgressBar.tsx).
 
 import type { JobState } from '../api/jobContract'
+import type { IconId } from '../icons/registry'
+import { iconMark, iconWord } from '../icons/render'
 import { h } from '../lib/dom'
 
-const STATE_ICON: Record<JobState, string> = {
-  queued: '⏸️',
-  running: '▶️',
-  waiting_input: '⚠️',
-  succeeded: '✅',
-  failed: '⛔',
-  cancelled: '🚫',
-}
+const STATE_ICON = {
+  queued: 'job.state.queued',
+  running: 'job.state.running',
+  waiting_input: 'job.state.waiting_input',
+  succeeded: 'job.state.succeeded',
+  failed: 'job.state.failed',
+  cancelled: 'job.state.cancelled',
+} as const satisfies Record<JobState, IconId>
 
 const STATE_TONE: Record<JobState, string> = {
   queued: 'neutral',
@@ -22,7 +24,8 @@ const STATE_TONE: Record<JobState, string> = {
 }
 
 export function stateBadge(state: JobState): HTMLSpanElement {
-  return h('span', { class: `pill pill-${STATE_TONE[state]}`, 'aria-label': state }, h('span', { class: 'pill-icon', 'aria-hidden': 'true' }, STATE_ICON[state]))
+  const id = STATE_ICON[state]
+  return h('span', { class: `pill pill-${STATE_TONE[state]}`, 'aria-label': state }, iconMark(id, 'pill-icon'), iconWord(id))
 }
 
 export type BarTone = 'accent' | 'success' | 'danger' | 'warning'

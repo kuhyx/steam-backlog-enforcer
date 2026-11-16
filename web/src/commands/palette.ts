@@ -7,17 +7,17 @@ import { q } from '../api/queries'
 import { define, h } from '../lib/dom'
 import { uid } from '../lib/ids'
 import { pageHref, runner } from '../lib/runner'
-import { NAV } from '../shell/nav'
+import { NAV, PALETTE_PAGES } from '../shell/nav'
 import { empty, errorNotice, glyph, loading, pill } from '../ui/build'
 import { Modal } from '../ui/dialog'
-import { COMMAND_HOME, COMMAND_ICON, commandLabel } from './catalog'
+import { COMMAND_HOME, commandIcon, commandLabel } from './catalog'
 
 interface Entry {
   key: string
   title: string
   detail: string
   hint: string
-  /** Painted in place of the title (textgate). */
+  /** A registered icon id (painted with the user's word) or a raw glyph. */
   icon: string
   /** Painted in place of the hint: ▶️ run, ↗️ open, 🧭 navigate. */
   hintIcon: string
@@ -117,7 +117,7 @@ export class CommandPaletteElement extends HTMLElement {
         title: commandLabel(c.name),
         detail: c.description,
         hint: c.kind === 'job' ? (c.friction ? 'run · confirm' : 'run') : `open ${COMMAND_HOME[c.name]}`,
-        icon: COMMAND_ICON[c.name],
+        icon: commandIcon(c.name),
         hintIcon: c.kind === 'job' ? (c.friction ? '▶️⌨️' : '▶️') : '↗️',
         locked: c.locked_reason,
         act: () => {
@@ -128,7 +128,7 @@ export class CommandPaletteElement extends HTMLElement {
           }
         },
       })),
-      ...NAV.map((n) => ({
+      ...[...NAV, ...PALETTE_PAGES].map((n) => ({
         key: `nav:${n.to}`,
         title: `Go to ${n.label}`,
         detail: n.blurb,

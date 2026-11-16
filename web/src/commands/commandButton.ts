@@ -6,10 +6,11 @@
 
 import type { CommandName } from '../api/contract'
 import { q } from '../api/queries'
+import { iconMark, iconWord } from '../icons/render'
 import { define, h, jsonAttr } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { pageHref, runner, type Preset } from '../lib/runner'
-import { COMMAND_HOME, COMMAND_ICON, commandLabel, findCommand } from './catalog'
+import { COMMAND_HOME, commandIcon, commandLabel, findCommand } from './catalog'
 
 export interface ButtonProps {
   name: CommandName
@@ -35,7 +36,7 @@ export function commandButton({ name, preset, label, tone = 'ghost' }: ButtonPro
   const locked = spec?.locked_reason ?? null
   // Textgate: the glyph is painted, the label is spoken only.
   const spoken = label ?? (spec?.kind === 'job' ? `Run ${name}` : `Open ${commandLabel(name)}`)
-  const glyph = h('span', { class: 'cmd-icon', 'aria-hidden': 'true' }, COMMAND_ICON[name])
+  const glyph = [iconMark(commandIcon(name), 'cmd-icon'), iconWord(commandIcon(name))]
   if (spec && spec.kind !== 'job') {
     return h('a', { href: pageHref(COMMAND_HOME[name]), class: `btn btn-${tone}`, 'aria-label': spoken }, glyph)
   }

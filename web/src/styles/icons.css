@@ -1,0 +1,41 @@
+/* Icon words (icons/render.ts) and the /words picker. Tokens only. */
+
+/* The word sits RIGHT of its icon, vertically centred on it, never under. */
+.has-word { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-1); }
+.icon-word { white-space: nowrap; line-height: 1.2; font-size: var(--text-body); }
+.pill .icon-word { font-size: var(--text-caption); }
+.pill.has-word, .pill:has(.icon-word) { gap: var(--space-1); }
+
+/* Sidebar: icon + word on the left, the Alt digit pushed right. */
+.nav-link.has-word { display: flex; justify-content: flex-start; gap: var(--space-2); }
+.nav-link.has-word kbd { margin-left: auto; }
+.notice-mark { align-self: flex-start; }
+.runner-mark { display: inline-flex; align-items: center; gap: var(--space-1); }
+
+/* ── /words picker ── */
+icon-words-picker { display: flex; flex-direction: column; gap: var(--space-4); }
+.picker-head { display: flex; align-items: baseline; gap: var(--space-3); font-size: var(--text-title); }
+.picker-id { font-size: var(--text-body); color: var(--text-muted); }
+.picker-saved { color: var(--accent); }
+.picker-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-5); align-items: start; }
+.picker-stage { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); padding: var(--space-5); background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.picker-big { font-size: 9rem; line-height: 1; }
+.picker-context { display: flex; justify-content: center; min-width: 12rem; max-width: 100%; overflow-x: auto; padding: var(--space-3); background: var(--bg); border-radius: var(--radius-sm); }
+.picker-context .nav-link { min-width: 10rem; }
+.picker-desc { font-size: var(--text-subtitle); max-width: var(--measure); }
+.picker-words, .picker-glyphs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.picker-choice { font-size: var(--text-subtitle); justify-content: flex-start; }
+.picker-choice kbd { margin-right: var(--space-2); }
+.picker-choice[aria-pressed='true'] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.picker-own { display: flex; align-items: flex-end; gap: var(--space-2); }
+.picker-own-label { display: flex; flex-direction: column; gap: var(--space-1); flex: 1 1 auto; }
+.picker-own .input { font-size: var(--text-subtitle); }
+.picker-own .input[aria-invalid='true'] { border-color: var(--danger); box-shadow: inset 0 0 0 2px var(--danger); }
+.picker-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.picker-toggle { display: flex; align-items: center; gap: var(--space-2); }
+.picker-done { align-items: center; padding: var(--space-6); }
+.picker-summary { font-size: var(--text-display); }
+
+@media (max-width: 800px) {
+  .picker-body { grid-template-columns: minmax(0, 1fr); }
+}

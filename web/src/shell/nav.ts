@@ -1,22 +1,36 @@
 import type { SectionPath } from '../commands/catalog'
+import type { IconId } from '../icons/registry'
 
 export interface NavItem {
   to: SectionPath | '/jobs'
-  /** Spoken only (aria-label); the sidebar paints `icon`. */
+  /** Spoken (aria-label); the sidebar paints `icon` and the user's word for it. */
   label: string
   blurb: string
-  icon: string
+  icon: IconId
   /** Alt+<key> accelerator, shown in the sidebar as the bare digit. */
   key: string
 }
 
 export const NAV: NavItem[] = [
-  { to: '/', label: 'Dashboard', blurb: 'Status, budget and quick actions', icon: '🏠', key: '1' },
-  { to: '/backlog', label: 'Backlog', blurb: 'Planner, stats and the full game list', icon: '📚', key: '2' },
-  { to: '/picks', label: 'Picks', blurb: 'Check, done, pick, scan, manual picks', icon: '🎯', key: '3' },
-  { to: '/gaming', label: 'Gaming', blurb: 'Daily budget, reset, block, unblock', icon: '🎮', key: '4' },
-  { to: '/library', label: 'Library', blurb: 'All your games, installed, install, uninstall, hide', icon: '🗂️', key: '5' },
-  { to: '/store', label: 'Store', blurb: 'Unblock, buy DLC, exceptions', icon: '🛒', key: '6' },
-  { to: '/jobs', label: 'Jobs', blurb: 'Running and past jobs', icon: '⚙️', key: '7' },
-  { to: '/system', label: 'System', blurb: 'Daemon, server, backups, reset, setup', icon: '🖥️', key: '8' },
+  { to: '/', label: 'Dashboard', blurb: 'Status, budget and quick actions', icon: 'nav.dashboard', key: '1' },
+  { to: '/backlog', label: 'Backlog', blurb: 'Planner, stats and the full game list', icon: 'nav.backlog', key: '2' },
+  { to: '/picks', label: 'Picks', blurb: 'Check, done, pick, scan, manual picks', icon: 'nav.picks', key: '3' },
+  { to: '/gaming', label: 'Gaming', blurb: 'Daily budget, reset, block, unblock', icon: 'nav.gaming', key: '4' },
+  { to: '/library', label: 'Library', blurb: 'All your games, installed, install, uninstall, hide', icon: 'nav.library', key: '5' },
+  { to: '/store', label: 'Store', blurb: 'Unblock, buy DLC, exceptions', icon: 'nav.store', key: '6' },
+  { to: '/jobs', label: 'Jobs', blurb: 'Running and past jobs', icon: 'nav.jobs', key: '7' },
+  { to: '/system', label: 'System', blurb: 'Daemon, server, backups, reset, setup', icon: 'nav.system', key: '8' },
+]
+
+/** Pages reached from the palette only: no sidebar slot, no Alt key. */
+export interface PalettePage {
+  to: string
+  label: string
+  blurb: string
+  /** A raw glyph: these pages are not in the icon registry yet. */
+  icon: string
+}
+
+export const PALETTE_PAGES: PalettePage[] = [
+  { to: '/words', label: 'Icon words', blurb: 'Pick the word shown next to each icon', icon: '🏷️' },
 ]

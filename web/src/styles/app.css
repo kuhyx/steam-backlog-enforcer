@@ -45,8 +45,8 @@ kbd {
 /* ── Shell ── */
 .shell {
   display: grid;
-  /* Icon rail: nav paints glyph + digit only (textgate). */
-  grid-template-columns: 6rem minmax(0, 1fr);
+  /* Icon rail: glyph + digit; it widens to fit the user's icon words (icons.css). */
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
   min-height: 100dvh;
 }
 .sidebar {

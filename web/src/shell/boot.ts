@@ -4,6 +4,7 @@
 
 import { q, refreshAfterJob } from '../api/queries'
 import { go } from '../commands/palette'
+import { decorateChrome } from '../icons/render'
 import { hub } from '../jobs/hub'
 import { runner } from '../lib/runner'
 import { NAV } from './nav'
@@ -67,6 +68,8 @@ export function boot(): void {
     runner.openPalette()
   })
   watchSetup(window.location.pathname)
+  // The sidebar and palette button are static HTML: give them the user's words.
+  decorateChrome()
   const build = document.querySelector<HTMLMetaElement>(`meta[name="${BUILD_META}"]`)?.content
   if (build) setInterval(() => void checkBuild(build), BUILD_POLL_MS)
 }

@@ -5,11 +5,12 @@
 
 import { api } from '../api/client'
 import { q } from '../api/queries'
+import { iconMark, iconWord } from '../icons/render'
 import { define, h, hx } from '../lib/dom'
 import { runner, jobHref, type RunRequest } from '../lib/runner'
 import { errorNotice, loading, notice } from '../ui/build'
 import { Modal } from '../ui/dialog'
-import { COMMAND_ICON, commandLabel, findCommand } from './catalog'
+import { commandIcon, commandLabel, findCommand } from './catalog'
 import type { PendingCountdown } from './pendingCountdown'
 import { Runner, type NextPhase } from './runnerForm'
 
@@ -96,7 +97,7 @@ export class RunnerDialogElement extends HTMLElement {
     if (error) this.modal.render(errorNotice(error))
     else if (commands) {
       // ⛔ + the command's glyph; the sentence is spoken only.
-      const el = notice('danger', null, h('span', { 'aria-hidden': 'true' }, COMMAND_ICON[req.name]))
+      const el = notice('danger', null, h('span', { class: 'has-word' }, iconMark(commandIcon(req.name), ''), iconWord(commandIcon(req.name))))
       el.setAttribute('aria-label', `Not in the server catalog: the server does not offer "${req.name}".`)
       this.modal.render(el)
     }
