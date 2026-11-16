@@ -18,11 +18,11 @@ export class SetupCardElement extends LiveElement {
       card(
         'Setup',
         facts([
-          [glyph('⚙️', 'Configured'), data ? (data.configured ? glyph('✅', 'Yes') : glyph('❌', 'No')) : '…'],
-          [glyph('🔑', 'Steam API key'), data ? (data.has_api_key ? glyph('🔒', 'Stored (never shown)') : glyph('❌', 'Missing')) : '…'],
-          [glyph('🆔', 'Steam ID'), h('span', { class: 'mono' }, data?.steam_id ?? '—')],
+          [glyph('syssetup.configured', 'Configured'), data ? (data.configured ? glyph('state.yes', 'Yes') : glyph('state.no', 'No')) : '…'],
+          [glyph('setup.api-key', 'Steam API key'), data ? (data.has_api_key ? glyph('setup.key-stored','Stored (never shown)') : glyph('state.no', 'Missing')) : '…'],
+          [glyph('setup.steam-id', 'Steam ID'), h('span', { class: 'mono' }, data?.steam_id ?? '—')],
         ]),
-        { aside: link(pageHref('/setup'), glyph('✏️', 'Open setup')), icon: '🔧' },
+        { aside: link(pageHref('/setup'), glyph('syssetup.edit', 'Open setup')), icon: 'cmd.setup' },
       ),
     )
   }

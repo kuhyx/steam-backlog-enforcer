@@ -8,6 +8,8 @@ import { explain } from '../../api/errors'
 import type { StateBackup } from '../../api/contract'
 import type { Job } from '../../api/jobContract'
 import { q } from '../../api/queries'
+import type { IconId } from '../../icons/registry'
+import { iconInline } from '../../icons/render'
 import { phraseMatches } from '../../commands/catalog'
 import '../../commands/commandButton'
 import { PhraseField } from '../../commands/phraseField'
@@ -24,8 +26,9 @@ import { bytes, dateTime } from '../../ui/format'
 export const restorePhrase = (id: string): string => `restore backup ${id}`
 
 /** Why a backup was taken, as a glyph (reason words spoken only). */
-const REASON_ICON: Record<string, string> = { 'before reset': '♻️', nightly: '🌙' }
-const reasonGlyph = (reason: string): HTMLSpanElement => glyph(REASON_ICON[reason] ?? '🗄️', reason)
+const REASON_ICON: Readonly<Partial<Record<string, IconId>>> = { 'before reset': 'backup.reason.reset', nightly: 'backup.reason.nightly' }
+const reasonIcon = (reason: string): IconId => REASON_ICON[reason] ?? 'backup.reason.other'
+const reasonGlyph = (reason: string): HTMLSpanElement => glyph(reasonIcon(reason), reason)
 
 /** One restore: phrase form, then the job it started. */
 export class RestoreDialog {
@@ -66,8 +69,8 @@ export class RestoreDialog {
         'p',
         { class: 'm0 row' },
         h('span', { class: 'sr-only' }, `Replaces the current state with the backup from ${dateTime(backup.created_at)} (${backup.reason}).`),
-        h('span', { 'aria-hidden': 'true', class: 'mono' }, `🗄️ ${backup.id} · ${dateTime(backup.created_at)}`),
-        h('span', { 'aria-hidden': 'true' }, REASON_ICON[backup.reason] ?? '🗄️'),
+        h('span', { 'aria-hidden': 'true', class: 'mono' }, iconInline('backup.item'), ` ${backup.id} · ${dateTime(backup.created_at)}`),
+        h('span', { 'aria-hidden': 'true' }, iconInline(reasonIcon(backup.reason))),
       ),
       this.field.el,
       this.failure,
@@ -75,7 +78,7 @@ export class RestoreDialog {
         'div',
         { class: 'actions' },
         this.submit,
-        h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, glyph('✖️', 'Cancel')),
+        h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, glyph('action.cancel', 'Cancel')),
       ),
     )
     this.modal.render(form)
@@ -88,7 +91,7 @@ export class RestoreDialog {
 
   private sync(): void {
     this.submit.disabled = !this.matches() || this.restore.pending
-    this.submit.replaceChildren(this.restore.pending ? glyph('⏳', 'Restoring…') : glyph('⏮️', 'Restore'))
+    this.submit.replaceChildren(this.restore.pending ? glyph('state.wait', 'Restoring…') : glyph('backup.restore', 'Restore'))
     this.failure.replaceChildren(...(this.restore.error ? [errorNotice(this.restore.error)] : []))
   }
 
@@ -101,7 +104,7 @@ export class RestoreDialog {
         'div',
         { class: 'stack' },
         hx('job-progress', { 'job-id': out.value.id }),
-        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, glyph('✖️', 'Close'))),
+        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn btn-ghost', onclick: onClose }, glyph('action.cancel', 'Close'))),
       ),
     )
     this.modal.focusFirst()
@@ -114,7 +117,7 @@ export class BackupsCardElement extends LiveElement {
   private readonly root = card(
     'State backups',
     [h('p', { class: 'sr-only' }, 'Reset takes a timestamped backup first, so it can be undone here.'), this.status, this.list],
-    { aside: hx('command-button', { name: 'reset', label: 'Reset all state…' }), icon: '🗄️' },
+    { aside: hx('command-button', { name: 'reset', label: 'Reset all state…' }), icon: 'backup.item' },
   )
   private dialog: RestoreDialog | null = null
   private shownKey = ''
@@ -161,7 +164,7 @@ export class BackupsCardElement extends LiveElement {
                 this.open(b)
               },
             },
-            glyph('⏮️', 'Restore…'),
+            glyph('backup.restore', 'Restore…'),
           ),
         ),
       ),

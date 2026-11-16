@@ -5,6 +5,8 @@
 // focus from a button or yanks the journal while it is being read.
 
 import { q } from '../../api/queries'
+import type { IconId } from '../../icons/registry'
+import { iconInline } from '../../icons/render'
 import { define, h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
 import { runner } from '../../lib/runner'
@@ -25,7 +27,11 @@ export function restartWaitMs(availableAt: string | null, now: number = Date.now
 }
 
 /** Daemon state: glyph painted, the state word spoken. */
-const STATE_ICON: Record<DaemonState, string> = { running: '🟢', restarting: '🔄', unreachable: '🔴' }
+const STATE_ICON = {
+  running: 'daemon.running',
+  restarting: 'daemon.restarting',
+  unreachable: 'daemon.unreachable',
+} as const satisfies Record<DaemonState, IconId>
 
 function unreachableNotice(): HTMLDivElement {
   // Textgate: ⛔ + the command to run are painted; the explanation is spoken only.
@@ -66,16 +72,16 @@ export class DaemonCardElement extends LiveElement {
         runner.run('enforce', { demo: 1 })
       },
     },
-    glyph('🧪', 'Demo run (enforce --demo)…'),
+    glyph('daemon.demo_run', 'Demo run (enforce --demo)…'),
   )
   private readonly parts = [
     this.alert,
     this.factsSlot,
     h('div', { class: 'actions' }, this.restart, this.demo),
-    h('h3', { class: 'h3' }, glyph('📜', 'Journal')),
+    h('h3', { class: 'h3' }, glyph('daemon.journal', 'Journal')),
     this.journal,
   ]
-  private readonly root = card('Enforcer daemon', [this.status, this.body], { icon: '🛡️' })
+  private readonly root = card('Enforcer daemon', [this.status, this.body], { icon: 'daemon.heading' })
   private shown = false
   private canRestart = false
   private unreachable = false
@@ -104,19 +110,19 @@ export class DaemonCardElement extends LiveElement {
     }
     this.factsSlot.replaceChildren(
       facts([
-        [glyph('📡', 'State'), h('span', { 'data-state': data.state }, glyph(STATE_ICON[data.state], data.state))],
-        [glyph('#️⃣', 'PID'), data.pid ?? '—'],
-        [glyph('⏱️', 'Up since'), data.started_at ? since(data.started_at) : '—'],
+        [glyph('daemon.state', 'State'), h('span', { 'data-state': data.state }, glyph(STATE_ICON[data.state], data.state))],
+        [glyph('daemon.pid', 'PID'), data.pid ?? '—'],
+        [glyph('daemon.up_since', 'Up since'), data.started_at ? since(data.started_at) : '—'],
       ]),
     )
     this.canRestart = waitMs === 0 && data.state === 'running'
     this.restart.setAttribute('aria-disabled', String(!this.canRestart))
-    // Rate limited: ⏳ + the clock counting down; free: 🔄. Words spoken only.
+    // Rate limited: the busy icon + the clock counting down; free: the restart icon. Words spoken only.
     const wait = clock(waitMs / 1000)
     this.restart.replaceChildren(
       waitMs > 0
-        ? h('span', { 'aria-label': `Restart available in ${wait}` }, h('span', { 'aria-hidden': 'true' }, `⏳ ${wait}`))
-        : glyph('🔄', 'Restart daemon…'),
+        ? h('span', { 'aria-label': `Restart available in ${wait}` }, h('span', { 'aria-hidden': 'true' }, iconInline('state.wait'), ` ${wait}`))
+        : glyph('daemon.restart', 'Restart daemon…'),
     )
     this.fillJournal(data.journal_tail)
   }

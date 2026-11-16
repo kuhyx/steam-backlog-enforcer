@@ -30,7 +30,7 @@ export function jobChip(job: Job): HTMLAnchorElement {
       'span',
       { class: 'jobchip-label' },
       glyph(commandIcon(job.command), label),
-      h('span', { class: 'jobchip-sub' }, waiting ? glyph('✋', 'needs input') : p?.total ? `${p.step}/${p.total}` : '…'),
+      h('span', { class: 'jobchip-sub' }, waiting ? glyph('jobchip.needs-input', 'needs input') : p?.total ? `${p.step}/${p.total}` : '…'),
     ),
     progressBar(fraction, label, waiting ? 'warning' : 'accent', true),
   )

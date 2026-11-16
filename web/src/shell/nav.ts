@@ -27,10 +27,9 @@ export interface PalettePage {
   to: string
   label: string
   blurb: string
-  /** A raw glyph: these pages are not in the icon registry yet. */
-  icon: string
+  icon: IconId
 }
 
 export const PALETTE_PAGES: PalettePage[] = [
-  { to: '/words', label: 'Icon words', blurb: 'Pick the word shown next to each icon', icon: '🏷️' },
+  { to: '/words', label: 'Icon words', blurb: 'Pick the word shown next to each icon', icon: 'words.page' },
 ]

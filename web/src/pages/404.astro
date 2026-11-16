@@ -1,10 +1,14 @@
 ---
 // Any address with no page (the server serves this with a real 404).
 import PageHead from '../components/PageHead.astro'
+import { iconEntry } from '../icons/registry'
 import Shell from '../layouts/Shell.astro'
 ---
 
 <Shell title="Not found">
   <PageHead title="Not found" sub="There is no screen at this address." />
-  <div class="actions"><a href="/" class="btn btn-primary" aria-label="Back to the dashboard"><span aria-hidden="true">🏠</span></a></div>
+  {/* data-static-icons: boot decorates the icon with the user's word and glyph (icons/render.ts). */}
+  <div class="actions" data-static-icons>
+    <a href="/" class="btn btn-primary" aria-label="Back to the dashboard"><span aria-hidden="true" data-icon="nav.dashboard">{iconEntry('nav.dashboard').glyph}</span></a>
+  </div>
 </Shell>

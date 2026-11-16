@@ -7,6 +7,8 @@
 import { api } from '../api/client'
 import { q } from '../api/queries'
 import { Action } from '../lib/action'
+import type { IconId } from '../icons/registry'
+import { iconFor, iconInline } from '../icons/render'
 import { append, define, h, type Child } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { invalidateAll } from '../lib/query'
@@ -27,9 +29,9 @@ export function idError(id: string): string | null {
   return ID_RE.test(id.trim()) ? null : 'A SteamID64 is 17 digits and starts with 7656.'
 }
 
-// Textgate: help is a 🔗 to where the value comes from; its sentence is spoken only.
+// Textgate: help is a link icon to where the value comes from; its sentence is spoken only.
 const helpLink = (href: string, spoken: string, sentence: string): Child[] => [
-  h('a', { href, target: '_blank', rel: 'noreferrer', class: 'setup-link', 'aria-label': spoken }, '🔗'),
+  h('a', { href, target: '_blank', rel: 'noreferrer', class: 'setup-link', 'aria-label': spoken }, iconInline('setup.help')),
   h('span', { class: 'sr-only' }, sentence),
 ]
 const KEY_HELP = (): Child[] =>
@@ -38,19 +40,24 @@ const ID_HELP = (): Child[] => helpLink('https://steamid.io', 'steamid.io', 'You
 
 /** Placeholders paint the expected shape: one dot per character, the fixed 7656 prefix. */
 const KEY_SHAPE = '·'.repeat(32)
-const KEY_STORED = `🔒 ${'•'.repeat(32)}`
 const ID_SHAPE = `7656${'·'.repeat(13)}`
+
+/** A placeholder is plain text: the stored-key icon (and its word, if any) then filled dots. */
+function keyStored(): string {
+  const { glyph: mark, word } = iconFor('setup.key-stored')
+  return `${mark}${word ? ` ${word}` : ''} ${'•'.repeat(32)}`
+}
 
 interface Field {
   input: HTMLInputElement
   help: HTMLParagraphElement
   hint: () => Child[]
   baseClass: string
-  /** Characters a valid value has; a bad value paints `⚠️ typed/want`. */
+  /** Characters a valid value has; a bad value paints the warning icon and `typed/want`. */
   want: number
 }
 
-function field(id: string, label: string, icon: string, input: HTMLInputElement, hint: () => Child[], want: number): { el: HTMLDivElement; f: Field } {
+function field(id: string, label: string, icon: IconId, input: HTMLInputElement, hint: () => Child[], want: number): { el: HTMLDivElement; f: Field } {
   const help = h('p', { id: `${id}-help`, class: 'field-help' }, hint())
   input.id = id
   input.setAttribute('aria-describedby', `${id}-help`)
@@ -59,7 +66,7 @@ function field(id: string, label: string, icon: string, input: HTMLInputElement,
       'div',
       { class: 'form-field' },
       // The glyph is painted beside a spoken-only <label>, so the label's text stays exactly `label`.
-      h('span', { class: 'field-label', 'aria-hidden': 'true' }, icon),
+      h('span', { class: 'field-label', 'aria-hidden': 'true' }, iconInline(icon)),
       h('label', { for: id, class: 'sr-only' }, label),
       input,
       help,
@@ -92,7 +99,7 @@ export class SetupFormElement extends LiveElement {
     const key = field(
       'setup-key',
       'Steam Web API key',
-      '🔑',
+      'setup.api-key',
       h('input', { class: 'input mono', type: 'password', autocomplete: 'off', spellcheck: 'false', autofocus: true }),
       KEY_HELP,
       32,
@@ -100,7 +107,7 @@ export class SetupFormElement extends LiveElement {
     const id = field(
       'setup-id',
       'SteamID64',
-      '🆔',
+      'setup.steam-id',
       h('input', { class: 'input mono input-num', inputmode: 'numeric', placeholder: ID_SHAPE }),
       ID_HELP,
       17,
@@ -149,8 +156,8 @@ export class SetupFormElement extends LiveElement {
         ? [notice('warning', null, spoken('Not configured yet', 'Every other screen needs these two values first.'))]
         : []),
     )
-    // 🔒 + filled dots: a key is stored (typing replaces it); hollow dots: none yet.
-    this.keyField.input.placeholder = data?.has_api_key ? KEY_STORED : KEY_SHAPE
+    // Lock icon + filled dots: a key is stored (typing replaces it); hollow dots: none yet.
+    this.keyField.input.placeholder = data?.has_api_key ? keyStored() : KEY_SHAPE
     this.keyField.input.dataset.stored = String(data?.has_api_key ?? false)
     if (!this.idEdited) this.idField.input.value = data?.steam_id ?? ''
     this.render()
@@ -167,30 +174,30 @@ export class SetupFormElement extends LiveElement {
               'success',
               null,
               spoken('Saved', 'Steam accepted the key.'),
-              h('a', { href: '/', class: 'btn btn-ghost btn-small', 'aria-label': 'Go to the dashboard' }, '🏠'),
+              h('a', { href: '/', class: 'btn btn-ghost btn-small', 'aria-label': 'Go to the dashboard' }, iconInline('nav.dashboard')),
             ),
           ]
         : []),
     )
     this.failure.replaceChildren(...(this.save.error ? [errorNotice(this.save.error)] : []))
     this.submit.disabled = this.save.pending
-    // ⏳ while Steam checks, ✔️ to save; the words are spoken only.
-    this.submit.replaceChildren(this.save.pending ? glyph('⏳', 'Checking with Steam…') : glyph('✔️', 'Save and verify'))
+    // The busy icon while Steam checks, the confirm icon to save; the words are spoken only.
+    this.submit.replaceChildren(this.save.pending ? glyph('state.wait', 'Checking with Steam…') : glyph('action.confirm', 'Save and verify'))
   }
 
   private mark(f: Field, problem: string | null): void {
     const bad = this.touched && problem !== null
     f.input.className = bad ? `${f.baseClass} input-bad` : f.baseClass
     f.input.setAttribute('aria-invalid', String(bad))
-    // A bad value paints ⚠️ and how many characters it has of the `want` it needs.
-    const count = `⚠️ ${f.input.value.trim().length}/${f.want}`
+    // A bad value paints the warning icon and how many characters it has of the `want` it needs.
+    const count = `${f.input.value.trim().length}/${f.want}`
     const state = bad ? `${problem}|${count}` : 'ok'
     if (f.help.dataset.state === state) return
     f.help.dataset.state = state
     f.help.dataset.bad = String(bad)
     f.help.className = bad ? 'field-help text-danger' : 'field-help'
     f.help.replaceChildren()
-    append(f.help, bad ? [h('span', { 'aria-hidden': 'true', class: 'mono' }, count), h('span', { class: 'sr-only' }, problem)] : f.hint())
+    append(f.help, bad ? [h('span', { 'aria-hidden': 'true', class: 'mono' }, iconInline('state.warn'), ` ${count}`), h('span', { class: 'sr-only' }, problem)] : f.hint())
   }
 
   private async store(): Promise<void> {

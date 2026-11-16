@@ -19,8 +19,8 @@ export class BacklogOverviewElement extends LiveElement {
 
   protected update(): void {
     const { data, error } = q.dataset.state
-    const aside = link('/backlog/', glyph('➡️', 'Open the planner'))
-    const icon = '📚'
+    const aside = link('/backlog/', glyph('action.open', 'Open the planner'))
+    const icon = 'dash.outlook'
     if (!data) {
       this.replaceChildren(card('Backlog outlook', error ? errorNotice(error) : loading('backlog'), { aside, icon }))
       return

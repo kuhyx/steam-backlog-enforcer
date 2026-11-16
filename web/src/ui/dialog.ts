@@ -2,6 +2,7 @@
 // inert background and Escape (routed through `onClose` so the owner decides
 // what closing means). Focus returns to the opener when it closes.
 
+import { iconInline } from '../icons/render'
 import { append, h, type Child } from '../lib/dom'
 
 export interface ModalOptions {
@@ -23,7 +24,7 @@ export class Modal {
     const close = h(
       'button',
       { type: 'button', class: 'btn btn-ghost btn-icon dialog-close', 'aria-label': 'Close', onclick: onClose },
-      h('span', { 'aria-hidden': 'true' }, '×'),
+      iconInline('dialog.close'),
     )
     this.head = h('header', { class: 'dialog-head' }, this.heading, close)
     this.body = h('div', { class: 'dialog-body' }, this.head)
