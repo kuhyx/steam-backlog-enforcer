@@ -57,7 +57,7 @@ from steam_backlog_enforcer._playtime_state import (
     rules_for,
     save_state,
 )
-from steam_backlog_enforcer._shadow import observe_shadow, shadow_accumulate
+from steam_backlog_enforcer._shadow import shadow_step
 from steam_backlog_enforcer._total_block import is_total_block_active
 
 if TYPE_CHECKING:
@@ -123,10 +123,7 @@ def playtime_tick(
     owners = qualifying_pids(rules, config_mod.CONFIG_FILE)
     pids = set(owners)
 
-    shadow = observe_shadow(owners, stamp=now.timestamp())
-    state = shadow_accumulate(
-        state, stamp=now.timestamp(), interval=interval, verdict=shadow
-    )
+    state, shadow = shadow_step(state, rules, owners, now.timestamp(), interval)
     tick = Tick(now=now, interval=interval, owners=owners, verdict=shadow)
     state, rules = bill_tick(state, rules, tick)
     state = _policy(state, rules, now=now)

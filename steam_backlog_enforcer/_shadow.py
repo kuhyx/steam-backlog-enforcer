@@ -38,7 +38,7 @@ from steam_backlog_enforcer._playtime_state import _DELTA_CLAMP_FACTOR
 if TYPE_CHECKING:
     from leisure_watch.facts import Now
 
-    from steam_backlog_enforcer._playtime_state import PlaytimeState
+    from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 
 # Explicit, because the daemon is root: these are the desktop user's (uid 1000).
 NOW_PATH: Final = Path("/run/user/1000/leisure-watch/now.json")
@@ -189,3 +189,34 @@ def shadow_accumulate(
             per_source=per_source,
         ),
     )
+
+
+def shadow_step(
+    state: PlaytimeState,
+    rules: PlaytimeRules,
+    owners: dict[int, str],
+    stamp: float,
+    interval: float,
+) -> tuple[PlaytimeState, ShadowVerdict]:
+    """Observe and bill one tick's shadow time, unless there is no budget.
+
+    From 2026-11-16 (:mod:`_gaming_gate`) there is no leisure budget, so the
+    watcher is neither read nor billed: with it uninstalled that would only
+    bill ``failclosed:watcher`` into a budget nobody has. The idle verdict is
+    free and unpaused.
+
+    Args:
+        state: Accounting state before this tick's enforced accumulation.
+        rules: Policy for this tick (``gaming_enforced`` decides).
+        owners: This tick's qualifying game PIDs and their keys.
+        stamp: Epoch seconds of this tick.
+        interval: Nominal seconds between ticks.
+
+    Returns:
+        The billed state and the tick's verdict.
+    """
+    if not rules.gaming_enforced:
+        return state, ShadowVerdict(paused_by=None, keys=())
+    verdict = observe_shadow(owners, stamp=stamp)
+    billed = shadow_accumulate(state, stamp=stamp, interval=interval, verdict=verdict)
+    return billed, verdict
