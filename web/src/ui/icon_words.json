@@ -1,0 +1,185 @@
+{
+  "icons": {
+    "cmd.abandon-pick": {
+      "glyph": null,
+      "word": "abandon"
+    },
+    "cmd.add-exception": {
+      "glyph": null,
+      "word": "whitelist"
+    },
+    "cmd.block-gaming": {
+      "glyph": null,
+      "word": "block"
+    },
+    "cmd.buy-dlc": {
+      "glyph": null,
+      "word": "DLC"
+    },
+    "cmd.check": {
+      "glyph": null,
+      "word": "check"
+    },
+    "cmd.done": {
+      "glyph": null,
+      "word": "done"
+    },
+    "cmd.enforce": {
+      "glyph": null,
+      "word": "enforce"
+    },
+    "cmd.gaming-reset": {
+      "glyph": null,
+      "word": "reset"
+    },
+    "cmd.gaming-status": {
+      "glyph": null,
+      "word": "today"
+    },
+    "cmd.gaming-unblock": {
+      "glyph": null,
+      "word": "release"
+    },
+    "cmd.hide": {
+      "glyph": null,
+      "word": "hide"
+    },
+    "cmd.install": {
+      "glyph": null,
+      "word": "install"
+    },
+    "cmd.installed": {
+      "glyph": null,
+      "word": "installed"
+    },
+    "cmd.list": {
+      "glyph": null,
+      "word": "list"
+    },
+    "cmd.pick": {
+      "glyph": null,
+      "word": "pick"
+    },
+    "cmd.pick-manual": {
+      "glyph": null,
+      "word": "manual"
+    },
+    "cmd.reset": {
+      "glyph": null,
+      "word": "reset"
+    },
+    "cmd.restore-backup": {
+      "glyph": null,
+      "word": "restore"
+    },
+    "cmd.scan": {
+      "glyph": null,
+      "word": "scan"
+    },
+    "cmd.serve": {
+      "glyph": null,
+      "word": "restart"
+    },
+    "cmd.setup": {
+      "glyph": null,
+      "word": "setup"
+    },
+    "cmd.stats": {
+      "glyph": null,
+      "word": "stats"
+    },
+    "cmd.status": {
+      "glyph": null,
+      "word": "state"
+    },
+    "cmd.unblock": {
+      "glyph": null,
+      "word": "unblock"
+    },
+    "cmd.unhide": {
+      "glyph": null,
+      "word": "unhide"
+    },
+    "cmd.uninstall": {
+      "glyph": null,
+      "word": "remove"
+    },
+    "job.state.cancelled": {
+      "glyph": null,
+      "word": "stopped"
+    },
+    "job.state.failed": {
+      "glyph": null,
+      "word": "failed"
+    },
+    "job.state.queued": {
+      "glyph": null,
+      "word": "queued"
+    },
+    "job.state.running": {
+      "glyph": null,
+      "word": "running"
+    },
+    "job.state.succeeded": {
+      "glyph": null,
+      "word": "done"
+    },
+    "job.state.waiting_input": {
+      "glyph": null,
+      "word": "question"
+    },
+    "nav.backlog": {
+      "glyph": null,
+      "word": "backlog"
+    },
+    "nav.dashboard": {
+      "glyph": null,
+      "word": "home"
+    },
+    "nav.gaming": {
+      "glyph": null,
+      "word": "budget"
+    },
+    "nav.jobs": {
+      "glyph": null,
+      "word": "jobs"
+    },
+    "nav.library": {
+      "glyph": null,
+      "word": "library"
+    },
+    "nav.picks": {
+      "glyph": null,
+      "word": "picks"
+    },
+    "nav.store": {
+      "glyph": null,
+      "word": "store"
+    },
+    "nav.system": {
+      "glyph": null,
+      "word": "admin"
+    },
+    "notice.danger": {
+      "glyph": null,
+      "word": "error"
+    },
+    "notice.info": {
+      "glyph": null,
+      "word": "info"
+    },
+    "notice.success": {
+      "glyph": null,
+      "word": "success"
+    },
+    "notice.warning": {
+      "glyph": null,
+      "word": "warning"
+    },
+    "palette.open": {
+      "glyph": null,
+      "word": "search"
+    }
+  },
+  "version": 1
+}
