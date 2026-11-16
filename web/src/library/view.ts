@@ -2,16 +2,18 @@
 // the grid component only wires state to them.
 
 import type { LibraryGame } from '../api/contract'
-import { h } from '../lib/dom'
+import type { IconId } from '../icons/registry'
+import { iconInline } from '../icons/render'
+import { h, type Child } from '../lib/dom'
 
 export type SortKey = 'name' | 'recent' | 'completion' | 'hltb'
 
 /** `label` is spoken only; the sort select paints `icon`. */
-export const SORTS: { key: SortKey; label: string; icon: string }[] = [
-  { key: 'name', label: 'Name', icon: '🔤' },
-  { key: 'recent', label: 'Recently played', icon: '🕐' },
-  { key: 'completion', label: 'Completion', icon: '🏆' },
-  { key: 'hltb', label: 'Shortest (HLTB)', icon: '⏱️' },
+export const SORTS: { key: SortKey; label: string; icon: IconId }[] = [
+  { key: 'name', label: 'Name', icon: 'lib.name' },
+  { key: 'recent', label: 'Recently played', icon: 'lib.recent' },
+  { key: 'completion', label: 'Completion', icon: 'lib.completion' },
+  { key: 'hltb', label: 'Shortest (HLTB)', icon: 'lib.hltb' },
 ]
 
 export interface Filters {
@@ -69,30 +71,30 @@ export function metaLine(g: LibraryGame): string {
   return parts.join(' · ')
 }
 
-/** The painted meta line: "🏆 45% · ⏱️ 12 h · ▶️ 3.2 h" (🏆 — without achievements). */
-export function metaGlyphs(g: LibraryGame): string {
+/** The painted meta line: "🏆 45% · ⏱️ 12 h · ▶️ 3.2 h" (🏆 — without achievements), icons by id. */
+export function metaGlyphs(g: LibraryGame): Child[] {
   const pct = completion(g)
-  const parts = [`🏆 ${pct === null ? '—' : `${Math.floor(pct)}%`}`]
-  if (g.hltb_hours !== null) parts.push(`⏱️ ${hours(g.hltb_hours)}`)
-  if (g.playtime_minutes > 0) parts.push(`▶️ ${hours(g.playtime_minutes / 60)}`)
-  return parts.join(' · ')
+  const parts: Child[][] = [[iconInline('lib.completion'), ` ${pct === null ? '—' : `${Math.floor(pct)}%`}`]]
+  if (g.hltb_hours !== null) parts.push([iconInline('lib.hltb'), ` ${hours(g.hltb_hours)}`])
+  if (g.playtime_minutes > 0) parts.push([iconInline('lib.played'), ` ${hours(g.playtime_minutes / 60)}`])
+  return parts.flatMap((part, i) => (i === 0 ? part : [' · ', ...part]))
 }
 
 function hours(h: number): string {
   return h >= 10 ? `${Math.round(h)} h` : `${h.toFixed(1)} h`
 }
 
-/** Glyph for a server ineligibility reason; a date in it stays painted. */
-export function reasonGlyph(reason: string): string {
+/** Icon for a server ineligibility reason; a date in a skip or block stays painted. */
+export function reasonGlyph(reason: string): Child[] {
   const date = /\d{4}-\d{2}-\d{2}/.exec(reason)?.[0]
-  if (reason.includes('100%')) return '🏆✅'
-  if (/no achievements/i.test(reason)) return '🏆🚫'
-  if (/skip/i.test(reason)) return date ? `⏭️ ${date}` : '⏭️'
-  return date ? `⛔ ${date}` : '⛔'
+  if (reason.includes('100%')) return [iconInline('lib.why.complete')]
+  if (/no achievements/i.test(reason)) return [iconInline('lib.why.noach')]
+  const id = /skip/i.test(reason) ? 'lib.why.skipped' : 'lib.why.blocked'
+  return date ? [iconInline(id), ` ${date}`] : [iconInline(id)]
 }
 
 /** Glyphs painted, words spoken: `text` shown as `painted` with an sr-only twin. */
-export function spokenGlyphs(painted: string, text: string, className: string): HTMLSpanElement {
+export function spokenGlyphs(painted: Child, text: string, className: string): HTMLSpanElement {
   return h('span', { class: className }, h('span', { 'aria-hidden': 'true' }, painted), h('span', { class: 'sr-only' }, text))
 }
 

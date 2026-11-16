@@ -5,11 +5,14 @@
 
 import type { GameRow } from '../../estimate'
 import { fmtHoursPrecise, fmtPlaytime } from '../../format'
+import type { IconId } from '../../icons/registry'
+import { iconText } from '../../icons/iconText'
+import { iconInline } from '../../icons/render'
 import { h } from '../../lib/dom'
 import { tierLabel } from '../../protondb'
 import type { WebGame } from '../../types'
 import { glyph } from '../../ui/build'
-import { ANY_GLYPH, KEEP_GLYPH, tierGlyphs } from './glyphs'
+import { BASIS_ICON, keepText, tierMarks, tierText } from './glyphs'
 import { COLUMNS, optionsFor, type Column, type ColumnKey, type TableState } from './tableState'
 
 export const DISPLAY_CAP = 300
@@ -36,27 +39,28 @@ export function hltbUrl(game: WebGame): string {
   return `https://howlongtobeat.com/?q=${encodeURIComponent(game.name)}`
 }
 
-// Textgate: select options paint glyphs; the value (kept/excluded, a
+// Textgate: select options paint icons; the value (kept/excluded, a
 // tierLabel string) is what the hash stores and what the option speaks.
 // Only the keep and proton columns have a select filter; keep's options are
-// always kept/excluded, so every one has a glyph.
-const optionLabel = (c: Column, v: string) => (c.key === 'keep' ? KEEP_GLYPH[v] : tierGlyphs(v))
+// always kept/excluded, so every one has an icon.
+// An <option> holds text only, so these are glyph-then-word strings.
+const optionLabel = (c: Column, v: string) => (c.key === 'keep' ? keepText(v) : tierText(v))
 const option = (c: Column, v: string) =>
-  h('option', { value: v, 'aria-label': v || 'All' }, v ? optionLabel(c, v) : ANY_GLYPH)
+  h('option', { value: v, 'aria-label': v || 'All' }, v ? optionLabel(c, v) : iconText('backlog.any'))
 
 // Textgate: column headers are pictograms; the column name is the button's
 // aria-label (spoken only), the sort arrow stays visible.
-const COLUMN_ICON: Record<ColumnKey, string> = {
-  name: '🎮',
-  completion: '%',
-  playtime: '⏱',
-  rush: '🐇',
-  leisure: '🐢',
-  worst: '🐌',
-  count_comp: '#',
-  proton: '🐧',
-  keep: '📌',
-}
+const COLUMN_ICON = {
+  name: 'planner.game',
+  completion: 'planner.completion',
+  playtime: 'planner.playtime',
+  rush: BASIS_ICON.rush,
+  leisure: BASIS_ICON.leisure,
+  worst: BASIS_ICON.worst,
+  count_comp: 'planner.completions',
+  proton: 'planner.proton',
+  keep: 'planner.keep',
+} as const satisfies Record<ColumnKey, IconId>
 
 export class PlannerTable {
   readonly el: HTMLElement
@@ -109,8 +113,12 @@ export class PlannerTable {
         return el
       }
       if (c.filter === 'range') {
+        // The comparator in the box is a math operator, not an icon: a placeholder is text only.
         const bound = (side: 'min' | 'max') =>
-          field(`${c.key}.${side}`, h('input', { type: 'number', inputmode: 'decimal', placeholder: side === 'min' ? '≥' : '≤', 'aria-label': `${c.label} ${side}` }))
+          field(
+            `${c.key}.${side}`,
+            h('input', { type: 'number', inputmode: 'decimal', placeholder: side === 'min' ? '≥' : '≤', 'aria-label': `${c.label} ${side}` }),
+          )
         return h('td', { class: 'range-filter' }, h('div', {}, bound('min'), bound('max')))
       }
       if (c.filter === 'select') {
@@ -121,7 +129,7 @@ export class PlannerTable {
       return h('td', {}, field(c.key, h('input', { type: 'search', placeholder: '', 'aria-label': `Filter ${c.label}` })))
     }
     const headCell = (c: Column): HTMLTableCellElement => {
-      const button = h('button', { type: 'button', class: 'sort-btn', 'aria-label': c.label }, COLUMN_ICON[c.key])
+      const button = h('button', { type: 'button', class: 'sort-btn', 'aria-label': c.label }, iconInline(COLUMN_ICON[c.key]))
       const th = h('th', { class: c.numeric ? 'num clickable' : 'clickable', scope: 'col', 'aria-label': c.label }, button)
       th.addEventListener('click', () => {
         this.opts.onSort(c.key)
@@ -161,7 +169,7 @@ export class PlannerTable {
       keep.addEventListener('change', () => { this.opts.onToggle(id) })
       const link = h('a', { target: '_blank', rel: 'noreferrer' })
       const name = h('td', { class: 'name' }, link)
-      row = { tr: h('tr', {}, name, cells, h('td', { class: 'num' }, keep)), name, link, badge: glyph('❓', 'no data', 'badge'), cells, keep }
+      row = { tr: h('tr', {}, name, cells, h('td', { class: 'num' }, keep)), name, link, badge: glyph('planner.no-data', 'no data', 'badge'), cells, keep }
       this.rows.set(id, row)
     }
     const g = r.game
@@ -179,9 +187,9 @@ export class PlannerTable {
       fmtHoursPrecise(r.leisure),
       fmtHoursPrecise(r.worst),
       String(g.count_comp),
-      tierGlyphs(tier),
     ]
     texts.forEach((text, i) => { row.cells[i].textContent = text })
+    row.cells[6].replaceChildren(...tierMarks(tier))
     row.cells[6].setAttribute('aria-label', tier)
     row.keep.checked = !r.excluded
     row.keep.setAttribute('aria-label', r.excluded ? 'Re-include' : 'Exclude')
@@ -203,8 +211,8 @@ export class PlannerTable {
   private syncHeads(table: TableState): void {
     for (const [c, th, button] of this.heads) {
       const active = c.key === table.sort
-      const arrow = active ? (table.asc ? ' ▲' : ' ▼') : ''
-      button.textContent = `${COLUMN_ICON[c.key]}${arrow}`
+      const arrow = active ? [' ', iconInline(table.asc ? 'backlog.sort-asc' : 'backlog.sort-desc')] : []
+      button.replaceChildren(iconInline(COLUMN_ICON[c.key]), ...arrow)
       if (active) th.setAttribute('aria-sort', table.asc ? 'ascending' : 'descending')
       else th.removeAttribute('aria-sort')
     }

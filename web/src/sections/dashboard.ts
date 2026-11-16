@@ -8,6 +8,7 @@ import { commandIcon, commandLabel } from '../commands/catalog'
 import '../commands/commandButton'
 import { fmtDuration, fmtRemaining } from '../format'
 import { progressBar, stateBadge, type BarTone } from '../jobs/progress'
+import { iconInline } from '../icons/render'
 import { define, h, hx } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { jobHref } from '../lib/runner'
@@ -15,11 +16,11 @@ import { card, empty, errorNotice, facts, glyph, link, loading } from '../ui/bui
 import { ago } from '../ui/format'
 import { said } from './spoken'
 
-/** "5 min ago" painted as 🕓 5 min (the word "ago" spoken only). */
+/** "5 min ago" painted as a clock icon and 5 min (the word "ago" spoken only). */
 export function since(iso: string | null): HTMLSpanElement {
   const spoken = ago(iso)
   const short = spoken === 'just now' ? '<1 min' : spoken.replace(/ ago$/, '')
-  return said(spoken, '🕓 ', short)
+  return said(spoken, iconInline('dash.ago'), ' ', short)
 }
 
 /** Seconds left on the total block: from `until` when known, else the
@@ -43,23 +44,26 @@ export class BlockCountdownElement extends LiveElement {
       return
     }
     const left = fmtRemaining(blockSecondsLeft(block))
-    this.replaceChildren(h('span', { class: 'text-danger' }, said(`${left} left`, '⏳ ', left)))
+    this.replaceChildren(h('span', { class: 'text-danger' }, said(`${left} left`, iconInline('dash.block-left'), ' ', left)))
   }
 }
 
 function statusFacts(s: StatusPayload): HTMLDListElement {
   return facts([
     [
-      glyph('💾', 'Installed'),
-      s.assigned_game_installed ? glyph('✅', 'Yes') : h('span', { class: 'text-warning' }, glyph('⚠️', 'No — install it from Library')),
+      glyph('dash.installed', 'Installed'),
+      s.assigned_game_installed ? glyph('state.yes', 'Yes') : h('span', { class: 'text-warning' }, glyph('state.warn', 'No — install it from Library')),
     ],
-    [glyph('🏆', 'Games finished'), s.finished_count],
-    [glyph('🛒', 'Store'), s.store_blocked ? glyph('🔒', 'Blocked') : h('span', { class: 'text-warning' }, glyph('🔓', 'Unblocked'))],
-    [glyph('🗂️', 'Installed games'), s.installed_count],
-    [glyph('⛔', 'Total block'), s.total_block.active ? hx('block-countdown') : glyph('➖', 'Off')],
+    [glyph('dash.finished', 'Games finished'), s.finished_count],
     [
-      glyph('📌', 'Manual picks'),
-      s.manual_picks.length ? s.manual_picks.map((p) => `${p.name} (${p.age_days} d)`).join(', ') : glyph('➖', 'None'),
+      glyph('dash.store', 'Store'),
+      s.store_blocked ? glyph('dash.store-blocked', 'Blocked') : h('span', { class: 'text-warning' }, glyph('dash.store-open', 'Unblocked')),
+    ],
+    [glyph('dash.games', 'Installed games'), s.installed_count],
+    [glyph('dash.total-block', 'Total block'), s.total_block.active ? hx('block-countdown') : glyph('state.off', 'Off')],
+    [
+      glyph('picks.manual', 'Manual picks'),
+      s.manual_picks.length ? s.manual_picks.map((p) => `${p.name} (${p.age_days} d)`).join(', ') : glyph('state.off', 'None'),
     ],
   ])
 }
@@ -71,13 +75,13 @@ export class DashboardStatusElement extends LiveElement {
 
   protected update(): void {
     const { data, error } = q.status.state
-    const icon = '🎯'
+    const icon = 'assigned.game'
     if (error) {
       this.replaceChildren(card('Assignment', errorNotice(error), { icon }))
     } else if (!data) {
       this.replaceChildren(card('Assignment', loading('status'), { icon }))
     } else {
-      const game = data.current_game_name ?? glyph('📭', 'Nothing assigned')
+      const game = data.current_game_name ?? glyph('state.empty', 'Nothing assigned')
       this.replaceChildren(
         card('Assignment', [h('p', { class: 'hero-game' }, game), statusFacts(data)], {
           icon,
@@ -95,9 +99,9 @@ function budgetTone(blocked: boolean, used: number): BarTone {
 }
 
 function billingLine(blocked: boolean, label: string): HTMLParagraphElement {
-  if (blocked) return h('p', { class: 'field-help' }, glyph('⛔', 'Blocked for today.'))
-  if (!label) return h('p', { class: 'field-help' }, said('Now: nothing billing', '⏸️'))
-  return h('p', { class: 'field-help' }, said(`Now: ${label}`, '▶️ ', label))
+  if (blocked) return h('p', { class: 'field-help' }, glyph('dash.blocked-today', 'Blocked for today.'))
+  if (!label) return h('p', { class: 'field-help' }, said('Now: nothing billing', iconInline('dash.not-billing')))
+  return h('p', { class: 'field-help' }, said(`Now: ${label}`, iconInline('dash.billing'), ' ', label))
 }
 
 export class BudgetGlanceElement extends LiveElement {
@@ -107,7 +111,7 @@ export class BudgetGlanceElement extends LiveElement {
 
   protected update(): void {
     const { data, error } = q.budget.state
-    const icon = '⏱️'
+    const icon = 'dash.budget'
     if (error) {
       this.replaceChildren(card('Gaming today', errorNotice(error), { icon }))
       return
@@ -128,8 +132,8 @@ export class BudgetGlanceElement extends LiveElement {
           progressBar(t.fraction_used, 'Budget used', budgetTone(t.blocked, t.fraction_used)),
           billingLine(t.blocked, data.session.billing_label),
         ]
-      : h('p', { class: 'text-danger' }, data.error ?? glyph('⚠️', 'Budget state unavailable.'))
-    this.replaceChildren(card('Gaming today', body, { icon, aside: link('/gaming/', glyph('➡️', 'Details')) }))
+      : h('p', { class: 'text-danger' }, data.error ?? glyph('state.warn', 'Budget state unavailable.'))
+    this.replaceChildren(card('Gaming today', body, { icon, aside: link('/gaming/', glyph('action.open', 'Details')) }))
   }
 }
 
@@ -140,8 +144,8 @@ function fastInstallRow(r: FastInstallRun): HTMLDivElement {
     return h(
       'div',
       {},
-      h('p', { class: 'text-danger' }, said(`Fast install of ${r.name} failed: ${r.error}`, '⛔ ', r.name, ': ', r.error)),
-      h('p', { class: 'field-help' }, glyph('↪️', "Steam's own download took over.")),
+      h('p', { class: 'text-danger' }, said(`Fast install of ${r.name} failed: ${r.error}`, iconInline('dash.fast-failed'), ' ', r.name, ': ', r.error)),
+      h('p', { class: 'field-help' }, glyph('dash.steam-took-over', "Steam's own download took over.")),
     )
   }
   const pct = r.percent === null ? null : Math.floor(r.percent)
@@ -149,9 +153,9 @@ function fastInstallRow(r: FastInstallRun): HTMLDivElement {
   return h(
     'div',
     {},
-    h('p', {}, said(`Fast-installing ${r.name} — ${where}`, '⚡ ', r.name, pct === null ? '' : ` ${pct}%`)),
+    h('p', {}, said(`Fast-installing ${r.name} — ${where}`, iconInline('dash.fast-install'), ' ', r.name, pct === null ? '' : ` ${pct}%`)),
     progressBar(pct === null ? null : pct / 100, `${r.name} download`),
-    h('p', { class: 'field-help' }, said(`${fmtDuration(r.elapsed_seconds)} elapsed`, '⏳ ', fmtDuration(r.elapsed_seconds))),
+    h('p', { class: 'field-help' }, said(`${fmtDuration(r.elapsed_seconds)} elapsed`, iconInline('dash.elapsed'), ' ', fmtDuration(r.elapsed_seconds))),
   )
 }
 
@@ -163,7 +167,7 @@ export class FastInstallsElement extends LiveElement {
 
   protected update(): void {
     const runs = q.daemon.state.data?.fast_installs ?? []
-    this.replaceChildren(...(runs.length ? [card('Fast install', runs.map(fastInstallRow), { icon: '⚡' })] : []))
+    this.replaceChildren(...(runs.length ? [card('Fast install', runs.map(fastInstallRow), { icon: 'dash.fast-install' })] : []))
   }
 }
 
@@ -201,7 +205,7 @@ export class RecentJobsElement extends LiveElement {
             ),
           ),
         ],
-        { icon: '⚙️', aside: link('/jobs/', glyph('➡️', 'All jobs')) },
+        { icon: 'dash.recent-jobs', aside: link('/jobs/', glyph('action.open', 'All jobs')) },
       ),
     )
   }

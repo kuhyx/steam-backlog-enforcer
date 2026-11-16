@@ -7,7 +7,7 @@ import { makeGame, makePaceVsHltb, makeState } from '../../test/factories'
 import { flush, mount, stubApi } from '../../test/harness'
 import { GAMES, panel, show } from '../../test/plannerHelpers'
 import { visibleWords } from '../../test/visibleWords'
-import { ANY_GLYPH, KEEP_GLYPH, styleGlyph, tierGlyphs } from './glyphs'
+import { keepText, styleGlyph, tierMarks, tierText } from './glyphs'
 import { painted } from '../../test/painted'
 
 afterEach(() => {
@@ -50,11 +50,15 @@ describe('textgate guard: backlog', () => {
 
 describe('backlog glyphs', () => {
   it('paints ProtonDB tiers as medals, unknown tiers as ❔', () => {
-    expect(tierGlyphs('gold / silver')).toBe('🥇/🥈')
-    expect(tierGlyphs('—')).toBe('—')
-    expect(tierGlyphs('')).toBe('—')
-    expect(tierGlyphs('weird')).toBe('❔')
-    expect(KEEP_GLYPH.excluded).toBe('🚫')
+    const text = (label: string) => tierMarks(label).map((m) => (typeof m === 'string' ? m : m.textContent)).join('')
+    expect(text('gold / silver')).toBe('🥇/🥈')
+    expect(text('—')).toBe('—')
+    expect(text('')).toBe('—')
+    expect(text('weird')).toBe('❔')
+    expect(keepText('excluded')).toBe('🚫')
+    expect(tierText('gold / silver')).toBe('🥇/🥈')
+    expect(tierText('—')).toBe('—')
+    expect(tierText('weird')).toBe('❔')
   })
 
   it('speaks an unknown play style by its key', () => {
@@ -67,7 +71,7 @@ describe('backlog glyphs', () => {
   it('offers glyph options in the table filters, values unchanged', async () => {
     await show()
     const keep = screen.getByRole('combobox', { name: 'Filter Keep' })
-    expect([...keep.querySelectorAll('option')].map((o) => [o.value, o.textContent])).toContainEqual(['', ANY_GLYPH])
+    expect([...keep.querySelectorAll('option')].map((o) => [o.value, o.textContent])).toContainEqual(['', '✱'])
     expect([...keep.querySelectorAll('option')].map((o) => [o.value, o.textContent])).toContainEqual(['kept', '📌'])
     const tier = screen.getByRole('combobox', { name: 'Filter ProtonDB' })
     expect([...tier.querySelectorAll('option')].map((o) => o.textContent)).toContain('🥇/💎')

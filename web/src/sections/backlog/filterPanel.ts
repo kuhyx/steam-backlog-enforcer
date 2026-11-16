@@ -1,32 +1,34 @@
 // The planner's estimate filters (was FilterPanel.tsx). Built once; `sync()`
 // writes values, active segments and conditional rows in place, so a slider
 // being dragged or a date being typed never loses focus.
-// Textgate: every label is a glyph (glyphs.ts) with its words spoken only;
-// slider values (numbers + units) stay painted.
+// Textgate: every label is an icon (registry ids, glyphs.ts) with its words
+// spoken only; slider values (numbers + units) stay painted.
 
+import type { IconId } from '../../icons/registry'
+import { iconInline } from '../../icons/render'
 import { h } from '../../lib/dom'
 import { SELECTABLE_TIERS } from '../../protondb'
 import type { EstimateBasis, Filters, PlaytimeMode, ProtonMode, WebDefaults } from '../../types'
 import { glyph } from '../../ui/build'
-import { ANY_GLYPH, BASIS_GLYPH, TIER_GLYPH } from './glyphs'
+import { BASIS_ICON, tierText } from './glyphs'
 
 type Update = (patch: Partial<Filters>) => void
-interface Seg<T> { id: T; label: string; icon: string }
+interface Seg<T> { id: T; label: string; icon: IconId }
 
 const BASES: readonly Seg<EstimateBasis>[] = [
-  { id: 'rush', label: 'Rush', icon: BASIS_GLYPH.rush },
-  { id: 'leisure', label: 'Leisure', icon: BASIS_GLYPH.leisure },
-  { id: 'worst', label: 'Worst', icon: BASIS_GLYPH.worst },
-  { id: 'pace', label: 'Pace', icon: BASIS_GLYPH.pace },
+  { id: 'rush', label: 'Rush', icon: BASIS_ICON.rush },
+  { id: 'leisure', label: 'Leisure', icon: BASIS_ICON.leisure },
+  { id: 'worst', label: 'Worst', icon: BASIS_ICON.worst },
+  { id: 'pace', label: 'Pace', icon: BASIS_ICON.pace },
 ]
 const PROTON: readonly Seg<ProtonMode>[] = [
-  { id: 'playable', label: 'Playable (CLI rule)', icon: '⌨️' },
-  { id: 'minTier', label: 'Min tier', icon: '🥇≥' },
+  { id: 'playable', label: 'Playable (CLI rule)', icon: 'backlog.cli' },
+  { id: 'minTier', label: 'Min tier', icon: 'filter.min-tier' },
 ]
 const PLAYTIME: readonly Seg<PlaytimeMode>[] = [
-  { id: 'all', label: 'All', icon: ANY_GLYPH },
-  { id: 'started', label: 'Started', icon: '▶️' },
-  { id: 'untouched', label: 'Untouched', icon: '∅' },
+  { id: 'all', label: 'All', icon: 'backlog.any' },
+  { id: 'started', label: 'Started', icon: 'filter.started' },
+  { id: 'untouched', label: 'Untouched', icon: 'filter.untouched' },
 ]
 
 type NumberKey = 'dailyHours' | 'minCountComp' | 'minComp100' | 'minConfidenceSum' | 'maxHoursPerGame' | 'fallbackHours'
@@ -35,7 +37,7 @@ interface Slider {
   key: NumberKey
   input: HTMLInputElement
   val: HTMLSpanElement
-  show: (f: Filters) => string
+  show: (f: Filters) => string | HTMLSpanElement
 }
 
 const hint = (text: string) => h('p', { class: 'hint sr-only' }, text)
@@ -45,7 +47,7 @@ export class FilterPanel {
   private readonly syncs: ((f: Filters) => void)[] = []
 
   constructor(defaults: WebDefaults, update: Update, onReset: () => void) {
-    const slider = (key: NumberKey, icon: string, label: string, min: number, max: number, step: number, show: Slider['show']) => {
+    const slider = (key: NumberKey, icon: IconId, label: string, min: number, max: number, step: number, show: Slider['show']) => {
       const val = h('span', { class: 'val' })
       const input = h('input', { type: 'range', min, max, step, 'aria-label': label })
       input.addEventListener('input', () => {
@@ -55,13 +57,13 @@ export class FilterPanel {
       })
       this.syncs.push((f) => {
         input.value = String(f[key])
-        val.textContent = show(f)
+        val.replaceChildren(show(f))
       })
       return { label: h('label', {}, glyph(icon, label), ' ', val), input }
     }
     const segmented = <T extends string>(items: readonly Seg<T>[], current: (f: Filters) => T, set: (id: T) => void) => {
       const buttons = items.map((it) =>
-        h('button', { type: 'button', class: 'seg', 'aria-label': it.label, onclick: () => { set(it.id) } }, it.icon),
+        h('button', { type: 'button', class: 'seg', 'aria-label': it.label, onclick: () => { set(it.id) } }, iconInline(it.icon)),
       )
       this.syncs.push((f) => {
         buttons.forEach((b, i) => {
@@ -72,7 +74,7 @@ export class FilterPanel {
       })
       return h('div', { class: 'segmented' }, buttons)
     }
-    const check = (icon: string, label: string, read: (f: Filters) => boolean, set: (on: boolean) => void) => {
+    const check = (icon: IconId, label: string, read: (f: Filters) => boolean, set: (on: boolean) => void) => {
       const input = h('input', { type: 'checkbox' })
       input.addEventListener('change', () => {
         set(input.checked)
@@ -88,21 +90,21 @@ export class FilterPanel {
       })
       return el
     }
-    const heading = (icon: string, label: string) => h('label', {}, glyph(icon, label))
+    const heading = (icon: IconId, label: string) => h('label', {}, glyph(icon, label))
 
-    const daily = slider('dailyHours', '⏰', 'Daily play time', 0.5, 16, 0.5, (f) => `${f.dailyHours} h/day`)
-    const minComp = slider('minCountComp', '#', 'Min HLTB completions', 0, 100, 1, (f) => String(f.minCountComp))
-    const min100 = slider('minComp100', '💯', 'Min polled completionist times', 0, 50, 1, (f) => String(f.minComp100))
-    const minConf = slider('minConfidenceSum', 'Σ', 'Min confidence sum', 0, 150, 1, (f) => String(f.minConfidenceSum))
-    const maxH = slider('maxHoursPerGame', '⏳', 'Max time per game', 0, 200, 5, (f) =>
-      f.maxHoursPerGame > 0 ? `${f.maxHoursPerGame} h` : '∞',
+    const daily = slider('dailyHours', 'filter.daily', 'Daily play time', 0.5, 16, 0.5, (f) => `${f.dailyHours} h/day`)
+    const minComp = slider('minCountComp', 'planner.completions', 'Min HLTB completions', 0, 100, 1, (f) => String(f.minCountComp))
+    const min100 = slider('minComp100', 'filter.min-polled', 'Min polled completionist times', 0, 50, 1, (f) => String(f.minComp100))
+    const minConf = slider('minConfidenceSum', 'filter.min-confidence', 'Min confidence sum', 0, 150, 1, (f) => String(f.minConfidenceSum))
+    const maxH = slider('maxHoursPerGame', 'filter.max-time', 'Max time per game', 0, 200, 5, (f) =>
+      f.maxHoursPerGame > 0 ? `${f.maxHoursPerGame} h` : iconInline('filter.no-cap'),
     )
-    const fallback = slider('fallbackHours', '❓', 'Fallback estimate', 1, 100, 1, (f) => `${f.fallbackHours} h`)
+    const fallback = slider('fallbackHours', 'filter.fallback', 'Fallback estimate', 1, 100, 1, (f) => `${f.fallbackHours} h`)
 
     const tier = h(
       'select',
       { 'aria-label': 'Minimum ProtonDB tier' },
-      SELECTABLE_TIERS.map((t) => h('option', { value: t, 'aria-label': t }, TIER_GLYPH[t])),
+      SELECTABLE_TIERS.map((t) => h('option', { value: t, 'aria-label': t }, tierText(t))),
     )
     tier.addEventListener('change', () => {
       update({ protonMinTier: tier.value })
@@ -119,7 +121,7 @@ export class FilterPanel {
       date.value = f.targetDate
     })
     const clear = shownWhen(
-      h('button', { type: 'button', class: 'ghost', 'aria-label': 'Clear', onclick: () => { update({ targetDate: '' }) } }, '✕'),
+      h('button', { type: 'button', class: 'ghost', 'aria-label': 'Clear', onclick: () => { update({ targetDate: '' }) } }, iconInline('filter.clear-date')),
       (f) => f.targetDate !== '',
     )
 
@@ -129,10 +131,16 @@ export class FilterPanel {
       h(
         'div',
         { class: 'panel-head' },
-        h('h2', {}, glyph('🎚️', 'Filters')),
-        h('button', { type: 'button', class: 'ghost', 'aria-label': 'Reset to CLI defaults', onclick: () => { onReset() } }, '↺ ⌨️'),
+        h('h2', {}, glyph('backlog.filters', 'Filters')),
+        h(
+          'button',
+          { type: 'button', class: 'ghost', 'aria-label': 'Reset to CLI defaults', onclick: () => { onReset() } },
+          iconInline('filter.reset'),
+          ' ',
+          iconInline('backlog.cli'),
+        ),
       ),
-      h('section', { class: 'field' }, heading('📐', 'Estimate basis'), segmented(BASES, (f) => f.basis, (basis) => { update({ basis }) })),
+      h('section', { class: 'field' }, heading('filter.basis', 'Estimate basis'), segmented(BASES, (f) => f.basis, (basis) => { update({ basis }) })),
       h('section', { class: 'field' }, daily.label, daily.input),
       h(
         'section',
@@ -141,18 +149,18 @@ export class FilterPanel {
         minComp.input,
         hint(`Higher = more reliable HLTB times (CLI default ${defaults.min_count_comp}).`),
       ),
-      h('details', { class: 'field' }, h('summary', {}, glyph('🔬', 'Advanced confidence')), min100.label, min100.input, minConf.label, minConf.input),
+      h('details', { class: 'field' }, h('summary', {}, glyph('filter.advanced', 'Advanced confidence')), min100.label, min100.input, minConf.label, minConf.input),
       h(
         'section',
         { class: 'field' },
-        heading('🐧', 'ProtonDB compatibility'),
+        heading('planner.proton', 'ProtonDB compatibility'),
         segmented(PROTON, (f) => f.protonMode, (protonMode) => { update({ protonMode }) }),
         shownWhen(
           h(
             'div',
             { class: 'subfield' },
             tier,
-            check('❓', 'Keep games with no ProtonDB data', (f) => f.protonTreatMissingAsPass, (on) => {
+            check('filter.proton-missing', 'Keep games with no ProtonDB data', (f) => f.protonTreatMissingAsPass, (on) => {
               update({ protonTreatMissingAsPass: on })
             }),
           ),
@@ -163,13 +171,13 @@ export class FilterPanel {
       h(
         'section',
         { class: 'field' },
-        heading('⏱', 'Playtime'),
+        heading('planner.playtime', 'Playtime'),
         segmented(PLAYTIME, (f) => f.playtimeMode, (playtimeMode) => { update({ playtimeMode }) }),
       ),
       h(
         'section',
         { class: 'field' },
-        check('❓', 'Include games with no HLTB data', (f) => f.includeNoData, (on) => {
+        check('planner.no-data', 'Include games with no HLTB data', (f) => f.includeNoData, (on) => {
           update({ includeNoData: on })
         }),
         shownWhen(h('div', { class: 'subfield' }, fallback.label, fallback.input), (f) => f.includeNoData),
@@ -177,7 +185,7 @@ export class FilterPanel {
       h(
         'section',
         { class: 'field' },
-        heading('🏁', 'Target finish date'),
+        heading('filter.target-date', 'Target finish date'),
         h('div', { class: 'subfield row' }, date, clear),
         hint('Pick a date to see the hours/day required.'),
       ),

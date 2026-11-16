@@ -60,7 +60,8 @@ describe('Dashboard', () => {
   describe('assignment', () => {
     it('summarises a healthy state', async () => {
       show()
-      expect(await screen.findByText('Hollow Knight')).toHaveClass('hero-game')
+      // The billing line also names the game, behind its icon: pick the hero by class.
+      expect(await screen.findByText('Hollow Knight', { selector: '.hero-game' })).toHaveClass('hero-game')
       expect(fact('Installed')).toHaveTextContent('Yes')
       expect(fact('Games finished')).toHaveTextContent('3')
       expect(fact('Store')).toHaveTextContent('Blocked')
@@ -161,7 +162,7 @@ describe('Dashboard', () => {
 
     it('stays out of the way when nothing is installing', async () => {
       show({ 'GET /api/daemon': { ...daemon(), fast_installs: undefined } })
-      expect(await screen.findByText('Hollow Knight')).toBeInTheDocument()
+      expect(await screen.findByText('Hollow Knight', { selector: '.hero-game' })).toBeInTheDocument()
       expect(screen.queryByText(/Fast-installing/)).not.toBeInTheDocument()
       expect(screen.queryByRole('region', { name: 'Fast install' })).not.toBeInTheDocument()
     })

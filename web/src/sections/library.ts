@@ -4,6 +4,8 @@
 // browser's search state, so a reload comes back to it.
 
 import { q } from '../api/queries'
+import type { IconId } from '../icons/registry'
+import { iconInline } from '../icons/render'
 import { define, h, hx } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import '../library/gameBrowser'
@@ -13,10 +15,10 @@ import { bytes } from '../ui/format'
 
 type View = 'all' | 'installed'
 
-/** View key, spoken label, painted glyph. */
-const VIEWS: [View, string, string][] = [
-  ['all', 'All games', '🗂️'],
-  ['installed', 'Installed', '💾'],
+/** View key, spoken label, painted icon. */
+const VIEWS: [View, string, IconId][] = [
+  ['all', 'All games', 'libpage.all'],
+  ['installed', 'Installed', 'dash.installed'],
 ]
 
 const viewFromHash = (): View => (readHash().get('view') === 'installed' ? 'installed' : 'all')
@@ -66,10 +68,10 @@ export class InstalledTableElement extends LiveElement {
                     h(
                       'tr',
                       {},
-                      h('th', { scope: 'col' }, glyph('🎮', 'Game')),
-                      h('th', { scope: 'col' }, glyph('#', 'App id')),
-                      h('th', { scope: 'col', class: 'num' }, glyph('💽', 'Size')),
-                      h('th', { scope: 'col' }, glyph('🏷️', 'Role')),
+                      h('th', { scope: 'col' }, glyph('libpage.game', 'Game')),
+                      h('th', { scope: 'col' }, glyph('libpage.app-id', 'App id')),
+                      h('th', { scope: 'col', class: 'num' }, glyph('libpage.size', 'Size')),
+                      h('th', { scope: 'col' }, glyph('libpage.role', 'Role')),
                     ),
                   ),
                   h(
@@ -85,9 +87,9 @@ export class InstalledTableElement extends LiveElement {
                         h(
                           'td',
                           {},
-                          g.assigned ? pill('accent', 'assigned', '🎯') : null,
-                          g.protected ? pill('neutral', 'protected', '🛡️') : null,
-                          !g.assigned && !g.protected ? glyph('🗑️', 'uninstall candidate', 'muted') : null,
+                          g.assigned ? pill('accent', 'assigned', 'assigned.game') : null,
+                          g.protected ? pill('neutral', 'protected', 'libpage.protected') : null,
+                          !g.assigned && !g.protected ? glyph('libpage.candidate', 'uninstall candidate', 'muted') : null,
                         ),
                       ),
                     ),
@@ -97,12 +99,12 @@ export class InstalledTableElement extends LiveElement {
             : null,
         ],
         {
-          icon: '💾',
+          icon: 'dash.installed',
           aside: data
             ? h(
                 'span',
                 { class: 'muted' },
-                h('span', { 'aria-hidden': 'true' }, `🎮 ${games.length} · 💽 ${bytes(total)}`),
+                h('span', { 'aria-hidden': 'true' }, iconInline('libpage.game'), ` ${games.length} · `, iconInline('libpage.size'), ` ${bytes(total)}`),
                 h('span', { class: 'sr-only' }, `${games.length} games · ${bytes(total)}`),
               )
             : null,
@@ -143,7 +145,7 @@ export class LibraryViewElement extends HTMLElement {
                 this.show(key)
               },
             },
-            h('span', { 'aria-hidden': 'true' }, icon),
+            h('span', { 'aria-hidden': 'true' }, iconInline(icon)),
           )
           this.buttons.set(key, btn)
           return btn

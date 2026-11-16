@@ -3,6 +3,8 @@
 // caret; the browser only writes values into it and hears every edit back.
 
 import type { LibraryGame } from '../api/contract'
+import { iconText } from '../icons/iconText'
+import { iconInline } from '../icons/render'
 import { h } from '../lib/dom'
 import { glyph } from '../ui/build'
 import { FILTERS, type BrowserState } from './browserState'
@@ -31,7 +33,8 @@ export class BrowserToolbar {
           opts.onSort(this.sortSelect.value as SortKey)
         },
       },
-      SORTS.map((s) => h('option', { value: s.key, 'aria-label': s.label }, s.icon)),
+      // An <option> holds text only: the icon, then the user's word right of it.
+      SORTS.map((s) => h('option', { value: s.key, 'aria-label': s.label }, iconText(s.icon))),
     )
     this.checks = new Map(
       FILTERS.map(([key]) => [
@@ -48,7 +51,7 @@ export class BrowserToolbar {
       'div',
       { class: 'lib-toolbar' },
       this.searchBox.el,
-      h('label', { class: 'lib-sort' }, glyph('↕️', 'Sort', 'field-label'), this.sortSelect),
+      h('label', { class: 'lib-sort' }, glyph('lib.sort', 'Sort', 'field-label'), this.sortSelect),
       h(
         'fieldset',
         { class: 'lib-filters' },
@@ -79,7 +82,13 @@ export class BrowserToolbar {
   setCount(shown: number, total: number, byRelevance: boolean): void {
     const spoken = `${shown} of ${total} games${byRelevance ? ' · by relevance' : ''}`
     this.count.replaceChildren(
-      h('span', { 'aria-hidden': 'true' }, `🎮 ${shown}/${total}${byRelevance ? ' 🔍' : ''}`),
+      h(
+        'span',
+        { 'aria-hidden': 'true' },
+        iconInline('lib.count'),
+        ` ${shown}/${total}`,
+        byRelevance ? [' ', iconInline('lib.relevance')] : null,
+      ),
       h('span', { class: 'sr-only' }, spoken),
     )
   }

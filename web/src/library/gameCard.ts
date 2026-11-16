@@ -42,8 +42,8 @@ export function gameCard(game: LibraryGame): HTMLButtonElement {
       ? h(
           'span',
           { class: 'game-badges' },
-          game.assigned ? pill('accent', 'assigned', '🎯') : null,
-          game.installed ? pill('neutral', 'installed', '💾') : null,
+          game.assigned ? pill('accent', 'assigned', 'assigned.game') : null,
+          game.installed ? pill('neutral', 'installed', 'dash.installed') : null,
         )
       : null,
   )

@@ -3,7 +3,9 @@
 
 import type { EstimateResult } from '../../estimate'
 import { isoDate } from '../../format'
+import { iconInline } from '../../icons/render'
 import type { Filters, WebStateInfo } from '../../types'
+import { h } from '../dom'
 
 const W = 820
 const H = 320
@@ -83,10 +85,14 @@ export function timelineChart(
   const box = document.createElement('div')
   box.className = 'chart'
   if (pts.length < 2) {
-    const hint = document.createElement('p')
-    hint.className = 'hint empty-state'
-    hint.innerHTML = '<span class="empty-icon" aria-hidden="true">📭</span><span class="sr-only">Not enough games in scope to draw a timeline.</span>'
-    box.append(hint)
+    box.append(
+      h(
+        'p',
+        { class: 'hint empty-state' },
+        iconInline('state.empty', 'empty-icon'),
+        h('span', { class: 'sr-only' }, 'Not enough games in scope to draw a timeline.'),
+      ),
+    )
     return box
   }
   box.append(timelineSvg(pts, now))

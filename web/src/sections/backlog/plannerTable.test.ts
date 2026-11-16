@@ -2,7 +2,6 @@ import { screen, within } from '@testing-library/dom'
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeGame } from '../../test/factories'
 import { GAMES, hash, header, names, show, table } from '../../test/plannerHelpers'
-import { ANY_GLYPH } from './glyphs'
 import { hltbUrl } from './plannerTable'
 
 afterEach(() => {
@@ -120,7 +119,7 @@ describe('<game-table> table', () => {
     await show()
     const options = [...screen.getByRole('combobox', { name: 'Filter Keep' }).querySelectorAll('option')]
     expect(options.map((o) => [o.value, o.textContent, o.getAttribute('aria-label')])).toEqual([
-      ['', ANY_GLYPH, 'All'],
+      ['', '✱', 'All'],
       ['kept', '📌', 'kept'],
       ['excluded', '🚫', 'excluded'],
     ])

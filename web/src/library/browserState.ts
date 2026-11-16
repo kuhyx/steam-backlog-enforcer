@@ -2,14 +2,15 @@
 // `hash-state` (the Library page only) they live in the URL hash, so a
 // reload restores them.
 
+import type { IconId } from '../icons/registry'
 import { readHash } from './hashState'
 import { NO_FILTERS, SORTS, type Filters, type SortKey } from './view'
 
-/** Filter key, spoken checkbox label, its token in the hash's `f=` list, painted glyph. */
-export const FILTERS: [keyof Filters, string, string, string][] = [
-  ['hideCompleted', 'Hide completed', 'completed', '🙈🏆'],
-  ['installedOnly', 'Installed only', 'installed', '💾'],
-  ['pickableOnly', 'Pickable only', 'pickable', '🎯'],
+/** Filter key, spoken checkbox label, its token in the hash's `f=` list, painted icon. */
+export const FILTERS: [keyof Filters, string, string, IconId][] = [
+  ['hideCompleted', 'Hide completed', 'completed', 'lib.hide-completed'],
+  ['installedOnly', 'Installed only', 'installed', 'dash.installed'],
+  ['pickableOnly', 'Pickable only', 'pickable', 'lib.pickable'],
 ]
 
 export interface BrowserState {

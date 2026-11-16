@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { h, type Child } from '../lib/dom'
 import { makeLibGame } from '../test/fixtures'
+import { useIcons } from '../test/iconLedger'
 import { completion, filterGames, isCompleted, metaGlyphs, metaLine, NO_FILTERS, reasonGlyph, reasonOrMeta, sortGames } from './view'
 
 const g = makeLibGame
@@ -69,13 +71,23 @@ describe('metaLine', () => {
   })
 })
 
+/** The text the painted nodes show. */
+const text = (nodes: Child[]) => h('span', {}, ...nodes).textContent
+
 describe('metaGlyphs', () => {
   it('paints trophy, clock and play with their values', () => {
-    expect(metaGlyphs(g({ achievements_total: 8, achievements_unlocked: 3, hltb_hours: 12, playtime_minutes: 192 })))
+    expect(text(metaGlyphs(g({ achievements_total: 8, achievements_unlocked: 3, hltb_hours: 12, playtime_minutes: 192 }))))
       .toBe('🏆 37% · ⏱️ 12 h · ▶️ 3.2 h')
   })
   it('paints a dash for no achievements and drops unknown HLTB and zero playtime', () => {
-    expect(metaGlyphs(g({ achievements_total: 0, hltb_hours: null, playtime_minutes: 0 }))).toBe('🏆 —')
+    expect(text(metaGlyphs(g({ achievements_total: 0, hltb_hours: null, playtime_minutes: 0 })))).toBe('🏆 —')
+  })
+  it('draws the user word right of each icon and his alternative glyph', () => {
+    useIcons({ 'lib.hltb': { word: 'length', glyph: '⌛' }, 'lib.completion': { word: 'percent' } })
+    const meta = h('span', {}, ...metaGlyphs(g({ achievements_total: 8, achievements_unlocked: 3, hltb_hours: 12, playtime_minutes: 0 })))
+    expect([...meta.querySelectorAll('.icon-word')].map((w) => w.textContent)).toEqual(['Percent', 'Length'])
+    expect(meta.querySelector('[data-icon="lib.hltb"]')?.textContent).toBe('⌛')
+    expect(meta.querySelector('[data-icon="lib.hltb"]')?.nextElementSibling).toHaveClass('icon-word')
   })
 })
 
@@ -88,7 +100,12 @@ describe('reasonGlyph', () => {
     ['Something else', '⛔'],
     ['Blocked until 2026-10-02', '⛔ 2026-10-02'],
   ])('%s paints %s', (reason, painted) => {
-    expect(reasonGlyph(reason)).toBe(painted)
+    expect(text(reasonGlyph(reason))).toBe(painted)
+  })
+  it('draws the user word beside the reason icon, the date after it', () => {
+    useIcons({ 'lib.why.skipped': { word: 'skipped' } })
+    const el = h('span', {}, ...reasonGlyph('Skipped until 2026-09-01'))
+    expect(el.textContent).toBe('⏭️Skipped 2026-09-01')
   })
 })
 
@@ -97,7 +114,7 @@ describe('reasonOrMeta', () => {
     const game = g({ achievements_total: 8, achievements_unlocked: 3, hltb_hours: 12, playtime_minutes: 192 })
     const el = reasonOrMeta(null, game, 'sub')
     expect(el.className).toBe('sub')
-    expect(el.querySelector('[aria-hidden="true"]')?.textContent).toBe(metaGlyphs(game))
+    expect(el.querySelector('[aria-hidden="true"]')?.textContent).toBe(text(metaGlyphs(game)))
     expect(el.querySelector('.sr-only')?.textContent).toBe(metaLine(game))
   })
   it('paints the reason glyph and speaks the reason when not pickable', () => {

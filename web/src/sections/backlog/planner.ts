@@ -112,12 +112,12 @@ export class Planner {
   private syncSub(): void {
     const s = this.data.state
     this.sub.replaceChildren(
-      ...(s.current_game_name ? [glyph('▶️', 'Currently playing '), ' ', h('strong', {}, s.current_game_name), ' · '] : []),
-      glyph('🏆', 'games finished'),
+      ...(s.current_game_name ? [glyph('planner.playing', 'Currently playing '), ' ', h('strong', {}, s.current_game_name), ' · '] : []),
+      glyph('dash.finished', 'games finished'),
       ` ${s.games_done_since_start} · `,
-      glyph('📅', 'since'),
+      glyph('planner.since', 'since'),
       ` ${s.enforcement_started_at.slice(0, 10) || '—'} · `,
-      glyph('🎮', 'candidates'),
+      glyph('planner.candidates', 'candidates'),
       ` ${this.data.games.length}`,
     )
   }

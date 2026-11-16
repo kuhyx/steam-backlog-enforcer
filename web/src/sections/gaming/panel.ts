@@ -5,6 +5,7 @@
 
 import { explain } from '../../api/errors'
 import { q } from '../../api/queries'
+import { iconInline } from '../../icons/render'
 import { define, h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
 import { commandLine, glyph, loading } from '../../ui/build'
@@ -21,12 +22,12 @@ export function isDemo(search: string = location.search): boolean {
 export class BudgetModeLinkElement extends LiveElement {
   protected update(): void {
     const demo = isDemo()
-    // 🧪 switches to the demo budget, 🏭 back to production; the words are spoken.
+    // The demo icon switches to the demo budget, the production icon back; the words are spoken.
     this.replaceChildren(
       h(
         'a',
         { href: demo ? '/gaming/' : '/gaming/?demo=1', class: 'btn btn-ghost' },
-        demo ? glyph('🏭', 'Show production budget') : glyph('🧪', 'Show demo budget'),
+        demo ? glyph('gaming.production', 'Show production budget') : glyph('gaming.demo', 'Show demo budget'),
       ),
     )
   }
@@ -50,7 +51,7 @@ export class BudgetPanelElement extends LiveElement {
           { class: 'status' },
           // The server's own detail is painted; the framing is spoken. The
           // command is the recovery path, so it stays with a copy button.
-          h('p', { class: 'error' }, said(`Could not read budget state: ${explain(error).detail}`, '⛔ ', explain(error).detail)),
+          h('p', { class: 'error' }, said(`Could not read budget state: ${explain(error).detail}`, iconInline('notice.danger'), ' ', explain(error).detail)),
           h('p', { class: 'hint' }, h('span', { class: 'sr-only' }, 'Is the backend running? Start it with')),
           commandLine('./run.sh serve'),
         ),

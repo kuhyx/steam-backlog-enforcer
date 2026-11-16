@@ -3,12 +3,13 @@
 
 import { q } from '../api/queries'
 import { commandButton } from '../commands/commandButton'
-import { define, h } from '../lib/dom'
+import { iconInline } from '../icons/render'
+import { define, h, type Child } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { card, empty, errorNotice, loading } from '../ui/build'
 
 /** Glyphs and numbers painted, the sentence spoken. */
-function glyphText(painted: string, spoken: string): HTMLSpanElement {
+function glyphText(painted: readonly Child[], spoken: string): HTMLSpanElement {
   return h('span', { class: 'muted' }, h('span', { 'aria-hidden': 'true' }, painted), h('span', { class: 'sr-only' }, spoken))
 }
 
@@ -51,7 +52,7 @@ export class ManualPicksElement extends LiveElement {
                 { class: 'grow' },
                 h('strong', {}, p.name),
                 ' ',
-                glyphText(`· 🕐 ${p.age_days} d · ${p.app_id}`, `· picked ${p.age_days} d ago · ${p.app_id}`),
+                glyphText(['· ', iconInline('picks.age'), ` ${p.age_days} d · ${p.app_id}`], `· picked ${p.age_days} d ago · ${p.app_id}`),
               ),
               abandon(p.app_id),
             ),
@@ -61,7 +62,7 @@ export class ManualPicksElement extends LiveElement {
             h(
               'li',
               { class: 'row' },
-              h('span', { class: 'grow' }, h('strong', {}, p.name), ' ', glyphText(`· 📌 🔓 · ${p.app_id}`, `· kept · no lock · ${p.app_id}`)),
+              h('span', { class: 'grow' }, h('strong', {}, p.name), ' ', glyphText(['· ', iconInline('picks.kept'), ' ', iconInline('state.unlocked'), ` · ${p.app_id}`], `· kept · no lock · ${p.app_id}`)),
               abandon(p.app_id),
             ),
           ),
@@ -69,7 +70,7 @@ export class ManualPicksElement extends LiveElement {
         none
           ? h('div', { class: 'actions' }, commandButton({ name: 'abandon-pick', label: 'Abandon a pick by app id…' }))
           : null,
-      ], { icon: '📌' }),
+      ], { icon: 'picks.manual' }),
     )
   }
 }

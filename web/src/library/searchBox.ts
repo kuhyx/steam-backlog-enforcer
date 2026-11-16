@@ -4,6 +4,7 @@
 // clears. The input is built once; only the list and ARIA state change.
 
 import type { LibraryGame } from '../api/contract'
+import { iconText } from '../icons/iconText'
 import { h } from '../lib/dom'
 import { uid } from '../lib/ids'
 import { reasonOrMeta } from './view'
@@ -36,7 +37,7 @@ export class SearchBox {
       'aria-expanded': 'false',
       'aria-controls': this.listId,
       'aria-autocomplete': 'list',
-      placeholder: '🔍',
+      placeholder: iconText('lib.search'),
     })
     this.list = h('ul', { id: this.listId, role: 'listbox', class: 'lib-suggest', hidden: true, 'aria-label': 'Suggestions' })
     this.el = h('div', { class: 'lib-search' }, this.input, this.list)

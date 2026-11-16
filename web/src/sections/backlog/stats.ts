@@ -1,16 +1,17 @@
 // <backlog-stats>: the CLI's `stats` estimate for the default filters (was
-// screens/Backlog.tsx StatsCard). Textgate: labels are glyphs, words spoken only.
+// screens/Backlog.tsx StatsCard). Textgate: labels are icons, words spoken only.
 
 import { q } from '../../api/queries'
 import { fmtHours } from '../../format'
+import type { IconId } from '../../icons/registry'
 import { h } from '../../lib/dom'
 import { LiveElement } from '../../lib/element'
 import { card, errorNotice, facts, glyph, loading } from '../../ui/build'
-import { BASIS_GLYPH, styleGlyph } from './glyphs'
+import { BASIS_ICON, styleGlyph } from './glyphs'
 
-const ICON = '📊'
+const ICON: IconId = 'stats.card'
 const ratio = (r: number) => (r < 0 ? '—' : `${r.toFixed(2)}×`)
-const stat = (num: string | number, icon: string, label: string) =>
+const stat = (num: string | number, icon: IconId, label: string) =>
   h('div', { class: 'stat' }, h('span', { class: 'stat-num' }, num), glyph(icon, label, 'stat-label'))
 
 export class BacklogStatsElement extends LiveElement {
@@ -37,17 +38,17 @@ export class BacklogStatsElement extends LiveElement {
           h(
             'div',
             { class: 'stat-row' },
-            stat(s.qualifying, '🎮', 'qualifying games'),
-            stat(fmtHours(s.rush_total), BASIS_GLYPH.rush, 'rush'),
-            stat(fmtHours(s.leisure_total), BASIS_GLYPH.leisure, 'leisure'),
-            stat(fmtHours(s.worst_total), BASIS_GLYPH.worst, 'worst case'),
+            stat(s.qualifying, 'backlog.in-scope', 'qualifying games'),
+            stat(fmtHours(s.rush_total), BASIS_ICON.rush, 'rush'),
+            stat(fmtHours(s.leisure_total), BASIS_ICON.leisure, 'leisure'),
+            stat(fmtHours(s.worst_total), BASIS_ICON.worst, 'worst case'),
           ),
           p
             ? facts([
-                [glyph(BASIS_GLYPH.pace, 'Your pace'), styleGlyph(p.player_style)],
-                [glyph(BASIS_GLYPH.rush, 'vs rush'), ratio(p.ratio_vs_rush)],
-                [glyph(BASIS_GLYPH.leisure, 'vs leisure'), ratio(p.ratio_vs_leisure)],
-                [glyph('🏆', 'Calibrated on'), [String(p.calibration_count), h('span', { class: 'sr-only' }, ' finished games')]],
+                [glyph(BASIS_ICON.pace, 'Your pace'), styleGlyph(p.player_style)],
+                [glyph(BASIS_ICON.rush, 'vs rush'), ratio(p.ratio_vs_rush)],
+                [glyph(BASIS_ICON.leisure, 'vs leisure'), ratio(p.ratio_vs_leisure)],
+                [glyph('dash.finished','Calibrated on'), [String(p.calibration_count), h('span', { class: 'sr-only' }, ' finished games')]],
               ])
             : null,
         ],
