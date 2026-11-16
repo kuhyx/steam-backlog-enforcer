@@ -141,7 +141,7 @@ class TestRunAsUser:
                 _SPAWNED.clear()
 
     def test_non_root_runs_directly(self) -> None:
-        """A non-root caller runs the command unchanged."""
+        """A non-root caller runs the command itself, under the session env."""
         with (
             patch(f"{STEAM_PROCESS_PKG}.os.geteuid", return_value=1000),
             patch(f"{STEAM_PROCESS_PKG}.subprocess.Popen") as mock_popen,
@@ -149,7 +149,9 @@ class TestRunAsUser:
             _run_as_user(["steam", "-shutdown"], "alice")
         mock_popen.assert_called_once()
         cmd = mock_popen.call_args[0][0]
-        assert cmd == ["steam", "-shutdown"]
+        assert cmd[0] == "env"
+        assert cmd[-2:] == ["steam", "-shutdown"]
+        assert "sudo" not in cmd
 
     def test_root_drops_to_user(self) -> None:
         """Root launches through sudo -u as the desktop user."""

@@ -53,13 +53,17 @@ def _reap_spawned() -> None:
     _SPAWNED[:] = [proc for proc in _SPAWNED if proc.poll() is None]
 
 
-def _run_as_user(cmd: list[str], user: str | None) -> None:
+def _run_as_user(cmd: list[str], user: str | None) -> subprocess.Popen[bytes] | None:
     """Run a command, dropping to *user* if currently root.
 
     Refuses to run at all when root and no desktop user resolves: the command
     would otherwise execute *as root* on the user's session, which is how the
     enforcer put a root Steam ("Cannot run as root user") on screen.
     Failing closed costs one skipped pass; failing open costs a modal.
+
+    Returns:
+        The started process, so a caller that waits on it can notice it died;
+        ``None`` when the launch was refused.
     """
     _reap_spawned()
     if os.geteuid() == 0 and (not user or user == "root"):
@@ -68,7 +72,7 @@ def _run_as_user(cmd: list[str], user: str | None) -> None:
             "(is STEAM_ENFORCER_DESKTOP_USER set?)",
             cmd[0] if cmd else "<empty>",
         )
-        return
-    full_cmd = desktop_user_cmd(cmd, user)
-
-    _SPAWNED.append(spawn_detached(full_cmd))
+        return None
+    proc = spawn_detached(desktop_user_cmd(cmd, user))
+    _SPAWNED.append(proc)
+    return proc

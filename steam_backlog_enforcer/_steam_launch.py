@@ -24,6 +24,10 @@ from steam_backlog_enforcer._desktop_env import (
     desktop_runtime_dir,
     desktop_session_ready,
     desktop_uid,
+    x_display_error,
+)
+from steam_backlog_enforcer._desktop_env import (
+    resolve_desktop_user as _resolve_desktop_user,
 )
 from steam_backlog_enforcer._steam_errors import (
     DesktopSessionNotReadyError,
@@ -78,11 +82,21 @@ def _steam_has_debug_port() -> bool:
     return _get_shared_js_ws_url() is not None
 
 
-def _wait_for_cdp_ready() -> bool:
-    """Wait up to *_STEAM_STARTUP_WAIT* seconds for CDP to become ready."""
+def _wait_for_cdp_ready(launched: subprocess.Popen[bytes] | None = None) -> bool:
+    """Wait up to *_STEAM_STARTUP_WAIT* seconds for CDP to become ready.
+
+    Raises:
+        SteamUnavailableError: *launched* exited and no Steam is left to open
+            the port. A live client keeps the wait going: ``steam`` may fork
+            the real client and exit.
+    """
     for _ in range(_STEAM_STARTUP_WAIT):
         if _get_shared_js_ws_url() is not None:
             return True
+        code = None if launched is None else launched.poll()
+        if code is not None and not _is_steam_running():
+            msg = f"Steam exited during startup (exit code {code})"
+            raise SteamUnavailableError(msg)
         time.sleep(1)
     return False
 
@@ -109,21 +123,6 @@ def _wait_for_collections_ready() -> bool:
     return False
 
 
-def _resolve_desktop_user() -> str | None:
-    """Resolve which desktop user owns the Steam/X11 session.
-
-    Prefers the explicit STEAM_ENFORCER_DESKTOP_USER (set by the systemd
-    unit, which has no SUDO_USER/USER of its own since it is started
-    directly by systemd rather than via `sudo`), then falls back to
-    SUDO_USER/USER for interactive `sudo` invocations.
-    """
-    return (
-        os.environ.get("STEAM_ENFORCER_DESKTOP_USER")
-        or os.environ.get("SUDO_USER")
-        or os.environ.get("USER")
-    )
-
-
 def _shutdown_steam() -> None:
     """Send ``steam -shutdown`` and wait for the process to exit."""
     real_user = _resolve_desktop_user()
@@ -144,10 +143,10 @@ def _shutdown_steam() -> None:
         time.sleep(1)
 
 
-def _launch_steam_with_debug() -> None:
-    """Launch Steam with CEF debugging enabled."""
+def _launch_steam_with_debug() -> subprocess.Popen[bytes] | None:
+    """Launch Steam with CEF debugging enabled; return the process if started."""
     real_user = _resolve_desktop_user()
-    _run_as_user(
+    return _run_as_user(
         [
             "steam",
             "-cef-enable-debugging",
@@ -193,14 +192,18 @@ def ensure_steam_debug_port() -> None:
         logger.info(msg)
         raise DesktopSessionNotReadyError(msg)
 
+    # Before the shutdown: never close Steam only to find nowhere to restart it.
+    if (no_display := x_display_error()) is not None:
+        raise SteamUnavailableError(no_display)
+
     logger.info("Steam CDP port not available — (re)starting Steam...")
     if _is_steam_running():
         assert_safe_to_restart()
         _shutdown_steam()
 
-    _launch_steam_with_debug()
+    launched = _launch_steam_with_debug()
 
-    if not _wait_for_cdp_ready():
+    if not _wait_for_cdp_ready(launched):
         msg = "Timed out waiting for Steam CDP port to become ready"
         raise SteamUnavailableError(msg)
     logger.info("Steam CDP port ready.")

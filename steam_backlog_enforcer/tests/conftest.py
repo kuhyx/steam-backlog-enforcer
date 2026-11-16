@@ -42,6 +42,7 @@ from steam_backlog_enforcer.tests._no_subprocess import _block_real_subprocesses
 from steam_backlog_enforcer.tests._no_systemd_run import _no_systemd_run
 from steam_backlog_enforcer.tests._no_workout_http import _no_workout_http
 from steam_backlog_enforcer.tests._research_fixtures import tm
+from steam_backlog_enforcer.tests._x_display_up import _x_display_up
 
 # Re-exported so ruff --fix does not delete the imports above: pytest
 # registers autouse fixtures by name, so they look unused to the linter.
@@ -63,6 +64,7 @@ __all__ = [
     "_no_real_effects",
     "_no_systemd_run",
     "_no_workout_http",
+    "_x_display_up",
     "tm",
 ]
 

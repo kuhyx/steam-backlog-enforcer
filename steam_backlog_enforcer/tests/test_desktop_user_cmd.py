@@ -70,10 +70,18 @@ class TestResolveDesktopUser:
 class TestDesktopUserCmd:
     """Tests for desktop_user_cmd — all four branches."""
 
-    def test_non_root_returns_cmd_unchanged(self) -> None:
-        """A non-root caller runs the command as is."""
+    def test_non_root_gets_the_env_without_sudo(self) -> None:
+        """A non-root caller runs the command under the session env, no sudo.
+
+        The web server is a user unit with no DISPLAY; a bare ``steam`` from
+        a job died with "Unable to open X11 display".
+        """
         with patch(f"{ENV_PKG}.os.geteuid", return_value=1000):
-            assert desktop_user_cmd(["steam"], "kuhy") == ["steam"]
+            result = desktop_user_cmd(["steam"], "kuhy")
+        assert result[0] == "env"
+        assert result[-1] == "steam"
+        assert "sudo" not in result
+        assert _env_value(result, "XDG_RUNTIME_DIR") == "/run/user/1000"
 
     def test_root_with_user_wraps_in_sudo(self) -> None:
         """Root with a desktop user wraps the command in sudo with the user env."""

@@ -28,6 +28,39 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import pwd
+import re
+
+# Where local X servers put their sockets: fixed by libX11, not a scratch file
+# (pyproject waives S108 for this module). A module constant so tests (and
+# repro scripts) can point it at a scratch directory.
+X_SOCKET_DIR = "/tmp/.X11-unix"
+# ``:0``, ``:1.0`` and ``unix:0`` are local; ``host:0`` is not.
+_LOCAL_DISPLAY = re.compile(r"(?:unix)?:(\d+)(?:\.\d+)?")
+
+
+def desktop_display() -> str:
+    """The X display for the desktop session: inherited, else the usual ``:0``."""
+    return os.environ.get("DISPLAY") or ":0"
+
+
+def x_display_error() -> str | None:
+    """Why a program launched now has no X display to open, or ``None``.
+
+    A Steam started without a reachable display logs "Unable to open X11
+    display" and exits within seconds, so launching it is pointless. A web
+    job (a user unit with no ``DISPLAY``) hit exactly that. Only local
+    displays are checked, by their socket: a ``host:N`` display cannot be
+    probed without connecting, so it is assumed up.
+    """
+    display = desktop_display()
+    match = _LOCAL_DISPLAY.fullmatch(display)
+    if match is None:
+        return None
+    socket = Path(X_SOCKET_DIR) / f"X{match[1]}"
+    if socket.exists():
+        return None
+    origin = "DISPLAY" if os.environ.get("DISPLAY") else "DISPLAY unset, default"
+    return f"No X display for Steam: {origin} {display} is not up ({socket} missing)"
 
 
 def desktop_runtime_dir(uid: int) -> str:
@@ -66,7 +99,7 @@ def desktop_env_args(user: str, uid: int) -> list[str]:
     dbus_addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS", dbus_default)
     xauth = os.environ.get("XAUTHORITY", f"/home/{user}/.Xauthority")
     return [
-        f"DISPLAY={os.environ.get('DISPLAY', ':0')}",
+        f"DISPLAY={desktop_display()}",
         f"XAUTHORITY={xauth}",
         f"DBUS_SESSION_BUS_ADDRESS={dbus_addr}",
         f"XDG_RUNTIME_DIR={runtime_dir}",
@@ -112,23 +145,41 @@ def resolve_desktop_user() -> str | None:
     )
 
 
-def desktop_user_cmd(cmd: list[str], user: str | None) -> list[str]:
-    """Wrap *cmd* so it runs as *user* when the caller is root.
+def _process_owner() -> str | None:
+    """The user this process runs as, or ``None`` without a passwd entry."""
+    try:
+        return pwd.getpwuid(os.geteuid()).pw_name
+    except KeyError:
+        return None
 
-    Returns *cmd* unchanged when already unprivileged or when no desktop user
-    resolves; otherwise prefixes ``sudo -u <user> env <session vars>``.
+
+def desktop_user_cmd(cmd: list[str], user: str | None) -> list[str]:
+    """Wrap *cmd* so it runs in the desktop session as *user*.
+
+    As root: prefixes ``sudo -u <user> env <session vars>``, or returns *cmd*
+    unchanged when no desktop user resolves. Unprivileged (a web job): there
+    is no one to switch to, but the session vars are still prefixed with a
+    plain ``env`` — a user unit has no ``DISPLAY``, and a bare ``steam`` then
+    dies with "Unable to open X11 display". The uid comes from the process
+    itself, not from the lookup that falls back to 1000.
 
     This is argv construction only — deliberately no ``subprocess`` call, so
     every spawn site stays in a module covered by the test suite's
     ``_no_subprocess`` guard.
     """
-    if os.geteuid() == 0 and user and user != "root":
-        return [
-            "sudo",
-            "-u",
-            user,
-            "env",
-            *desktop_env_args(user, desktop_uid(user)),
-            *cmd,
-        ]
-    return cmd
+    euid = os.geteuid()
+    if euid == 0:
+        if user and user != "root":
+            return [
+                "sudo",
+                "-u",
+                user,
+                "env",
+                *desktop_env_args(user, desktop_uid(user)),
+                *cmd,
+            ]
+        return cmd
+    owner = user or _process_owner()
+    if owner is None:
+        return cmd
+    return ["env", *desktop_env_args(owner, euid), *cmd]

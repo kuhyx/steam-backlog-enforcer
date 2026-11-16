@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 
-from steam_backlog_enforcer._steam_launch import _resolve_desktop_user
+from steam_backlog_enforcer._desktop_env import (
+    resolve_desktop_user as _resolve_desktop_user,
+)
 from steam_backlog_enforcer._steam_process import _run_as_user
 
 logger = logging.getLogger(__name__)
