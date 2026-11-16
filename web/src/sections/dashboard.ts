@@ -124,13 +124,13 @@ export class BudgetGlanceElement extends LiveElement {
     const body = t
       ? [
           // From 2026-11-16 there is no budget: the mark replaces the countdown and the bar.
-          t.unlimited || t.fraction_used === null || t.budget_seconds === null
+          t.unlimited || t.fraction_used === null || t.budget_seconds === null || t.seconds_remaining === null
             ? h('p', { class: 'hero-num' }, glyph('filter.no-cap', 'No gaming limit'))
             : [
                 h(
                   'p',
                   { class: 'hero-num' },
-                  `${fmtDuration(t.seconds_remaining ?? 0)} `,
+                  `${fmtDuration(t.seconds_remaining)} `,
                   h('span', { class: 'muted' }, said(`left of ${fmtDuration(t.budget_seconds)}`, `/ ${fmtDuration(t.budget_seconds)}`)),
                 ),
                 progressBar(t.fraction_used, 'Budget used', budgetTone(t.blocked, t.fraction_used)),
