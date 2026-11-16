@@ -1,5 +1,81 @@
 {
   "icons": {
+    "action.cancel": {
+      "glyph": null,
+      "word": "cancel"
+    },
+    "action.confirm": {
+      "glyph": null,
+      "word": "confirm"
+    },
+    "action.open": {
+      "glyph": "🔗",
+      "word": "open"
+    },
+    "assigned.game": {
+      "glyph": null,
+      "word": "assigned"
+    },
+    "backlog.any": {
+      "glyph": null,
+      "word": "any"
+    },
+    "backlog.cli": {
+      "glyph": null,
+      "word": "cli"
+    },
+    "backlog.filters": {
+      "glyph": null,
+      "word": "filters"
+    },
+    "backlog.in-scope": {
+      "glyph": null,
+      "word": "scope"
+    },
+    "backlog.sort-asc": {
+      "glyph": null,
+      "word": "ascending"
+    },
+    "backlog.sort-desc": {
+      "glyph": null,
+      "word": "descending"
+    },
+    "backup.item": {
+      "glyph": null,
+      "word": "backup"
+    },
+    "backup.reason.nightly": {
+      "glyph": null,
+      "word": "nightly"
+    },
+    "backup.reason.other": {
+      "glyph": null,
+      "word": "other"
+    },
+    "backup.reason.reset": {
+      "glyph": null,
+      "word": "reset"
+    },
+    "backup.restore": {
+      "glyph": null,
+      "word": "restore"
+    },
+    "basis.leisure": {
+      "glyph": null,
+      "word": "leisure"
+    },
+    "basis.pace": {
+      "glyph": null,
+      "word": "pace"
+    },
+    "basis.rush": {
+      "glyph": null,
+      "word": "rush"
+    },
+    "basis.worst": {
+      "glyph": null,
+      "word": "worst"
+    },
     "cmd.abandon-pick": {
       "glyph": null,
       "word": "abandon"
@@ -104,6 +180,342 @@
       "glyph": null,
       "word": "remove"
     },
+    "cmdflag.cancellable": {
+      "glyph": null,
+      "word": "stoppable"
+    },
+    "cmdflag.countdown": {
+      "glyph": null,
+      "word": "countdown"
+    },
+    "cmdflag.mutating": {
+      "glyph": null,
+      "word": "changes"
+    },
+    "cmdflag.readonly": {
+      "glyph": null,
+      "word": "readonly"
+    },
+    "cmdflag.root": {
+      "glyph": null,
+      "word": "root"
+    },
+    "cmdpal.go": {
+      "glyph": null,
+      "word": "navigate"
+    },
+    "cmdpal.open": {
+      "glyph": null,
+      "word": "page"
+    },
+    "cmdpal.run-phrase": {
+      "glyph": null,
+      "word": "confirm"
+    },
+    "cmdpal.search": {
+      "glyph": null,
+      "word": "search"
+    },
+    "copy.command": {
+      "glyph": null,
+      "word": "copy"
+    },
+    "copy.done": {
+      "glyph": null,
+      "word": "done"
+    },
+    "daemon.demo_run": {
+      "glyph": null,
+      "word": "demo"
+    },
+    "daemon.heading": {
+      "glyph": null,
+      "word": "daemon"
+    },
+    "daemon.journal": {
+      "glyph": null,
+      "word": "journal"
+    },
+    "daemon.pid": {
+      "glyph": null,
+      "word": "process"
+    },
+    "daemon.restart": {
+      "glyph": null,
+      "word": "restart"
+    },
+    "daemon.restarting": {
+      "glyph": null,
+      "word": "restarting"
+    },
+    "daemon.running": {
+      "glyph": null,
+      "word": "running"
+    },
+    "daemon.state": {
+      "glyph": null,
+      "word": "state"
+    },
+    "daemon.unreachable": {
+      "glyph": null,
+      "word": "unreachable"
+    },
+    "daemon.up_since": {
+      "glyph": null,
+      "word": "uptime"
+    },
+    "dash.ago": {
+      "glyph": null,
+      "word": "ago"
+    },
+    "dash.billing": {
+      "glyph": null,
+      "word": "playing"
+    },
+    "dash.block-left": {
+      "glyph": null,
+      "word": "left"
+    },
+    "dash.blocked-today": {
+      "glyph": null,
+      "word": "blocked"
+    },
+    "dash.budget": {
+      "glyph": null,
+      "word": "budget"
+    },
+    "dash.elapsed": {
+      "glyph": null,
+      "word": "elapsed"
+    },
+    "dash.fast-failed": {
+      "glyph": null,
+      "word": "failed"
+    },
+    "dash.fast-install": {
+      "glyph": null,
+      "word": "fast"
+    },
+    "dash.finished": {
+      "glyph": null,
+      "word": "finished"
+    },
+    "dash.games": {
+      "glyph": null,
+      "word": "games"
+    },
+    "dash.installed": {
+      "glyph": null,
+      "word": "installed"
+    },
+    "dash.not-billing": {
+      "glyph": null,
+      "word": "idle"
+    },
+    "dash.outlook": {
+      "glyph": null,
+      "word": "backlog"
+    },
+    "dash.recent-jobs": {
+      "glyph": null,
+      "word": "jobs"
+    },
+    "dash.steam-took-over": {
+      "glyph": null,
+      "word": "fallback"
+    },
+    "dash.store": {
+      "glyph": null,
+      "word": "store"
+    },
+    "dash.store-blocked": {
+      "glyph": null,
+      "word": "blocked"
+    },
+    "dash.store-open": {
+      "glyph": null,
+      "word": "open"
+    },
+    "dash.total-block": {
+      "glyph": null,
+      "word": "block"
+    },
+    "dialog.close": {
+      "glyph": null,
+      "word": "close"
+    },
+    "filter.advanced": {
+      "glyph": null,
+      "word": "advanced"
+    },
+    "filter.basis": {
+      "glyph": null,
+      "word": "basis"
+    },
+    "filter.clear-date": {
+      "glyph": null,
+      "word": "clear"
+    },
+    "filter.daily": {
+      "glyph": null,
+      "word": "daily"
+    },
+    "filter.fallback": {
+      "glyph": null,
+      "word": "guess"
+    },
+    "filter.max-time": {
+      "glyph": null,
+      "word": "cap"
+    },
+    "filter.min-confidence": {
+      "glyph": null,
+      "word": "confidence"
+    },
+    "filter.min-polled": {
+      "glyph": null,
+      "word": "polled"
+    },
+    "filter.min-tier": {
+      "glyph": null,
+      "word": "minimum"
+    },
+    "filter.no-cap": {
+      "glyph": null,
+      "word": "unlimited"
+    },
+    "filter.proton-missing": {
+      "glyph": null,
+      "word": "unrated"
+    },
+    "filter.reset": {
+      "glyph": null,
+      "word": "reset"
+    },
+    "filter.started": {
+      "glyph": null,
+      "word": "started"
+    },
+    "filter.target-date": {
+      "glyph": null,
+      "word": "deadline"
+    },
+    "filter.untouched": {
+      "glyph": null,
+      "word": "untouched"
+    },
+    "gaming.billed_last": {
+      "glyph": null,
+      "word": "previous"
+    },
+    "gaming.billing_to": {
+      "glyph": null,
+      "word": "charging"
+    },
+    "gaming.budget": {
+      "glyph": null,
+      "word": "budget"
+    },
+    "gaming.by_game": {
+      "glyph": null,
+      "word": "games"
+    },
+    "gaming.cutoff.masked": {
+      "glyph": null,
+      "word": "cutoff"
+    },
+    "gaming.cutoff.unmasked": {
+      "glyph": null,
+      "word": "unmasked"
+    },
+    "gaming.day": {
+      "glyph": null,
+      "word": "date"
+    },
+    "gaming.day_start": {
+      "glyph": null,
+      "word": "sunrise"
+    },
+    "gaming.demo": {
+      "glyph": null,
+      "word": "demo"
+    },
+    "gaming.enforcement": {
+      "glyph": null,
+      "word": "enforcement"
+    },
+    "gaming.history": {
+      "glyph": null,
+      "word": "history"
+    },
+    "gaming.launcher": {
+      "glyph": null,
+      "word": "launcher"
+    },
+    "gaming.masked": {
+      "glyph": null,
+      "word": "masked"
+    },
+    "gaming.mode": {
+      "glyph": null,
+      "word": "mode"
+    },
+    "gaming.production": {
+      "glyph": null,
+      "word": "production"
+    },
+    "gaming.qualifying": {
+      "glyph": null,
+      "word": "processes"
+    },
+    "gaming.right_now": {
+      "glyph": null,
+      "word": "live"
+    },
+    "gaming.rules": {
+      "glyph": null,
+      "word": "rules"
+    },
+    "gaming.series.other": {
+      "glyph": null,
+      "word": "other"
+    },
+    "gaming.series.unattributed": {
+      "glyph": null,
+      "word": "unattributed"
+    },
+    "gaming.today": {
+      "glyph": null,
+      "word": "today"
+    },
+    "gaming.warn.none": {
+      "glyph": null,
+      "word": "silent"
+    },
+    "gaming.warning": {
+      "glyph": null,
+      "word": "warning"
+    },
+    "health.bad": {
+      "glyph": null,
+      "word": "down"
+    },
+    "health.ok": {
+      "glyph": null,
+      "word": "healthy"
+    },
+    "health.stale": {
+      "glyph": null,
+      "word": "stale"
+    },
+    "health.unknown": {
+      "glyph": null,
+      "word": "unknown"
+    },
+    "health.warn": {
+      "glyph": null,
+      "word": "degraded"
+    },
     "job.state.cancelled": {
       "glyph": null,
       "word": "stopped"
@@ -127,6 +539,146 @@
     "job.state.waiting_input": {
       "glyph": null,
       "word": "question"
+    },
+    "jobchip.needs-input": {
+      "glyph": null,
+      "word": "answer"
+    },
+    "jobs.all": {
+      "glyph": null,
+      "word": "all"
+    },
+    "jobs.cancel": {
+      "glyph": null,
+      "word": "stop"
+    },
+    "jobs.command": {
+      "glyph": null,
+      "word": "command"
+    },
+    "jobs.job": {
+      "glyph": null,
+      "word": "job"
+    },
+    "jobs.log": {
+      "glyph": null,
+      "word": "log"
+    },
+    "jobs.not-found": {
+      "glyph": null,
+      "word": "missing"
+    },
+    "jobs.started": {
+      "glyph": null,
+      "word": "started"
+    },
+    "jobs.state": {
+      "glyph": null,
+      "word": "state"
+    },
+    "jobs.took": {
+      "glyph": null,
+      "word": "took"
+    },
+    "jobs.waiting": {
+      "glyph": null,
+      "word": "waiting"
+    },
+    "keep.excluded": {
+      "glyph": null,
+      "word": "excluded"
+    },
+    "keep.kept": {
+      "glyph": null,
+      "word": "kept"
+    },
+    "lib.completion": {
+      "glyph": null,
+      "word": "completion"
+    },
+    "lib.count": {
+      "glyph": null,
+      "word": "games"
+    },
+    "lib.hide-completed": {
+      "glyph": null,
+      "word": "hide"
+    },
+    "lib.hltb": {
+      "glyph": null,
+      "word": "hltb"
+    },
+    "lib.name": {
+      "glyph": null,
+      "word": "name"
+    },
+    "lib.pickable": {
+      "glyph": null,
+      "word": "pickable"
+    },
+    "lib.played": {
+      "glyph": null,
+      "word": "played"
+    },
+    "lib.recent": {
+      "glyph": null,
+      "word": "recent"
+    },
+    "lib.relevance": {
+      "glyph": null,
+      "word": "relevance"
+    },
+    "lib.search": {
+      "glyph": null,
+      "word": "search"
+    },
+    "lib.sort": {
+      "glyph": null,
+      "word": "sort"
+    },
+    "lib.why.blocked": {
+      "glyph": null,
+      "word": "blocked"
+    },
+    "lib.why.complete": {
+      "glyph": null,
+      "word": "complete"
+    },
+    "lib.why.noach": {
+      "glyph": null,
+      "word": "none"
+    },
+    "lib.why.skipped": {
+      "glyph": null,
+      "word": "skipped"
+    },
+    "libpage.all": {
+      "glyph": null,
+      "word": "all"
+    },
+    "libpage.app-id": {
+      "glyph": null,
+      "word": "number"
+    },
+    "libpage.candidate": {
+      "glyph": null,
+      "word": "removable"
+    },
+    "libpage.game": {
+      "glyph": null,
+      "word": "game"
+    },
+    "libpage.protected": {
+      "glyph": null,
+      "word": "protected"
+    },
+    "libpage.role": {
+      "glyph": null,
+      "word": "role"
+    },
+    "libpage.size": {
+      "glyph": null,
+      "word": "size"
     },
     "nav.backlog": {
       "glyph": null,
@@ -179,6 +731,326 @@
     "palette.open": {
       "glyph": null,
       "word": "search"
+    },
+    "params.app_id": {
+      "glyph": null,
+      "word": "game"
+    },
+    "params.backup_id": {
+      "glyph": null,
+      "word": "backup"
+    },
+    "params.days": {
+      "glyph": null,
+      "word": "days"
+    },
+    "params.demo": {
+      "glyph": null,
+      "word": "demo"
+    },
+    "params.minutes": {
+      "glyph": null,
+      "word": "minutes"
+    },
+    "params.other": {
+      "glyph": null,
+      "word": "field"
+    },
+    "params.reason": {
+      "glyph": null,
+      "word": "reason"
+    },
+    "params.replace": {
+      "glyph": null,
+      "word": "replace"
+    },
+    "pending.beat": {
+      "glyph": null,
+      "word": "heartbeat"
+    },
+    "pending.beat-lost": {
+      "glyph": null,
+      "word": "failing"
+    },
+    "pending.leave": {
+      "glyph": null,
+      "word": "leaving"
+    },
+    "pending.rearm": {
+      "glyph": null,
+      "word": "rearm"
+    },
+    "phrase.field": {
+      "glyph": null,
+      "word": "type"
+    },
+    "picks.age": {
+      "glyph": null,
+      "word": "picked"
+    },
+    "picks.kept": {
+      "glyph": null,
+      "word": "kept"
+    },
+    "picks.manual": {
+      "glyph": null,
+      "word": "manual"
+    },
+    "planner.candidates": {
+      "glyph": null,
+      "word": "candidates"
+    },
+    "planner.completion": {
+      "glyph": null,
+      "word": "completion"
+    },
+    "planner.completions": {
+      "glyph": null,
+      "word": "completions"
+    },
+    "planner.game": {
+      "glyph": null,
+      "word": "game"
+    },
+    "planner.keep": {
+      "glyph": null,
+      "word": "keep"
+    },
+    "planner.no-data": {
+      "glyph": null,
+      "word": "blank"
+    },
+    "planner.playing": {
+      "glyph": null,
+      "word": "playing"
+    },
+    "planner.playtime": {
+      "glyph": null,
+      "word": "playtime"
+    },
+    "planner.proton": {
+      "glyph": null,
+      "word": "proton"
+    },
+    "planner.since": {
+      "glyph": null,
+      "word": "since"
+    },
+    "prompt.answer": {
+      "glyph": null,
+      "word": "send"
+    },
+    "prompt.back": {
+      "glyph": null,
+      "word": "back"
+    },
+    "prompt.games": {
+      "glyph": null,
+      "word": "choices"
+    },
+    "prompt.no": {
+      "glyph": null,
+      "word": "no"
+    },
+    "prompt.own-game": {
+      "glyph": null,
+      "word": "own"
+    },
+    "prompt.pick": {
+      "glyph": null,
+      "word": "pick"
+    },
+    "prompt.question": {
+      "glyph": null,
+      "word": "question"
+    },
+    "prompt.yes": {
+      "glyph": null,
+      "word": "yes"
+    },
+    "runner.arm": {
+      "glyph": null,
+      "word": "arm"
+    },
+    "runner.fill": {
+      "glyph": null,
+      "word": "fill"
+    },
+    "runner.run": {
+      "glyph": null,
+      "word": "run"
+    },
+    "runner.terminal": {
+      "glyph": null,
+      "word": "terminal"
+    },
+    "server.code": {
+      "glyph": null,
+      "word": "code"
+    },
+    "server.heading": {
+      "glyph": null,
+      "word": "server"
+    },
+    "server.restart": {
+      "glyph": null,
+      "word": "restart"
+    },
+    "server.started": {
+      "glyph": null,
+      "word": "started"
+    },
+    "server.version": {
+      "glyph": null,
+      "word": "version"
+    },
+    "setup.api-key": {
+      "glyph": null,
+      "word": "key"
+    },
+    "setup.help": {
+      "glyph": null,
+      "word": "link"
+    },
+    "setup.key-stored": {
+      "glyph": null,
+      "word": "stored"
+    },
+    "setup.steam-id": {
+      "glyph": null,
+      "word": "id"
+    },
+    "state.empty": {
+      "glyph": null,
+      "word": "empty"
+    },
+    "state.locked": {
+      "glyph": null,
+      "word": "locked"
+    },
+    "state.no": {
+      "glyph": null,
+      "word": "no"
+    },
+    "state.off": {
+      "glyph": null,
+      "word": "off"
+    },
+    "state.unknown": {
+      "glyph": null,
+      "word": "unknown"
+    },
+    "state.unlocked": {
+      "glyph": null,
+      "word": "unlocked"
+    },
+    "state.wait": {
+      "glyph": null,
+      "word": "busy"
+    },
+    "state.warn": {
+      "glyph": null,
+      "word": "attention"
+    },
+    "state.yes": {
+      "glyph": null,
+      "word": "yes"
+    },
+    "stats.card": {
+      "glyph": null,
+      "word": "estimates"
+    },
+    "store.blocked": {
+      "glyph": null,
+      "word": "blocked"
+    },
+    "store.open": {
+      "glyph": null,
+      "word": "open"
+    },
+    "style.between": {
+      "glyph": null,
+      "word": "between"
+    },
+    "style.fast": {
+      "glyph": null,
+      "word": "fast"
+    },
+    "style.slow": {
+      "glyph": null,
+      "word": "slow"
+    },
+    "summary.estimated-total": {
+      "glyph": null,
+      "word": "total"
+    },
+    "summary.games-per-day": {
+      "glyph": null,
+      "word": "rate"
+    },
+    "summary.interpolation": {
+      "glyph": null,
+      "word": "blend"
+    },
+    "summary.match": {
+      "glyph": null,
+      "word": "match"
+    },
+    "summary.need": {
+      "glyph": null,
+      "word": "needs"
+    },
+    "summary.no-start": {
+      "glyph": null,
+      "word": "unset"
+    },
+    "summary.style": {
+      "glyph": null,
+      "word": "style"
+    },
+    "summary.to-finish": {
+      "glyph": null,
+      "word": "remaining"
+    },
+    "syssetup.configured": {
+      "glyph": null,
+      "word": "configured"
+    },
+    "syssetup.edit": {
+      "glyph": null,
+      "word": "edit"
+    },
+    "tier.borked": {
+      "glyph": null,
+      "word": "borked"
+    },
+    "tier.bronze": {
+      "glyph": null,
+      "word": "bronze"
+    },
+    "tier.gold": {
+      "glyph": null,
+      "word": "gold"
+    },
+    "tier.native": {
+      "glyph": null,
+      "word": "native"
+    },
+    "tier.pending": {
+      "glyph": null,
+      "word": "pending"
+    },
+    "tier.platinum": {
+      "glyph": null,
+      "word": "platinum"
+    },
+    "tier.silver": {
+      "glyph": null,
+      "word": "silver"
+    },
+    "words.page": {
+      "glyph": null,
+      "word": "words"
     }
   },
   "version": 1
