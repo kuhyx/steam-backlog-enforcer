@@ -3,8 +3,8 @@
 // for content a custom element renders from live data.
 
 import { explain } from '../api/errors'
-import { isIconId, type IconId } from '../icons/registry'
-import { iconFor, iconMark, iconWord } from '../icons/render'
+import type { IconId } from '../icons/registry'
+import { iconFor, iconInline, iconMark, iconWord } from '../icons/render'
 import { h, type Child } from '../lib/dom'
 
 export type Tone = 'info' | 'success' | 'warning' | 'danger'
@@ -47,14 +47,14 @@ export function errorNotice(error: unknown, ...children: Child[]): HTMLDivElemen
 }
 
 export function copyButton(text: string): HTMLButtonElement {
-  const btn = h('button', { type: 'button', class: 'btn btn-ghost btn-small', 'aria-label': 'Copy command' }, '📋')
+  const btn = h('button', { type: 'button', class: 'btn btn-ghost btn-small', 'aria-label': 'Copy command' }, iconInline('copy.command'))
   btn.addEventListener('click', () => {
     if (!('clipboard' in navigator)) return
     void navigator.clipboard.writeText(text).then(() => {
-      btn.textContent = '✅'
+      btn.replaceChildren(iconInline('copy.done'))
       btn.setAttribute('aria-label', 'Copied')
       setTimeout(() => {
-        btn.textContent = '📋'
+        btn.replaceChildren(iconInline('copy.command'))
         btn.setAttribute('aria-label', 'Copy command')
       }, 2000)
     })
@@ -71,12 +71,12 @@ export function loading(what: string): HTMLParagraphElement {
   return h('p', { class: 'loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { class: 'sr-only' }, `Loading ${what}`))
 }
 
-/** Empty-state marker: 📭 painted, the caller's sentence spoken only. */
+/** Empty-state marker: the empty icon painted, the caller's sentence spoken only. */
 export function empty(label: string): HTMLParagraphElement {
   return h(
     'p',
     { class: 'empty', 'aria-label': label },
-    h('span', { class: 'empty-icon', 'aria-hidden': 'true' }, '📭'),
+    iconInline('state.empty', 'empty-icon'),
     h('span', { class: 'sr-only' }, label),
   )
 }
@@ -84,27 +84,21 @@ export function empty(label: string): HTMLParagraphElement {
 export interface CardOptions {
   aside?: Child
   className?: string
-  icon?: string
+  icon?: IconId
 }
 
 /**
- * A painted glyph whose meaning is spoken (.sr-only). With a registered id the
- * glyph comes from the registry (the user's alternative applied) and his word,
- * if any, is drawn right of it; `spoken` then defaults to the registry name.
- * A raw glyph (`glyph('🧭', 'navigate')`) paints just that, as before.
+ * A painted glyph whose meaning is spoken (.sr-only). The glyph comes from the
+ * registry (the user's alternative applied) and his word, if any, is drawn
+ * right of it; `spoken` defaults to the registry name.
  */
-export function glyph(id: IconId, spoken?: string, className?: string): HTMLSpanElement
-export function glyph(icon: string, spoken: string, className?: string): HTMLSpanElement
-export function glyph(icon: string, spoken?: string, className = 'glyph'): HTMLSpanElement {
-  if (!isIconId(icon)) {
-    return h('span', { class: className }, h('span', { 'aria-hidden': 'true' }, icon), h('span', { class: 'sr-only' }, spoken))
-  }
-  const { glyph: painted, spoken: name } = iconFor(icon)
-  const word = iconWord(icon)
+export function glyph(id: IconId, spoken?: string, className = 'glyph'): HTMLSpanElement {
+  const { glyph: painted, spoken: name } = iconFor(id)
+  const word = iconWord(id)
   return h(
     'span',
     { class: word ? `${className} has-word` : className },
-    h('span', { 'aria-hidden': 'true', 'data-icon': icon }, painted),
+    h('span', { 'aria-hidden': 'true', 'data-icon': id }, painted),
     word,
     h('span', { class: 'sr-only' }, spoken ?? name),
   )
@@ -126,23 +120,13 @@ export function facts(rows: readonly (readonly [Child, Child])[]): HTMLDListElem
   )
 }
 
-const TONE_PILL_ICON: Record<string, string> = {
-  info: 'ℹ️',
-  success: '✅',
-  warning: '⚠️',
-  danger: '⛔',
-  kept: '📌',
-  excluded: '🚫',
-  idle: '⏸️',
-  running: '▶️',
-}
-
-/** A tone badge: `icon` (else the tone's glyph) painted, `text` spoken only. */
-export function pill(tone: string, text: string, icon = TONE_PILL_ICON[tone] ?? '•'): HTMLSpanElement {
+/** A tone badge: the registered `icon` (and its word) painted, `text` spoken only. */
+export function pill(tone: string, text: string, icon: IconId): HTMLSpanElement {
   return h(
     'span',
     { class: `pill pill-${tone}` },
-    h('span', { class: 'pill-icon', 'aria-hidden': 'true' }, icon),
+    iconMark(icon, 'pill-icon'),
+    iconWord(icon),
     h('span', { class: 'sr-only' }, text),
   )
 }

@@ -75,20 +75,11 @@ describe('small builders', () => {
     expect(el.querySelector('.empty-icon')?.textContent).toBe('📭')
   })
 
-  it('pill has an icon for known tones', () => {
-    const el = pill('danger', 'x')
+  it('pill paints the registered icon it is given and speaks its text', () => {
+    const el = pill('danger', 'odd one', 'notice.danger')
     expect(el.className).toBe('pill pill-danger')
-    expect(el.querySelector('.pill-icon')).not.toBeNull()
-  })
-
-  it('pill paints a bullet for an unknown tone and speaks its text', () => {
-    const el = pill('mystery', 'odd one')
-    expect(el.querySelector('.pill-icon')?.textContent).toBe('•')
+    expect(el.querySelector('.pill-icon')?.textContent).toBe('⛔')
     expect(el.querySelector('.sr-only')?.textContent).toBe('odd one')
-  })
-
-  it('pill paints the icon it is given over the tone glyph', () => {
-    expect(pill('danger', 'x', '🔥').querySelector('.pill-icon')?.textContent).toBe('🔥')
   })
 
   it('link is an anchor', () => {

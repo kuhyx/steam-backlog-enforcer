@@ -37,6 +37,17 @@ export function iconWord(id: IconId): HTMLSpanElement | null {
 }
 
 /**
+ * The icon for painted-only places (inside `said(...)`, buttons, labels): the
+ * glyph mark alone, or mark plus word in one row when the user chose a word.
+ * No spoken text: the caller keeps its own aria-label / .sr-only sentence.
+ */
+export function iconInline(id: IconId, className = ''): HTMLSpanElement {
+  const mark = iconMark(id, className)
+  const word = iconWord(id)
+  return word ? h('span', { class: 'icon-inline has-word' }, mark, word) : mark
+}
+
+/**
  * Refresh static markup (the Astro sidebar and palette button) from the
  * ledger: each `[data-icon]` gets its current glyph and, right after it, its
  * word. Idempotent, so it can rerun after a pick or a hide toggle.
@@ -54,7 +65,10 @@ export function decorateIcons(root: ParentNode): void {
   }
 }
 
-/** The static chrome every page shares (sidebar, top bar); run at boot and after a pick. */
+/**
+ * The static chrome every page shares (sidebar, top bar) plus any static
+ * markup tagged `data-static-icons` (the 404 home link); run at boot and after a pick.
+ */
 export function decorateChrome(doc: Document = document): void {
-  for (const el of doc.querySelectorAll('.sidebar, .topbar')) decorateIcons(el)
+  for (const el of doc.querySelectorAll('.sidebar, .topbar, [data-static-icons]')) decorateIcons(el)
 }

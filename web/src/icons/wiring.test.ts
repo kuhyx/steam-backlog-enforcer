@@ -2,7 +2,7 @@
 // right of the icon, a chosen alternative replaces the default glyph.
 
 import { describe, expect, it } from 'vitest'
-import { COMMAND_ICON, commandIcon } from '../commands/catalog'
+import { commandIcon } from '../commands/catalog'
 import { commandButton } from '../commands/commandButton'
 import { stateBadge } from '../jobs/progress'
 import { NAV } from '../shell/nav'
@@ -48,10 +48,4 @@ describe('registered call sites', () => {
     expect(commandIcon('gaming-status')).toBe('cmd.gaming-status')
   })
 
-  it('COMMAND_ICON (sites not yet on ids) is the live glyph, alternative applied', () => {
-    expect(COMMAND_ICON.done).toBe('🏆')
-    useIcons({ 'cmd.done': { glyph: '🏁' } })
-    expect(COMMAND_ICON.done).toBe('🏁')
-    expect(Object.keys(COMMAND_ICON)).toHaveLength(26)
-  })
 })

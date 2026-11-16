@@ -66,11 +66,10 @@ describe('glyph(id)', () => {
     expect(el.querySelector('.icon-word')).toBeNull()
   })
 
-  it('still paints a raw glyph with the old signature', () => {
-    const el = glyph('🧭', 'navigate')
-    expect(el.querySelector('[aria-hidden]')?.textContent).toBe('🧭')
-    expect(el.querySelector('.sr-only')?.textContent).toBe('navigate')
-    expect(el.querySelector('.icon-word')).toBeNull()
+  it('tags the glyph with its id so decorateIcons can refresh it', () => {
+    const el = glyph('state.warn', 'Stale')
+    expect(el.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('state.warn')
+    expect(el.querySelector('.sr-only')?.textContent).toBe('Stale')
   })
 })
 

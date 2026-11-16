@@ -9,10 +9,13 @@ const JOB_STATES: JobState[] = ['queued', 'running', 'waiting_input', 'succeeded
 const TONES: Tone[] = ['info', 'success', 'warning', 'danger']
 
 describe('icon registry', () => {
-  it('registers exactly this pass: 8 nav, the palette, 26 commands, 6 job states, 4 tones', () => {
+  it('registers pass 1 first (8 nav, the palette, 26 commands, 6 job states, 4 tones), then the rest of the UI', () => {
     const ids = ICONS.map((e) => e.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toHaveLength(8 + 1 + 26 + 6 + 4)
+    const pass1 = /^(nav|palette|cmd|job\.state|notice)\./
+    expect(ids.slice(0, 8 + 1 + 26 + 6 + 4).every((id) => pass1.test(id))).toBe(true)
+    expect(ids.slice(8 + 1 + 26 + 6 + 4).some((id) => pass1.test(id))).toBe(false)
+    expect(ids.length).toBeGreaterThan(45)
     for (const n of NAV) expect(isIconId(n.icon)).toBe(true)
     expect(isIconId('palette.open')).toBe(true)
     for (const name of Object.keys(COMMAND_HOME) as (keyof typeof COMMAND_HOME)[]) {
@@ -22,7 +25,9 @@ describe('icon registry', () => {
     for (const t of TONES) expect(isIconId(`notice.${t}`)).toBe(true)
   })
 
-  it.each(ICONS.map((e) => [e.id, e] as const))('%s: glyph, name, description, 3 words, 3 alternatives', (_id, e) => {
+  it.each(ICONS.map((e) => [e.id, e] as const))('%s: glyph, name, description, 3 words, 3 alternatives', (id, e) => {
+    // The server's route accepts only this id shape (_web_routes._ICON).
+    expect(id).toMatch(/^[a-z][a-z0-9_.-]{0,63}$/)
     expect(e.glyph).not.toBe('')
     expect(e.spoken).not.toBe('')
     expect(e.desc.length).toBeGreaterThan(20)
@@ -32,6 +37,8 @@ describe('icon registry', () => {
     for (const w of e.words) expect(w).toMatch(/^\S+$/)
     expect(e.alts).toHaveLength(3)
     expect(new Set([e.glyph, ...e.alts]).size).toBe(4)
+    // Not the same picture twice, even when only the emoji variation selector differs.
+    expect(new Set([e.glyph, ...e.alts].map((g) => g.replaceAll('️', ''))).size).toBe(4)
   })
 
   it('keeps every default glyph the UI painted before the registry', () => {
