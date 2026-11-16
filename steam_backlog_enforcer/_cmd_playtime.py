@@ -74,15 +74,19 @@ def cmd_gaming_status(config: Config, _state: State) -> None:
             continue
         _echo(f"{'Demo' if demo else 'Gaming'} budget:")
         _echo(f"  state file:     {state_path(demo=demo)}")
-        _echo(f"  budget_seconds: {rules.budget_seconds:.0f}")
+        if rules.gaming_enforced:
+            _echo(f"  budget_seconds: {rules.budget_seconds:.0f}")
+        else:
+            _echo("  unlimited:      no gaming budget (until shutdown)")
         if stored is None:
             _echo("  (no state recorded yet)")
         else:
-            remaining = max(0.0, rules.budget_seconds - stored.seconds)
             _echo(f"  gaming day:     {stored.day_key} (starts 06:00 local)")
             _echo(f"  used:           {stored.seconds:.0f}s")
-            _echo(f"  remaining:      {remaining:.0f}s")
-            _echo(f"  blocked:        {stored.is_blocked()}")
+            if rules.gaming_enforced:
+                remaining = max(0.0, rules.budget_seconds - stored.seconds)
+                _echo(f"  remaining:      {remaining:.0f}s")
+                _echo(f"  blocked:        {stored.is_blocked()}")
 
     masked = mounted_targets()
     _echo(f"Masked launchers: {len(masked)}/{len(block_targets())}")

@@ -35,6 +35,14 @@ describe('budgetHistorySvg', () => {
     expect(svg.querySelectorAll('line.grid')).toHaveLength(3)
   })
 
+  it('draws no budget line and scales to the tallest day when there is no budget', () => {
+    const svg = render(budgetHistorySvg([day()], LEGEND, null))
+    expect(svg.querySelector('line.budget-line')).toBeNull()
+    expect(svg.querySelectorAll('rect.seg')).toHaveLength(1)
+    // The only day fills the plot: nothing to measure it against.
+    expect(num(svg.querySelector('rect.seg') ?? undefined, 'height')).toBeGreaterThan(100)
+  })
+
   it('stacks one band per game and colours it by legend position', () => {
     const svg = render(
       budgetHistorySvg(

@@ -27,8 +27,7 @@ from steam_backlog_enforcer.tests._no_workout_http import earned_budget, fixed_b
 
 # Built at import time, so the autouse _no_workout_http fixture is not in
 # effect yet -- without this patch, collecting this module makes a real HTTP
-# call to the screen locker and pins RULES to whatever budget today happens to
-# have earned. Stub it explicitly so the constant is the earned budget always.
+# call to the screen locker and pins RULES to today's earned budget. Stub it.
 # The held budget is pinned for the same reason: conftest's redirects are not
 # active at import either, so rules_for would read the LIVE playtime_state.json
 # and hold RULES at whatever high-water mark it records today. Nor would the
@@ -238,6 +237,7 @@ class TestBuildBudgetSnapshot:
             snapshot = self._snapshot()
         assert "SEKRET" not in json.dumps(snapshot)
         assert set(snapshot["rules"]) == {
+            "unlimited",
             "budget_seconds",
             "enforcement",
             "counts_launchers",

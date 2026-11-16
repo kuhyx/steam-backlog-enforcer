@@ -108,6 +108,7 @@ export function makeBudgetToday(over: Partial<BudgetToday> = {}): BudgetToday {
     gaming_day: '2026-08-28',
     day_starts_at: '06:00 local',
     seconds_used: 3600,
+    unlimited: false,
     budget_seconds: 28800,
     seconds_remaining: 25200,
     fraction_used: 0.125,
@@ -137,6 +138,7 @@ export function makeBudgetSession(over: Partial<BudgetSession> = {}): BudgetSess
 
 export function makeBudgetRules(over: Partial<BudgetRules> = {}): BudgetRules {
   return {
+    unlimited: false,
     budget_seconds: 28800,
     enforcement: true,
     counts_launchers: true,

@@ -42,6 +42,7 @@ def get_gaming_time() -> dict[str, Any]:
             "ok": True,
             "recorded": False,
             "state_status": snapshot["state_status"],
+            "unlimited": rules["unlimited"],
             "budget_seconds": rules["budget_seconds"],
             "enforcement": rules["enforcement"],
             "masked_launchers": masked,
@@ -54,6 +55,8 @@ def get_gaming_time() -> dict[str, Any]:
         "gaming_day": today["gaming_day"],
         "day_starts_at": today["day_starts_at"],
         "seconds_used": today["seconds_used"],
+        # True from 2026-11-16: no budget, so no number below.
+        "unlimited": today["unlimited"],
         "budget_seconds": today["budget_seconds"],
         "seconds_remaining": today["seconds_remaining"],
         # What earned budget_seconds.

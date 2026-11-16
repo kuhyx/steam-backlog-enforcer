@@ -22,8 +22,7 @@ over; a reason carrying the start time it saw (leisure-watch 0.2.1 ``start``)
 names only that process, never a later one reusing the pid. Root/system
 processes, lockers and the enforcer itself are never signalled, nor --
 whatever ``now.json`` says -- the desktop session (:mod:`_leisure_never_kill`;
-each refusal logged once). Every SIGTERM and the first SIGKILL go to
-``budget.jsonl``.
+each refusal logged once). Every SIGTERM and the first SIGKILL go to ``budget.jsonl``.
 """
 
 from __future__ import annotations
@@ -154,7 +153,8 @@ class LeisureKiller:
         verdict: ShadowVerdict,
         stamp: float,
     ) -> None:
-        if not rules.leisure or rules.demo or not rules.enforcement:
+        armed = rules.leisure and rules.enforcement and rules.gaming_enforced
+        if rules.demo or not armed:
             return
         untrusted_for = self._untrusted_for(verdict, stamp)
         if state.seconds < rules.budget_seconds:

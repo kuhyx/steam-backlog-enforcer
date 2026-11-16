@@ -23,8 +23,10 @@ export function budget(demo: boolean): BudgetSnapshot {
   const budgetSeconds = demo ? 60 : 3 * 3600
   const base = demo ? 20 : 2 * 3600 + 10 * 60
   const since = resetAt ?? started
-  const used = Math.min(budgetSeconds, (resetAt === null ? base : 0) + Math.floor((Date.now() - since) / 1000))
-  const remaining = budgetSeconds - used
+  // From 2026-11-16 the real backend has no budget (unlimited); the demo run still does.
+  const unlimited = !demo
+  const used = Math.min(unlimited ? Infinity : budgetSeconds, (resetAt === null ? base : 0) + Math.floor((Date.now() - since) / 1000))
+  const remaining = unlimited ? null : budgetSeconds - used
   const today = new Date()
   const history = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(today.getTime() - (13 - i) * 86_400_000)
@@ -49,19 +51,20 @@ export function budget(demo: boolean): BudgetSnapshot {
       gaming_day: today.toISOString().slice(0, 10),
       day_starts_at: '06:00 local',
       seconds_used: used,
-      budget_seconds: budgetSeconds,
+      unlimited,
+      budget_seconds: unlimited ? null : budgetSeconds,
       seconds_remaining: remaining,
-      fraction_used: used / budgetSeconds,
-      blocked: remaining <= 0,
-      blocked_at: remaining <= 0 ? Math.floor(Date.now() / 1000) : 0,
-      next_warning_seconds: remaining > 1800 ? 1800 : remaining > 600 ? 600 : null,
-      warned_seconds: remaining <= 3600 ? [3600] : [],
+      fraction_used: unlimited ? null : used / budgetSeconds,
+      blocked: remaining !== null && remaining <= 0,
+      blocked_at: remaining !== null && remaining <= 0 ? Math.floor(Date.now() / 1000) : 0,
+      next_warning_seconds: remaining === null ? null : remaining > 1800 ? 1800 : remaining > 600 ? 600 : null,
+      warned_seconds: remaining !== null && remaining <= 3600 ? [3600] : [],
       games: used > 0 ? slices : [],
     },
     session: {
       available: true,
       observed_at: new Date().toISOString(),
-      state: remaining > 0 ? 'engaged' : 'blocked',
+      state: remaining === null || remaining > 0 ? 'engaged' : 'blocked',
       game_name: 'Hades',
       billing_label: 'Hades',
       qualifying_count: 2,
@@ -73,10 +76,11 @@ export function budget(demo: boolean): BudgetSnapshot {
     history,
     legend: LEGEND,
     rules: {
-      budget_seconds: budgetSeconds,
+      unlimited,
+      budget_seconds: unlimited ? null : budgetSeconds,
       enforcement: true,
       counts_launchers: true,
-      warn_at: [3600, 1800, 600, 300],
+      warn_at: unlimited ? [] : [3600, 1800, 600, 300],
       demo,
       masked_launchers: ['heroic', 'lutris'],
     },

@@ -24,11 +24,13 @@ export function esc(text: string): string {
 const n = (v: number): string => String(v)
 
 /** The chart for `days` (non-empty; the caller shows the empty state). */
-export function budgetHistorySvg(days: readonly BudgetHistoryDay[], legend: readonly BudgetLegendEntry[], budgetSeconds: number): string {
+export function budgetHistorySvg(days: readonly BudgetHistoryDay[], legend: readonly BudgetLegendEntry[], budgetSeconds: number | null): string {
   // Scaled against the budget rather than the tallest bar, so a single day
   // reads as "most of the allowance" instead of a lone full-height bar that
   // means nothing on its own.
-  const maxSeconds = Math.max(budgetSeconds, ...days.map((d) => d.seconds)) || 1
+  // With no budget (unlimited days) there is no allowance to scale against: the
+  // tallest day fills the plot and no dashed line is drawn.
+  const maxSeconds = Math.max(budgetSeconds ?? 0, ...days.map((d) => d.seconds)) || 1
   const plotW = W - PAD.left - PAD.right
   const plotH = H - PAD.top - PAD.bottom
   const sy = (seconds: number) => PAD.top + plotH - (seconds / maxSeconds) * plotH
@@ -43,7 +45,10 @@ export function budgetHistorySvg(days: readonly BudgetHistoryDay[], legend: read
       `<g><line x1="${n(PAD.left)}" y1="${n(sy(s))}" x2="${n(W - PAD.right)}" y2="${n(sy(s))}" class="grid"/>` +
       `<text x="${n(PAD.left - 8)}" y="${n(sy(s) + 4)}" class="axis-label end">${esc(fmtDuration(s))}</text></g>`,
   )
-  const budgetLine = `<line x1="${n(PAD.left)}" y1="${n(sy(budgetSeconds))}" x2="${n(W - PAD.right)}" y2="${n(sy(budgetSeconds))}" class="budget-line"/>`
+  const budgetLine =
+    budgetSeconds === null
+      ? ''
+      : `<line x1="${n(PAD.left)}" y1="${n(sy(budgetSeconds))}" x2="${n(W - PAD.right)}" y2="${n(sy(budgetSeconds))}" class="budget-line"/>`
 
   const bars = days.flatMap((d, i) => {
     // Bands stack upwards from the axis in legend order, so a game keeps the

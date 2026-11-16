@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Final
 import earned_time
 from leisure_watch.procscan import attributed_key
 
+from steam_backlog_enforcer._gaming_gate import gaming_enforced_on
 from steam_backlog_enforcer._playtime_budget import accumulate, bill
 
 if TYPE_CHECKING:
@@ -44,6 +45,9 @@ def leisure_on(day_key: str) -> bool:
     try:
         day = date.fromisoformat(day_key)
     except ValueError:
+        return False
+    # No gaming budget (2026-11-16) means no leisure budget either.
+    if not gaming_enforced_on(day_key):
         return False
     return bool(earned_time.leisure_active(day, LEISURE_FROM_PATH))
 

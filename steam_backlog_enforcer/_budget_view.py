@@ -21,6 +21,14 @@ from steam_backlog_enforcer._budget_games import (
     today_games,
 )
 from steam_backlog_enforcer._budget_log_tail import last_verdict
+from steam_backlog_enforcer._budget_state_access import (
+    CORRUPT,
+    DENIED,
+    MISSING,
+    READABLE,
+    STATUS_MESSAGES,
+    state_access,
+)
 from steam_backlog_enforcer._ledger_earners import registry_for
 from steam_backlog_enforcer._playtime_block import mounted_targets
 from steam_backlog_enforcer._playtime_history import load_history
@@ -33,59 +41,24 @@ from steam_backlog_enforcer._shadow_view import shadow_view
 from steam_backlog_enforcer.config import Config, State
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import earned_time
 
     from steam_backlog_enforcer._playtime_state import PlaytimeRules, PlaytimeState
 
-READABLE: Final = "ok"
-MISSING: Final = "missing"
-DENIED: Final = "denied"
-CORRUPT: Final = "corrupt"
-
-_STATUS_MESSAGES: Final[dict[str, str]] = {
-    DENIED: (
-        "Cannot read the budget state file. It is owned by root, and only "
-        "becomes world-readable once the enforcer has rewritten it — restart "
-        "steam-backlog-enforcer.service."
-    ),
-    MISSING: "No gaming time has been recorded yet today.",
-    CORRUPT: (
-        "The budget state file could not be parsed. The enforcer treats that "
-        "as tampering and will start the day fail-closed."
-    ),
-}
-
 _HISTORY_DAYS: Final = 14
 
-
-def state_access(path: Path) -> str:
-    """Classify why the state file did or did not open.
-
-    ``load_state`` deliberately collapses "missing", "corrupt" and "unreadable"
-    into ``None`` — its caller is the enforcer, whose recovery is the same for
-    all three. A display needs to tell them apart, because "you have not gamed
-    today" and "I am not allowed to look" are opposite messages.
-
-    The read is attempted rather than pre-checked with ``os.access``: the
-    kernel's answer to the actual open is the only one that cannot disagree
-    with what ``load_state`` just experienced. The file is a couple of hundred
-    bytes, so reading it twice costs nothing.
-
-    Args:
-        path: The state file.
-
-    Returns:
-        ``READABLE``, ``MISSING`` or ``DENIED``.
-    """
-    try:
-        path.read_bytes()
-    except FileNotFoundError:
-        return MISSING
-    except OSError:
-        return DENIED
-    return READABLE
+# Re-exported: the status classifier moved to _budget_state_access (250-line cap).
+__all__ = [
+    "CORRUPT",
+    "DENIED",
+    "MISSING",
+    "READABLE",
+    "build_budget_snapshot",
+    "build_rules",
+    "build_today",
+    "next_warning",
+    "state_access",
+]
 
 
 def next_warning(state: PlaytimeState, rules: PlaytimeRules) -> int | None:
@@ -125,19 +98,25 @@ def build_today(state: PlaytimeState, rules: PlaytimeRules) -> dict[str, Any]:
     """
     remaining = max(0.0, rules.budget_seconds - state.seconds)
     fraction = state.seconds / rules.budget_seconds if rules.budget_seconds else 1.0
+    unlimited = not rules.gaming_enforced
     return {
         "gaming_day": state.day_key,
         "day_starts_at": "06:00 local",
         "seconds_used": round(state.seconds, 1),
-        "budget_seconds": rules.budget_seconds,
-        "seconds_remaining": round(remaining, 1),
-        "fraction_used": round(min(1.0, max(0.0, fraction)), 4),
-        "blocked": state.is_blocked(),
-        "blocked_at": state.blocked_at,
-        "next_warning_seconds": next_warning(state, rules),
-        "warned_seconds": list(state.warned_seconds),
+        # No budget since 2026-11-16: the day is "unlimited" and carries no
+        # number a reader could take for a limit. Past days keep their history.
+        "unlimited": unlimited,
+        "budget_seconds": None if unlimited else rules.budget_seconds,
+        "seconds_remaining": None if unlimited else round(remaining, 1),
+        "fraction_used": (
+            None if unlimited else round(min(1.0, max(0.0, fraction)), 4)
+        ),
+        "blocked": False if unlimited else state.is_blocked(),
+        "blocked_at": 0.0 if unlimited else state.blocked_at,
+        "next_warning_seconds": None if unlimited else next_warning(state, rules),
+        "warned_seconds": [] if unlimited else list(state.warned_seconds),
         "games": today_games(state),
-        "shadow": shadow_view(state),
+        "shadow": shadow_view(state, unlimited=unlimited),
     }
 
 
@@ -158,11 +137,13 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
     Returns:
         Serialisable rules block.
     """
+    unlimited = not rules.gaming_enforced
     return {
-        "budget_seconds": rules.budget_seconds,
+        "unlimited": unlimited,
+        "budget_seconds": None if unlimited else rules.budget_seconds,
         "enforcement": rules.enforcement,
         "counts_launchers": rules.count_launchers,
-        "warn_at": list(rules.warn_at),
+        "warn_at": [] if unlimited else list(rules.warn_at),
         "demo": rules.demo,
         "masked_launchers": sorted(str(path) for path in mounted_targets()),
         # Read off the rules, never re-resolved: resolving a second time here
@@ -188,6 +169,8 @@ def build_rules(rules: PlaytimeRules) -> dict[str, Any]:
                 "bonus_seconds": _most(earner) * 60,
             }
             for earner in registry_for(datetime.now().astimezone().date())
+            # An earner's gaming pay is a budget term: none when unlimited.
+            if not unlimited
         ],
     }
 
@@ -221,7 +204,7 @@ def build_budget_snapshot(*, demo: bool = False) -> dict[str, Any]:
         "ok": True,
         "readable": status == READABLE,
         "state_status": status,
-        "error": _STATUS_MESSAGES.get(status),
+        "error": STATUS_MESSAGES.get(status),
         "today": build_today(stored, rules) if stored is not None else None,
         "session": {
             # What the budget is actually charging — a different question from

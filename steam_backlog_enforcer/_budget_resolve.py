@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Final
 import earned_time
 
 from steam_backlog_enforcer._gaming_days import gaming_day_key
+from steam_backlog_enforcer._gaming_gate import gaming_enforced_on
 from steam_backlog_enforcer._ledger_earners import (
     first_credits,
     ledger_answer,
@@ -108,6 +109,9 @@ class BudgetResolution:
         shadow_seconds: The same answers priced as leisure
             (``earned_time.resolve(leisure=True)``, contract C4). Shown, never
             enforced.
+        enforced: Whether any budget applies on this gaming day. ``False`` from
+            2026-11-16 (:mod:`_gaming_gate`): the numbers above are then
+            history, never a limit.
     """
 
     seconds: float
@@ -118,6 +122,7 @@ class BudgetResolution:
     reading_seconds: float = 0.0
     earned_seconds: dict[str, float] = field(default_factory=dict)
     shadow_seconds: float = 0.0
+    enforced: bool = True
 
 
 def _price(
@@ -180,8 +185,11 @@ def leisure_priced(now: datetime) -> bool:
     The same question billing asks (``_leisure_mode.leisure_on`` of the billed
     day), so 00:00-05:59 on the go-live date stays pre-leisure, like its bill.
     """
-    day = date.fromisoformat(gaming_day_key(now))
-    return bool(earned_time.leisure_active(day, LEISURE_FROM_PATH))
+    key = gaming_day_key(now)
+    day = date.fromisoformat(key)
+    return gaming_enforced_on(key) and bool(
+        earned_time.leisure_active(day, LEISURE_FROM_PATH)
+    )
 
 
 def resolve_budget(config: Config) -> BudgetResolution:
@@ -214,7 +222,11 @@ def resolve_budget(config: Config) -> BudgetResolution:
     parts = ", ".join(
         _describe(t.earner.name, t.earner.label, t.answer) for t in day.terms
     )
+    enforced = gaming_enforced_on(gaming_day_key(now))
     reason = f"{total / _SECONDS_PER_HOUR:.1f}h: {parts}"
+    if not enforced:
+        # Priced for history and the shadow only; no number may read as a limit.
+        reason = "unlimited (no gaming budget)"
     # The daemon resolves every tick (3 s): an unchanged answer logged each
     # time was 25k identical journal lines a day that buried everything else.
     if reason != _last_logged.get("reason"):
@@ -229,4 +241,5 @@ def resolve_budget(config: Config) -> BudgetResolution:
         reading_seconds=earned.get("reading", 0.0),
         earned_seconds=earned,
         shadow_seconds=shadow.gaming_minutes * _SECONDS_PER_MINUTE,
+        enforced=enforced,
     )

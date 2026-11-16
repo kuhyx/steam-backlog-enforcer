@@ -101,6 +101,9 @@ class PlaytimeRules:
     # Phase 2: the billed gaming day is on the leisure budget (set per tick by
     # _leisure_mode.leisure_billed, never by rules_for). Only wording and kills.
     leisure: bool = False
+    # False from 2026-11-16 (_gaming_gate): no budget is enforced -- no kill, no
+    # block, no warning. budget_seconds is then history, not a limit.
+    gaming_enforced: bool = True
 
 
 def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
@@ -126,6 +129,7 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
     live = 0.0 if resolved is None else resolved.seconds
     held = held_today(stored, now)
     held_note = f"; held at {held / 3600:.1f}h (earned earlier today)"
+    enforced = resolved is None or resolved.enforced
     return PlaytimeRules(
         budget_seconds=_DEMO_BUDGET_SECONDS if resolved is None else max(live, held),
         warn_at=_DEMO_WARN_AT if demo else _WARN_AT,
@@ -133,7 +137,8 @@ def rules_for(config: Config, *, demo: bool) -> PlaytimeRules:
         count_launchers=config.playtime.count_launcher_processes,
         enforcement=config.playtime.playtime_enforcement,
         demo=demo,
-        breakdown=_breakdown(resolved, held_note if held > live else ""),
+        gaming_enforced=enforced,
+        breakdown=_breakdown(resolved, held_note if enforced and held > live else ""),
         shadow_budget_seconds=0.0
         if resolved is None
         else max(resolved.shadow_seconds, held_shadow_today(stored, now)),

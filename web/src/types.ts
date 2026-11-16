@@ -104,10 +104,12 @@ export interface BudgetToday {
   gaming_day: string
   day_starts_at: string
   seconds_used: number
-  budget_seconds: number
-  seconds_remaining: number
-  /** 0..1, already clamped by the backend. */
-  fraction_used: number
+  /** True from 2026-11-16: no gaming budget, so the three fields below are null. */
+  unlimited: boolean
+  budget_seconds: number | null
+  seconds_remaining: number | null
+  /** 0..1, already clamped by the backend; null when unlimited. */
+  fraction_used: number | null
   blocked: boolean
   /** Epoch seconds; 0 means the cutoff has not engaged. */
   blocked_at: number
@@ -167,7 +169,8 @@ export interface BudgetLegendEntry {
 }
 
 export interface BudgetRules {
-  budget_seconds: number
+  unlimited: boolean
+  budget_seconds: number | null
   enforcement: boolean
   counts_launchers: boolean
   warn_at: number[]

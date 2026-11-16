@@ -221,6 +221,11 @@ def _policy(
     Returns:
         The updated state.
     """
+    if not rules.gaming_enforced:
+        # No gaming budget (2026-11-16): lift any block; time is still billed.
+        reconcile_for(rules, should_block=False)
+        return replace(state, blocked_at=0.0, warned_seconds=[])
+
     if not rules.enforcement:
         # A kill switch must still release: leaving live mounts behind would
         # make "disabled" mean "permanently blocked".

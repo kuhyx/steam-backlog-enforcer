@@ -60,11 +60,28 @@ function warningLine(today: BudgetToday, maskedCount: number): HTMLElement {
     : said(`Next warning at ${fmtDuration(next)} remaining.`, iconInline('gaming.warning'), ' ', fmtDuration(next))
 }
 
+/** The "no limit" mark: the registry's no-cap icon. */
+const unlimitedMark = (): HTMLElement => glyph('filter.no-cap', 'No gaming limit')
+
 function usageLine(t: BudgetToday): HTMLElement {
-  const used = `${fmtDuration(t.seconds_used)} / ${fmtDuration(t.budget_seconds)} · ${Math.round(t.fraction_used * 100)}%`
+  if (t.unlimited) {
+    return said(
+      `${fmtDuration(t.seconds_used)} played · gaming day ${t.gaming_day} (starts ${t.day_starts_at})`,
+      fmtDuration(t.seconds_used),
+      ' · ',
+      iconInline('gaming.day'),
+      ' ',
+      t.gaming_day,
+      ' · ',
+      iconInline('gaming.day_start'),
+      ' ',
+      t.day_starts_at.replace(/\s*local$/, ''),
+    )
+  }
+  const used = `${fmtDuration(t.seconds_used)} / ${fmtDuration(t.budget_seconds ?? 0)} · ${Math.round((t.fraction_used ?? 0) * 100)}%`
   const spoken =
-    `${fmtDuration(t.seconds_used)} of ${fmtDuration(t.budget_seconds)} used · ` +
-    `${Math.round(t.fraction_used * 100)}% · gaming day ${t.gaming_day} (starts ${t.day_starts_at})`
+    `${fmtDuration(t.seconds_used)} of ${fmtDuration(t.budget_seconds ?? 0)} used · ` +
+    `${Math.round((t.fraction_used ?? 0) * 100)}% · gaming day ${t.gaming_day} (starts ${t.day_starts_at})`
   return said(
     spoken,
     used,
@@ -81,19 +98,25 @@ function usageLine(t: BudgetToday): HTMLElement {
 
 export function todayCard(today: BudgetToday, legend: readonly BudgetLegendEntry[], maskedCount: number): HTMLElement {
   // Colour by the chart's legend position so a game reads the same in both
-  // places; today can hold games the capped 14-day legend left out, and those
-  // fall back to their own row order.
+  // places; games the capped legend left out fall back to their row order.
   const indexFor = new Map(legend.map((e, i) => [e.key, i]))
   const fill = h('div', { class: 'budget-meter-fill' })
-  fill.style.width = `${(today.fraction_used * 100).toFixed(1)}%`
+  fill.style.width = `${((today.fraction_used ?? 0) * 100).toFixed(1)}%`
+  const unlimited = today.unlimited
   return h(
     'section',
     { class: 'budget-today' },
     h('h2', {}, glyph('gaming.today', 'Today')),
-    h('p', { class: 'budget-hero' }, h('strong', {}, fmtDuration(today.seconds_remaining)), h('span', { class: 'sr-only' }, ' left')),
-    h('div', { class: `budget-meter budget-meter--${meterState(today)}` }, fill),
+    h(
+      'p',
+      { class: 'budget-hero' },
+      h('strong', {}, unlimited ? unlimitedMark() : fmtDuration(today.seconds_remaining ?? 0)),
+      unlimited ? null : h('span', { class: 'sr-only' }, ' left'),
+    ),
+    // No budget, no meter and no warnings: there is nothing to fill or warn of.
+    unlimited ? null : h('div', { class: `budget-meter budget-meter--${meterState(today)}` }, fill),
     h('p', { class: 'hint' }, usageLine(today)),
-    h('p', { class: 'hint' }, warningLine(today, maskedCount)),
+    unlimited ? null : h('p', { class: 'hint' }, warningLine(today, maskedCount)),
     today.games.length > 0
       ? [
           h('h3', { class: 'budget-subhead' }, glyph('gaming.by_game', 'Today by game')),
@@ -171,7 +194,7 @@ export function liveCard(session: BudgetSession): HTMLElement {
   )
 }
 
-export function historyCard(days: readonly BudgetHistoryDay[], legend: readonly BudgetLegendEntry[], budgetSeconds: number): HTMLElement {
+export function historyCard(days: readonly BudgetHistoryDay[], legend: readonly BudgetLegendEntry[], budgetSeconds: number | null): HTMLElement {
   const title = h('h2', {}, glyph('gaming.history', 'Last 14 days'))
   if (days.length === 0) {
     return h(
@@ -216,10 +239,10 @@ export function rulesCard(rules: BudgetRules): HTMLElement {
     h(
       'dl',
       { class: 'budget-rules-list' },
-      row('gaming.budget', 'Daily budget', fmtDuration(rules.budget_seconds)),
+      row('gaming.budget', 'Daily budget', rules.budget_seconds === null ? unlimitedMark() : fmtDuration(rules.budget_seconds)),
       row('gaming.enforcement', 'Enforcement', onOff(rules.enforcement, 'on', 'off')),
       row('gaming.launcher', 'Counts launchers', onOff(rules.counts_launchers, 'yes', 'no')),
-      row('gaming.warning', 'Warnings at', said(`${warn} remaining`, warn)),
+      rules.warn_at.length > 0 ? row('gaming.warning', 'Warnings at', said(`${warn} remaining`, warn)) : null,
       rules.demo ? row('gaming.mode', 'Mode', glyph('gaming.demo', 'demo (short budget, separate state)')) : null,
       rules.masked_launchers.length > 0 ? row('gaming.masked', 'Masked now', rules.masked_launchers.join(', ')) : null,
     ),

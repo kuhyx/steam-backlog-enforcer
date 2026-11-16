@@ -223,6 +223,7 @@ def _snapshot(
         "qualifying": sorted(qualifying),
         "day_key": state.day_key,
         "billed_seconds": round(state.seconds, 3),
+        "gaming_enforced": rules.gaming_enforced,
         "budget_seconds": round(rules.budget_seconds, 3),
         "remaining_seconds": round(rules.budget_seconds - state.seconds, 3),
     }

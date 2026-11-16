@@ -41,7 +41,7 @@ mirror is `web/src/api/contract.ts`; change both together or neither.
 | Method | Path | Body / query | Returns |
 |---|---|---|---|
 | GET | `/api/dataset` | – | `WebDataset` (exists) |
-| GET | `/api/budget` | `?demo=1` | `BudgetSnapshot` (exists) |
+| GET | `/api/budget` | `?demo=1` | `BudgetSnapshot` (exists); from 2026-11-16 `unlimited: true` and every budget/remaining/fraction field is `null` |
 | GET | `/api/status` | – | `StatusPayload` (`status_payload()`) |
 | GET | `/api/stats` | – | `StatsPayload` (as MCP `get_stats`) |
 | GET | `/api/installed` | – | `InstalledPayload` |
