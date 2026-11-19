@@ -24,7 +24,8 @@ jobs:
             skip: ""
           - group: rest
             hooks: ""
-            skip: mypy,pylint
+            # dependency-freshness is local only (pre-commit hook), never in CI.
+            skip: mypy,pylint,dependency-freshness
     name: pre-commit (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +46,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
 
       # Every hook brings its own environment except the language: system
-      # ones; of those only dependency-freshness imports third-party code
-      # (pyyaml, packaging). The whole requirements.txt used to be installed
-      # here for nothing.
+      # ones; of those none import third-party code. The whole requirements.txt
+      # used to be installed here for nothing.
       - name: Install pre-commit and the system hooks' imports
         run: uv pip install --system pre-commit pyyaml packaging
 
