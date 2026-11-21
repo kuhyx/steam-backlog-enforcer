@@ -1,4 +1,5 @@
 // Registers every element the shell uses, then wires page-wide behaviour.
+import '@kuhyx/kuhy-credit'
 import '../commands/commandButton'
 import '../commands/palette'
 import '../commands/runnerDialog'

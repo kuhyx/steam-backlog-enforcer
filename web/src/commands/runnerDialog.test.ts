@@ -5,7 +5,7 @@ import { button, setValue, submit } from '../test/events'
 import { apiError, bodiesOf, stubApi } from '../test/harness'
 import { field, found, openRunner, phraseInput, text } from '../test/runnerHelpers'
 import { runner } from '../lib/runner'
-import { RunnerDialogElement } from './runnerDialog'
+import './runnerDialog'
 
 const waitText = (s: string | RegExp) => vi.waitFor(() => {
   expect(text()).toMatch(s)
@@ -109,7 +109,7 @@ describe('<runner-dialog> form', () => {
     runner.run('done')
     await found('Run done')
     expect(el.querySelector('dialog')).toHaveAttribute('aria-label', 'Done')
-    expect((el as RunnerDialogElement).querySelectorAll('form')).toHaveLength(1)
+    expect(el.querySelectorAll('form')).toHaveLength(1)
   })
 })
 

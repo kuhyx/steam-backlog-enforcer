@@ -190,6 +190,8 @@ kbd {
 /* Keep keyboard-focused elements clear of the sticky top bar (operability rule 4). */
 html { scroll-padding-top: calc(var(--space-6) + var(--space-3)); }
 
+.topbar kuhy-credit { --kuhy-credit-size: 2.25rem; flex: 0 0 auto; }
+
 /* Slot wrappers that must not add a flex/grid gap of their own. */
 .contents { display: contents; }
 /* Custom elements are layout-transparent wrappers around their content. */
