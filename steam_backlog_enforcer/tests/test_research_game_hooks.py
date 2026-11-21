@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from steam_backlog_enforcer import _research_game as rg
-from steam_backlog_enforcer import _steam_state
+from steam_backlog_enforcer import _steam_state, library_hider
 from steam_backlog_enforcer._enforce_guards import guard_installed_games
 from steam_backlog_enforcer._scanning_tampering import _legitimately_played
 from steam_backlog_enforcer.config import State
@@ -96,23 +96,19 @@ def test_uninstall_game_refuses_its_files() -> None:
 
 
 def test_stays_visible_in_the_library() -> None:
-    """Stays visible in the library."""
-    pkg = "steam_backlog_enforcer.library_hider"
-    captured: dict[str, str] = {}
-
-    def fake_eval(js: str) -> dict[str, object]:
-        """Fake eval."""
-        captured["js"] = js
-        return {}
-
-    with (
-        patch(f"{pkg}.ensure_steam_debug_port"),
-        patch(f"{pkg}._evaluate_js", side_effect=fake_eval),
-        patch(f"{pkg}._cdp_result_value", return_value='{"totalHidden": 0}'),
+    """The hider's script keeps it in the visible set, off the hide list."""
+    evaluate = MagicMock(return_value={})
+    with patch.multiple(
+        library_hider,
+        ensure_steam_debug_port=MagicMock(),
+        _evaluate_js=evaluate,
+        _cdp_result_value=MagicMock(return_value='{"totalHidden": 0}'),
     ):
-        hide_other_games([RESEARCH, ASSIGNED, OTHER], {ASSIGNED})
-    assert RESEARCH in js_list(r"new Set\((\[.*?\])\)", captured["js"])
-    assert js_list(r"const extraIds = (\[.*?\]);", captured["js"]) == [OTHER]
+        hide_other_games([OTHER, RESEARCH, ASSIGNED], {ASSIGNED})
+    script = evaluate.call_args.args[0]
+    visible = js_list(r"new Set\((\[.*?\])\)", script)
+    hidden = js_list(r"const extraIds = (\[.*?\]);", script)
+    assert (RESEARCH in visible, hidden) == (True, [OTHER])
 
 
 def test_tampering_check_exempts_it() -> None:
