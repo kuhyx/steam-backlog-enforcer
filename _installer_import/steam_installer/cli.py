@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from kuhy_credit import credit_line
+
 from steam_installer import (
     config,
     depotdl,
@@ -21,7 +23,9 @@ from steam_installer.library import find_steam_root, list_libraries, pick_instal
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Download an owned Steam game fast, then make Steam recognize it."
+        description="Download an owned Steam game fast, then make Steam recognize it.",
+        # kuhy's shared credit line (kuhy_credit, kuhyx/utils).
+        epilog=credit_line(),
     )
     parser.add_argument(
         "target",

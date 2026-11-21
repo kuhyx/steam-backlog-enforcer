@@ -3,7 +3,10 @@ name = "steam-game-installer"
 version = "0.1.0"
 description = "Fast Steam game installs: depotdownloader for speed, steamcmd for recognition."
 requires-python = ">=3.14"
-dependencies = []
+# kuhy's shared "Created by kuhy" credit, shown at the end of --help.
+dependencies = [
+    "kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.0#subdirectory=kuhy_credit",
+]
 
 [project.scripts]
 steam-game-installer = "steam_installer.cli:main"
