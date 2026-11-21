@@ -159,3 +159,10 @@ def test_stale_launch_flag_is_ignored(tmp_path: Path) -> None:
         old = time.time() - rg.LAUNCH_FLAG_MAX_AGE_S - 5
         os.utime(flag, (old, old))
         assert rg.playable_ids() == frozenset()
+
+
+def test_non_string_or_relative_flags_are_ignored() -> None:
+    """A flag that is not an absolute path string never counts."""
+    _approve(rg.APPROVAL_FILE, flags=[7, "relative.pid"])  # type: ignore[list-item]
+    rg.register(APP)
+    assert rg.playable_ids() == frozenset()
