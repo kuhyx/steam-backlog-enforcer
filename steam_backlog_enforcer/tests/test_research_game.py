@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 APP = 4197610
 
 
-def _approve(path: Path, app_id: int = APP, flags: list[str] | None = None) -> None:
+def _approve(path: Path, app_id: int = APP, flags: list[object] | None = None) -> None:
     """Approve."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
