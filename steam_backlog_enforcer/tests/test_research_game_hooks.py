@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer import _research_game as rg
+from steam_backlog_enforcer import _steam_state
 from steam_backlog_enforcer._enforce_guards import guard_installed_games
 from steam_backlog_enforcer._scanning_tampering import _legitimately_played
 from steam_backlog_enforcer.config import State
@@ -49,6 +50,7 @@ def _record_live(tmp_path: Path) -> Path:
 
 
 def test_uninstall_sweep_keeps_it() -> None:
+    """Uninstall sweep keeps it."""
     removed: list[int] = []
     with (
         patch(
@@ -66,6 +68,7 @@ def test_uninstall_sweep_keeps_it() -> None:
 
 @pytest.mark.parametrize("strict", [False, True])
 def test_install_guard_keeps_it(*, strict: bool) -> None:
+    """Install guard keeps it."""
     removed: list[int] = []
     pkg = "steam_backlog_enforcer._enforce_guards"
     with (
@@ -81,10 +84,10 @@ def test_install_guard_keeps_it(*, strict: bool) -> None:
 
 
 def test_uninstall_game_refuses_its_files() -> None:
-    from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
-
-    manifest = STEAMAPPS_PATH / f"appmanifest_{RESEARCH}.acf"
-    game_dir = STEAMAPPS_PATH / "common" / "Librarian"
+    """Uninstall game refuses its files."""
+    steamapps = _steam_state.STEAMAPPS_PATH  # patched per test: read late
+    manifest = steamapps / f"appmanifest_{RESEARCH}.acf"
+    game_dir = steamapps / "common" / "Librarian"
     game_dir.mkdir(parents=True)
     manifest.write_text('"AppState"\n{\n\t"installdir"\t\t"Librarian"\n}\n')
     assert uninstall_game(RESEARCH, "Librarian") is False
@@ -93,10 +96,12 @@ def test_uninstall_game_refuses_its_files() -> None:
 
 
 def test_stays_visible_in_the_library() -> None:
+    """Stays visible in the library."""
     pkg = "steam_backlog_enforcer.library_hider"
     captured: dict[str, str] = {}
 
     def fake_eval(js: str) -> dict[str, object]:
+        """Fake eval."""
         captured["js"] = js
         return {}
 
@@ -111,10 +116,12 @@ def test_stays_visible_in_the_library() -> None:
 
 
 def test_tampering_check_exempts_it() -> None:
+    """Tampering check exempts it."""
     assert RESEARCH in _legitimately_played(State(current_app_id=ASSIGNED))
 
 
 def test_killed_when_not_recording() -> None:
+    """Killed when not recording."""
     with (
         patch(
             "steam_backlog_enforcer.enforcer.get_running_steam_game_pids",
@@ -127,6 +134,7 @@ def test_killed_when_not_recording() -> None:
 
 
 def test_spared_while_recording(tmp_path: Path) -> None:
+    """Spared while recording."""
     with (
         patch.object(rg, "PROC", _record_live(tmp_path)),
         patch(
@@ -140,6 +148,7 @@ def test_spared_while_recording(tmp_path: Path) -> None:
 
 
 def test_revoked_game_is_treated_normally() -> None:
+    """Revoked game is treated normally."""
     rg.APPROVAL_FILE.unlink()
     removed: list[int] = []
     with (
