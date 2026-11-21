@@ -73,3 +73,23 @@ the budget cutoff and its mounts persist throughout.
 Rate limit: 1 per 10 minutes, persisted in
 `/var/lib/steam-backlog-enforcer/ctl_restart.json` (root, 0600) so restarting
 the daemon does not reset it.
+
+## Research game
+
+`research_game {"app_id": N}` and `research_game_revoke {}` (`_ctl_research_game.py`,
+rules in `_research_game.py`). game-research (PlayStudy) writes its approval
+file `~/.config/game-research/research_game.json` (`{app_id, added_at, flags}`)
+and then calls `research_game`; the op refuses (`invalid_params`) unless the
+file names the same app id, writes the root record
+`/var/lib/steam-backlog-enforcer/research_game.json` and appends
+`RESEARCH_GAME_ADDED app_id=N` to `exception_audit.log`. No phrase, no delay,
+no time lock: it can only confirm what the file says, one game at a time.
+
+The game is the research game while the file and the record agree. It is
+never uninstalled (`uninstall_game` refuses it for every caller), never hidden,
+exempt from the tampering check, and a total-block purge keeps
+`~/.local/share/Steam`. The unauthorized-game kill spares it only while one of
+the file's `flags` (game-research's `recording.pid` or `research_launch.pid`,
+under the user's home, launch flag at most 20 min old) names a live
+`game_research_desktop` process. Deleting the file revokes it at once;
+`research_game_revoke` also drops the record and logs `RESEARCH_GAME_REVOKED`.

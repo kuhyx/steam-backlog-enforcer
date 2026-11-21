@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from steam_backlog_enforcer._actions import allowed_games
+from steam_backlog_enforcer._research_game import kept_ids
 from steam_backlog_enforcer.enforcer import send_notification
 from steam_backlog_enforcer.game_uninstall import (
     get_installed_games,
@@ -52,9 +53,11 @@ def guard_installed_games(allowed: set[int], *, strict: bool = False) -> int:
         return 0
     spared = is_infrastructure_app if strict else is_protected_app
     installed = get_installed_games()
+    # The research game stays installed even in a strict research window.
+    keep = allowed | kept_ids()
     count = 0
     for app_id, name in installed:
-        if app_id in allowed:
+        if app_id in keep:
             continue
         if spared(app_id):
             continue

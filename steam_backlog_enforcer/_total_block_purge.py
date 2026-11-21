@@ -25,6 +25,7 @@ from steam_backlog_enforcer._pacman import (
     pacman_owner,
     uninstall_package,
 )
+from steam_backlog_enforcer._research_game import kept_ids
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 from steam_backlog_enforcer.enforcer import kill_processes_by_name
 
@@ -220,7 +221,10 @@ def purge_steam_and_proton(*, keep_steam_dir: bool = False) -> None:
     reappearance check: a stat() per fixed path and a ``pacman -Qi`` per
     helper package are cheap even when there is nothing left to do.
     """
-    removed_paths = _remove_steam_remnants(keep_steam_dir=keep_steam_dir)
+    # The research game's install lives in the Steam folder: keep it while
+    # the game is on game-research's list, total block or not.
+    keep = keep_steam_dir or bool(kept_ids())
+    removed_paths = _remove_steam_remnants(keep_steam_dir=keep)
     removed_packages = _uninstall_proton_helpers()
     if removed_paths or removed_packages:
         logger.info(

@@ -27,6 +27,7 @@ from steam_backlog_enforcer._cdp import _cdp_result_value, _evaluate_js
 from steam_backlog_enforcer._echo import _echo
 from steam_backlog_enforcer._owned_apps_cache import get_all_owned_app_ids
 from steam_backlog_enforcer._progress import current_progress
+from steam_backlog_enforcer._research_game import kept_ids
 from steam_backlog_enforcer._steam_errors import (
     SteamUnavailableError,
 )
@@ -95,7 +96,10 @@ def hide_other_games(
     ensure_steam_debug_port()
 
     allowed_app_ids = (
-        allowed_app_ids | get_approved_exception_ids() | zero_achievement_ids()
+        allowed_app_ids
+        | get_approved_exception_ids()
+        | zero_achievement_ids()
+        | kept_ids()
     )
     allowed_json = json.dumps(sorted(allowed_app_ids))
     extra_ids = sorted(aid for aid in owned_app_ids if aid not in allowed_app_ids)

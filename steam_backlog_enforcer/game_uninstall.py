@@ -17,6 +17,7 @@ from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
 from steam_backlog_enforcer._game_names import _is_protected_name
 from steam_backlog_enforcer._progress import tracked
 from steam_backlog_enforcer._protected_apps import PROTECTED_APP_IDS
+from steam_backlog_enforcer._research_game import kept_ids
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH, _assert_not_real_steam
 from steam_backlog_enforcer._whitelist_locking import get_approved_exception_ids
 
@@ -130,6 +131,11 @@ def uninstall_game(app_id: int, game_name: str = "") -> bool:
     Uses direct file removal instead of ``steam://uninstall`` URI to avoid
     GUI popups and to work when Steam is not running.
     """
+    # Last line of defence for every caller: the research game's manifest
+    # and files are never removed while it is on game-research's list.
+    if app_id in kept_ids():
+        logger.warning("Refusing to uninstall research game AppID=%d", app_id)
+        return False
     manifest = STEAMAPPS_PATH / f"appmanifest_{app_id}.acf"
     install_dir = _read_install_dir(manifest)
     success = _remove_manifest(manifest, game_name, app_id)
@@ -149,8 +155,9 @@ def uninstall_other_games(allowed_app_ids: set[int]) -> int:
     """
     to_remove: list[tuple[int, str]] = []
     kept_protected: list[str] = []
+    keep = allowed_app_ids | kept_ids()
     for app_id, name in get_installed_games():
-        if app_id in allowed_app_ids:
+        if app_id in keep:
             logger.info("KEEPING allowed game: %s (AppID=%d)", name, app_id)
         elif is_protected_app(app_id):
             kept_protected.append(name)

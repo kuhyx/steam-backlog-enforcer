@@ -183,4 +183,6 @@ class TestOpsTable:
             "gaming_reset_commit",
             "gaming_reset_cancel",
             "restart",
+            "research_game",
+            "research_game_revoke",
         }

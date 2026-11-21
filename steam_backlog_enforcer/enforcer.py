@@ -19,6 +19,7 @@ from steam_backlog_enforcer._desktop_env import (
     desktop_user_cmd,
     resolve_desktop_user,
 )
+from steam_backlog_enforcer._research_game import playable_ids
 from steam_backlog_enforcer._store_tools import run_quiet
 from steam_backlog_enforcer.game_uninstall import (
     is_infrastructure_app,
@@ -81,9 +82,11 @@ def enforce_allowed_game(
     spared = is_infrastructure_app if strict else is_protected_app
     running = get_running_steam_game_pids()
     violations: list[tuple[int, int]] = []
+    # The research game only while game-research launches or records it.
+    allowed = allowed_app_ids | playable_ids() if running else allowed_app_ids
 
     for pid, app_id in running.items():
-        if app_id in allowed_app_ids:
+        if app_id in allowed:
             continue
         # Skip Steam client itself (app_id 0 or very low IDs).
         if app_id == 0:
