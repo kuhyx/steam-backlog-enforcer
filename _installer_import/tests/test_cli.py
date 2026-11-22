@@ -11,9 +11,7 @@ from steam_installer import (
     appinfo,
     cli,
     depotdl,
-    manifest_write,
     recognize,
-    vdf,
 )
 
 from _cli_helpers import ARGV, _stub_download
