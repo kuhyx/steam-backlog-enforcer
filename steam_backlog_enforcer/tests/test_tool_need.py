@@ -79,6 +79,22 @@ def test_unknown_steam_state_keeps(root: Path) -> None:
     assert need == ToolNeed(needed=True, reason="cannot tell whether Steam runs")
 
 
+def test_fast_install_running_keeps(root: Path) -> None:
+    """A live steam-game-installer run keeps them: its game may lack a manifest."""
+    steamapps = make_home(root, {10: NATIVE_TOOL})
+    with patch(f"{PKG}.fast_install_running", return_value=True):
+        need = tool_need(steamapps)
+    assert need == ToolNeed(needed=True, reason="fast install running")
+
+
+def test_unreadable_proc_keeps(root: Path) -> None:
+    """A /proc scan that fails cannot tell, so it keeps them."""
+    steamapps = make_home(root, {10: NATIVE_TOOL})
+    with patch(f"{PKG}.fast_install_running", side_effect=PermissionError):
+        need = tool_need(steamapps)
+    assert need == ToolNeed(needed=True, reason="check failed (PermissionError)")
+
+
 @pytest.mark.parametrize("damage", ["directory", "binary", "missing"])
 def test_unreadable_config_keeps(root: Path, damage: str) -> None:
     """C22: an unreadable config.vdf keeps the tools and says why."""
@@ -148,7 +164,7 @@ def test_unlistable_steamapps_keeps(root: Path) -> None:
     shutil.rmtree(steamapps)
     steamapps.write_text("not a directory")
     assert tool_need(steamapps) == ToolNeed(
-        needed=True, reason="check failed (NotADirectoryError)"
+        needed=True, reason="library default steamapps unlistable"
     )
 
 

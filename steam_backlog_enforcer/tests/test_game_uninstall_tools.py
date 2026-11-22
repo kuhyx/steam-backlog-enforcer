@@ -100,6 +100,22 @@ def test_unreadable_config_keeps_and_says_why(
     assert _messages(caplog) == ["kept Steam tools: config.vdf unreadable"]
 
 
+def test_fast_install_running_keeps_the_tools(
+    home: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A live fast install keeps them with one line saying so."""
+    steamapps = make_home(home, {10: NATIVE_TOOL})
+    with (
+        caplog.at_level(logging.INFO, logger=PKG),
+        patch(
+            "steam_backlog_enforcer._tool_need.fast_install_running", return_value=True
+        ),
+    ):
+        assert remove_unneeded_tools() == 0
+    assert _tools_left(steamapps) == set(STEAM_TOOLS)
+    assert _messages(caplog) == ["kept Steam tools: fast install running"]
+
+
 def test_no_tools_installed_is_silent(
     home: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

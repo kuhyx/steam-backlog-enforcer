@@ -71,3 +71,24 @@ def make_home(
         tool_dir.mkdir(parents=True)
         (tool_dir / "toolmanifest.vdf").write_text('"manifest"\n{\n}\n')
     return steamapps
+
+
+def add_library(
+    steamapps: Path, libraries: dict[str, Path], moved: dict[int, Path]
+) -> None:
+    """Write ``libraryfolders.vdf`` and move games into the extra libraries.
+
+    Args:
+        steamapps: The default library (holds libraryfolders.vdf).
+        libraries: libraryfolders key -> library root.
+        moved: Game app id -> the library root its manifest moves to.
+    """
+    blocks = "".join(
+        f'\t"{key}"\n\t{{\n\t\t"path"\t\t"{path}"\n\t\t"label"\t\t""\n\t}}\n'
+        for key, path in libraries.items()
+    )
+    (steamapps / "libraryfolders.vdf").write_text(f'"libraryfolders"\n{{\n{blocks}}}\n')
+    for app_id, lib_root in moved.items():
+        (lib_root / "steamapps").mkdir(parents=True, exist_ok=True)
+        name = f"appmanifest_{app_id}.acf"
+        (steamapps / name).rename(lib_root / "steamapps" / name)

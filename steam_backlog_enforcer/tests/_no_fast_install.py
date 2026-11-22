@@ -31,6 +31,7 @@ _RUNNING_BINDINGS = (
     "steam_backlog_enforcer.game_install.fast_install_running",
     "steam_backlog_enforcer._steam_client.fast_install_running",
     "steam_backlog_enforcer._steam_launch.fast_install_running",
+    "steam_backlog_enforcer._tool_need.fast_install_running",
 )
 
 
