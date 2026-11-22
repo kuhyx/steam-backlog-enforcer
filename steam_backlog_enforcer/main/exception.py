@@ -101,7 +101,8 @@ def cmd_add_exception(args: list[str]) -> None:
         sys.exit(1)
     except DaemonUnreachableError as exc:
         _echo(
-            f"Error: the enforcer daemon did not answer on {SOCKET_PATH} ({exc}).\n"
+            f"Error: no answer from the enforcer daemon on {SOCKET_PATH} "
+            f"({exc.__cause__ or exc}).\n"
             "Start it, or write the file as root: "
             f'sudo ./run.sh add-exception {app_id} --reason "..."'
         )
