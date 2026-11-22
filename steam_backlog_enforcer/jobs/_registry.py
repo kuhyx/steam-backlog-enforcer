@@ -104,6 +104,22 @@ def _pick(
     return _assignment(state)
 
 
+def _install(
+    params: Mapping[str, ParamValue], _progress: Progress, _prompter: Prompter
+) -> JobResult:
+    """``install``: optional target, dry run and Valve-Proton switch."""
+    state = State.load()
+    target = params.get("target")
+    data = cmd_install(
+        Config.load(),
+        state,
+        target=str(target) if target else None,
+        dry_run=bool(params.get("dry_run")),
+        valve_proton=bool(params.get("valve_proton")),
+    )
+    return data if data is not None else _assignment(state)
+
+
 def _enforce_demo(
     params: Mapping[str, ParamValue], _progress: Progress, _prompter: Prompter
 ) -> JobResult:
@@ -157,7 +173,7 @@ HANDLERS: dict[str, JobHandler] = {
     "pick": _pick,
     "pick-manual": _with_args(cmd_pick_manual, "app_id"),
     "abandon-pick": _with_args(cmd_abandon_pick, "app_id"),
-    "install": _cli(cmd_install),
+    "install": _install,
     "uninstall": _cli(cmd_uninstall),
     "hide": _cli(cmd_hide),
     "unhide": _cli(cmd_unhide),

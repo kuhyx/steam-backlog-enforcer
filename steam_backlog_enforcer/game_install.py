@@ -138,6 +138,7 @@ def install_game(
     steam_id: str,
     *,
     use_steam_protocol: bool = False,
+    valve_proton: bool = False,
 ) -> bool:
     """Install a game, through steam-game-installer when it can be used.
 
@@ -145,22 +146,19 @@ def install_game(
     below it is the fallback for when it is refused or fails.
 
     When *use_steam_protocol* is True the ``steam://install`` URI handler
-    is used, which lets Steam determine the correct install directory from
-    its own metadata.  This avoids mismatches between the display name and
-    the canonical ``installdir`` that can cause "Missing game executable"
-    errors.  Falls back to writing a fabricated appmanifest if the URI
-    handler is unavailable.
+    is used, so Steam picks the canonical ``installdir`` from its own
+    metadata (a display-name mismatch causes "Missing game executable").
+    Falls back to a fabricated appmanifest if the handler is unavailable.
 
-    When *use_steam_protocol* is False (the default) a minimal
-    appmanifest with StateFlags=1026 is written directly.  This is
-    suitable for non-interactive / daemon contexts where opening a Steam
-    dialog is undesirable.
+    When False (the default) a minimal appmanifest with StateFlags=1026 is
+    written directly: no Steam dialog, for non-interactive / daemon use.
 
     Args:
         app_id: Steam application ID.
         game_name: Human-readable game name.
         steam_id: Steam64 ID of the account that owns the game.
         use_steam_protocol: Prefer the ``steam://install`` URI handler.
+        valve_proton: Keep the game on Valve's default Proton (fast path).
 
     Returns True if the install was triggered successfully.
     """
@@ -170,9 +168,8 @@ def install_game(
         return ready
 
     # The installer only finishes a manifest it finds: queue a fresh install first.
-    if fast_install(
-        app_id, label, partial(_queue_download, app_id, game_name, steam_id)
-    ):
+    prepare = partial(_queue_download, app_id, game_name, steam_id)
+    if fast_install(app_id, label, prepare, valve_proton=valve_proton):
         return True
     # Steam already has a download of its own going: let it carry on, rather
     # than overwrite its manifest with the fabricated one below.

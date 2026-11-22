@@ -27,7 +27,9 @@ class TestQueueBeforeFastInstall:
         install is queued with Steam before the installer runs, not after."""
         seen: list[bool] = []
 
-        def fast(_app_id: int, _label: str, prepare: Callable[[], object]) -> bool:
+        def fast(
+            _app_id: int, _label: str, prepare: Callable[[], object], **_kw: object
+        ) -> bool:
             prepare()
             seen.append((tmp_path / "appmanifest_440.acf").exists())
             return True

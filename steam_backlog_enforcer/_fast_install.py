@@ -189,7 +189,11 @@ def _wait_detached(app_id: int, label: str) -> bool:
 
 
 def fast_install(
-    app_id: int, label: str, prepare: Callable[[], object] = lambda: None
+    app_id: int,
+    label: str,
+    prepare: Callable[[], object] = lambda: None,
+    *,
+    valve_proton: bool = False,
 ) -> bool:
     """Install *app_id* with steam-game-installer.
 
@@ -213,7 +217,7 @@ def fast_install(
         _echo(f"  Fast install of {label} skipped: {reason}.")
         return False
 
-    cmd = build_cmd(installer, app_id, user)
+    cmd = build_cmd(installer, app_id, user, valve_proton=valve_proton)
     prepare()
     if not sys.stdin.isatty():
         _spawn_detached(cmd, app_id, label)

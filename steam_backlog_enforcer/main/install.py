@@ -14,6 +14,7 @@ from steam_backlog_enforcer._prompter import (
     current_prompter,
 )
 from steam_backlog_enforcer._steam_errors import SteamUnavailableError
+from steam_backlog_enforcer._steam_restart_guard import game_is_running
 from steam_backlog_enforcer._steam_state import is_game_fully_installed
 from steam_backlog_enforcer.game_install import (
     _echo,
@@ -25,6 +26,11 @@ from steam_backlog_enforcer.game_install import (
 from steam_backlog_enforcer.library_hider import (
     try_hide_other_games,
     unhide_all_games,
+)
+from steam_backlog_enforcer.main._install_target import (
+    dry_run_install,
+    install_candidates,
+    resolve_target,
 )
 
 if TYPE_CHECKING:
@@ -78,16 +84,16 @@ def cmd_uninstall(_config: Config, state: State) -> None:
     _echo(f"\nUninstalled {count} games.")
 
 
-def _pick_install_target(state: State) -> tuple[int, str] | None:
+def _pick_install_target(
+    candidates: list[tuple[int, str]],
+) -> tuple[int, str] | None:
     """The allowed game to install: the only unfinished one, or the user's pick.
 
     Every allowed game counts, not just the assignment: a manual pick whose
     fast install was skipped (a game was running at pick time) needs a way to
-    start it later too.
+    start it later too, and so does an approved exception.
     """
-    pending = [
-        (aid, n) for aid, n in allowed_games(state) if not is_game_fully_installed(aid)
-    ]
+    pending = [(aid, n) for aid, n in candidates if not is_game_fully_installed(aid)]
     if not pending:
         _echo("All allowed games are already installed.")
         return None
@@ -98,31 +104,71 @@ def _pick_install_target(state: State) -> tuple[int, str] | None:
     return next(game for game in pending if game[0] == picked)
 
 
-def cmd_install(config: Config, state: State) -> None:
+def cmd_install(
+    config: Config,
+    state: State,
+    *,
+    target: str | None = None,
+    dry_run: bool = False,
+    valve_proton: bool = False,
+) -> dict[str, object] | None:
     """Install an allowed game, through the fast installer when it can be used.
 
     A download Steam already started is taken over, so this is also how a
-    fast install that was skipped earlier gets started.
+    fast install that was skipped earlier gets started. *target* (AppID, URL
+    or name) must be a game allowed today; *dry_run* only reports what the
+    installer would do.
+
+    Returns:
+        ``{app_id, dry_run, fast_install_skipped}`` once a game was chosen,
+        else ``None``.
+
+    Raises:
+        JobError: ``locked`` for a target that is not allowed today.
     """
-    if not allowed_games(state):
+    candidates = install_candidates(config, state)
+    if not candidates:
         _echo("No game currently assigned. Run 'scan' first.")
-        return
-    target = _pick_install_target(state)
-    if target is None:
-        return
-    app_id, name = target
+        return None
+    if target:
+        chosen: tuple[int, str] | None = resolve_target(target, candidates)
+    else:
+        chosen = _pick_install_target(candidates)
+    if chosen is None:
+        return None
+    app_id, name = chosen
+    result: dict[str, object] = {
+        "app_id": app_id,
+        "dry_run": dry_run,
+        "fast_install_skipped": None,
+    }
+    if dry_run:
+        current_progress().phase(f"Dry run of {name or app_id}")
+        dry_run_install(app_id, name, valve_proton=valve_proton)
+        return result
+    # The installer closes Steam: with a game running the fast path is
+    # refused (Steam's own download starts instead), and the UI says why.
+    if game_is_running():
+        result["fast_install_skipped"] = "game_running"
 
     _echo(f"Installing {name} (AppID={app_id})...")
     # install_game only *starts* the download (fast installer or steam://);
     # there is no download-progress loop to report on yet.
     current_progress().phase(f"Starting install of {name}")
-    if not install_game(app_id, name, config.steam_id, use_steam_protocol=True):
+    if not install_game(
+        app_id,
+        name,
+        config.steam_id,
+        use_steam_protocol=True,
+        valve_proton=valve_proton,
+    ):
         _echo("Failed to start the install.")
     elif fast_install_failure(app_id) is None:
         _echo("Done!")
     else:
         # The fast install already printed its "Failed: ..." line.
         _echo("Steam's own download was started instead.")
+    return result
 
 
 def cmd_hide(config: Config, state: State) -> None:

@@ -110,3 +110,12 @@ class TestIsFastInstalling:
         _RUNS.append(_DetachedRun(5, MagicMock(), Path("/nonexistent")))
         assert _fast_install.is_fast_installing(5) is True
         assert _fast_install.is_fast_installing(6) is False
+
+
+def test_build_cmd_valve_proton_and_dry_run() -> None:
+    """The two install switches become the installer's own flags."""
+    with patch.object(_fast_install_cmd, "steam_account_name", return_value=None):
+        cmd = _fast_install_cmd.build_cmd(
+            Path("/x/steam_installer/cli.py"), 7, None, valve_proton=True, dry_run=True
+        )
+    assert cmd[-2:] == ["--valve-proton", "--dry-run"]

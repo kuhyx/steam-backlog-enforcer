@@ -65,6 +65,32 @@ PARAMS: Final[dict[str, tuple[ParamSpec, ...]]] = {
             help="Leave unchecked to keep playing them alongside the new pick.",
         ),
     ),
+    # No target: the picker over every allowed game not yet installed.
+    "install": (
+        ParamSpec(
+            "target",
+            "AppID, Steam URL or name",
+            "string",
+            required=False,
+            help="Only games allowed today; an ambiguous name asks.",
+        ),
+        ParamSpec(
+            "dry_run",
+            "Dry run",
+            "bool",
+            required=False,
+            default=0,
+            help="Shows what the installer would do and changes nothing.",
+        ),
+        ParamSpec(
+            "valve_proton",
+            "Valve Proton",
+            "bool",
+            required=False,
+            default=0,
+            help="Keep the game on Valve's default Proton.",
+        ),
+    ),
     "pick-manual": (_APP_ID,),
     "abandon-pick": (_APP_ID,),
     "add-exception": (

@@ -51,11 +51,20 @@ def steam_account_name() -> str | None:
     return match.group(1) if match else None
 
 
-def build_cmd(installer: Path, app_id: int, user: str | None) -> list[str]:
+def build_cmd(
+    installer: Path,
+    app_id: int,
+    user: str | None,
+    *,
+    valve_proton: bool = False,
+    dry_run: bool = False,
+) -> list[str]:
     """The installer invocation, dropped to the desktop user when root.
 
     Launched as ``python3 -m steam_installer.cli`` with the checkout on
     ``PYTHONPATH``: ``sudo`` resets the environment, so it is named in the argv.
+    *valve_proton* keeps the game on Valve's default Proton; *dry_run* only
+    reports what the installer would do.
     """
     cmd = [
         "env",
@@ -69,6 +78,10 @@ def build_cmd(installer: Path, app_id: int, user: str | None) -> list[str]:
         "--language",
         _LANGUAGE,
     ]
+    if valve_proton:
+        cmd.append("--valve-proton")
+    if dry_run:
+        cmd.append("--dry-run")
     account = steam_account_name()
     if account:
         cmd += ["--username", account]
