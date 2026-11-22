@@ -136,3 +136,16 @@ describe('ParamsForm', () => {
     expect(document.querySelector('.field-help')?.textContent).toBe('')
   })
 })
+
+describe('install params', () => {
+  it('paints its own icon for target, dry run and Valve Proton', () => {
+    const specs: ParamSpec[] = [
+      { name: 'target', label: 't', type: 'string', required: false },
+      { name: 'dry_run', label: 'd', type: 'bool', required: false, default: 0 },
+      { name: 'valve_proton', label: 'v', type: 'bool', required: false, default: 0 },
+    ]
+    const form = new ParamsForm({ specs, values: {}, disabled: false, onChange: () => undefined })
+    const ids = form.nodes.map((n) => n.querySelector('[data-icon]')?.getAttribute('data-icon'))
+    expect(ids).toEqual(['params.target', 'params.dry_run', 'params.valve_proton'])
+  })
+})

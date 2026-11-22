@@ -264,6 +264,11 @@
     "health.unknown": { "glyph": "…", "spoken": "Unknown", "desc": "State mark on a health badge before the daemon state is known.", "words": ["unknown", "loading", "pending"], "alts": ["❔", "💤", "🔘"] },
     "health.stale": { "glyph": "⚠️🌐", "spoken": "Stale server", "desc": "Banner mark: the running server is older than the code on disk. The restart button beside it fixes that.", "words": ["stale", "outdated", "old"], "alts": ["🕰️🌐", "🥀", "📛"] },
     "dialog.close": { "glyph": "×", "spoken": "Close", "desc": "Close button in the corner of every dialog.", "words": ["close", "exit", "dismiss"], "alts": ["✖️", "❌", "🚪"] },
-    "words.page": { "glyph": "🏷️", "spoken": "Icon words", "desc": "Command palette entry that opens this icon-words picker. You are here now.", "words": ["words", "labels", "names"], "alts": ["🔖", "🗨️", "🔤"] }
+    "words.page": { "glyph": "🏷️", "spoken": "Icon words", "desc": "Command palette entry that opens this icon-words picker. You are here now.", "words": ["words", "labels", "names"], "alts": ["🔖", "🗨️", "🔤"] },
+    "params.target": { "glyph": "🎯", "spoken": "Game", "desc": "Install dialog field: an AppID, a Steam URL or a name. Only games allowed today install; an ambiguous name asks you to pick.", "words": ["game", "target", "which"], "alts": ["🔎", "🆔", "🕹️"] },
+    "params.dry_run": { "glyph": "🔍", "spoken": "Dry run", "desc": "Switch in the install dialog: show what the installer would do and change nothing.", "words": ["preview", "dry-run", "simulate"], "alts": ["👓", "📋", "🧐"] },
+    "params.valve_proton": { "glyph": "⚛️", "spoken": "Valve Proton", "desc": "Switch in the install dialog: keep the game on Valve's default Proton instead of the mapped one.", "words": ["proton", "valve", "default"], "alts": ["🍷", "🧪", "🔧"] },
+    "result.dry-run": { "glyph": "🔍", "spoken": "Dry run", "desc": "Mark on an install result: it was a dry run, nothing was installed or changed.", "words": ["preview", "dry-run", "simulated"], "alts": ["👓", "📋", "🧐"] },
+    "result.game-running": { "glyph": "🎮⏸️", "spoken": "Game running", "desc": "Mark on an install result: a game was running, so the fast installer (which closes Steam) was skipped and Steam's own download started.", "words": ["playing", "running", "busy"], "alts": ["🎮🔒", "🕹️⏸️", "🎮⚠️"] }
   }
 }

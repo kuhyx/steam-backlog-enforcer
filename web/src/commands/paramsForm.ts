@@ -19,6 +19,9 @@ const PARAM_ICON: Record<string, IconId> = {
   reason: 'params.reason',
   replace: 'params.replace',
   demo: 'params.demo',
+  target: 'params.target',
+  dry_run: 'params.dry_run',
+  valve_proton: 'params.valve_proton',
 }
 
 function paramGlyph(spec: ParamSpec): HTMLSpanElement {

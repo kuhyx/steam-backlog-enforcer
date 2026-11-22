@@ -18,6 +18,7 @@ import { clock, duration, logTime } from '../ui/format'
 import { hub, type LiveJob } from './hub'
 import { progressBar, stateBadge } from './progress'
 import { promptForm } from './promptForm'
+import { resultMarks } from './resultMarks'
 
 /** Remaining seconds: the job's own estimate, else extrapolated from pace. */
 export function eta(p: Progress, live: LiveJob, now: number): number | null {
@@ -177,7 +178,10 @@ export class JobProgressElement extends LiveElement {
     this.updatePrompt(f, live, state)
     f.result.replaceChildren(
       ...(live.result
-        ? [notice(live.result.ok ? 'success' : 'danger', null, h('span', { class: 'sr-only' }, live.result.summary))]
+        ? [
+            notice(live.result.ok ? 'success' : 'danger', null, ...resultMarks(live.result.data).map((id) => glyph(id)),
+              h('span', { class: 'sr-only' }, live.result.summary)),
+          ]
         : []),
     )
     f.actions.replaceChildren(

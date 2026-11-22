@@ -86,6 +86,14 @@ export interface CommandSpec {
   view_endpoint?: string
 }
 
+/** `install`'s `result.data` once a game was chosen (else the assignment). */
+export interface InstallResultData {
+  app_id: number
+  dry_run: boolean
+  /** Why the fast installer (it closes Steam) was not used. */
+  fast_install_skipped: 'game_running' | null
+}
+
 // ---- views ---------------------------------------------------------------
 
 export interface ManualPickInfo {
