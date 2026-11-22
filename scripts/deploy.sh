@@ -12,12 +12,17 @@
 # passes. A failed check after a restart is left running, not rolled back:
 # a rollback would restart the daemon a second time.
 #
-# Overridable for tests: SBE_CHECKOUT, SBE_WEB_URL, SBE_CTL_SOCK.
+# Every deploy also resyncs the MCP venv (scripts/setup_mcp.sh) that Claude
+# Code starts from .mcp.json, so a new dependency of the server cannot leave
+# it crashing on import unnoticed.
+#
+# Overridable for tests: SBE_CHECKOUT, SBE_WEB_URL, SBE_CTL_SOCK, SBE_MCP_PYTHON.
 set -euo pipefail
 
 readonly CHECKOUT="${SBE_CHECKOUT:-$HOME/src/steam-backlog-enforcer}"
 readonly WEB_URL="${SBE_WEB_URL:-http://127.0.0.1:8000/}"
 readonly CTL_SOCK="${SBE_CTL_SOCK:-/run/steam-backlog-enforcer/ctl.sock}"
+readonly MCP_PYTHON="${SBE_MCP_PYTHON:-$HOME/.venvs/steam-backlog-mcp/bin/python}"
 readonly DAEMON_UNIT="steam-backlog-enforcer"
 readonly WEB_UNIT="steam-backlog-enforcer-web"
 readonly DAEMON_DST="/etc/systemd/system/$DAEMON_UNIT.service"
@@ -54,6 +59,18 @@ preflight() {
         || die "checkout has uncommitted changes: $CHECKOUT"
     git -C "$CHECKOUT" pull --ff-only --quiet || die "git pull --ff-only failed in $CHECKOUT"
     ok "checkout at $(git -C "$CHECKOUT" rev-parse --short HEAD)"
+}
+
+# Reinstall the checkout into the MCP venv; its log is shown only on failure.
+sync_mcp_venv() {
+    local log
+    log="$(mktemp)"
+    trap 'rm -f "$log"' RETURN
+    if ! bash "$CHECKOUT/scripts/setup_mcp.sh" >"$log" 2>&1; then
+        cat "$log" >&2
+        die "scripts/setup_mcp.sh failed: MCP venv not synced"
+    fi
+    ok "mcp venv synced"
 }
 
 # Render the repo units the same way install.sh does.
@@ -140,10 +157,16 @@ health_check() {
     web_at="$(unit_started_at --user "$WEB_UNIT")"
     ((web_at > pkg_commit_at)) || die "check 4: web started before last package commit"
     ok "check 4: daemon runs from checkout, web is fresh"
+
+    # 5. MCP server (as .mcp.json starts it) answers an initialize request.
+    python3 "$CHECKOUT/scripts/mcp_probe.py" --python "$MCP_PYTHON" --repo "$CHECKOUT" >/dev/null \
+        || die "check 5: MCP server did not answer initialize (see mcp_probe output above)"
+    ok "check 5: MCP server answers initialize"
 }
 
 main() {
     preflight
+    sync_mcp_venv
     local pkg_commit_at changed
     pkg_commit_at="$(git -C "$CHECKOUT" log -1 --format=%ct -- steam_backlog_enforcer)"
     changed="$(sync_units)"

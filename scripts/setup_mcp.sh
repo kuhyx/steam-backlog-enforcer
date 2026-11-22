@@ -31,9 +31,14 @@ main() {
     "${VENV_DIR}/bin/pip" install --quiet --upgrade pip
     "${VENV_DIR}/bin/pip" install --quiet -e "${REPO_DIR}[mcp]"
 
+    # Import the exact module .mcp.json runs: the bare package imports fine
+    # even when a dependency of the server's import chain is missing.
     echo "== Verifying imports =="
-    "${VENV_DIR}/bin/python" -c \
-        "import mcp, steam_backlog_enforcer; print('mcp + steam_backlog_enforcer import OK')"
+    if ! "${VENV_DIR}/bin/python" -c "import mcp, steam_backlog_enforcer._mcp"; then
+        echo "setup_mcp: FAIL: ${VENV_DIR}/bin/python cannot import steam_backlog_enforcer._mcp; the MCP server will not start" >&2
+        exit 1
+    fi
+    echo "mcp + steam_backlog_enforcer._mcp import OK"
 
     echo
     echo "Done. The server is registered via ${REPO_DIR}/.mcp.json"
