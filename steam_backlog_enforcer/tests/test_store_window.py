@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from steam_backlog_enforcer import _store_window
-from steam_backlog_enforcer._store_verify import (
+from steam_backlog_enforcer._store_check_report import (
     Check,
     StoreCheckReport,
     StoreVerifyError,

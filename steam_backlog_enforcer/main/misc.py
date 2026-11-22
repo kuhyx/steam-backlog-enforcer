@@ -18,7 +18,7 @@ from steam_backlog_enforcer._serve_startup import (
     ensure_port_available,
     parse_serve_args,
 )
-from steam_backlog_enforcer._store_verify import StoreVerifyError
+from steam_backlog_enforcer._store_check_report import StoreVerifyError
 from steam_backlog_enforcer._store_window import (
     DEFAULT_WINDOW_MINUTES,
     MAX_WINDOW_MINUTES,

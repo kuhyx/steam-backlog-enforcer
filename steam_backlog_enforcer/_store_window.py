@@ -20,8 +20,8 @@ import logging
 import threading
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._store_check_report import StoreVerifyError
 from steam_backlog_enforcer._store_verify import (
-    StoreVerifyError,
     check_reblock,
     check_unblock,
     verify,

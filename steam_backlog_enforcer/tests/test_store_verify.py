@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from steam_backlog_enforcer import _store_verify as sv
+from steam_backlog_enforcer._store_check_report import NETWORK_DOWN, StoreVerifyError
 from steam_backlog_enforcer._store_verify import _run as run_command
 from steam_backlog_enforcer.config import BLOCKED_DOMAINS
 
@@ -114,7 +115,7 @@ def test_unblock_both_unreachable_is_network_down(host: FakeHost) -> None:
     host.reachable = dict.fromkeys(host.reachable, False)
     report = sv.check_unblock()
     assert not report.ok
-    assert report.failed_check == sv.NETWORK_DOWN
+    assert report.failed_check == NETWORK_DOWN
     assert report.title == "Store unblock verification failed: network down"
 
 
@@ -201,7 +202,7 @@ def test_run_survives_missing_binary() -> None:
 def test_error_carries_report(host: FakeHost) -> None:
     """StoreVerifyError keeps the report and names the check."""
     host.chain = True
-    err = sv.StoreVerifyError(sv.check_unblock())
+    err = StoreVerifyError(sv.check_unblock())
     assert str(err) == "Store unblock failed: iptables"
     assert err.report.failed_check == "iptables"
 

@@ -9,7 +9,7 @@ import pytest
 
 from steam_backlog_enforcer import _web_privileged, _web_store_report
 from steam_backlog_enforcer._ctl_protocol import CtlError, DaemonUnreachableError
-from steam_backlog_enforcer._store_verify import (
+from steam_backlog_enforcer._store_check_report import (
     Check,
     StoreCheckReport,
     StoreVerifyError,

@@ -9,7 +9,7 @@ import pytest
 
 from steam_backlog_enforcer import _ctl_ops
 from steam_backlog_enforcer._ctl_protocol import CtlError
-from steam_backlog_enforcer._store_verify import (
+from steam_backlog_enforcer._store_check_report import (
     Check,
     StoreCheckReport,
     StoreVerifyError,

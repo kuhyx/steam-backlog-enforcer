@@ -28,7 +28,7 @@ from steam_backlog_enforcer._ctl_reset import RESET_OPS
 from steam_backlog_enforcer._ctl_restart import RESTART_OPS, restart_available_at
 from steam_backlog_enforcer._fast_install_progress import fast_install_status
 from steam_backlog_enforcer._playtime_block import release_block
-from steam_backlog_enforcer._store_verify import StoreVerifyError
+from steam_backlog_enforcer._store_check_report import StoreVerifyError
 from steam_backlog_enforcer._store_window import (
     MAX_WINDOW_MINUTES,
     open_store_window,
