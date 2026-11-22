@@ -194,3 +194,34 @@ def steam(tmp_path, monkeypatch):
     # Prompting is tty-gated now, and pytest's stdin is not a tty.
     monkeypatch.setattr(cli, "_is_interactive", lambda args: True)
     return library, install_dir
+
+
+@pytest.fixture(autouse=True)
+def _no_live_compat_side_effects(request, tmp_path, monkeypatch):
+    """No test may fetch the anti-cheat list or read the real app cache.
+
+    The modules that test those seams themselves (with their own fakes) are
+    exempt from the part they cover.
+    """
+    from steam_installer import anticheat, appinfo_cache
+
+    def offline():
+        raise OSError("tests are offline")
+
+    module = request.node.module.__name__
+    if not request.node.name.startswith("test_anticheat_download"):
+        monkeypatch.setattr(anticheat, "_download", offline)
+    monkeypatch.setattr(anticheat, "CACHE", tmp_path / "no-anticheat-cache.json")
+    if module != "test_appinfo_cache":
+        monkeypatch.setattr(
+            appinfo_cache, "default_path", lambda: tmp_path / "no-appinfo.vdf"
+        )
+    # The live Steam client is never seen, stopped or started by a test: an
+    # unstubbed --apply run once shut down and relaunched kuhy's real Steam.
+    from steam_installer import steamctl
+
+    if module in ("test_steamctl", "test_recognize"):
+        return  # these fake subprocess and /proc themselves
+    monkeypatch.setattr(recognize, "steam_client_pids", list)
+    monkeypatch.setattr(steamctl, "stop", lambda *a, **k: pytest.fail("real steam stop"))
+    monkeypatch.setattr(steamctl, "start", lambda *a, **k: pytest.fail("real steam start"))

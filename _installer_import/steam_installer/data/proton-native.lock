@@ -1,0 +1,7 @@
+# pacman-repo lock: the exact proton-cachyos-native build steam-game-installer
+# installs. The dependency-freshness gate (kuhyx/utils, pacman-repo adapter)
+# compares it with cachyos.db; bump version and sha256 together.
+name=proton-cachyos-native
+repo=https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos.db
+version=1:11.0.20261015-1
+sha256=25bf302f90e8e01118555b997b873c3cd06a33b5647e79d049a59e29794b43e0

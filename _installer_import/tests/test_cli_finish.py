@@ -4,14 +4,14 @@ import subprocess
 import sys
 
 import pytest
+from _cli_helpers import ARGV, _stub_download
+
 from steam_installer import (
     appinfo,
     cli,
     recognize,
     vdf,
 )
-
-from _cli_helpers import ARGV, _stub_download
 
 pytestmark = pytest.mark.usefixtures("cli_logs")
 

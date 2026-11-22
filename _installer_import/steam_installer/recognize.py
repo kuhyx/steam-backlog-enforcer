@@ -1,7 +1,7 @@
 """Read-only questions about whether Steam will see an install as real.
 
-Split on 2026-09-25 (250-line cap): steamcmd's validate run now lives in
-:mod:`steamcmd_validate`, every manifest write in :mod:`manifest_write`, and
+Split on 2026-09-25 (250-line cap): every manifest write lives in
+:mod:`manifest_write`, and
 the preconditions for writing in :mod:`finish_check`. What stays here is the
 shared vocabulary they all read: depotdownloader's cache, Steam's staging tree
 and client process, and whether a manifest's bookkeeping says "done".

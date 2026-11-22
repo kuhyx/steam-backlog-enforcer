@@ -13,6 +13,7 @@ from steam_installer import (
     deps,
     flow,
     ghost,
+    map_installed,
     resolve,
     runlog,
     takeover,
@@ -70,6 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "steamcmd leaves behind, and clear them away."
         ),
     )
+    map_installed.add_arguments(parser)
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -82,8 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if not args.repair_ghosts and args.appid is None and args.target is None:
-        parser.error("provide an AppID, a Steam URL, a game name, or --repair-ghosts")
+    if not (args.repair_ghosts or args.map_installed) and not (args.appid or args.target):
+        parser.error(
+            "provide an AppID, a Steam URL, a game name, --repair-ghosts or --map-installed"
+        )
+    map_installed.check_arguments(parser, args)
 
     literal = target.parse_literal(args.target) if args.target else None
     log = runlog.setup(args.appid or (literal[0] if literal else None), args.verbose)
@@ -163,6 +168,8 @@ def _run(args: argparse.Namespace, log: runlog.RunLog) -> int:
 
     if args.repair_ghosts:
         return _repair_ghosts(log)
+    if args.map_installed:
+        return map_installed.run(args, log, find_steam_root())
 
     try:
         deps.require()
@@ -184,7 +191,8 @@ def _run(args: argparse.Namespace, log: runlog.RunLog) -> int:
         resolved.source,
     )
 
-    libraries = list_libraries(find_steam_root())
+    steam_root = find_steam_root()
+    libraries = list_libraries(steam_root)
     install_target = pick_install_target(libraries, metadata.installdir)
     library = next(lib for lib in libraries if lib.common == install_target.parent)
     report = ghost.inspect(library, metadata.appid)
@@ -223,6 +231,7 @@ def _run(args: argparse.Namespace, log: runlog.RunLog) -> int:
     return flow.install(
         args=args,
         log=log,
+        steam_root=steam_root,
         library=library,
         metadata=metadata,
         install_target=install_target,

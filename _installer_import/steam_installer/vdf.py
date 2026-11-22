@@ -1,7 +1,7 @@
 """Minimal reader/writer for Valve's KeyValues (VDF) text format.
 
-Steam uses this format for appmanifest_*.acf, libraryfolders.vdf, and
-steamcmd's `app_info_print` output. Only the plain-text variant is
+Steam uses this format for appmanifest_*.acf and libraryfolders.vdf.
+(Its binary cousin, appcache/appinfo.vdf, is read by :mod:`appinfo_cache`.) Only the plain-text variant is
 supported (no binary VDF) -- that covers every file this project touches.
 """
 

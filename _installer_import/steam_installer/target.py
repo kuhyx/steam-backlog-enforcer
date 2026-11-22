@@ -8,8 +8,8 @@ Four accepted forms, all resolving to the same app:
     BeamNG.drive
     BeamNG
 
-Whatever the input, the appid is always confirmed through steamcmd's own
-`app_info_print` before anything acts on it, so the name and installdir used
+Whatever the input, the appid is always confirmed against Steam's own app
+cache (`appcache/appinfo.vdf`) before anything acts on it, so the name and installdir used
 downstream come from Steam rather than from a search index that ranks
 "Portal 2" above "Portal".
 """

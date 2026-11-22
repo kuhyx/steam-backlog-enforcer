@@ -8,9 +8,11 @@ a real install so **Play** works.
 ./run.sh BeamNG.drive
 ```
 
-That is the whole thing. `run.sh` installs its own dependencies (steamcmd via
-`yay`, DepotDownloader from the SteamRE release, and a local `.venv`) on first
-use, then works out what you meant. All four of these install the same game:
+That is the whole thing. `run.sh` installs its own dependencies (`libibus` via
+pacman, DepotDownloader from the SteamRE release, a local `.venv` and the native
+Proton described below) on first use, then works out what you meant. It never
+runs `steamcmd`: app info comes from Steam's own cache and the tool writes the
+manifest itself. All four of these install the same game:
 
 ```bash
 ./run.sh 284160                                           # an AppID
@@ -25,8 +27,49 @@ name shows a numbered picker, and in a non-interactive run it lists the
 candidates and exits 2 rather than guessing.
 
 Useful flags: `--dry-run` (resolve and report, change nothing), `--yes`
-(no prompts), `--repair-ghosts` (see below), `--username` (remembered after the
-first run, in `~/.config/steam-game-installer/config`; never a password).
+(no prompts), `--repair-ghosts` (see below), `--valve-proton` (keep this game on
+Valve's Proton for this run), `--map-installed` (see below), `--username`
+(remembered after the first run, in `~/.config/steam-game-installer/config`;
+never a password).
+
+## Games run on a FOSS Proton
+
+A plain Windows game is mapped to `proton-cachyos-native`, a Proton that
+CachyOS builds from source against the host's own libraries. Steam then runs
+it with no Steam Linux Runtime container, and Proton Experimental, Steam Linux
+Runtime 4.0 and the Steamworks Redistributables are not needed while only such
+games are installed (steam-backlog-enforcer removes them then).
+
+- **The tool.** `install.sh` downloads the exact build pinned in
+  `steam_installer/data/proton-native.lock` from the CachyOS mirror. It checks
+  the package's `.sig` against the CachyOS key pinned in
+  `steam_installer/data/cachyos_signing_key.asc` (fingerprint and sources in
+  `proton_pkg.py`), and its sha256 against the lock. Then it extracts only the
+  tool folder into `compatibilitytools.d/` and writes a `VERSION` stamp; the
+  package's `.INSTALL` is never run. A copy already on disk is adopted when
+  every file matches the package's `.MTREE`. An update is swapped in by rename,
+  only while Steam and every game are closed. The dependency-freshness gate
+  checks the lock against `cachyos.db`.
+- **Which games.** Only a game proven safe: Windows-only (the app, every depot,
+  every launch option), no shared depots, no owned DLC depot, not in
+  AreWeAntiCheatYet's `games.json` (fetched every run, last good copy cached;
+  no list means nothing is mapped), and not in
+  `steam_installer/data/compat_overrides.json` (`{"<appid>": "<reason>"}` for a
+  game that breaks on the native build). Anything else keeps Valve's default,
+  so it runs exactly as before. The run prints every reason.
+- **The mapping.** With Steam closed, the game gets a `CompatToolMapping`
+  entry in `config/config.vdf` (`"name" "proton-cachyos-native"`, priority
+  250). The file is edited as text, and none of its other lines is ever logged.
+  An entry Valve chose (priority 100) is replaced; one you picked is kept.
+- **Games already installed.** `./run.sh --map-installed` prints the decision
+  for every installed game and writes nothing; add `--apply` to close Steam and
+  write the safe ones. `--appids 730,1201270` decides any cached app instead.
+
+Proven live on 2026-11-22 with A Space for the Unbound (1201270). Not tested
+yet, so they stay on Valve's default or are fixture-tested only: a game with
+shared depots (its from-scratch manifest records `SharedDepots`), an owned DLC
+depot, a native Linux game, an anti-cheat game, a global default mapping and a
+package update.
 
 **Steam gets closed for you.** Steam owns `appmanifest_<appid>.acf` while it
 runs and rewrites it from its own in-memory state, so anything written
@@ -76,7 +119,8 @@ password nobody was there to type.
 
 ## Ghost installs
 
-`steamcmd +login anonymous +app_update <paid appid>` has no licence for the app.
+Older versions of this tool ran steamcmd. `steamcmd +login anonymous +app_update
+<paid appid>` has no licence for the app.
 It does not say so. It transfers nothing, prints `Success! App '...' fully
 installed.`, exits 0, and writes a manifest claiming `StateFlags=4` with
 `SizeOnDisk=0` and an empty `InstalledDepots`.
@@ -111,17 +155,21 @@ manifest verbatim before and after every write, the depot cache listing,
 expected-vs-actual depots, and whether Steam was running. Send `latest.log` when
 something goes wrong. `--verbose` mirrors all of it to the console.
 
-Subprocess output is teed through a pty rather than captured, because steamcmd
-only prompts for a password / Steam Guard code when it believes it is on a
-terminal — with a plain pipe the prompt never appears and the run looks hung.
+Subprocess output is teed through a pty rather than captured, because
+depotdownloader only prompts for a password / Steam Guard code when it believes
+it is on a terminal — with a plain pipe the prompt never appears and the run looks hung.
 
 ## How it works
 
-1. `depotdownloader` pulls the content (fast path).
+1. App info (name, installdir, depots, build) is read from Steam's own cache,
+   `appcache/appinfo.vdf`. An app missing from it fails with the fix: start
+   Steam once, let it sync, rerun. A DLC missing from it counts as not owned.
+2. `depotdownloader` pulls the content (fast path).
    Then each owned DLC with depots of its own gets a run of its own.
-2. `steamcmd app_update <id> validate` reconciles Steam's own bookkeeping.
-3. If that fails or leaves the manifest incomplete, the manifest is finished by
-   hand — but only when every precondition below holds.
+3. The manifest is finished by hand, or written from scratch with the 15 keys
+   Steam accepted when none exists, but only when every precondition below
+   holds. Steam adds `LastOwner`, `UserConfig` and the rest itself.
+4. The game is mapped to the native Proton when it is safe (see above).
 
 ## Fail-closed preconditions
 
@@ -132,25 +180,23 @@ The tool refuses to mark an app installed, and exits non-zero, unless:
   (required = this app's depots for the chosen language and OS, excluding DLC,
   optional and shared depots — KCD2 lists 12 depots but an english/windows
   install only ever fetches 3);
-- the manifest carries a real `buildid` matching the current public build;
+- every required depot holds the public gid from Steam's cache, which proves
+  the build (a differing gid means the cache is stale: start Steam, let it
+  sync, rerun), or else the manifest carries a matching real `buildid`;
 - no Steam client is running (it is closed first, and restarted afterwards);
 - the manifest reads back as a real install *after* being written.
 
 This matters: an earlier version wrote `StateFlags=4` and reported success after
-a steamcmd run that had done nothing at all.
+a steamcmd run that had done nothing at all. A from-scratch manifest is built in
+memory and only written once every check has passed.
 
 ## Failure modes this encodes
 
 Each of these cost a real debugging session; the tests pin them.
 
-**`force_install_dir` is a library root, not an install directory.** Pointing it
-at the game folder made steamcmd look for manifests in `<game>/steamapps/`, find
-none (`Loaded 0 apps from install folder`), create that stray directory, and then
-fail the app with `Invalid platform` — it had no depot context for the app.
-Dropped entirely: the app already lives in a registered library.
-
-**A Linux steamcmd needs `+@sSteamCmdForcePlatformType windows`** (before
-`+login`) for a Windows-only game, or it resolves depots against the host OS.
+**A wrong `installdir` makes Steam wipe the game.** Steam treated the correctly
+downloaded folder as orphaned, deleted it and started a fresh download into the
+folder its manifest named. The field is fixed first, as soon as Steam is closed.
 
 **Steam rejects an internally inconsistent manifest.** A file that says
 `StateFlags=4` while `BytesDownloaded` (22 GB) still differs from

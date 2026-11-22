@@ -20,6 +20,7 @@ readonly SCRIPT_DIR
 readonly VENV_PY="${SCRIPT_DIR}/.venv/bin/python"
 readonly STAMP="${SCRIPT_DIR}/.venv/.deps-ok"
 readonly INSTALLER="${SCRIPT_DIR}/install.sh"
+readonly PROTON_LOCK="${SCRIPT_DIR}/steam_installer/data/proton-native.lock"
 
 SKIP_DEPS="${SGI_SKIP_DEPS:-0}"
 DEPS_ONLY=0
@@ -52,7 +53,9 @@ deps_are_current() {
 	[[ -f "$STAMP" ]] || return 1
 	[[ "$STAMP" -nt "$INSTALLER" ]] || return 1
 	[[ "$STAMP" -nt "${SCRIPT_DIR}/pyproject.toml" ]] || return 1
-	"$VENV_PY" -c 'import steam_installer' >/dev/null 2>&1
+	[[ "$STAMP" -nt "$PROTON_LOCK" ]] || return 1
+	# A bumped pin or a deleted tool folder: the stamp alone would miss both.
+	"$VENV_PY" -m steam_installer.proton_native --check >/dev/null 2>&1
 }
 
 main() {

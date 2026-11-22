@@ -10,6 +10,7 @@ from pathlib import Path
 
 from steam_installer import (
     appinfo,
+    compat_apply,
     depotdl,
     dlc,
     manifest_write,
@@ -50,6 +51,7 @@ def install(
     *,
     args,
     log: runlog.RunLog,
+    steam_root: Path,
     library: SteamLibrary,
     metadata: appinfo.AppMetadata,
     install_target: Path,
@@ -64,9 +66,22 @@ def install(
     if steam_was_running is None:
         return 1
     try:
-        return _download_and_recognize(
+        returncode = _download_and_recognize(
             args, log, library, metadata, install_target, staged, username, language
         )
+        if returncode == 0:
+            # Still inside the window where Steam is closed: config.vdf written
+            # under a running client is lost when it exits.
+            cached = recognize.discover_cached_depot_manifests(install_target)
+            dlc_depots = appinfo.get_depot_plan(metadata.appid, language).dlc
+            compat_apply.after_install(
+                steam_root,
+                metadata.appid,
+                owned_dlc=bool(set(dlc_depots) & set(cached)),
+                valve_proton=args.valve_proton,
+                logger=logger,
+            )
+        return returncode
     finally:
         if steam_was_running:
             steamctl.start(logger)

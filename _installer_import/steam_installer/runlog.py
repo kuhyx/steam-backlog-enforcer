@@ -8,10 +8,10 @@ log records the manifest *verbatim, before and after* every write, alongside the
 full output of every subprocess.
 
 Subprocess output is teed through a pty rather than captured with
-`capture_output=True`. steamcmd prompts for a password (and possibly a Steam
-Guard code) on stdin; prompt text written to a captured/buffered pipe never
+`capture_output=True`. depotdownloader prompts for a password (and possibly a
+Steam Guard code) on stdin; prompt text written to a captured/buffered pipe never
 reaches the terminal, so the process looks hung with no visible request for
-input. A pty keeps steamcmd in line-buffered interactive mode and lets us
+input. A pty keeps it in line-buffered interactive mode and lets us
 mirror every byte to both the terminal and the log.
 """
 
@@ -110,7 +110,7 @@ def run_logged(
     """Run `cmd` on a pty, mirroring output to both the terminal and the log.
 
     Returns (returncode, combined_output). stdin stays attached to the real
-    terminal so interactive prompts (steamcmd's password / Steam Guard) work
+    terminal so interactive prompts (depotdownloader's password / Steam Guard) work
     exactly as they do without logging.
     """
     logger.debug("$ %s", shlex.join(cmd))
@@ -139,7 +139,7 @@ def run_logged(
     except subprocess.TimeoutExpired as exc:
         # Record what the child managed to say before it hung, then re-raise.
         # Losing it here defeats the whole point of the log in precisely the
-        # case where it matters most -- a steamcmd hang at the 3600s timeout.
+        # case where it matters most -- a download hung until its timeout.
         output = _log_output(logger, chunks, started, returncode=None)
         process.wait()
         exc.output = output.encode()
@@ -177,7 +177,7 @@ def _read_pty(fd: int, size: int) -> bytes:
 def _stdin_for_child(slave_fd: int) -> int:
     """The child's stdin: the real terminal when there is one, else the pty.
 
-    steamcmd needs a readable stdin to prompt for a password, but `sys.stdin`
+    depotdownloader needs a readable stdin to prompt for a password, but `sys.stdin`
     is not always a real file descriptor -- under pytest's capture, systemd, or
     a piped invocation it has no fileno(). Falling back to the pty's slave end
     keeps the child on a terminal-like stdin instead of crashing.

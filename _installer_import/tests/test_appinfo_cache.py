@@ -1,9 +1,9 @@
 """Steam's local binary app-info cache, read without steamcmd."""
 
 import pytest
-from steam_installer import appinfo_cache
-
 from _appinfo_blob import encode
+
+from steam_installer import appinfo_cache
 
 
 def _write(tmp_path, apps):

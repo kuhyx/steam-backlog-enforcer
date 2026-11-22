@@ -87,7 +87,7 @@ def check_ready_to_finish(
     if not (buildid and buildid != "0") and not (target and target != "0"):
         problems.append(
             "manifest has no usable buildid (both buildid and TargetBuildID are 0) "
-            "-- steamcmd never recorded a real build"
+            "-- no real build was ever recorded"
         )
     resolved = buildid if buildid and buildid != "0" else target
     if expected_build_id is None:

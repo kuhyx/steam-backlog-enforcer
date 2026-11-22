@@ -1,11 +1,11 @@
 [project]
 name = "steam-game-installer"
 version = "0.1.0"
-description = "Fast Steam game installs: depotdownloader for speed, steamcmd for recognition."
+description = "Fast Steam game installs: depotdownloader for speed, a hand-written manifest for recognition, a FOSS Proton to run them."
 requires-python = ">=3.14"
 # kuhy's shared "Created by kuhy" credit, shown at the end of --help.
 dependencies = [
-    "kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.0#subdirectory=kuhy_credit",
+    "kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.2#subdirectory=kuhy_credit",
 ]
 
 [project.scripts]

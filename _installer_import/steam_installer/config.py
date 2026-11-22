@@ -1,9 +1,8 @@
 """Remember the Steam username so every run doesn't ask for it again.
 
 Only the username is ever persisted. Passwords and Steam Guard codes stay
-where they belong: with steamcmd's own cached login token (prompted through
-the pty in `runlog.run_logged`) and depotdownloader's `-remember-password`.
-Writing either of those to a dotfile would be a downgrade in security over
+where they belong: with depotdownloader's `-remember-password` login token
+(prompted through the pty in `runlog.run_logged`). Writing them to a dotfile would be a downgrade in security over
 what Steam's own tooling already does.
 """
 

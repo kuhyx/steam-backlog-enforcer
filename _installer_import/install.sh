@@ -3,13 +3,20 @@
 # ============================================================================
 # Install everything this tool shells out to, then set up the dev environment.
 #
-#   steamcmd         AUR package, via yay
+#   libibus          the one runtime library of proton-cachyos-native's 63
+#                    package dependencies a plain Arch desktop may lack (pacman)
 #   depotdownloader  official self-contained release from SteamRE/DepotDownloader
 #   .venv            local virtualenv with the package installed editable
+#   native Proton    proton-cachyos-native, pinned in
+#                    steam_installer/data/proton-native.lock, signature- and
+#                    sha256-checked, into Steam's compatibilitytools.d
+#
+# steamcmd is not needed any more: app info comes from Steam's own cache and
+# the manifest is written by the tool itself.
 #
 # Idempotent: every step no-ops when its target is already in place, so run.sh
-# can call it on every run. `yay` shells out to `sudo pacman`, so installing
-# steamcmd may prompt for a password -- that is the one interactive step.
+# can call it on every run. Installing libibus runs `sudo -n pacman`; when sudo
+# would prompt, it stops and prints the one command to type.
 # ============================================================================
 
 set -euo pipefail
@@ -45,19 +52,29 @@ die() {
 	exit 1
 }
 
-ensure_steamcmd() {
-	if command -v steamcmd >/dev/null 2>&1; then
+ensure_libibus() {
+	if pacman -Q libibus >/dev/null 2>&1; then
 		return 0
 	fi
 	if [[ "$CHECK_ONLY" -eq 1 ]]; then
-		echo "missing: steamcmd -- run: yay -S steamcmd" >&2
+		echo "missing: libibus -- run: sudo pacman -S --needed libibus" >&2
 		return 1
 	fi
-	command -v yay >/dev/null 2>&1 ||
-		die "steamcmd is missing and yay is not installed. Install it, then: yay -S steamcmd"
-	echo "Installing steamcmd (yay may ask for your sudo password)..."
-	yay -S --needed --noconfirm --answerdiff None --answeredit None steamcmd
-	command -v steamcmd >/dev/null 2>&1 || die "steamcmd still not on PATH after install"
+	sudo -n pacman -S --needed --noconfirm libibus ||
+		die "libibus is missing and sudo needs a password. Run: sudo pacman -S --needed libibus"
+}
+
+# Never runs the package's .INSTALL; see steam_installer/proton_native.py.
+ensure_native_proton() {
+	local python="${VENV}/bin/python"
+	if [[ "$CHECK_ONLY" -eq 1 ]]; then
+		if [[ -x "$python" ]] && ! "$python" -m steam_installer.proton_native --check; then
+			echo "missing: proton-cachyos-native at the pinned version -- run ./install.sh" >&2
+			return 1
+		fi
+		return 0
+	fi
+	"$python" -m steam_installer.proton_native || die "native Proton install failed"
 }
 
 # Build from source only if the published binary can't be fetched. The upstream
@@ -137,15 +154,17 @@ setup_dev_env() {
 
 main() {
 	local missing=0
-	ensure_steamcmd || missing=1
+	ensure_libibus || missing=1
 	ensure_depotdownloader || missing=1
 
 	if [[ "$CHECK_ONLY" -eq 1 ]]; then
+		ensure_native_proton || missing=1
 		[[ "$missing" -eq 0 ]] && echo "All dependencies present."
 		exit "$missing"
 	fi
 
 	setup_dev_env
+	ensure_native_proton
 	echo "All dependencies present."
 	: >"$STAMP"
 }

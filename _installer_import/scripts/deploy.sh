@@ -3,7 +3,7 @@
 # ============================================================================
 # Deploy origin/main to where this tool runs: kuhy's checkout
 # (~/src/steam-game-installer, used through ./run.sh). Refuses a dirty tree,
-# fast-forwards it, reruns ./run.sh --deps-only (steamcmd, depotdownloader,
+# fast-forwards it, reruns ./run.sh --deps-only (libibus, depotdownloader, the native Proton,
 # editable .venv), then starts the CLI as the health check. Nothing is
 # published elsewhere: no package, no service, no release.
 # Idempotent; non-zero unless the checkout is at origin/main and the CLI starts.

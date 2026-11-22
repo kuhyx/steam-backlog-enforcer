@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 
 from steam_installer import appinfo_cache
 
-
 # depotdownloader is never given -branch, so it always fetches this one.
 PUBLIC_BRANCH = "public"
 

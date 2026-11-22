@@ -202,3 +202,10 @@ def test_get_build_id_handles_non_dict_sections(monkeypatch):
 def test_get_build_id_returns_none_when_buildid_not_a_string(monkeypatch):
     _app_block(monkeypatch, {"depots": {"branches": {"public": {"buildid": {}}}}})
     assert appinfo.get_build_id(1) is None
+
+
+def test_a_shared_install_without_an_owner_is_still_shared(monkeypatch):
+    _app_block(monkeypatch, {"depots": {"5": {"sharedinstall": "1"}, "6": {"depotfromapp": "228980"}}})
+    plan = appinfo.get_depot_plan(1)
+    assert plan.shared == {"5", "6"}
+    assert plan.shared_owner == {"6": "228980"}
