@@ -57,6 +57,26 @@ def is_game_installed(app_id: int) -> bool:
     return manifest.exists()
 
 
+def steam_client_running() -> bool | None:
+    """Whether the Steam main client (``steam.sh``, not just helpers) runs.
+
+    Returns:
+        None when pgrep is missing or fails: callers that delete on "not
+        running" must treat that as running.
+    """
+    try:
+        result = subprocess.run(
+            ["/usr/bin/pgrep", "-f", "steam.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    # pgrep: 0 matched, 1 matched nothing, anything else is its own error.
+    return {0: True, 1: False}.get(result.returncode)
+
+
 def _ensure_steam_running() -> None:
     """Start the Steam client if it is not already running.
 
@@ -70,19 +90,10 @@ def _ensure_steam_running() -> None:
         logger.info("steam-game-installer is running — leaving Steam closed.")
         return
 
-    # Check if any steam process is running (main client, not just helpers).
-    try:
-        result = subprocess.run(
-            ["/usr/bin/pgrep", "-f", "steam.sh"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            logger.debug("Steam client already running")
-            return
-    except FileNotFoundError:
-        pass
+    # None (pgrep cannot tell) falls through to a start, as it always has.
+    if steam_client_running():
+        logger.debug("Steam client already running")
+        return
 
     real_user = _get_real_user()
     logger.info("Starting Steam client...")

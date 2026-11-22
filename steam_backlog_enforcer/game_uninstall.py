@@ -13,12 +13,14 @@ import re
 import shutil
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer import _steam_state
 from steam_backlog_enforcer._achievement_skip import zero_achievement_ids
 from steam_backlog_enforcer._game_names import _is_protected_name
 from steam_backlog_enforcer._progress import tracked
 from steam_backlog_enforcer._protected_apps import PROTECTED_APP_IDS
 from steam_backlog_enforcer._research_game import kept_ids
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH, _assert_not_real_steam
+from steam_backlog_enforcer._tool_need import STEAM_TOOLS, tool_need
 from steam_backlog_enforcer._whitelist_locking import get_approved_exception_ids
 
 if TYPE_CHECKING:
@@ -174,7 +176,32 @@ def uninstall_other_games(allowed_app_ids: set[int]) -> int:
         if uninstall_game(app_id, name):
             count += 1
 
+    # After the games: what is left installed decides whether the tools stay.
+    remove_unneeded_tools()
     return count
+
+
+def remove_unneeded_tools() -> int:
+    """Uninstall :data:`STEAM_TOOLS` when :func:`tool_need` says nothing needs them.
+
+    Silent when none of them is installed; otherwise one line says what was
+    decided and why. Returns how many were removed.
+    """
+    # The canonical binding, read now: the test suite redirects it for every
+    # test, so no test can reach a live Steam root through this step.
+    steamapps = _steam_state.STEAMAPPS_PATH
+    present = [a for a in STEAM_TOOLS if (steamapps / f"appmanifest_{a}.acf").exists()]
+    if not present:
+        return 0
+    need = tool_need(steamapps)
+    if need.deferred:
+        logger.info("Steam running, deferring tool removal")
+        return 0
+    if need.needed:
+        logger.info("kept Steam tools: %s", need.reason)
+        return 0
+    logger.info("removing Steam tools: %s", need.reason)
+    return sum(uninstall_game(app_id, STEAM_TOOLS[app_id]) for app_id in present)
 
 
 def is_infrastructure_app(app_id: int) -> bool:
