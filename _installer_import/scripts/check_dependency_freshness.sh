@@ -31,6 +31,37 @@ needs_pacman_adapter() {
     return 1
 }
 
+# Print a gate directory that can read the Proton lock, or nothing.
+#
+# kuhy's ~/src/utils can lag origin/main (local commits not yet pushed, so it
+# cannot fast-forward). Then the gate runs a read-only snapshot of utils'
+# origin/main from the cache instead: the checkout itself is never touched.
+gate_root_for_lock() {
+    if [[ -f "$PACMAN_PARSER" ]]; then
+        echo "$UTILS"
+        return
+    fi
+    local sha snapshot
+    local -a paths=(scripts/check_dependency_freshness.sh dep_freshness)
+    git -C "$UTILS" cat-file -e origin/main:dep_freshness/parsers/pacman_lock.py 2>/dev/null ||
+        return 0
+    sha="$(git -C "$UTILS" rev-parse origin/main)"
+    snapshot="${XDG_CACHE_HOME:-$HOME/.cache}/steam-game-installer/utils-gate/$sha"
+    if [[ ! -f "$snapshot/dep_freshness/parsers/pacman_lock.py" ]]; then
+        rm -rf "$snapshot.tmp"
+        mkdir -p "$snapshot.tmp"
+        # The fleet allowlist lives beside the gate, when utils has one.
+        if git -C "$UTILS" cat-file -e origin/main:dependency-freshness.allowlist.yaml 2>/dev/null; then
+            paths+=(dependency-freshness.allowlist.yaml)
+        fi
+        git -C "$UTILS" archive origin/main "${paths[@]}" | tar -x -C "$snapshot.tmp"
+        rm -rf "$snapshot"
+        mv "$snapshot.tmp" "$snapshot"
+    fi
+    echo "dependency-freshness: $UTILS lacks the pacman adapter; using its origin/main ${sha:0:12}" >&2
+    echo "$snapshot"
+}
+
 main() {
     if [[ ! -x "$SHARED_GATE" ]]; then
         echo "Error: shared dependency-freshness gate not found at $SHARED_GATE" >&2
@@ -39,16 +70,20 @@ main() {
         exit 1
     fi
 
+    local root="$UTILS"
     # An older utils checkout skips a manifest it has no parser for and exits
     # 0, which would wave any Proton pin through. Fail closed instead.
-    if needs_pacman_adapter "$@" && [[ ! -f "$PACMAN_PARSER" ]]; then
-        echo "Error: $UTILS has no dep_freshness/parsers/pacman_lock.py, so it" >&2
-        echo "       cannot check steam_installer/data/proton-native.lock." >&2
-        echo "       Update it: git -C $UTILS pull --ff-only" >&2
-        exit 1
+    if needs_pacman_adapter "$@"; then
+        root="$(gate_root_for_lock)"
+        if [[ -z "$root" ]]; then
+            echo "Error: $UTILS has no dep_freshness/parsers/pacman_lock.py, so it" >&2
+            echo "       cannot check steam_installer/data/proton-native.lock." >&2
+            echo "       Update it: git -C $UTILS pull --ff-only" >&2
+            exit 1
+        fi
     fi
 
-    exec bash "$SHARED_GATE" "$@"
+    exec bash "$root/scripts/check_dependency_freshness.sh" "$@"
 }
 
 main "$@"
