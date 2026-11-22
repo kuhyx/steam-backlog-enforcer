@@ -55,7 +55,9 @@ def in_use(tool: Path) -> list[int]:
 
 
 def _download(url: str, dest: Path) -> None:
-    with urllib.request.urlopen(url, timeout=60) as response, dest.open("wb") as out:
+    # A generic agent: the mirror answers 403 to urllib's default one.
+    request = urllib.request.Request(url, headers={"User-Agent": "steam-game-installer"})
+    with urllib.request.urlopen(request, timeout=60) as response, dest.open("wb") as out:
         shutil.copyfileobj(response, out, 1 << 20)
 
 

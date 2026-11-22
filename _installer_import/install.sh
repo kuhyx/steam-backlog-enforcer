@@ -60,8 +60,11 @@ ensure_libibus() {
 		echo "missing: libibus -- run: sudo pacman -S --needed libibus" >&2
 		return 1
 	fi
-	sudo -n pacman -S --needed --noconfirm libibus ||
+	sudo -n true 2>/dev/null ||
 		die "libibus is missing and sudo needs a password. Run: sudo pacman -S --needed libibus"
+	# No -y: syncing the db without upgrading is a partial upgrade on Arch.
+	sudo -n pacman -S --needed --noconfirm libibus ||
+		die "pacman could not install libibus (a stale package db 404s). Run: sudo pacman -Syu libibus"
 }
 
 # Never runs the package's .INSTALL; see steam_installer/proton_native.py.

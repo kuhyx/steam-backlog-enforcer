@@ -56,3 +56,26 @@ def test_module_runs_as_a_script(tmp_path, coverage_subprocess_env):
     )
     assert result.returncode == 0
     assert "skipped" in result.stdout
+
+
+def test_downloads_send_a_user_agent(monkeypatch, tmp_path):
+    """The CachyOS mirror answers 403 to urllib's default agent (2026-11-22)."""
+    import io
+
+    seen = {}
+
+    class _Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(request, timeout):
+        seen["agent"] = request.get_header("User-agent")
+        return _Response(b"data")
+
+    monkeypatch.setattr(proton_native.urllib.request, "urlopen", fake_urlopen)
+    proton_native._download("https://m/x", tmp_path / "x")
+    assert (tmp_path / "x").read_bytes() == b"data"
+    assert seen["agent"] == "steam-game-installer"
