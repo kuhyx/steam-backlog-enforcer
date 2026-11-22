@@ -142,10 +142,17 @@ def _parse(ctype: str, body: str) -> dict[str, Any]:
 
 
 def _open_task(listing: str, title: str) -> str | None:
-    """The id of an open task in *listing* titled exactly *title*."""
+    """The id of an open task in *listing* titled *title*.
+
+    The server lists a new note as ``<repo name> todos: <title>``, so the
+    title matches exactly or as that suffix.
+    """
     for row in listing.splitlines():
         parts = row.split("\t")
-        if len(parts) >= _COLUMNS and re.sub(r"^#+\s*", "", parts[4].strip()) == title:
+        if len(parts) < _COLUMNS:
+            continue
+        listed = re.sub(r"^#+\s*", "", parts[4].strip())
+        if listed == title or listed.endswith(f": {title}"):
             return parts[0]
     return None
 

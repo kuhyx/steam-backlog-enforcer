@@ -42,8 +42,18 @@ class FakeTodo(ThreadingHTTPServer):
         """Answer one tool call the way the real server words it."""
         self.calls.append(name)
         if name == "list_tasks":
+            # The real server titles a new note "<repo name> todos: <title>".
             rows = [
-                f"{t['id'][:8]}\ttodo\t{t['priority']}\t{t['repo']}\t{t['title']}\tclaude"
+                "\t".join(
+                    (
+                        t["id"][:8],
+                        "todo",
+                        t["priority"],
+                        t["repo"],
+                        _listed(t),
+                        "claude",
+                    )
+                )
                 for t in self.tasks
                 if t["repo"] == args.get("repo")
             ]
@@ -53,6 +63,11 @@ class FakeTodo(ThreadingHTTPServer):
         if self.dump is not None:
             self.dump.write_text(json.dumps(self.tasks, indent=2), encoding="utf-8")
         return f"added {task['id']}\n{task['id'][:8]}\ttodo\tmedium\t{task['repo']}"
+
+
+def _listed(task: dict[str, Any]) -> str:
+    """The title list_tasks shows for *task*, as the real server words it."""
+    return f"{task['repo'].split('/')[-1]} todos: {task['title']}"
 
 
 class _Handler(BaseHTTPRequestHandler):
