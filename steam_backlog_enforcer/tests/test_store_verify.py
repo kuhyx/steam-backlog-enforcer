@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,6 +25,7 @@ class FakeHost:
     def __init__(self, hosts: Path) -> None:
         """Start as a correctly unblocked, online machine."""
         self.hosts = hosts
+        self.sleep = MagicMock()
         self.chain = False
         self.reachable = {sv.STORE_URL: True, sv.CONTROL_URL: True}
         self.resolves: dict[str, str] = dict.fromkeys(BLOCKED_DOMAINS, "1.2.3.4")
@@ -35,10 +36,10 @@ class FakeHost:
         self.calls.append(cmd)
         out, rc = "", 0
         if cmd[0] == sv.CURL:
-            rc = 0 if self.reachable[cmd[-1]] else 7
+            rc = 0 if _next(self.reachable, cmd[-1]) else 7
             out = "200" if rc == 0 else "curl: (7) Failed to connect"
         elif cmd[0] == sv.GETENT:
-            addr = self.resolves[cmd[-1]]
+            addr = _next(self.resolves, cmd[-1])
             out = f"{addr}      STREAM {cmd[-1]}\n" if addr else ""
             rc = 0 if addr else 2
         elif "-S" in cmd:
@@ -50,6 +51,14 @@ class FakeHost:
         return MagicMock(returncode=rc, stdout=out, stderr="")
 
 
+def _next(table: dict[str, Any], key: str) -> object:
+    """The value for *key*; a list is a sequence of answers, one per call."""
+    value = table[key]
+    if isinstance(value, list):
+        return value.pop(0) if len(value) > 1 else value[0]
+    return value
+
+
 @pytest.fixture(name="host")
 def fixture_host(tmp_path: Path) -> Iterator[FakeHost]:
     """A fake machine with an empty /etc/hosts."""
@@ -57,6 +66,7 @@ def fixture_host(tmp_path: Path) -> Iterator[FakeHost]:
     fake = FakeHost(hosts)
     hosts.write_text("127.0.0.1 localhost\n", encoding="utf-8")
     with (
+        patch(f"{sv.__name__}.time.sleep") as fake.sleep,
         patch(f"{sv.__name__}.subprocess.run", side_effect=fake.run),
         patch(f"{sv.__name__}.HOSTS_FILE", hosts),
     ):
@@ -179,7 +189,7 @@ def test_verify_without_repair_checks_once(host: FakeHost) -> None:
     assert not report.ok
     assert not report.repaired
     curls = [c for c in host.calls if c[0] == sv.CURL]
-    assert len(curls) == 1
+    assert len(curls) == sv.SETTLE_ATTEMPTS  # One check pass, settling once.
 
 
 def test_run_survives_missing_binary() -> None:
@@ -194,3 +204,35 @@ def test_error_carries_report(host: FakeHost) -> None:
     err = sv.StoreVerifyError(sv.check_unblock())
     assert str(err) == "Store unblock failed: iptables"
     assert err.report.failed_check == "iptables"
+
+
+def test_unblock_https_settles_after_dns_reload(host: FakeHost) -> None:
+    """Resolution fails for a moment after a hosts edit: retried, then ok."""
+    host.reachable[sv.STORE_URL] = [False, False, True]
+    report = sv.check_unblock()
+    assert report.ok
+    assert host.sleep.call_count == 2
+
+
+def test_unblock_https_gives_up_after_attempts(host: FakeHost) -> None:
+    """A store that stays unreachable fails after the last attempt."""
+    host.reachable[sv.STORE_URL] = False
+    assert sv.check_unblock().failed_check == "https"
+    store_probes = [c for c in host.calls if c[-1] == sv.STORE_URL]
+    assert len(store_probes) == sv.SETTLE_ATTEMPTS
+
+
+def test_reblock_no_answer_counts_as_blocked(host: FakeHost) -> None:
+    """systemd-resolved answers no address for a sinkholed name: blocked."""
+    host.resolves = dict.fromkeys(BLOCKED_DOMAINS, "")
+    host.reachable[sv.STORE_URL] = False
+    report = sv.check_reblock()
+    assert report.ok
+
+
+def test_reblock_settles_stale_cache(host: FakeHost) -> None:
+    """A cached real address and an answering store settle to blocked."""
+    host.resolves = dict.fromkeys(BLOCKED_DOMAINS, _V4)
+    host.resolves[_STORE] = ["2.18.70.115", _V4]
+    host.reachable[sv.STORE_URL] = [True, False]
+    assert sv.check_reblock().ok

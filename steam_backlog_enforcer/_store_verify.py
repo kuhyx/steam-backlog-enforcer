@@ -12,7 +12,8 @@ When only ``https`` fails and ``https://steamcommunity.com/`` fails too, the
 machine is offline: the result is "network down", not an unblock failure.
 
 Re-block checks (the reverse):
-    dns       -- every store domain resolves only to a sinkhole;
+    dns       -- every store domain resolves only to a sinkhole (or to
+                 nothing, which is how systemd-resolved answers one);
     https     -- the store does not answer.
 """
 
@@ -22,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import shutil
 import subprocess
+import time
 from typing import TYPE_CHECKING, Final
 
 from steam_backlog_enforcer._hosts_lines import (
@@ -50,6 +52,12 @@ _HTTPS_SECONDS: Final = 8
 _GETENT_SECONDS: Final = 2
 _JOURNAL_SECONDS: Final = 5
 _JOURNAL_LINES: Final = 50
+# Name resolution lags a hosts edit: systemd-resolved answered nothing for
+# about 2 s after an unblock in vmbox, and a cache can still hold the real
+# address right after a re-block. Probes repeat until they agree with the
+# wanted result, at most this many times.
+SETTLE_ATTEMPTS: Final = 3
+_SETTLE_GAP_SECONDS: Final = 2.0
 
 
 @dataclass(frozen=True)
@@ -150,6 +158,31 @@ def https_reachable(url: str) -> tuple[bool, str]:
     return rc == 0, f"curl rc={rc} {out}".strip()
 
 
+def _settled_https(url: str, *, want: bool) -> tuple[bool, str]:
+    """Probe *url* until its reachability is *want* (or attempts run out)."""
+    for attempt in range(SETTLE_ATTEMPTS):
+        if attempt:
+            time.sleep(_SETTLE_GAP_SECONDS)
+        reachable, detail = https_reachable(url)
+        if reachable == want:
+            break
+    return reachable, detail
+
+
+def _leaks() -> dict[str, str]:
+    """Store domains resolving to a real address (no answer counts as blocked).
+
+    systemd-resolved answers a sinkholed name with no address at all rather
+    than ``0.0.0.0``; either way nothing can connect.
+    """
+    leaks = {}
+    for domain in BLOCKED_DOMAINS:
+        addrs, _ = resolve(domain)
+        if not addrs <= SINKHOLES:
+            leaks[domain] = ",".join(sorted(addrs))
+    return leaks
+
+
 def resolve(domain: str) -> tuple[set[str], str]:
     """Addresses *domain* resolves to via NSS (what curl and Steam see)."""
     _rc, out = _run([GETENT, "ahosts", domain], _GETENT_SECONDS)
@@ -173,7 +206,7 @@ def check_unblock() -> StoreCheckReport:
     """Run the unblock checks once."""
     live = live_store_lines(_hosts_text())
     chain, _rules = _chain_rules()
-    store_ok, store_detail = https_reachable(STORE_URL)
+    store_ok, store_detail = _settled_https(STORE_URL, want=True)
     checks = [
         Check("hosts", not live, f"{len(live)} live store line(s)"),
         Check("iptables", not chain, "chain present" if chain else "chain gone"),
@@ -186,13 +219,14 @@ def check_unblock() -> StoreCheckReport:
 
 
 def check_reblock() -> StoreCheckReport:
-    """Run the re-block checks once."""
-    leaks = {}
-    for domain in BLOCKED_DOMAINS:
-        addrs, _ = resolve(domain)
-        if not addrs or not addrs <= SINKHOLES:
-            leaks[domain] = ",".join(sorted(addrs)) or "no answer"
-    store_open, detail = https_reachable(STORE_URL)
+    """Run the re-block checks once (each probe settles, see SETTLE_ATTEMPTS)."""
+    leaks = _leaks()
+    for _ in range(SETTLE_ATTEMPTS - 1):
+        if not leaks:
+            break
+        time.sleep(_SETTLE_GAP_SECONDS)
+        leaks = _leaks()
+    store_open, detail = _settled_https(STORE_URL, want=False)
     leak_text = "; ".join(f"{d} -> {a}" for d, a in leaks.items())
     checks = [
         Check("dns", not leaks, leak_text or "every domain sinkholed"),
