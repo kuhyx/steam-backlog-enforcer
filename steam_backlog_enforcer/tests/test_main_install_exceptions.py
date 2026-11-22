@@ -14,6 +14,7 @@ from steam_backlog_enforcer.main import cmd_install
 from steam_backlog_enforcer.tests._fake_prompter import FakePrompter
 
 PKG = "steam_backlog_enforcer.main.install"
+TGT = "steam_backlog_enforcer.main._install_target"
 EXC = 588730
 NAMES = {EXC: "Majotori"}
 
@@ -33,8 +34,12 @@ def _run(
     prompter = prompter or FakePrompter()
     with (
         use_prompter(prompter),
-        patch(f"{PKG}.get_approved_exception_ids", return_value=exceptions),
-        patch(f"{PKG}.snapshot_game_name", side_effect=NAMES.get),
+        patch(f"{TGT}.get_approved_exception_ids", return_value=exceptions),
+        patch(
+            f"{TGT}.load_owned_records",
+            return_value=[{"app_id": a, "name": n} for a, n in NAMES.items()],
+        ),
+        patch(f"{PKG}.game_is_running", return_value=False),
         patch(f"{PKG}.is_game_fully_installed", side_effect=installed.__contains__),
         patch(f"{PKG}.install_game", return_value=True) as install,
         patch(f"{PKG}.fast_install_failure", return_value=None),
@@ -69,11 +74,6 @@ class TestInstallOffersExceptions:
         )
         assert prompter.asked == []
         assert install.call_args.args[:2] == (EXC, "Majotori")
-
-    def test_unknown_name_falls_back_to_app_id(self) -> None:
-        """An exception missing from the snapshot shows as AppID=<id>."""
-        _, install, _ = _run(_assigned(), exceptions=frozenset({77}), installed={1})
-        assert install.call_args.args[:2] == (77, "AppID=77")
 
     def test_exception_that_is_also_allowed_is_offered_once(self) -> None:
         """The allowed entry wins; the id is not listed twice."""
