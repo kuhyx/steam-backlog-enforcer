@@ -70,10 +70,11 @@ def assert_safe_to_restart() -> None:
 
 
 # Matched against /proc cmdlines, so a run started by hand counts exactly like
-# one the enforcer spawned. run.sh as well as the module it execs: the sudo
-# and bash wrappers exist the moment Popen returns, the Python process only a
-# moment later, and a Steam launch in that gap would race the shutdown.
-_INSTALLER_MARKERS = (b"steam-game-installer/run.sh", b"steam_installer.cli")
+# one the enforcer spawned. The module name is in the argv of every wrapper
+# too (``sudo``, ``env``), which exist the moment Popen returns while the
+# Python process follows a moment later, so a Steam launch cannot slip into
+# that gap. ``run.sh`` is the by-hand launcher that execs the same module.
+_INSTALLER_MARKERS = (b"steam_installer/run.sh", b"steam_installer.cli")
 
 
 def fast_install_running() -> bool:

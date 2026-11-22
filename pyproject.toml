@@ -1,7 +1,7 @@
 [project]
 name = "steam-backlog-enforcer"
 version = "1.0.0"
-description = "Enforce your Steam backlog: one game at a time, tracked with HowLongToBeat data"
+description = "Enforce your Steam backlog: one game at a time, tracked with HowLongToBeat data. Also ships steam_installer, a fast Steam game installer."
 # 3.11 floor: websockets 17 (and its successors) drop 3.10, and this repo
 # tracks newest stable rather than the oldest interpreter still alive.
 requires-python = ">=3.14"
@@ -21,7 +21,15 @@ dependencies = [
     # contract C4); stdlib-only, imported by root from the user site like
     # earned-time.
     "leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.9",
+    # kuhy's shared "Created by kuhy" credit, shown at the end of the
+    # installer's --help (steam_installer).
+    "kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.2#subdirectory=kuhy_credit",
 ]
+
+# The installer's console script; the daemon itself runs
+# `python3 -m steam_installer.cli` from the checkout.
+[project.scripts]
+steam-game-installer = "steam_installer.cli:main"
 
 # Optional extras. The `mcp` group is ONLY needed by the MCP server
 # (steam_backlog_enforcer._mcp), which Claude Code spawns via a dedicated
@@ -37,7 +45,12 @@ mcp = ["mcp==2.3.0"]
 # to guess. Scoping discovery to the Python package fixes `pip install -e .`
 # for the CLI, systemd, AND the dedicated MCP venv.
 [tool.setuptools.packages.find]
-include = ["steam_backlog_enforcer*"]
+include = ["steam_backlog_enforcer*", "steam_installer*"]
+
+[tool.setuptools.package-data]
+# The pinned Proton lock, its signing key and the compat overrides are read
+# at run time through `Path(__file__).parent / "data"`.
+steam_installer = ["data/*"]
 
 # ============================================================================
 # RUFF - Fast Python linter and formatter
@@ -79,6 +92,13 @@ unfixable = []
 # libX11 puts local display sockets in /tmp/.X11-unix; the path is not ours to
 # move to a private temp dir (and `# noqa` is banned by pre-commit).
 "steam_backlog_enforcer/_desktop_env.py" = ["S108"]
+# open_https() allows only https URLs: the scheme is checked just above the
+# urlopen call, so the S310 "file:/custom scheme" worry cannot occur there.
+"steam_installer/_http.py" = ["S310"]
+# The pinned Proton package is fetched from lock.repo or SGI_PROTON_REPO (an
+# operator-set local mirror, file:// or http://); the db is sha256-pinned and
+# the package sha256- and gpg-verified, so the transport needs no restriction.
+"steam_installer/proton_native.py" = ["S310"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -86,7 +106,7 @@ convention = "google"
 [tool.ruff.lint.isort]
 force-single-line = false
 force-sort-within-sections = true
-known-first-party = ["steam_backlog_enforcer"]
+known-first-party = ["steam_backlog_enforcer", "steam_installer"]
 
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
@@ -205,7 +225,7 @@ exclude_dirs = ["tests", ".venv"]
 # PYTEST
 # ============================================================================
 [tool.pytest.ini_options]
-testpaths = ["steam_backlog_enforcer/tests"]
+testpaths = ["steam_backlog_enforcer/tests", "steam_installer/tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -215,6 +235,7 @@ addopts = [
     "--strict-config",
     "-ra",
     "--cov=steam_backlog_enforcer",
+    "--cov=steam_installer",
     "--cov-branch",
     "--cov-report=term-missing",
     "--cov-report=lcov",
@@ -229,7 +250,7 @@ filterwarnings = [
 # COVERAGE
 # ============================================================================
 [tool.coverage.run]
-source = ["steam_backlog_enforcer"]
+source = ["steam_backlog_enforcer", "steam_installer"]
 branch = true
 omit = ["*/__pycache__/*", "*/tests/*", "*/.venv/*"]
 

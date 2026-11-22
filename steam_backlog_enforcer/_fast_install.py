@@ -1,7 +1,7 @@
 """Installing games through steam-game-installer, for download speed.
 
 depotdownloader saturates the link far better than the Steam client, and
-steam-game-installer (``~/src/steam-game-installer``) wraps it so Steam accepts
+steam-game-installer (``steam_installer``, in this repo) wraps it so Steam accepts
 the result as a real install. It also adopts whatever Steam already staged, so
 taking over a slow client download loses nothing.
 
@@ -204,7 +204,7 @@ def fast_install(
     if app_id in _FAILED:
         return False
     user = resolve_desktop_user()
-    installer = installer_path(user)
+    installer = installer_path()
     if installer is None:
         logger.warning("steam-game-installer not found; using Steam's download.")
         return False

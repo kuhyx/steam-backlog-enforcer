@@ -96,14 +96,21 @@ def _top_level_imports(module: Path) -> set[str]:
 def _third_party_imports(package_dir: Path, package_name: str) -> set[str]:
     """Return third-party top-level imports across the whole package.
 
-    Standard-library modules (via ``sys.stdlib_module_names``) and the package's
-    own name are filtered out, leaving only external dependencies.
+    Standard-library modules (via ``sys.stdlib_module_names``), the package's own
+    name and the repo's sibling packages (``steam_backlog_enforcer`` imports
+    ``steam_installer`` from the same checkout) are filtered out, leaving only
+    external dependencies.
     """
     stdlib = sys.stdlib_module_names
+    first_party = {
+        sibling.name
+        for sibling in package_dir.parent.iterdir()
+        if (sibling / "__init__.py").is_file()
+    } | {package_name}
     external: set[str] = set()
     for module in _iter_package_modules(package_dir):
         for name in _top_level_imports(module):
-            if name != package_name and name not in stdlib:
+            if name not in first_party and name not in stdlib:
                 external.add(name)
     return external
 

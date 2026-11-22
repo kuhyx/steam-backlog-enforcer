@@ -32,10 +32,11 @@ jobs:
       # requirements.txt); pytest-cov merges the workers' coverage.
       - name: Run tests with coverage
         run: |
-          python -m pytest steam_backlog_enforcer/tests/ \
+          python -m pytest steam_backlog_enforcer/tests/ steam_installer/tests/ \
             -n auto \
             -p no:sugar \
             --cov=steam_backlog_enforcer \
+            --cov=steam_installer \
             --cov-branch \
             --cov-fail-under=100 \
             -q

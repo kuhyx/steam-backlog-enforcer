@@ -24,4 +24,5 @@ After running tests fix all coverage gaps and issues, do not ignore unless speci
 - coverage: `python3 -m pytest -q`
 - coverage-gaps: `coverage-gaps coverage.lcov`
 - deploy: `scripts/deploy.sh`
+- install-game: `steam_installer/run.sh <appid|url|name>` (the daemon itself runs `python3 -m steam_installer.cli`; docs in `DOCS-steam-installer.md`)
 - push: `scripts/check_gate_stamp.sh full && git push` (every manual-stage gate hook, ~3 min, then push). Agents (60 s cap): one call per id of `scripts/check_gate_stamp.sh full --list`: `CAP_MEM=4G CAP_CPU_PCT=20 ~/.claude/scripts/capped.sh timeout 55 scripts/check_gate_stamp.sh step <id>` (each < 55 s; the last stamps the tree), then `git push`.

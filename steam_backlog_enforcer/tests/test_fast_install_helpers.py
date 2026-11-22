@@ -7,7 +7,6 @@ to keep both files under the 250-line cap.
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from steam_backlog_enforcer import _fast_install, _fast_install_cmd, _steam_state
@@ -15,41 +14,6 @@ from steam_backlog_enforcer._fast_install import _RUNS, _DetachedRun, _refusal
 
 PKG = "steam_backlog_enforcer._fast_install"
 CMD = "steam_backlog_enforcer._fast_install_cmd"
-
-
-class TestInstallerPath:
-    """run.sh is resolved from the desktop user's passwd home."""
-
-    def test_found_in_user_home(self, tmp_path: Path) -> None:
-        """run.sh is found under the desktop user's passwd home."""
-        installer = tmp_path / "src" / "steam-game-installer" / "run.sh"
-        installer.parent.mkdir(parents=True)
-        installer.write_text("#!/bin/bash\n")
-        # The autouse guard points _INSTALLER at a dead absolute path; put the
-        # real relative one back so the home join itself is what is tested.
-        relative = Path("src", "steam-game-installer", "run.sh")
-        with (
-            patch.object(_fast_install_cmd, "_INSTALLER", relative),
-            patch(f"{CMD}.pwd.getpwnam", return_value=SimpleNamespace(pw_dir=tmp_path)),
-        ):
-            assert _fast_install_cmd.installer_path("kuhy") == installer
-
-    def test_missing_file_is_none(self, tmp_path: Path) -> None:
-        """A home without run.sh yields no installer."""
-        with patch(
-            f"{CMD}.pwd.getpwnam", return_value=SimpleNamespace(pw_dir=tmp_path)
-        ):
-            assert _fast_install_cmd.installer_path("kuhy") is None
-
-    def test_unknown_user_is_none(self) -> None:
-        """A user unknown to passwd yields no installer."""
-        with patch(f"{CMD}.pwd.getpwnam", side_effect=KeyError("nobody")):
-            assert _fast_install_cmd.installer_path("nobody") is None
-
-    def test_no_user_uses_own_home(self, tmp_path: Path) -> None:
-        """With no user the process's own home is searched."""
-        with patch(f"{CMD}.Path.home", return_value=tmp_path):
-            assert _fast_install_cmd.installer_path(None) is None
 
 
 class TestSteamAccountName:
@@ -105,10 +69,15 @@ class TestBuildCmd:
             patch(f"{CMD}.steam_account_name", return_value="krzys"),
             patch(f"{CMD}.desktop_user_cmd", side_effect=lambda cmd, _u: cmd),
         ):
-            cmd = _fast_install_cmd.build_cmd(Path("/i/run.sh"), 42, "kuhy")
+            cmd = _fast_install_cmd.build_cmd(
+                Path("/r/steam_installer/cli.py"), 42, "kuhy"
+            )
         assert cmd == [
-            "/i/run.sh",
-            "--no-deps",
+            "env",
+            "PYTHONPATH=/r",
+            "/usr/bin/python3",
+            "-m",
+            "steam_installer.cli",
             "--appid",
             "42",
             "--yes",
@@ -124,9 +93,9 @@ class TestBuildCmd:
             patch(f"{CMD}.steam_account_name", return_value=None),
             patch(f"{CMD}.desktop_user_cmd", return_value=["wrapped"]) as wrap,
         ):
-            assert _fast_install_cmd.build_cmd(Path("/i/run.sh"), 42, "kuhy") == [
-                "wrapped"
-            ]
+            assert _fast_install_cmd.build_cmd(
+                Path("/r/steam_installer/cli.py"), 42, "kuhy"
+            ) == ["wrapped"]
         argv, user = wrap.call_args.args
         assert "--username" not in argv
         assert user == "kuhy"

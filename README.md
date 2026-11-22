@@ -1,5 +1,8 @@
 # Steam Backlog Enforcer
 
+This repo is also an alternative Steam frontend: it installs games faster than the
+Steam client (`steam_installer`, see [DOCS-steam-installer.md](DOCS-steam-installer.md)).
+
 Forces you to play one Steam game at a time: earn at least one new
 achievement in the assigned game before moving on to the next.
 
@@ -84,3 +87,11 @@ Claude Code spawns:
 Registration lives in the checked-in [`.mcp.json`](./.mcp.json) (project scope).
 Restart Claude Code in this repo and approve the project MCP-server prompt for it
 to load. Verify with `claude mcp list`.
+
+## Steam game installer
+
+`steam_installer` (merged in from steam-game-installer) downloads an owned game
+with depotdownloader and makes Steam accept it as installed. The daemon runs it
+as `python3 -m steam_installer.cli`; by hand use `steam_installer/run.sh <appid|url|name>`.
+Dependencies: `steam_installer/install_deps.sh` (run by `install.sh`). Details in
+[DOCS-steam-installer.md](DOCS-steam-installer.md).

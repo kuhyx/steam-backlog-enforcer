@@ -32,6 +32,21 @@ else
     echo "(The rest of this tool is unaffected.)"
 fi
 
+# The Steam game installer (steam_installer, in this repo) fast-installs the
+# games the daemon assigns: depotdownloader, kuhy-credit and the native Proton.
+# Runs as the desktop user (it writes ~/.local and Steam's compatibilitytools.d)
+# and is not fatal: without it the daemon falls back to Steam's own download.
+echo
+echo "Installing the Steam game installer's dependencies..."
+INSTALLER_DEPS="$SCRIPT_DIR/steam_installer/install_deps.sh"
+if [[ $EUID -eq 0 && -n ${SUDO_USER:-} ]]; then
+    sudo -u "$SUDO_USER" bash "$INSTALLER_DEPS" \
+        || echo "Warning: installer dependencies incomplete (Steam's own download is used)."
+else
+    bash "$INSTALLER_DEPS" \
+        || echo "Warning: installer dependencies incomplete (Steam's own download is used)."
+fi
+
 # Install the web-UI user unit. No root needed: it serves read-only views and
 # needs no privilege. Automated rather than documented, because the whole
 # reason this unit exists is that a hand-started server outlived its own code.

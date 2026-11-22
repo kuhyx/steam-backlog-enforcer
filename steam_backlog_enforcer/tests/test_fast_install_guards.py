@@ -60,12 +60,15 @@ class TestFastInstallRunning:
     @pytest.mark.parametrize(
         "cmdline",
         [
-            b"bash\0/home/u/src/steam-game-installer/run.sh\0--appid\0001",
+            (
+                b"sudo\0-u\0u\0env\0PYTHONPATH=/r\0/usr/bin/python3\0"
+                b"-m\0steam_installer.cli\0--appid\0001"
+            ),
             b"python\0-m\0steam_installer.cli\0--appid\0001",
         ],
     )
     def test_detects_installer(self, tmp_path: Path, cmdline: bytes) -> None:
-        """Both the run.sh wrapper and the Python module count as the installer."""
+        """The sudo wrapper and the Python module both count as the installer."""
         proc = self._proc(tmp_path, {"self": b"", "10": None, "11": cmdline})
         with patch(f"{GUARD}.Path", return_value=proc):
             assert fast_install_running() is True

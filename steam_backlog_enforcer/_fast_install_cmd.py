@@ -1,4 +1,4 @@
-"""How steam-game-installer is invoked: where it lives, as whom, with what argv.
+"""How the installer (``steam_installer``) is invoked: where, as whom, what argv.
 
 Split out of :mod:`_fast_install`, which runs and reaps the installer; this
 half only decides the command line, every choice it would otherwise prompt for
@@ -8,31 +8,32 @@ pinned in advance.
 from __future__ import annotations
 
 from pathlib import Path
-import pwd
 import re
 
 from steam_backlog_enforcer._desktop_env import desktop_user_cmd
 from steam_backlog_enforcer._steam_state import STEAMAPPS_PATH
 
-_INSTALLER = Path("src", "steam-game-installer", "run.sh")
+# The installer ships in this repo (``steam_installer``, a sibling package).
+# Tests repoint this at a missing file: it always exists here, and a real run
+# closes the user's Steam.
+_INSTALLER = Path(__file__).resolve().parents[1] / "steam_installer" / "cli.py"
+
+# The interpreter the daemon itself runs under (see the unit's ExecStart). The
+# installer needs ``kuhy_credit``, which lives in the desktop user's site.
+_PYTHON = "/usr/bin/python3"
 
 # Depot content only: the app itself is ours to choose, the language is not
 # worth a prompt nobody is there to answer.
 _LANGUAGE = "english"
 
 
-def installer_path(user: str | None) -> Path | None:
-    """steam-game-installer's ``run.sh`` in the desktop user's home, if present.
+def installer_path() -> Path | None:
+    """The installer's ``cli.py`` inside this checkout, if present.
 
-    Resolved from the passwd entry rather than ``Path.home()``: the daemon runs
-    as root, and the installer, its venv and its credentials are per-user.
+    A checkout is the same for every user, so unlike the old external clone
+    there is no per-user lookup.
     """
-    try:
-        home = Path(pwd.getpwnam(user).pw_dir) if user else Path.home()
-    except KeyError:
-        return None
-    path = home / _INSTALLER
-    return path if path.is_file() else None
+    return _INSTALLER if _INSTALLER.is_file() else None
 
 
 def steam_account_name() -> str | None:
@@ -51,11 +52,17 @@ def steam_account_name() -> str | None:
 
 
 def build_cmd(installer: Path, app_id: int, user: str | None) -> list[str]:
-    """The installer invocation, dropped to the desktop user when root."""
+    """The installer invocation, dropped to the desktop user when root.
+
+    Launched as ``python3 -m steam_installer.cli`` with the checkout on
+    ``PYTHONPATH``: ``sudo`` resets the environment, so it is named in the argv.
+    """
     cmd = [
-        str(installer),
-        # install.sh reaches for yay; dependencies are installed once, by hand.
-        "--no-deps",
+        "env",
+        f"PYTHONPATH={installer.parents[1]}",
+        _PYTHON,
+        "-m",
+        "steam_installer.cli",
         "--appid",
         str(app_id),
         "--yes",

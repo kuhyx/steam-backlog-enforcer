@@ -63,6 +63,7 @@ class TestDrivesSteam:
             ["sudo", "-u", "kuhy", "steam.sh"],
             ["xdg-open", "https://example.com"],
             ["runuser", "steam-game-installer", "620"],
+            ["python3", "-m", "steam_installer.cli", "--appid", "620"],
             ["pkill", "-f", "x"],
             ["killall", "x"],
             ["/bin/kill", "-TERM", "42"],

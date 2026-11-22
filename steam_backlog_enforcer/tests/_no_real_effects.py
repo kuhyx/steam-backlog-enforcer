@@ -101,7 +101,7 @@ def _drives_steam(argv: Sequence[str]) -> bool:
     for arg in argv:
         if PurePath(arg).name in _DENIED_TOOLS:
             return True
-        if arg.startswith("steam://") or arg == "-shutdown":
+        if arg.startswith("steam://") or arg in {"-shutdown", "steam_installer.cli"}:
             return True
     return False
 

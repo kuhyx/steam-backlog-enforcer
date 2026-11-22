@@ -46,9 +46,10 @@ def _no_fast_install(tmp_path: Path) -> Iterator[None]:
     _FAILURES.clear()
     patches = [patch(name, return_value=False) for name in _RUNNING_BINDINGS]
     patches += [
-        # Absolute, so `home / _INSTALLER` resolves here and never under ~.
+        # The installer is in this repo now, so it always exists: point the
+        # constant at a file that does not, or a test could close real Steam.
         patch.object(
-            _fast_install_cmd, "_INSTALLER", tmp_path / "no-installer" / "run.sh"
+            _fast_install_cmd, "_INSTALLER", tmp_path / "no-installer" / "cli.py"
         ),
         patch.object(_fast_install_cmd, "STEAMAPPS_PATH", fake_steamapps),
     ]
