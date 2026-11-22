@@ -213,16 +213,13 @@ def write_atomic(path: Path, text: str) -> None:
 
 
 def settle_download_counters(app_state: dict) -> None:
-    """Mark the download bookkeeping complete: `<X>Downloaded` == `<X>ToDownload`.
+    """Zero the download bookkeeping: nothing is queued, nothing is staged.
 
     Leaving these at their mid-download values is what made Steam discard a
-    StateFlags=4 manifest and resume fetching. Real installed manifests keep
-    these fields (they are not dropped) with the pair values equal.
+    StateFlags=4 manifest and resume fetching. All four go to "0", the same as
+    the from-scratch skeleton Steam accepted, rather than merely equal: the
+    older equal-pair form wrote `1000`/`1000` from a broken manifest, a value
+    no real install ever had.
     """
-    for total_key, done_key in (
-        ("BytesToDownload", "BytesDownloaded"),
-        ("BytesToStage", "BytesStaged"),
-    ):
-        total = app_state.get(total_key)
-        if total is not None:
-            app_state[done_key] = total
+    for key in ("BytesToDownload", "BytesDownloaded", "BytesToStage", "BytesStaged"):
+        app_state[key] = "0"

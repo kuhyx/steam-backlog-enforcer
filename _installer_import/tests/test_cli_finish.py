@@ -198,3 +198,31 @@ def test_the_install_folder_is_corrected_even_when_the_download_fails(
 
     assert cli.main(ARGV) == 1
     assert recognize.read_app_state(manifest)["installdir"] == "KingdomComeDeliverance2"
+
+
+def test_wrong_installdir_and_mismatched_counters_end_correct_and_zeroed(
+    steam, monkeypatch
+):
+    """C18: the live repro (installdir "... WRONG", BytesToDownload 1000,
+    BytesDownloaded 5) once came out as 1000/1000. The written manifest must
+    name the real folder, keep its files, and carry every counter at 0."""
+    library, install_dir = steam
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    state = recognize.read_app_state(manifest)
+    state.update(
+        installdir="KingdomComeDeliverance2 WRONG",
+        BytesToDownload="1000",
+        BytesDownloaded="5",
+        BytesToStage="1000",
+        BytesStaged="5",
+    )
+    manifest.write_text(vdf.dumps("AppState", state))
+    _stub_download(monkeypatch)
+
+    assert cli.main(ARGV) == 0
+
+    app_state = recognize.read_app_state(manifest)
+    assert app_state["installdir"] == "KingdomComeDeliverance2"
+    assert (install_dir / "game.pak").stat().st_size == 1000
+    for key in ("BytesToDownload", "BytesDownloaded", "BytesToStage", "BytesStaged"):
+        assert app_state[key] == "0", key

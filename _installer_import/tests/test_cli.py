@@ -29,7 +29,8 @@ def test_downloaded_content_finishes_the_manifest(steam, monkeypatch):
 
     app_state = recognize.read_app_state(library.steamapps / "appmanifest_1771300.acf")
     assert app_state["StateFlags"] == "4"
-    assert app_state["BytesDownloaded"] == app_state["BytesToDownload"]
+    for key in ("BytesToDownload", "BytesDownloaded", "BytesToStage", "BytesStaged"):
+        assert app_state[key] == "0", key
     assert recognize.download_counters_settled(app_state)
 
 

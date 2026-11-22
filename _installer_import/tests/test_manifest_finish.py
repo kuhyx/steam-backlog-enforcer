@@ -132,8 +132,10 @@ def test_finish_manifest_settles_download_counters(tmp_path):
     )
 
     app_state = vdf.parse(manifest_path.read_text())["AppState"]
-    assert app_state["BytesDownloaded"] == app_state["BytesToDownload"]
-    assert app_state["BytesStaged"] == app_state["BytesToStage"]
+    # C18: all four counters at 0, as on a from-scratch manifest. Equal-but-
+    # nonzero leftovers (1000/1000) are not what Steam writes for an installed app.
+    for key in ("BytesToDownload", "BytesDownloaded", "BytesToStage", "BytesStaged"):
+        assert app_state[key] == "0", key
     assert app_state["StagingSize"] == "0"
     # DownloadType is present on every real installed manifest -- keep it.
     assert app_state["DownloadType"] == "1"
