@@ -4,7 +4,7 @@
 
 import { explain } from '../api/errors'
 import type { IconId } from '../icons/registry'
-import { iconFor, iconInline, iconMark, iconWord } from '../icons/render'
+import { iconFor, iconHover, iconInline, iconMark, iconWord } from '../icons/render'
 import { h, type Child } from '../lib/dom'
 
 export type Tone = 'info' | 'success' | 'warning' | 'danger'
@@ -98,7 +98,7 @@ export function glyph(id: IconId, spoken?: string, className = 'glyph'): HTMLSpa
   return h(
     'span',
     { class: word ? `${className} has-word` : className },
-    h('span', { 'aria-hidden': 'true', 'data-icon': id }, painted),
+    h('span', word ? { 'aria-hidden': 'true', 'data-icon': id } : { 'aria-hidden': 'true', 'data-icon': id, title: iconHover(id) }, painted),
     word,
     h('span', { class: 'sr-only' }, spoken ?? name),
   )

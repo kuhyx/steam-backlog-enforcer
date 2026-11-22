@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { useIcons } from '../test/iconLedger'
 import { glyph } from '../ui/build'
 import { setWordsHidden } from './ledger'
-import { decorateChrome, decorateIcons, iconFor, iconMark, iconWord } from './render'
+import { ICONS } from './registry'
+import { decorateChrome, decorateIcons, iconFor, iconHover, iconMark, iconWord } from './render'
 
 // vitest runs from web/ (vitest.config.ts); jsdom loads no CSS, so read the rule.
 const css = readFileSync(join(process.cwd(), 'src/styles/icons.css'), 'utf8')
@@ -71,6 +72,13 @@ describe('glyph(id)', () => {
     expect(el.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('state.warn')
     expect(el.querySelector('.sr-only')?.textContent).toBe('Stale')
   })
+
+  it('glyph() carries the hover title only while no word is painted', () => {
+    const bare = glyph('cmd.check').querySelector('[data-icon]')
+    expect(bare?.getAttribute('title')).toBe(iconHover('cmd.check'))
+    useIcons({ 'cmd.check': { word: 'verify' } })
+    expect(glyph('cmd.check').querySelector('[data-icon]')?.getAttribute('title')).toBeNull()
+  })
 })
 
 describe('icon pieces', () => {
@@ -81,6 +89,27 @@ describe('icon pieces', () => {
     expect(el).toHaveAttribute('data-icon', 'nav.store')
     expect(el).toHaveAttribute('aria-hidden', 'true')
     expect(el.textContent).toBe('🏪')
+  })
+
+  it('a glyph with no painted word carries a one-word hover title', () => {
+    expect(iconMark('cmd.check', '').getAttribute('title')).toBe(iconHover('cmd.check'))
+    useIcons({ 'nav.picks': { word: 'target' } })
+    expect(iconMark('nav.picks', '').getAttribute('title')).toBeNull()
+  })
+
+  it('every icon hover is one word of at most 20 characters', () => {
+    for (const icon of ICONS) expect(iconHover(icon.id)).toMatch(/^[^\s.!?,;:]{1,20}$/)
+  })
+
+  it('decorateIcons sets the hover title and drops it once a word is painted', () => {
+    const root = document.createElement('div')
+    root.innerHTML = '<a><span data-icon="nav.store"></span></a>'
+    decorateIcons(root)
+    const mark = root.querySelector<HTMLElement>('[data-icon]')
+    expect(mark?.getAttribute('title')).toBe(iconHover('nav.store'))
+    useIcons({ 'nav.store': { word: 'shop' } })
+    decorateIcons(root)
+    expect(mark?.getAttribute('title')).toBeNull()
   })
 
   it('iconWord is null without a word, a tagged span with one', () => {

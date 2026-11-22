@@ -25,9 +25,17 @@ export function iconFor(id: IconId): ResolvedIcon {
   return { id, glyph, word, spoken: entry.spoken }
 }
 
+/** Hover-tooltip word for icons the user did NOT choose a word for. */
+export function iconHover(id: IconId): string {
+  return sentenceCase(iconEntry(id).words[0])
+}
+
 /** The painted glyph alone, tagged with its id (decorateIcons can refresh it). */
 export function iconMark(id: IconId, className: string): HTMLSpanElement {
-  return h('span', { class: className, 'aria-hidden': 'true', 'data-icon': id }, iconFor(id).glyph)
+  const { glyph, word } = iconFor(id)
+  const attrs: Record<string, string> = { class: className, 'aria-hidden': 'true', 'data-icon': id }
+  if (!word) attrs.title = iconHover(id)
+  return h('span', attrs, glyph)
 }
 
 /** The word span that goes right after the icon, or null when it has none. */
@@ -59,6 +67,7 @@ export function decorateIcons(root: ParentNode): void {
     const next = el.nextElementSibling
     if (next?.classList.contains('icon-word')) next.remove()
     el.textContent = iconFor(id).glyph
+    if (!iconFor(id).word) el.title = iconHover(id); else el.removeAttribute('title')
     const word = iconWord(id)
     if (word) el.after(word)
     el.parentElement?.classList.toggle('has-word', word !== null)
