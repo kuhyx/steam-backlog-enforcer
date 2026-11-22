@@ -118,6 +118,8 @@ export type ApiErrorCode =
   | 'server_stale'
   /** Daemon cannot do this here, e.g. restart while unsupervised. */
   | 'unsupported'
+  /** A game is running and this job waits until it exits (409). */
+  | 'game_running'
 
 export interface ApiError {
   error: ApiErrorCode

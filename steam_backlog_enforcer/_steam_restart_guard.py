@@ -25,6 +25,9 @@ from steam_backlog_enforcer._steam_state import steam_update_in_progress
 
 logger = logging.getLogger(__name__)
 
+# The refusal of a web job that waits for the game to exit (``game_running``).
+GAME_RUNNING_JOB_MSG = "A game is running: this waits until it exits."
+
 
 def game_is_running() -> bool:
     """Whether a Steam game is currently running.

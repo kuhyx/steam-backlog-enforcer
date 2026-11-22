@@ -73,6 +73,7 @@ from steam_backlog_enforcer.main.picks import (
     cmd_pick,
     cmd_pick_manual,
 )
+from steam_backlog_enforcer.main.repair_ghosts import cmd_repair_ghosts
 from steam_backlog_enforcer.main.status import cmd_list, cmd_status
 from steam_backlog_enforcer.scanning import do_check, do_scan
 
@@ -113,6 +114,7 @@ __all__ = [
     "cmd_list",
     "cmd_pick",
     "cmd_pick_manual",
+    "cmd_repair_ghosts",
     "cmd_reset",
     "cmd_serve",
     "cmd_setup",
@@ -142,6 +144,7 @@ _HANDLERS: dict[str, Callable[[Config, State], object]] = {
     "stats": cmd_stats,
     "gaming-status": cmd_gaming_status,
     "gaming-reset": cmd_gaming_reset,
+    "repair-ghosts": cmd_repair_ghosts,
 }
 
 # Descriptions live in _command_help (the web catalog reads them too); the

@@ -13,6 +13,7 @@ JobErrorCode = Literal[
     "busy",
     "not_cancellable",
     "op_failed",
+    "game_running",
 ]
 
 

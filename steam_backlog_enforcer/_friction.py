@@ -52,6 +52,8 @@ FRICTION: Final[dict[str, Friction]] = {
     "uninstall": Friction("uninstall {count} games"),
     "reset": Friction("wipe all enforcer state"),
     "restore-backup": Friction("restore backup {backup_id}"),
+    # Checked at POST /api/jobs too (_web_jobs._PRECHECKED), then again by the job.
+    "repair-ghosts": Friction("delete ghost manifests"),
 }
 
 

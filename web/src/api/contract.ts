@@ -30,6 +30,7 @@ export type CommandName =
   | 'gaming-reset'
   | 'gaming-unblock'
   | 'serve'
+  | 'repair-ghosts'
   /** Job spawned by `POST /api/backups/{id}/restore`, not a CLI command. */
   | 'restore-backup'
   /** Failed end-of-window store re-block the web server records; never started by hand. */

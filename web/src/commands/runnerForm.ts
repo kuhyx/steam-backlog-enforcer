@@ -166,6 +166,7 @@ export class Runner {
               failure?.code === 'daemon_unreachable' && fallback
                 ? terminalFallback(fallback)
                 : null,
+              failure?.code === 'game_running' ? iconInline('result.game-running') : null,
             ),
           ]
         : []),

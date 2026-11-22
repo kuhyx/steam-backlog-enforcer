@@ -48,6 +48,21 @@ describe('<runner-dialog> start failures', () => {
     expect(text()).toContain('sudo ./run.sh gaming-unblock')
   })
 
+  it('paints the game-running mark when a running game refuses the job', async () => {
+    const spec = makeSpec('repair-ghosts', { friction: { phrase_template: 'delete ghost manifests' } })
+    openRunner([spec], 'repair-ghosts', { extra: { 'POST /api/jobs': apiError(409, 'game_running', 'a game is running') } })
+    await vi.waitFor(() => { expect(document.querySelector('.phrase input')).not.toBeNull() })
+    const input = must(document.querySelector<HTMLInputElement>('.phrase input'))
+    input.value = 'delete ghost manifests'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    submit(await found('Run repair-ghosts'))
+    await vi.waitFor(() => { expect(document.querySelector('[data-code="game_running"]')).not.toBeNull() })
+    const refusal = must(document.querySelector('[data-code="game_running"]'))
+    expect(refusal).toHaveTextContent('🎮⏸️')
+    expect(refusal).toHaveTextContent('a game is running')
+    expect(refusal.getAttribute('aria-label')).toMatch(/^Game running\./)
+  })
+
   it('has no fallback for a command without one', async () => {
     openRunner([makeSpec('scan')], 'scan', { extra: { 'POST /api/jobs': apiError(502, 'daemon_unreachable') } })
     submit(await found('Run scan'))

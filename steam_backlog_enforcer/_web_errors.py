@@ -30,6 +30,7 @@ STATUS_BY_CODE: Final[dict[str, HTTPStatus]] = {
     "busy": HTTPStatus.CONFLICT,
     "countdown_running": HTTPStatus.CONFLICT,
     "not_cancellable": HTTPStatus.CONFLICT,
+    "game_running": HTTPStatus.CONFLICT,
     "pending_lapsed": HTTPStatus.GONE,
     "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
     "daemon_unreachable": HTTPStatus.SERVICE_UNAVAILABLE,

@@ -23,6 +23,7 @@
     "cmd.abandon-pick": { "glyph": "❌", "spoken": "Abandon pick", "desc": "Runs abandon pick: undoes a manual pick, so the enforcer assigns a game again.", "words": ["abandon", "undo", "drop"], "alts": ["✖️", "↩️", "🚮"] },
     "cmd.install": { "glyph": "⬇️", "spoken": "Install", "desc": "Runs install: downloads an allowed game, trying the fast installer first.", "words": ["install", "download", "get"], "alts": ["📥", "🔽", "⏬"] },
     "cmd.uninstall": { "glyph": "🗑️", "spoken": "Uninstall", "desc": "Runs uninstall: removes every installed game that is neither assigned nor protected.", "words": ["uninstall", "remove", "clean"], "alts": ["🧹", "⏏️", "🪣"] },
+    "cmd.repair-ghosts": { "glyph": "👻", "spoken": "Repair ghosts", "desc": "Runs repair ghosts: deletes the fake installed manifests anonymous steamcmd left, keeping any with staged bytes.", "words": ["ghosts", "phantom", "fake"], "alts": ["🧟", "🪦", "🫥"] },
     "cmd.hide": { "glyph": "🙈", "spoken": "Hide", "desc": "Runs hide: hides every game except the assigned one in the Steam library.", "words": ["hide", "conceal", "mask"], "alts": ["🫣", "🕶️", "🌫️"] },
     "cmd.unhide": { "glyph": "👁️", "spoken": "Unhide", "desc": "Runs unhide: shows every game in the Steam library again.", "words": ["unhide", "show", "reveal"], "alts": ["👀", "🔦", "🪟"] },
     "cmd.buy-dlc": { "glyph": "💳", "spoken": "Buy DLC", "desc": "Runs buy DLC: unblocks the Steam store for 15 minutes so you can buy a game or DLC.", "words": ["DLC", "buy", "purchase"], "alts": ["💵", "🪙", "🏷️"] },

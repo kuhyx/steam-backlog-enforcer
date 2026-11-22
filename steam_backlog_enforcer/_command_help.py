@@ -31,6 +31,7 @@ COMMAND_DESCRIPTIONS: Final[dict[str, str]] = {
     "stats": "Show backlog completion-time estimates",
     "gaming-status": "Show today's gaming time and block state",
     "gaming-reset": "Reset today's gaming counter (root + phrase)",
+    "repair-ghosts": "Delete the fake 'installed' manifests anonymous steamcmd left",
 }
 
 # Commands with non-standard arg handling (shown in help but not in COMMANDS).

@@ -186,8 +186,8 @@ with explicit params, a `Progress` reporter and a `Prompter`.
     its text search for the same step.
 - `result` — `{ok, summary, data?}` exactly once at the end.
 
-`install`'s target, dry run, Valve-Proton switch and result data: see
-[DOCS-web-install.md](DOCS-web-install.md).
+`install`'s target, dry run, Valve Proton and result; `repair-ghosts` and its
+`game_running` refusal: see [DOCS-web-install.md](DOCS-web-install.md).
 
 ## Friction (server/daemon-enforced)
 

@@ -86,3 +86,20 @@ def build_cmd(
     if account:
         cmd += ["--username", account]
     return desktop_user_cmd(cmd, user)
+
+
+def build_repair_ghosts_cmd(installer: Path, user: str | None) -> list[str]:
+    """The installer's ``--repair-ghosts`` run, dropped to the desktop user.
+
+    No AppID: it scans every library for the fake manifests anonymous
+    steamcmd left and clears only the cold ones (``DOCS-steam-installer.md``).
+    """
+    cmd = [
+        "env",
+        f"PYTHONPATH={installer.parents[1]}",
+        _PYTHON,
+        "-m",
+        "steam_installer.cli",
+        "--repair-ghosts",
+    ]
+    return desktop_user_cmd(cmd, user)

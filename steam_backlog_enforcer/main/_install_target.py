@@ -26,7 +26,8 @@ from steam_installer.target import parse_literal
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
 
-# The dry run only reads Steam's app cache and library folders.
+# The dry run only reads Steam's app cache and library folders; repair-ghosts
+# only scans them and renames a few manifests.
 _DRY_RUN_TIMEOUT_SECONDS = 50
 
 
@@ -96,6 +97,18 @@ def dry_run_install(app_id: int, name: str, *, valve_proton: bool) -> None:
         dry_run=True,
     )
     _echo(f"Dry run for {name or f'AppID={app_id}'}:")
+    code = relay_installer(cmd)
+    if code:
+        msg = f"Dry run failed (installer exit {code})."
+        raise JobError(msg, code="op_failed")
+
+
+def relay_installer(cmd: list[str]) -> int:
+    """Run a short, prompt-free installer *cmd*, echo its output, return its exit.
+
+    Used for the read-only ``--dry-run`` and for ``--repair-ghosts``; neither
+    downloads, so both fit the same timeout.
+    """
     proc = subprocess.run(
         cmd,
         check=False,
@@ -107,6 +120,4 @@ def dry_run_install(app_id: int, name: str, *, valve_proton: bool) -> None:
     )
     for line in proc.stdout.splitlines():
         _echo(f"  {line}")
-    if proc.returncode:
-        msg = f"Dry run failed (installer exit {proc.returncode})."
-        raise JobError(msg, code="op_failed")
+    return proc.returncode

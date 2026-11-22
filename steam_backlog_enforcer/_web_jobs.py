@@ -11,11 +11,15 @@ refused as ``busy`` because a scan is running.
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from steam_backlog_enforcer._backups import list_backups
 from steam_backlog_enforcer._command_params import InvalidParamsError, validate_params
 from steam_backlog_enforcer._friction import expected_phrase, phrase_matches
+from steam_backlog_enforcer._steam_restart_guard import (
+    GAME_RUNNING_JOB_MSG,
+    game_is_running,
+)
 from steam_backlog_enforcer._web_daemon import confirm_phrase_of
 from steam_backlog_enforcer._web_errors import ApiError, from_job_error, not_found
 from steam_backlog_enforcer._web_io import Reply, no_content, ok
@@ -32,6 +36,10 @@ if TYPE_CHECKING:
 # The UI's enforce modes onto the job registry's ``demo`` flag; ``restart``
 # (demo 0) is the daemon's.
 _ENFORCE_MODES = {"demo": 1, "restart": 0}
+
+# Jobs whose phrase and game-running guard are checked here, before a job
+# exists, so a refusal never leaves a job behind; the job re-checks both.
+_PRECHECKED: Final = frozenset({"repair-ghosts"})
 
 
 def _invalid(message: str) -> ApiError:
@@ -73,6 +81,25 @@ def _job_request(request: Request) -> tuple[str, dict[str, Any], str | None]:
     return command, params, phrase
 
 
+def _precheck(command: str, phrase: str | None) -> None:
+    """Refuse a :data:`_PRECHECKED` job before it is created.
+
+    The phrase goes first: it is what the user can fix, and it stays
+    provable while a game runs.
+
+    Raises:
+        ApiError: ``wrong_phrase``, or ``game_running`` while a game runs.
+    """
+    if command not in _PRECHECKED:
+        return
+    expected = expected_phrase(command) or ""
+    if not phrase_matches(expected, phrase or ""):
+        msg = f'Type "{expected}" to run {command}.'
+        raise ApiError(msg, code="wrong_phrase")
+    if game_is_running():
+        raise ApiError(GAME_RUNNING_JOB_MSG, code="game_running")
+
+
 def jobs_view(_request: Request) -> Reply:
     """``GET /api/jobs`` — newest first, at most 50."""
     return ok(list_jobs())
@@ -98,6 +125,7 @@ def create_job_view(request: Request) -> Reply:
         raise _invalid(str(exc)) from None
     if is_privileged(command, clean):
         return run_privileged(command, clean, phrase)
+    _precheck(command, phrase)
     try:
         job_id = create_job(command, clean, confirm_phrase=phrase)
     except JobError as exc:
