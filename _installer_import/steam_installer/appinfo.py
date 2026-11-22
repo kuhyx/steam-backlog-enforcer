@@ -1,12 +1,10 @@
-"""Look up app metadata via steamcmd's app_info_print (anonymous, no login needed)."""
+"""App metadata (name, installdir, depots, build) from Steam's local app cache."""
 
 from __future__ import annotations
 
-import re
-import subprocess
 from dataclasses import dataclass, field
 
-from steam_installer import vdf
+from steam_installer import appinfo_cache
 
 
 # depotdownloader is never given -branch, so it always fetches this one.
@@ -41,56 +39,37 @@ class DepotPlan:
     # depot id -> the manifest gid the public branch ships, for every depot in
     # the app's list. A cached depot manifest matching it proves the build.
     manifests: dict[str, str] = field(default_factory=dict)
+    # shared depot id -> the app it is installed under (its `depotfromapp`).
+    # A manifest written from scratch records these as SharedDepots.
+    shared_owner: dict[str, str] = field(default_factory=dict)
 
     @property
     def all_expected(self) -> set[str]:
         return self.required | self.shared
 
 
-def _fetch_app_blocks(appids: list[int]) -> dict[int, dict]:
-    """App info for every id in `appids`, from a single anonymous steamcmd call.
+def _cached_blocks(appids: list[int]) -> dict[int, dict]:
+    """App info for those of `appids` Steam's local cache holds.
 
-    One call for the lot: each steamcmd start costs seconds of login, and a game
-    can list dozens of DLC.
+    Read from `appcache/appinfo.vdf` (see :mod:`appinfo_cache`), not from
+    steamcmd: this tool no longer runs steamcmd at all.
     """
-    prints = [arg for appid in appids for arg in ("+app_info_print", str(appid))]
-    result = subprocess.run(
-        [
-            "steamcmd",
-            # Without this, a Linux steamcmd resolves a Windows-only app's depot
-            # list against the host platform and can come back empty.
-            "+@sSteamCmdForcePlatformType",
-            "windows",
-            "+login",
-            "anonymous",
-            *prints,
-            "+quit",
-        ],
-        capture_output=True,
-        text=True,
-        # The exit code says nothing useful; a missing block is caught below.
-        check=False,
-        timeout=60 + 5 * len(appids),
-    )
-    output = result.stdout
-    # app_info_print emits `"<appid>"\n{ ... }` inside a stream of steamcmd's own
-    # log lines; each block runs from its own header to the next one.
-    starts = {}
-    for appid in appids:
-        match = re.search(rf'^"{appid}"\s*$', output, re.MULTILINE)
-        if not match:
-            raise AppInfoError(
-                f"steamcmd did not return app info for {appid}:\n{output}"
-            )
-        starts[appid] = match.start()
-    ordered = sorted(starts.values()) + [len(output)]
-    blocks: dict[int, dict] = {}
-    for appid, start in starts.items():
-        end = ordered[ordered.index(start) + 1]
-        app_block = vdf.parse(output[start:end]).get(str(appid), {})
-        if not isinstance(app_block, dict):
-            raise AppInfoError(f"unexpected app_info_print structure for {appid}")
-        blocks[appid] = app_block
+    try:
+        apps = appinfo_cache.load()
+    except appinfo_cache.CacheError as exc:
+        raise AppInfoError(str(exc)) from exc
+    return {appid: apps[appid] for appid in appids if appid in apps}
+
+
+def _fetch_app_blocks(appids: list[int]) -> dict[int, dict]:
+    """App info for every id in `appids`; a missing one is an error with the fix."""
+    blocks = _cached_blocks(appids)
+    missing = [str(appid) for appid in appids if appid not in blocks]
+    if missing:
+        raise AppInfoError(
+            f"app {', '.join(missing)} is not in Steam's local app cache: "
+            f"{appinfo_cache.FIX}"
+        )
     return blocks
 
 
@@ -188,7 +167,10 @@ def get_dlc_plans(
     game_depots = app_block.get("depots", {})
     game_depot_ids = set(game_depots) if isinstance(game_depots, dict) else set()
     plans: dict[int, dict[str, str]] = {}
-    for dlc_id, dlc_block in _fetch_app_blocks(dlc_ids).items():
+    # A DLC the cache lacks is not owned: Steam caches app info for every app
+    # the account owns (1828 of 7102 listed DLC ids on 2026-11-22), and
+    # depotdownloader would refuse an unowned one anyway.
+    for dlc_id, dlc_block in _cached_blocks(dlc_ids).items():
         depots = dlc_block.get("depots", {})
         if not isinstance(depots, dict):
             continue
@@ -206,12 +188,15 @@ def _plan_from_depots(
     """The depots of one app's `depots` section that an (os, language) install gets."""
     required: set[str] = set()
     shared: set[str] = set()
+    shared_owner: dict[str, str] = {}
     for depot_id, entry in depots.items():
         if not depot_id.isdigit() or not isinstance(entry, dict):
             continue
         # A shared depot is installed once under its owning app, not here.
         if "depotfromapp" in entry or "sharedinstall" in entry:
             shared.add(depot_id)
+            if isinstance(entry.get("depotfromapp"), str):
+                shared_owner[depot_id] = entry["depotfromapp"]
             continue
         # Another app's DLC is not part of this install -- but a DLC app's own
         # depots carry its own id as dlcappid, and are exactly what it installs.
@@ -231,4 +216,4 @@ def _plan_from_depots(
         if isinstance(depot_language, str) and depot_language != language:
             continue
         required.add(depot_id)
-    return DepotPlan(required=required, shared=shared)
+    return DepotPlan(required=required, shared=shared, shared_owner=shared_owner)

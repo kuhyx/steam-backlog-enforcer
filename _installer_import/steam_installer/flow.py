@@ -15,7 +15,6 @@ from steam_installer import (
     manifest_write,
     recognize,
     runlog,
-    steamcmd_validate,
     steamctl,
     takeover,
 )
@@ -149,50 +148,6 @@ def _download_and_recognize(
     ):
         logger.debug("depot %s -> manifest %s", depot_id, mid)
 
-    if not args.skip_steamcmd:
-        logger.info("Reconciling with steamcmd (validate)...")
-        log.section("steamcmd app_update validate")
-        result = steamcmd_validate.run_steamcmd_validate(
-            metadata.appid, username, logger
-        )
-        log.file_contents("Manifest after steamcmd", manifest_path)
-
-        # Never trust steamcmd's exit code alone -- verify the manifest actually
-        # reflects a real install before believing it. A "clean" exit has
-        # produced a manifest steamcmd itself hadn't finished updating before.
-        if (
-            not result.crashed_on_install_script
-            and recognize.manifest_reflects_real_install(
-                library, metadata.appid, install_target
-            )
-        ):
-            # The manifest being valid does not mean steamcmd is why. It can
-            # already have been correct on arrival while steamcmd failed to even
-            # log in -- reporting that as "steamcmd finished cleanly" credits a
-            # step that did nothing and hides a real authentication failure.
-            if result.returncode == 0:
-                logger.info("steamcmd finished cleanly -- Steam should show Play.")
-            else:
-                logger.warning(
-                    "steamcmd exited %d, but %s is already a complete install "
-                    "-- leaving it as is. Steam should show Play.",
-                    result.returncode,
-                    manifest_path.name,
-                )
-            logger.info("Run log: %s", log.path)
-            return 0
-
-        if result.crashed_on_install_script:
-            logger.info(
-                "steamcmd hit the known install-script crash; finishing the manifest manually..."
-            )
-        else:
-            logger.info(
-                "steamcmd exited %d but the manifest doesn't reflect a real install; "
-                "checking whether it is safe to finish it manually...",
-                result.returncode,
-            )
-
     return finish(
         log,
         library,
@@ -200,5 +155,4 @@ def _download_and_recognize(
         install_target,
         depot_plan,
         expected_build_id,
-        skipped_steamcmd=args.skip_steamcmd,
     )

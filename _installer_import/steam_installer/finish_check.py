@@ -66,8 +66,10 @@ def check_ready_to_finish(
     )
     if stale:
         problems.append(
-            f"depot(s) {', '.join(stale)} hold a manifest the public branch no "
-            "longer ships -- stale content"
+            f"depot(s) {', '.join(stale)} hold a manifest other than the public "
+            "gid in Steam's local app cache -- stale content. depotdownloader "
+            "always fetches the current build, so the cache is the stale side: "
+            "start Steam once, let it sync, rerun"
         )
     if build_proven(cached, required_depots, expected_manifests):
         # The manifest's buildid only ever stood in for this proof. A stub

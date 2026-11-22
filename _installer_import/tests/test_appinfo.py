@@ -1,4 +1,5 @@
 import pytest
+from _appinfo_blob import encode
 
 from steam_installer import appinfo
 
@@ -127,114 +128,77 @@ def test_get_metadata_rejects_malformed_common_section(monkeypatch):
         appinfo.get_metadata(1)
 
 
-class _FakeCompleted:
-    def __init__(self, stdout):
-        self.stdout = stdout
-        self.returncode = 0
-
-
-# What steamcmd actually emits: its own log lines, then the VDF block.
-STEAMCMD_OUTPUT = """Redirecting stderr to '/home/u/.steam/logs/stderr.txt'
-Logging directory: '/home/u/.steam/logs'
-"@sSteamCmdForcePlatformType" = "windows"
-Logging in user 'anonymous' to Steam Public...OK
-"1771300"
-{
-\t"common"
-\t{
-\t\t"name"\t\t"Kingdom Come: Deliverance II"
-\t\t"installdir"\t\t"KingdomComeDeliverance2"
-\t}
-\t"depots"
-\t{
-\t\t"1771303"
-\t\t{
-\t\t\t"config"
-\t\t\t{
-\t\t\t\t"oslist"\t\t"windows"
-\t\t\t}
-\t\t}
-\t\t"branches"
-\t\t{
-\t\t\t"public"
-\t\t\t{
-\t\t\t\t"buildid"\t\t"23914554"
-\t\t\t}
-\t\t}
-\t}
+# The block steamcmd's app_info_print used to return for KCD2, now as Steam
+# keeps it in its binary cache. The differential tests below pin that the
+# cache gives the same answers the steamcmd text did.
+KCD2 = {
+    "common": {"name": "Kingdom Come: Deliverance II", "installdir": "KingdomComeDeliverance2"},
+    "depots": {
+        "1771303": {"config": {"oslist": "windows"}},
+        "branches": {"public": {"buildid": 23914554}},
+    },
 }
-"""
 
 
-def test_fetch_app_block_parses_real_steamcmd_output(monkeypatch):
-    seen = {}
+@pytest.fixture
+def cache(tmp_path, monkeypatch):
+    """Point appinfo at a fixture cache; returns a writer for its apps."""
+    path = tmp_path / "appinfo.vdf"
+    monkeypatch.setattr(appinfo.appinfo_cache, "default_path", lambda: path)
 
-    def fake_run(cmd, **kwargs):
-        seen["cmd"] = cmd
-        return _FakeCompleted(STEAMCMD_OUTPUT)
+    def write(apps):
+        path.write_bytes(encode(apps))
 
-    monkeypatch.setattr(appinfo.subprocess, "run", fake_run)
+    return write
 
+
+def test_metadata_comes_from_steams_cache(cache):
+    cache({1771300: KCD2})
     metadata = appinfo.get_metadata(1771300)
-
     assert metadata.name == "Kingdom Come: Deliverance II"
     assert metadata.installdir == "KingdomComeDeliverance2"
-    # The platform flag must precede +login or a Windows-only app comes back empty.
-    cmd = seen["cmd"]
-    assert cmd.index("+@sSteamCmdForcePlatformType") < cmd.index("+login")
-    assert cmd[cmd.index("+@sSteamCmdForcePlatformType") + 1] == "windows"
 
 
-def test_get_build_id_through_the_real_parser(monkeypatch):
-    monkeypatch.setattr(
-        appinfo.subprocess, "run", lambda cmd, **kw: _FakeCompleted(STEAMCMD_OUTPUT)
-    )
+def test_get_build_id_through_the_real_parser(cache):
+    # Stored as an int32 in the binary cache; still a string like steamcmd's.
+    cache({1771300: KCD2})
     assert appinfo.get_build_id(1771300) == "23914554"
 
 
-def test_fetch_app_block_raises_when_appid_header_absent(monkeypatch):
-    """steamcmd prints its usual log noise even for an unknown app; without the
-    `"<appid>"` header there is no app info to parse."""
-    monkeypatch.setattr(
-        appinfo.subprocess,
-        "run",
-        lambda cmd, **kw: _FakeCompleted("Logging in user 'anonymous'...OK\n"),
-    )
-    with pytest.raises(appinfo.AppInfoError, match="did not return app info"):
+def test_app_missing_from_the_cache_fails_with_the_fix(cache):
+    cache({1771300: KCD2})
+    with pytest.raises(appinfo.AppInfoError, match="start Steam once, let it sync, rerun"):
         appinfo.get_metadata(999999999)
 
 
-def test_fetch_app_block_raises_when_block_is_not_a_mapping(monkeypatch):
-    """Defensive guard against a shape vdf.parse cannot currently produce (it
-    always yields a dict for a `{ ... }` block). Exercised by injecting a parser
-    that returns a scalar, so the guard stays correct if vdf ever changes."""
+def test_unreadable_cache_fails_with_the_fix(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        appinfo.subprocess,
-        "run",
-        lambda cmd, **kw: _FakeCompleted('"1771300"\n{\n}\n'),
+        appinfo.appinfo_cache, "default_path", lambda: tmp_path / "missing.vdf"
     )
-    monkeypatch.setattr(appinfo.vdf, "parse", lambda text: {"1771300": "scalar"})
+    with pytest.raises(appinfo.AppInfoError, match="start Steam once"):
+        appinfo.get_metadata(1)
 
-    with pytest.raises(appinfo.AppInfoError, match="unexpected app_info_print"):
-        appinfo.get_metadata(1771300)
+
+def test_dlc_missing_from_the_cache_counts_as_not_owned(cache):
+    """Steam caches app info for what the account owns; on 2026-11-22 only 1828
+    of 7102 listed DLC ids were in the cache. Refusing on a missing one would
+    block installs that worked with steamcmd."""
+    game = {**KCD2, "extended": {"listofdlc": "500,600"}}
+    dlc = {"depots": {"501": {"manifests": {"public": {"gid": "9"}}}}}
+    cache({1771300: game, 500: dlc})
+    assert appinfo.get_dlc_plans(1771300) == {500: {"501": "9"}}
 
 
 def test_get_build_id_handles_non_dict_sections(monkeypatch):
-    for text in (
-        '"1"\n{\n\t"depots"\t\t"scalar"\n}\n',
-        '"1"\n{\n\t"depots"\n\t{\n\t\t"branches"\t\t"scalar"\n\t}\n}\n',
-        '"1"\n{\n\t"depots"\n\t{\n\t\t"branches"\n\t\t{\n\t\t\t"public"\t\t"x"\n\t\t}\n\t}\n}\n',
+    for block in (
+        {"depots": "scalar"},
+        {"depots": {"branches": "scalar"}},
+        {"depots": {"branches": {"public": "x"}}},
     ):
-        monkeypatch.setattr(
-            appinfo.subprocess, "run", lambda cmd, _t=text, **kw: _FakeCompleted(_t)
-        )
+        _app_block(monkeypatch, block)
         assert appinfo.get_build_id(1) is None
 
 
 def test_get_build_id_returns_none_when_buildid_not_a_string(monkeypatch):
-    text = '"1"\n{\n\t"depots"\n\t{\n\t\t"branches"\n\t\t{\n\t\t\t"public"\n\t\t\t{\n\t\t\t\t"buildid"\n\t\t\t\t{\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n'
-    monkeypatch.setattr(
-        appinfo.subprocess, "run", lambda cmd, **kw: _FakeCompleted(text)
-    )
+    _app_block(monkeypatch, {"depots": {"branches": {"public": {"buildid": {}}}}})
     assert appinfo.get_build_id(1) is None
-

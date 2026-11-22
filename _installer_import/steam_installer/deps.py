@@ -8,7 +8,6 @@ from pathlib import Path
 
 TOOL_HINTS = {
     "depotdownloader": "Run ./install.sh, which fetches it from the SteamRE release.",
-    "steamcmd": "Run ./install.sh, or: yay -S steamcmd",
 }
 
 
@@ -32,17 +31,19 @@ def depotdownloader_bin() -> str:
     return "depotdownloader"
 
 
-def missing_tools(*, skip_steamcmd: bool) -> list[str]:
-    """Which required binaries are not on PATH, in the order they'd be used."""
+def missing_tools() -> list[str]:
+    """Which required binaries are not on PATH, in the order they'd be used.
+
+    steamcmd is not one of them: app info comes from Steam's own cache and
+    the manifest is written by this tool.
+    """
     needed = ["depotdownloader"]
-    if not skip_steamcmd:
-        needed.append("steamcmd")
     resolved = {"depotdownloader": depotdownloader_bin()}
     return [tool for tool in needed if shutil.which(resolved.get(tool, tool)) is None]
 
 
-def require(*, skip_steamcmd: bool) -> None:
-    missing = missing_tools(skip_steamcmd=skip_steamcmd)
+def require() -> None:
+    missing = missing_tools()
     if missing:
         details = "; ".join(
             f"`{tool}` not found -- {TOOL_HINTS[tool]}" for tool in missing

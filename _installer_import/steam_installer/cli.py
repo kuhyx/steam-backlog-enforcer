@@ -71,17 +71,6 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--skip-steamcmd",
-        action="store_true",
-        help=(
-            "Finish the manifest directly from depotdownloader's own cached data "
-            "instead of running steamcmd's app_update. Steamcmd's install-script "
-            "step has shown two separate failure modes (a confirmed segfault, "
-            "and a silent no-op run); this is the same direct-write approach "
-            "already confirmed to work."
-        ),
-    )
-    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Show on the console everything that goes to the run log.",
@@ -176,7 +165,7 @@ def _run(args: argparse.Namespace, log: runlog.RunLog) -> int:
         return _repair_ghosts(log)
 
     try:
-        deps.require(skip_steamcmd=args.skip_steamcmd)
+        deps.require()
         resolved = target.resolve_target(
             args.target, args.appid, interactive=interactive
         )

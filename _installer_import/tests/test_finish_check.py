@@ -193,6 +193,9 @@ def test_a_stale_depot_manifest_is_refused(tmp_path, monkeypatch):
         expected_manifests={"1086941": "8253106406752983615"},
     )
     assert any("1086941" in p and "stale" in p for p in problems)
+    # The cache is the side that lags: depotdownloader always fetches the
+    # current build, so the fix is to let Steam refresh its cache.
+    assert any("start Steam once, let it sync, rerun" in p for p in problems)
 
 
 def test_a_proven_build_still_needs_a_buildid_to_record(tmp_path, monkeypatch):

@@ -1,10 +1,10 @@
 """Every write this tool makes to an appmanifest, and only from verified values.
 
-Split out of recognize.py (250-line cap). When steamcmd's validate cannot
-finish the job (see :mod:`steamcmd_validate`), the manifest is finished by hand
+Split out of recognize.py (250-line cap). The manifest is finished by hand
 using ONLY values already verified: the exact manifest IDs from
-depotdownloader's own local cache (never guessed), and the real on-disk size
-measured directly.
+depotdownloader's own local cache (never guessed), the build those prove, and
+the real on-disk size measured directly. When no manifest exists it is
+written from scratch with the 15 keys Steam accepted on 2026-11-22.
 
 Do NOT leave the download bookkeeping for Steam to tidy up on its next launch.
 An earlier version did, on the belief that Steam self-corrects; it does not. A
@@ -26,16 +26,15 @@ from steam_installer.library import SteamLibrary
 def ensure_installdir_correct(
     library: SteamLibrary, appid: int, install_dir: Path
 ) -> None:
-    """Patch a stale `installdir` field BEFORE running steamcmd, not just after.
+    """Patch a stale `installdir` field before anything else, not just after.
 
     Confirmed necessary: a prior, unrelated Steam GUI glitch left this app's
-    manifest pointing at a different folder name. steamcmd's own validate run
-    didn't correct it despite a clean exit, and relaunching the Steam client
-    read that same stale field and wiped the correctly-downloaded folder as
+    manifest pointing at a different folder name, and relaunching the Steam
+    client read that stale field and wiped the correctly-downloaded folder as
     "orphaned" while starting a fresh download into the wrong one. Fixing it
-    proactively, before steamcmd ever runs, closes that window entirely.
-    Does nothing if no manifest exists yet -- steamcmd's own app_update writes
-    one in that case, and it derives installdir from the app's metadata.
+    first, as soon as Steam is closed, closes that window entirely. Does
+    nothing if no manifest exists yet: the one written from scratch takes
+    installdir from the real install folder.
     """
     manifest_path = library.steamapps / f"appmanifest_{appid}.acf"
     if not manifest_path.is_file():
@@ -66,6 +65,39 @@ def measure_content_size(install_dir: Path) -> int:
     return total
 
 
+def seed_app_state(
+    appid: int, name: str, installdir: str, shared_owner: dict[str, str]
+) -> dict:
+    """The skeleton of a from-scratch manifest, in the key order Steam writes.
+
+    These 15 keys are the proven minimum: Steam logged "Fully Installed,App
+    Running", queued no download and added LastOwner, UserConfig and the rest
+    itself. Placeholders here are overwritten by `finish_manifest_manually`.
+    SharedDepots is only added for a game that has some (fixture-tested only).
+    """
+    state: dict = {
+        "appid": str(appid),
+        "universe": "1",
+        "name": name,
+        "StateFlags": "4",
+        "installdir": installdir,
+        "LastUpdated": "0",
+        "SizeOnDisk": "0",
+        "StagingSize": "0",
+        "buildid": "0",
+        "UpdateResult": "0",
+        # All four at 0: counters that disagree made Steam download a game again.
+        "BytesToDownload": "0",
+        "BytesDownloaded": "0",
+        "BytesToStage": "0",
+        "BytesStaged": "0",
+        "InstalledDepots": {},
+    }
+    if shared_owner:
+        state["SharedDepots"] = dict(shared_owner)
+    return state
+
+
 def finish_manifest_manually(
     library: SteamLibrary,
     appid: int,
@@ -73,26 +105,27 @@ def finish_manifest_manually(
     now_unix: int,
     dlc_depots: dict[str, str] | None = None,
     build_id: str | None = None,
+    seed: dict | None = None,
 ) -> Path:
     """Patch appmanifest_<appid>.acf to StateFlags=4 using only verified-known values.
 
-    Requires steamcmd to have already written a partial manifest (even a crashed
-    run does) -- that's where buildid and SharedDepots come from. This never
-    fabricates a manifest from nothing.
+    Patches the manifest on disk, or -- when there is none -- writes `seed`
+    (from :func:`seed_app_state`) instead. With neither it refuses.
 
     `dlc_depots` maps a DLC depot to its DLC app id. Steam's own manifests
     record each DLC depot with that `dlcappid`, so it is written the same way.
     `build_id`, when given, is a build the caller proved from the cached depot
-    manifests; it replaces the one Steam or steamcmd recorded.
+    manifests; it replaces the one Steam recorded.
     """
     manifest_path = library.steamapps / f"appmanifest_{appid}.acf"
-    if not manifest_path.is_file():
+    existed = manifest_path.is_file()
+    if not existed and seed is None:
         raise recognize.RecognizeError(
-            f"No existing {manifest_path.name} to finish -- run steamcmd's "
-            "app_update at least once first (even a crashed run writes one)."
+            f"No existing {manifest_path.name} to finish and no seed to write"
         )
-    data = vdf.parse(manifest_path.read_text())
-    app_state = data.get("AppState", {})
+    app_state = (
+        vdf.parse(manifest_path.read_text()).get("AppState", {}) if existed else seed
+    )
     if not isinstance(app_state, dict):
         raise recognize.RecognizeError(
             f"{manifest_path} is not a valid AppState manifest"
@@ -105,7 +138,7 @@ def finish_manifest_manually(
         )
 
     size_on_disk = measure_content_size(install_dir)
-    # "0" means "no real build installed yet" (steamcmd/Steam use it as a
+    # "0" means "no real build installed yet" (Steam uses it as a
     # sentinel) -- a bare `or` treats that non-empty string as truthy and
     # never falls through to TargetBuildID, leaving a stale/wrong buildid.
     existing_buildid = app_state.get("buildid")
@@ -145,7 +178,8 @@ def finish_manifest_manually(
     app_state.pop("DlcDownloads", None)
     settle_download_counters(app_state)
 
-    backup_once(manifest_path)
+    if existed:
+        backup_once(manifest_path)
     write_atomic(manifest_path, vdf.dumps("AppState", app_state))
     return manifest_path
 

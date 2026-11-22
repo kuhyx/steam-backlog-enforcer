@@ -11,36 +11,87 @@ from steam_installer import (
     vdf,
 )
 
-from _cli_helpers import ARGV, _stub_download, _stub_steamcmd
+from _cli_helpers import ARGV, _stub_download
 
 pytestmark = pytest.mark.usefixtures("cli_logs")
 
 
-def test_missing_manifest_under_skip_steamcmd_does_not_blame_steamcmd(
-    steam, monkeypatch, capsys
-):
-    """--skip-steamcmd never runs steamcmd, so "steamcmd never ran far enough"
-    would send the user chasing the wrong thing."""
-    library, _ = steam
-    (library.steamapps / "appmanifest_1771300.acf").unlink()
+# The 15 keys Steam accepted on 2026-11-22 (A Space for the Unbound): it
+# logged "Fully Installed,App Running", queued no download, and added its own
+# LastOwner, UserConfig, MountedConfig, ... on exit.
+FROM_SCRATCH_KEYS = [
+    "appid", "universe", "name", "StateFlags", "installdir", "LastUpdated",
+    "SizeOnDisk", "StagingSize", "buildid", "UpdateResult", "BytesToDownload",
+    "BytesDownloaded", "BytesToStage", "BytesStaged", "InstalledDepots",
+]
+
+
+def _proven_plan(monkeypatch, install_dir, shared_owner=None):
+    (gid,) = recognize.discover_cached_depot_manifests(install_dir).values()
+    monkeypatch.setattr(
+        appinfo,
+        "get_depot_plan",
+        lambda appid, language: appinfo.DepotPlan(
+            {"1771303"}, set(shared_owner or ()), manifests={"1771303": gid},
+            shared_owner=dict(shared_owner or {}),
+        ),
+    )
+    return gid
+
+
+def test_missing_manifest_is_written_from_scratch(steam, monkeypatch):
+    """No steamcmd any more, so nothing else creates the manifest."""
+    library, install_dir = steam
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    manifest.unlink()
+    gid = _proven_plan(monkeypatch, install_dir)
     _stub_download(monkeypatch)
 
-    assert cli.main([*ARGV, "--skip-steamcmd"]) == 1
+    assert cli.main(ARGV) == 0
 
-    out = capsys.readouterr().out
-    assert "never fabricates one" in out
-    assert "Re-run without --skip-steamcmd" in out
-    assert "steamcmd never ran far enough" not in out
+    app_state = vdf.parse(manifest.read_text())["AppState"]
+    assert list(app_state) == FROM_SCRATCH_KEYS
+    assert app_state["appid"] == "1771300"
+    assert app_state["universe"] == "1"
+    assert app_state["name"] == "KCD2"
+    assert app_state["StateFlags"] == "4"
+    assert app_state["installdir"] == "KingdomComeDeliverance2"
+    assert app_state["SizeOnDisk"] == "1000"
+    assert app_state["buildid"] == "23914554"
+    for key in ("StagingSize", "UpdateResult", "BytesToDownload",
+                "BytesDownloaded", "BytesToStage", "BytesStaged"):
+        assert app_state[key] == "0", key
+    assert app_state["InstalledDepots"] == {"1771303": {"manifest": gid, "size": "0"}}
+    # Nothing to back up: there was no manifest before.
+    assert not manifest.with_suffix(".acf.bak").exists()
 
 
-def test_missing_manifest_with_steamcmd_blames_steamcmd(steam, monkeypatch, capsys):
-    library, _ = steam
-    (library.steamapps / "appmanifest_1771300.acf").unlink()
+def test_a_shared_depot_is_recorded_under_its_owner_from_scratch(steam, monkeypatch):
+    """Fixture-only: no shared-depot game was tested live. Steam records a
+    depot installed under another app as SharedDepots {depot: owner}."""
+    library, install_dir = steam
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    manifest.unlink()
+    _proven_plan(monkeypatch, install_dir, shared_owner={"228989": "228980"})
     _stub_download(monkeypatch)
-    _stub_steamcmd(monkeypatch, returncode=8)
+
+    assert cli.main(ARGV) == 0
+    app_state = vdf.parse(manifest.read_text())["AppState"]
+    assert app_state["SharedDepots"] == {"228989": "228980"}
+    assert "228989" not in app_state["InstalledDepots"]
+
+
+def test_unproven_content_writes_no_manifest_from_scratch(steam, monkeypatch, capsys):
+    """Fail closed: without a proven build there is no buildid to write, and a
+    half-true StateFlags=4 manifest is what made Steam redownload games."""
+    library, _ = steam
+    manifest = library.steamapps / "appmanifest_1771300.acf"
+    manifest.unlink()
+    _stub_download(monkeypatch)
 
     assert cli.main(ARGV) == 1
-    assert "steamcmd never ran far enough" in capsys.readouterr().out
+    assert not manifest.exists()
+    assert "no usable buildid" in capsys.readouterr().out
 
 
 def test_language_defaults_to_english_when_prompt_is_empty(steam, monkeypatch):
@@ -56,19 +107,10 @@ def test_language_defaults_to_english_when_prompt_is_empty(steam, monkeypatch):
         ),
     )
     _stub_download(monkeypatch)
-    _stub_steamcmd(monkeypatch, returncode=8)
 
     cli.main(["--appid", "1771300", "--username", "u"])
 
     assert seen["language"] == "english"
-
-
-def test_reports_the_known_install_script_crash(steam, monkeypatch, capsys):
-    _stub_download(monkeypatch)
-    _stub_steamcmd(monkeypatch, returncode=-11, crashed=True)
-
-    assert cli.main(ARGV) == 0
-    assert "known install-script crash" in capsys.readouterr().out
 
 
 def test_adopts_staged_content_then_clears_it(steam, monkeypatch, capsys):
@@ -79,7 +121,6 @@ def test_adopts_staged_content_then_clears_it(steam, monkeypatch, capsys):
     staged.mkdir(parents=True)
     (staged / "big.pak").write_bytes(b"x" * 2_000_000)
     _stub_download(monkeypatch)
-    _stub_steamcmd(monkeypatch, returncode=8)
 
     assert cli.main(ARGV) == 0
 
@@ -96,7 +137,6 @@ def test_fails_when_written_manifest_does_not_read_back_as_installed(
     """Claiming success without re-reading the write is the same fail-open
     mistake in a different place."""
     _stub_download(monkeypatch)
-    _stub_steamcmd(monkeypatch, returncode=8)
     monkeypatch.setattr(
         recognize, "manifest_reflects_real_install", lambda *a, **kw: False
     )
@@ -116,7 +156,7 @@ def test_module_is_runnable_as_a_script(coverage_subprocess_env):
         env=coverage_subprocess_env,
     )
     assert result.returncode == 0
-    assert "--skip-steamcmd" in result.stdout
+    assert "--skip-steamcmd" not in result.stdout
 
 
 def test_a_stub_manifest_is_finished_with_the_proven_build(steam, monkeypatch):
@@ -138,7 +178,7 @@ def test_a_stub_manifest_is_finished_with_the_proven_build(steam, monkeypatch):
     )
     _stub_download(monkeypatch)
 
-    assert cli.main([*ARGV, "--skip-steamcmd"]) == 0
+    assert cli.main(ARGV) == 0
     app_state = vdf.parse(manifest.read_text())["AppState"]
     assert (app_state["StateFlags"], app_state["buildid"]) == ("4", "23914554")
 
@@ -156,5 +196,5 @@ def test_the_install_folder_is_corrected_even_when_the_download_fails(
     manifest.write_text(vdf.dumps("AppState", state))
     _stub_download(monkeypatch, returncode=2)
 
-    assert cli.main([*ARGV, "--skip-steamcmd"]) == 1
+    assert cli.main(ARGV) == 1
     assert recognize.read_app_state(manifest)["installdir"] == "KingdomComeDeliverance2"

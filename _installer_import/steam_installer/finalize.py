@@ -1,8 +1,9 @@
 """Hand-finish the appmanifest, but only when every precondition really holds.
 
 Split out of cli.py so the entry point stays under the repo's 250-line cap.
-The logic is unchanged: it patches a manifest steamcmd or Steam already
-wrote, and refuses rather than fabricating one.
+It patches the manifest Steam (or the backlog enforcer) already wrote, and
+writes one from scratch when none exists -- steamcmd, which used to create
+it, is no longer run. Either way every precondition is checked first.
 """
 
 from __future__ import annotations
@@ -21,32 +22,22 @@ def finish(
     target: Path,
     depot_plan: appinfo.DepotPlan,
     expected_build_id: str | None,
-    skipped_steamcmd: bool,
 ) -> int:
     logger = log.logger
     manifest_path = library.steamapps / f"appmanifest_{metadata.appid}.acf"
 
-    if not manifest_path.is_file():
-        # Reachable two ways, so don't blame steamcmd unconditionally: under
-        # --skip-steamcmd it never runs at all, and nothing else in this tool
-        # creates a manifest from scratch.
-        logger.error(
-            "No %s exists, so there is nothing to finish. This tool only ever "
-            "patches a manifest Steam or steamcmd already wrote; it never "
-            "fabricates one. %s",
-            manifest_path,
-            (
-                "Re-run without --skip-steamcmd so steamcmd creates it (it writes "
-                "one even when it crashes)."
-                if skipped_steamcmd
-                else "steamcmd writes one even when it crashes, so its absence "
-                "means steamcmd never ran far enough."
-            ),
+    seed = None
+    if manifest_path.is_file():
+        app_state = recognize.read_app_state(manifest_path)
+    else:
+        # Nothing on disk to patch. Build the manifest in memory and write it
+        # only once every check below has passed: a StateFlags=4 file left
+        # behind by a refused run would make Steam fetch the whole game.
+        logger.info("No %s yet -- writing one from scratch.", manifest_path.name)
+        seed = manifest_write.seed_app_state(
+            metadata.appid, metadata.name, target.name, depot_plan.shared_owner
         )
-        logger.info("Run log (send this): %s", log.path)
-        return 1
-
-    app_state = recognize.read_app_state(manifest_path)
+        app_state = seed
     problems = finish_check.check_ready_to_finish(
         install_dir=target,
         app_state=app_state,
@@ -77,6 +68,7 @@ def finish(
         install_dir=target,
         now_unix=int(time.time()),
         dlc_depots=depot_plan.dlc,
+        seed=seed,
         # Proven depot by depot, so it outranks whatever the manifest says.
         build_id=(
             expected_build_id

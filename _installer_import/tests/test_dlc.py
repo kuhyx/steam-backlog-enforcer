@@ -6,10 +6,9 @@ own app id; 2060310 is listed in the game's own depots; 2441600 has none.
 """
 
 import logging
-import subprocess
 
 import pytest
-from _cli_helpers import ARGV, _stub_download, _stub_steamcmd
+from _cli_helpers import ARGV, _stub_download
 
 from steam_installer import appinfo, cli, depotdl, deps, dlc, recognize, runlog, vdf
 
@@ -42,7 +41,7 @@ DLC_BLOCKS = {
 def _app_info(monkeypatch, game=GAME, dlc_blocks=DLC_BLOCKS):
     monkeypatch.setattr(appinfo, "_fetch_app_block", lambda appid: game)
     monkeypatch.setattr(
-        appinfo, "_fetch_app_blocks", lambda ids: {i: dlc_blocks[i] for i in ids}
+        appinfo, "_cached_blocks", lambda ids: {i: dlc_blocks[i] for i in ids}
     )
 
 
@@ -54,7 +53,7 @@ def test_only_dlc_with_depots_of_its_own_needs_a_run(monkeypatch):
 @pytest.mark.parametrize("game", [{}, {"extended": "scalar"}, {"extended": {}}])
 def test_a_game_without_dlc_needs_no_lookup(monkeypatch, game):
     monkeypatch.setattr(appinfo, "_fetch_app_block", lambda appid: game)
-    monkeypatch.setattr(appinfo, "_fetch_app_blocks", lambda ids: pytest.fail())
+    monkeypatch.setattr(appinfo, "_cached_blocks", lambda ids: pytest.fail())
     assert appinfo.get_dlc_plans(1) == {}
 
 
@@ -68,25 +67,6 @@ def test_depot_plan_tags_the_games_own_dlc_depots(monkeypatch):
     plan = appinfo.get_depot_plan(1091500)
     assert plan.required == {"1091501"}
     assert plan.dlc == {"2060310": "2060310"}
-
-
-def test_app_info_for_many_apps_comes_from_one_steamcmd_call(monkeypatch):
-    output = (
-        'Loading...\n"2060310"\n{\n\t"common"\n\t{\n\t\t"name"\t"A"\n\t}\n}\n'
-        '"2138330"\n{\n\t"common"\n\t{\n\t\t"name"\t"B"\n\t}\n}\nUnloading\n'
-    )
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0, stdout=output, stderr="")
-
-    monkeypatch.setattr(appinfo.subprocess, "run", fake_run)
-    blocks = appinfo._fetch_app_blocks([2138330, 2060310])
-    assert blocks[2060310]["common"]["name"] == "A"
-    assert blocks[2138330]["common"]["name"] == "B"
-    assert len(calls) == 1
-    assert calls[0].count("+app_info_print") == 2
 
 
 def _logged(monkeypatch, returncode, output=""):
@@ -163,7 +143,6 @@ def test_downloaded_dlc_is_required_and_credited_to_its_app(steam, monkeypatch):
     }
     manifest.write_text(vdf.dumps("AppState", state))
     _stub_download(monkeypatch)
-    _stub_steamcmd(monkeypatch, returncode=8)
     monkeypatch.setattr(dlc, "download_owned", lambda *a: _dlc_plan("100389"))
 
     assert cli.main(ARGV) == 0
@@ -197,7 +176,7 @@ def test_a_stub_with_own_app_dlc_finishes_with_the_proven_build(steam, monkeypat
     _stub_download(monkeypatch)
     monkeypatch.setattr(dlc, "download_owned", lambda *a: _dlc_plan("100389"))
 
-    assert cli.main([*ARGV, "--skip-steamcmd"]) == 0
+    assert cli.main(ARGV) == 0
     assert recognize.read_app_state(manifest)["buildid"] == "23914554"
 
 

@@ -15,7 +15,7 @@ def test_finish_manifest_manually_requires_existing_manifest(tmp_path):
     library = SteamLibrary(tmp_path / "Steam")
     install_dir = tmp_path / "Steam" / "steamapps" / "common" / "Game"
     install_dir.mkdir(parents=True)
-    with pytest.raises(RecognizeError, match="run steamcmd"):
+    with pytest.raises(RecognizeError, match="no seed to write"):
         finish_manifest_manually(library, 1771300, install_dir, now_unix=1000)
 
 
