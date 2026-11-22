@@ -65,11 +65,15 @@ preflight() {
 sync_mcp_venv() {
     local log
     log="$(mktemp)"
-    trap 'rm -f "$log"' RETURN
+    # No RETURN trap: this runs in the main shell (not a $(...) like
+    # sync_units), where the trap outlives the function and later fires
+    # with $log unset.
     if ! bash "$CHECKOUT/scripts/setup_mcp.sh" >"$log" 2>&1; then
         cat "$log" >&2
+        rm -f "$log"
         die "scripts/setup_mcp.sh failed: MCP venv not synced"
     fi
+    rm -f "$log"
     ok "mcp venv synced"
 }
 
