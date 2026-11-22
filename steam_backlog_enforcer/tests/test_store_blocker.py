@@ -99,7 +99,7 @@ class TestBlockStore:
     def test_already_blocked(self) -> None:
         """Test already blocked."""
         with patch(
-            "steam_backlog_enforcer.store_blocker.is_store_blocked",
+            "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
             return_value=True,
         ):
             assert block_store() is True
@@ -108,7 +108,7 @@ class TestBlockStore:
         """Test reblock succeeds."""
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 side_effect=[False, True],
             ),
             patch(
@@ -128,7 +128,7 @@ class TestBlockStore:
         """Test fallback to install script."""
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 side_effect=[False, False],
             ),
             patch(
@@ -153,7 +153,7 @@ class TestBlockStore:
         """Test all fail."""
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 side_effect=[False, False],
             ),
             patch(
@@ -175,7 +175,7 @@ class TestBlockStore:
         """Test iptables only succeeds."""
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 side_effect=[False, False],
             ),
             patch(

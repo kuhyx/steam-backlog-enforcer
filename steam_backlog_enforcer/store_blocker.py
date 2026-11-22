@@ -14,6 +14,11 @@ from __future__ import annotations
 import logging
 import subprocess
 
+from steam_backlog_enforcer._hosts_lines import (
+    comment_out_store_line,
+    hosts_fully_blocks_store,
+    live_store_lines,
+)
 from steam_backlog_enforcer._hosts_protection import (
     _reblock_hosts,
     rewrite_hosts_lines,
@@ -27,13 +32,9 @@ from steam_backlog_enforcer._store_iptables import (
 from steam_backlog_enforcer._store_tools import (
     BASH,
     HOSTS_INSTALL_SCRIPT,
-    HOSTS_REDIRECT_IP,
     SUDO,
 )
-from steam_backlog_enforcer.config import (
-    BLOCKED_DOMAINS,
-    HOSTS_FILE,
-)
+from steam_backlog_enforcer.config import HOSTS_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -47,23 +48,23 @@ def is_store_blocked() -> bool:
 
 
 def hosts_blocks_store() -> bool:
-    """Check /etc/hosts alone: a file read, no subprocess, safe to poll."""
+    """Whether any store line in /etc/hosts is live (either address family).
+
+    A file read, no subprocess, safe to poll: one live ``::`` line is enough
+    to keep the store unreachable.
+    """
     try:
-        content = HOSTS_FILE.read_text(encoding="utf-8")
-        # Check for at least the primary store domain.
-        if "store.steampowered.com" in content:
-            # Verify it's actually blocked (not commented out).
-            for line in content.splitlines():
-                stripped = line.strip()
-                if (
-                    not stripped.startswith("#")
-                    and "store.steampowered.com" in stripped
-                    and stripped.startswith(HOSTS_REDIRECT_IP)
-                ):
-                    return True
+        return bool(live_store_lines(HOSTS_FILE.read_text(encoding="utf-8")))
     except OSError:
-        pass
-    return False
+        return False
+
+
+def hosts_fully_block_store() -> bool:
+    """Whether every store domain is sinkholed in both address families."""
+    try:
+        return hosts_fully_blocks_store(HOSTS_FILE.read_text(encoding="utf-8"))
+    except OSError:
+        return False
 
 
 def block_store() -> bool:
@@ -71,12 +72,14 @@ def block_store() -> bool:
 
     Returns True if at least one blocking method succeeded.
     """
-    if is_store_blocked():
+    # "Already blocked" needs both families of every domain: a half-done
+    # unblock (IPv4 commented, IPv6 live) must still get its lines back.
+    if hosts_fully_block_store():
         logger.info("Steam Store already blocked in /etc/hosts.")
         return True
 
     # Try quick re-block (uncomment lines) first.
-    if _reblock_hosts() and is_store_blocked():
+    if _reblock_hosts() and hosts_fully_block_store():
         _block_store_iptables()
         flush_dns_cache()
         return True
@@ -116,7 +119,7 @@ def _block_via_hosts_install() -> bool:
     The install script handles: immutable flag removal, bind mount remounting,
     writing the file, re-applying protections, and DoH disabling.
     """
-    if is_store_blocked():
+    if hosts_fully_block_store():
         logger.info("Steam Store already blocked in /etc/hosts.")
         return True
 
@@ -189,12 +192,5 @@ def _unblock_hosts() -> bool:
 
 
 def _comment_out_blocked(line: str) -> str | None:
-    """The line commented out, if it is a live redirect of a blocked domain."""
-    stripped = line.strip()
-    if (
-        not stripped.startswith("#")
-        and stripped.startswith(HOSTS_REDIRECT_IP)
-        and any(d in stripped for d in BLOCKED_DOMAINS)
-    ):
-        return f"# {line}" if line.endswith("\n") else f"# {line}\n"
-    return None
+    """The line commented out, if it is a live sinkhole of a store domain."""
+    return comment_out_store_line(line)

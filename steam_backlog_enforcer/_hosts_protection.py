@@ -6,19 +6,18 @@ introduces no cycle. Split to keep both files under the 250-line cap.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import subprocess
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._hosts_lines import uncomment_store_line
 from steam_backlog_enforcer._store_tools import (
     GUARDCTL,
     SUDO,
     TEE,
 )
-from steam_backlog_enforcer.config import (
-    BLOCKED_DOMAINS,
-    HOSTS_FILE,
-)
+from steam_backlog_enforcer.config import HOSTS_FILE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -92,20 +91,19 @@ def rewrite_hosts_lines(
         if changed:
             _sudo_write_hosts("".join(new_lines))
             logger.info(done_message)
-
-        _enable_hosts_protection()
-    except OSError:
+    except OSError, subprocess.SubprocessError:
         logger.exception("Failed to modify /etc/hosts")
         return False
+    finally:
+        # Re-lock even after a failed write: never leave /etc/hosts open.
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            _enable_hosts_protection()
     return True
 
 
 def _uncomment_blocked(line: str) -> str | None:
-    """The line with its '# ' prefix removed, if it is a commented-out block."""
-    stripped = line.strip()
-    if stripped.startswith("# ") and any(d in stripped for d in BLOCKED_DOMAINS):
-        return line.replace("# ", "", 1)
-    return None
+    """The line made live again, if it is a commented-out store sinkhole."""
+    return uncomment_store_line(line)
 
 
 def _reblock_hosts() -> bool:

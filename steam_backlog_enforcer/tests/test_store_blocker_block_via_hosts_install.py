@@ -22,7 +22,7 @@ class TestBlockViaHostsInstall:
     def test_already_blocked(self) -> None:
         """Test already blocked."""
         with patch(
-            "steam_backlog_enforcer.store_blocker.is_store_blocked",
+            "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
             return_value=True,
         ):
             assert _block_via_hosts_install() is True
@@ -31,7 +31,7 @@ class TestBlockViaHostsInstall:
         """Test script missing."""
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 return_value=False,
             ),
             patch(
@@ -48,7 +48,7 @@ class TestBlockViaHostsInstall:
         mock_result = MagicMock(returncode=0)
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 return_value=False,
             ),
             patch(
@@ -69,7 +69,7 @@ class TestBlockViaHostsInstall:
         mock_result = MagicMock(returncode=1, stderr="error", stdout="")
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 return_value=False,
             ),
             patch(
@@ -90,7 +90,7 @@ class TestBlockViaHostsInstall:
         mock_result = MagicMock(returncode=1, stderr="", stdout="out")
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 return_value=False,
             ),
             patch(
@@ -110,7 +110,7 @@ class TestBlockViaHostsInstall:
         script.touch()
         with (
             patch(
-                "steam_backlog_enforcer.store_blocker.is_store_blocked",
+                "steam_backlog_enforcer.store_blocker.hosts_fully_block_store",
                 return_value=False,
             ),
             patch(
