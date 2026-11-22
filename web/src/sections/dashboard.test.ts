@@ -27,7 +27,7 @@ const base = (over: Record<string, Handler> = {}): Record<string, Handler> => ({
 const PAGE = `<main>
   <header class="page-head">
     <command-button name="done" label="I got an achievement" tone="primary"></command-button>
-    <command-button name="install" label="Install assigned"></command-button>
+    <command-button name="install" label="Install"></command-button>
     <command-button name="pick" label="Pick next"></command-button>
     <command-button name="scan" label="Scan"></command-button>
   </header>
@@ -52,7 +52,7 @@ describe('Dashboard', () => {
       expect(screen.getByRole('button', { name: 'I got an achievement' })).toHaveAttribute('aria-disabled', 'false')
     })
     expect(screen.getByRole('button', { name: 'I got an achievement' })).toHaveClass('btn-primary')
-    for (const name of ['Install assigned', 'Pick next', 'Scan']) {
+    for (const name of ['Install', 'Pick next', 'Scan']) {
       expect(screen.getByRole('button', { name })).toHaveAttribute('aria-disabled', 'false')
     }
   })
