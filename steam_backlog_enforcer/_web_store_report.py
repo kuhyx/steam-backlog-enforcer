@@ -6,9 +6,9 @@ the ``store_unblock`` call itself. A failed end-of-window re-block happens in
 the daemon with nobody asking, so a background thread fetches those reports
 every minute (``store_reports``) and records each as a failed job.
 
-The re-block job is recorded under the ``unblock`` command with
-``params.phase = "re-block"``: the web UI knows only catalog commands, and a
-new one would need its own icon.
+The re-block job is recorded under its own ``re-block`` command, a job-only
+name like ``restore-backup``: the web contract and icon registry list it, the
+CLI has no such command.
 """
 
 from __future__ import annotations
@@ -64,8 +64,7 @@ def record_reblock_failure(report: Mapping[str, object]) -> str:
         log=filing_log(report),
     )
     created_at = datetime.now().astimezone().isoformat()
-    params = {"phase": "re-block"}
-    return record_daemon_job("unblock", params, created_at=created_at, outcome=outcome)
+    return record_daemon_job("re-block", {}, created_at=created_at, outcome=outcome)
 
 
 def collect_store_reports() -> int:

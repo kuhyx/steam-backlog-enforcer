@@ -30,6 +30,12 @@ describe('job view icons', () => {
     expect(word(icon)).toBe('Survey')
   })
 
+  it('a failed end-of-window re-block shows as its own re-block job', async () => {
+    const { el } = mountJob({ job: { command: 're-block', state: 'failed' } })
+    await vi.waitFor(() => { expect(el.querySelector('h3 .sr-only')).toHaveTextContent('Re block') })
+    expect(el.querySelector('h3 [data-icon="cmd.re-block"]')?.textContent).toBe('🔒')
+  })
+
   it('the phase mark, the log count and the cancel button use their ids', async () => {
     useIcons({ 'job.state.running': { word: 'busy' }, 'jobs.log': { word: 'log' }, 'jobs.cancel': { word: 'stop' } })
     const { el, send } = mountJob({ job: { state: 'running' }, cancellable: true })

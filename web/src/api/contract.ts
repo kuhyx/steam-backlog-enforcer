@@ -32,6 +32,8 @@ export type CommandName =
   | 'serve'
   /** Job spawned by `POST /api/backups/{id}/restore`, not a CLI command. */
   | 'restore-backup'
+  /** Failed end-of-window store re-block the web server records; never started by hand. */
+  | 're-block'
 
 /** How the UI surfaces a command. */
 export type CommandKind =

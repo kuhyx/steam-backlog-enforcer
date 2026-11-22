@@ -43,6 +43,7 @@ export const COMMAND_HOME = {
   'gaming-unblock': '/gaming',
   serve: '/system',
   'restore-backup': '/system',
+  're-block': '/store',
 } as const satisfies Record<CommandName, SectionPath>
 
 /** A command's registered icon id (`cmd.<name>`); the compiler proves every command has one. */

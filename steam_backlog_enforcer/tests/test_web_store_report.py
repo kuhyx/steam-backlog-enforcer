@@ -112,6 +112,7 @@ def test_collect_records_one_failed_reblock_job_per_report(filer: MagicMock) -> 
     (job,) = list_jobs()
     assert job["summary"] == "Store re-block failed: dns"
     assert job["state"] == "failed"
+    assert job["command"] == "re-block"
     filer.assert_called_once_with(report)
 
 

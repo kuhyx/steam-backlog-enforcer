@@ -48,9 +48,9 @@ describe('icon words cover the whole UI', () => {
     expect(hits, `${hits.length} unregistered icon sites`).toEqual([])
   })
 
-  it('the first 45 registry entries are the answered pass-1 icons, so the picker opens after them', () => {
+  it('the first 46 registry entries are the pass-1 icons (all answered but cmd.re-block), then the rest', () => {
     const ids = ICONS.map((e) => e.id)
-    expect(ids.slice(0, 45).filter((id) => /^(nav|palette|cmd|job\.state|notice)\./.test(id))).toHaveLength(45)
-    expect(ids[44]).toBe('notice.danger')
+    expect(ids.slice(0, 46).filter((id) => /^(nav|palette|cmd|job\.state|notice)\./.test(id))).toHaveLength(46)
+    expect(ids[45]).toBe('notice.danger')
   })
 })

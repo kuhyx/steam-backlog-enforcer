@@ -35,6 +35,7 @@
     "cmd.gaming-reset": { "glyph": "⏪", "spoken": "Gaming reset", "desc": "Runs gaming reset: resets today's gaming counter as root, after a typed phrase and a five-minute countdown.", "words": ["rewind", "reset", "refill"], "alts": ["⏮️", "🔙", "🔂"] },
     "cmd.gaming-unblock": { "glyph": "🔌", "spoken": "Gaming unblock", "desc": "Runs gaming unblock: force-releases the playtime bind mounts. It is the root recovery hatch.", "words": ["release", "unplug", "recover"], "alts": ["🪫", "🆘", "🧯"] },
     "cmd.serve": { "glyph": "🌐", "spoken": "Serve", "desc": "Restarts this web UI server. It comes back on the current code by itself.", "words": ["server", "web", "restart"], "alts": ["🕸️", "📶", "🔗"] },
+    "cmd.re-block": { "glyph": "🔒", "spoken": "Re-block", "desc": "The daemon's end-of-window store re-block. It shows up as a job only when its checks failed.", "words": ["reblock", "relock", "close"], "alts": ["🛒🔒", "🚧", "🔐"] },
     "cmd.restore-backup": { "glyph": "🗄️", "spoken": "Restore backup", "desc": "Restores a saved state backup after you type its phrase.", "words": ["restore", "backup", "rollback"], "alts": ["💼", "🧳", "📼"] },
     "job.state.queued": { "glyph": "⏸️", "spoken": "Queued", "desc": "Job state badge: the job waits to start.", "words": ["queued", "waiting", "pending"], "alts": ["🕒", "⏳", "💤"] },
     "job.state.running": { "glyph": "▶️", "spoken": "Running", "desc": "Job state badge: the job is running now.", "words": ["running", "active", "busy"], "alts": ["🏃", "⚡", "🔵"] },
