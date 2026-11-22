@@ -9,13 +9,13 @@ const JOB_STATES: JobState[] = ['queued', 'running', 'waiting_input', 'succeeded
 const TONES: Tone[] = ['info', 'success', 'warning', 'danger']
 
 describe('icon registry', () => {
-  it('registers pass 1 first (8 nav, the palette, 28 commands, 6 job states, 4 tones), then the rest of the UI', () => {
+  it('registers pass 1 first (8 nav, the palette, 29 commands, 6 job states, 4 tones), then the rest of the UI', () => {
     const ids = ICONS.map((e) => e.id)
     expect(new Set(ids).size).toBe(ids.length)
     const pass1 = /^(nav|palette|cmd|job\.state|notice)\./
-    expect(ids.slice(0, 8 + 1 + 28 + 6 + 4).every((id) => pass1.test(id))).toBe(true)
-    expect(ids.slice(8 + 1 + 28 + 6 + 4).some((id) => pass1.test(id))).toBe(false)
-    expect(ids.length).toBeGreaterThan(47)
+    expect(ids.slice(0, 8 + 1 + 29 + 6 + 4).every((id) => pass1.test(id))).toBe(true)
+    expect(ids.slice(8 + 1 + 29 + 6 + 4).some((id) => pass1.test(id))).toBe(false)
+    expect(ids.length).toBeGreaterThan(48)
     for (const n of NAV) expect(isIconId(n.icon)).toBe(true)
     expect(isIconId('palette.open')).toBe(true)
     for (const name of Object.keys(COMMAND_HOME) as (keyof typeof COMMAND_HOME)[]) {

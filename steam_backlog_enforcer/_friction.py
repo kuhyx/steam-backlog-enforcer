@@ -54,6 +54,8 @@ FRICTION: Final[dict[str, Friction]] = {
     "restore-backup": Friction("restore backup {backup_id}"),
     # Checked at POST /api/jobs too (_web_jobs._PRECHECKED), then again by the job.
     "repair-ghosts": Friction("delete ghost manifests"),
+    # appid_count, not count: the UI fills ``count`` with the uninstall count.
+    "map-installed": Friction("map {appid_count} games"),
 }
 
 

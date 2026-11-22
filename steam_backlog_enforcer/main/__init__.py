@@ -60,6 +60,7 @@ from steam_backlog_enforcer.main.install import (
     cmd_unhide,
     cmd_uninstall,
 )
+from steam_backlog_enforcer.main.map_installed import cmd_map_installed
 from steam_backlog_enforcer.main.misc import (
     cmd_block_gaming,
     cmd_buy_dlc,
@@ -112,6 +113,7 @@ __all__ = [
     "cmd_install",
     "cmd_installed",
     "cmd_list",
+    "cmd_map_installed",
     "cmd_pick",
     "cmd_pick_manual",
     "cmd_repair_ghosts",
@@ -145,6 +147,7 @@ _HANDLERS: dict[str, Callable[[Config, State], object]] = {
     "gaming-status": cmd_gaming_status,
     "gaming-reset": cmd_gaming_reset,
     "repair-ghosts": cmd_repair_ghosts,
+    "map-installed": cmd_map_installed,
 }
 
 # Descriptions live in _command_help (the web catalog reads them too); the

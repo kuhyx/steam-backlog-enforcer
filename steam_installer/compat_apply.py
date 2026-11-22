@@ -23,12 +23,20 @@ class Context:
     """What every decision in one run shares: fetched once, not per game."""
 
     def __init__(
-        self, steam_root: Path, extra_overrides: dict[str, str] | None = None
+        self,
+        steam_root: Path,
+        extra_overrides: dict[str, str] | None = None,
+        *,
+        anticheat_max_age: float | None = None,
     ) -> None:
-        """Remember what every decision in this run shares."""
+        """Remember what every decision in this run shares.
+
+        *anticheat_max_age* lets a fast reader reuse a recent anti-cheat list
+        instead of downloading it (``anticheat.steam_ids``).
+        """
         self.steam_root = steam_root
         self.config = compat_map.config_path(steam_root)
-        self.anticheat = anticheat.steam_ids()
+        self.anticheat = anticheat.steam_ids(max_age=anticheat_max_age)
         self.overrides = {**compat_decide.load_overrides(), **(extra_overrides or {})}
         self.tool_ready = compat_decide.tool_ready(
             steam_root / TOOL_DIR, proton_pkg.read_lock().version

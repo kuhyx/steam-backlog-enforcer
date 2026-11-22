@@ -12,6 +12,7 @@ import re
 from typing import TYPE_CHECKING, Final
 
 from steam_backlog_enforcer import (
+    _compat_view,
     _web_art,
     _web_daemon,
     _web_icon_words,
@@ -57,6 +58,7 @@ ROUTES: Final[tuple[_Entry, ...]] = (
     _r("GET", "/api/status", _web_views.status_view),
     _r("GET", "/api/stats", _web_views.stats_view),
     _r("GET", "/api/installed", _web_views.installed_view),
+    _r("GET", "/api/compat", _compat_view.compat_view),
     _r("GET", "/api/library", _web_library.library_view),
     _r("GET", "/api/art/{id}", _web_art.art_view),
     _r("GET", "/api/commands", _web_views.commands_view),

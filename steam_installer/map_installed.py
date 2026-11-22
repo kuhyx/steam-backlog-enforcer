@@ -11,25 +11,20 @@ first (it rewrites config.vdf on exit) and restarts it afterwards.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from steam_installer import (
-    appinfo,
     compat_apply,
     compat_map,
+    compat_rows,
     flow,
-    recognize,
     runlog,
     steamctl,
 )
-from steam_installer.library import SteamLibrary, list_libraries
 
 if TYPE_CHECKING:
     import argparse
     from pathlib import Path
-
-# Steam's own compat tools and runtimes are apps too, but not games.
-TOOL_TYPES = {"tool", "config"}
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -60,61 +55,31 @@ def check_arguments(parser: argparse.ArgumentParser, args: argparse.Namespace) -
         parser.error("--valve-proton goes with an install, not --map-installed")
 
 
-def _installed(libraries: list[SteamLibrary]) -> dict[int, dict[str, Any]]:
-    """Appid -> AppState for every manifest in every library."""
-    found: dict[int, dict[str, Any]] = {}
-    for library in libraries:
-        for manifest in sorted(library.steamapps.glob("appmanifest_*.acf")):
-            appid = manifest.stem.removeprefix("appmanifest_")
-            if appid.isdigit():
-                found[int(appid)] = recognize.read_app_state(manifest)
-    return found
-
-
-def _owned_dlc(app_state: dict[str, Any]) -> bool:
-    depots = app_state.get("InstalledDepots")
-    entries = depots.values() if isinstance(depots, dict) else []
-    return any(isinstance(entry, dict) and "dlcappid" in entry for entry in entries)
-
-
-def _is_tool(block: dict[str, Any]) -> bool:
-    common = block.get("common")
-    kind = common.get("type", "") if isinstance(common, dict) else ""
-    return isinstance(kind, str) and kind.lower() in TOOL_TYPES
+def _line(row: compat_rows.Row) -> str:
+    """The log line for one decided row (the dry run's report)."""
+    verdict = "map" if row.map else f"Valve default: {', '.join(row.reasons)}"
+    line = f"{row.appid} {row.name}: {verdict}"
+    already = row.map and row.current == compat_map.TOOL
+    return line + " -- already mapped" if already else line
 
 
 def run(args: argparse.Namespace, log: runlog.RunLog, steam_root: Path) -> int:
     """Decide, and with ``--apply`` write, mappings for installed games."""
     logger = log.logger
-    installed = _installed(list_libraries(steam_root))
+    appids = None
     if args.appids:
         appids = [int(x) for x in args.appids.split(",") if x.strip().isdigit()]
-    else:
-        appids = sorted(installed)
     context = compat_apply.Context(steam_root)
-    blocks = appinfo.cached_blocks(appids)
-    to_map: list[int] = []
-    for appid in appids:
-        block = blocks.get(appid)
-        if block is None:
-            logger.info("%s: not in Steam's app cache -- skipped", appid)
-            continue
-        if _is_tool(block) and not args.appids:
-            continue
-        name = block.get("common", {}).get("name", "?")
-        decision = context.decide(
-            appid, block, owned_dlc=_owned_dlc(installed.get(appid, {}))
-        )
-        line = f"{appid} {name}: {decision.describe()}"
-        if decision.map:
-            to_map.append(appid)
-            current = compat_map.current(context.config, appid)
-            if current and current[0] == compat_map.TOOL:
-                line += " -- already mapped"
-        logger.info("%s", line)
+    decided = compat_rows.rows(steam_root, appids, context)
+    for row in decided:
+        if row.cached:
+            logger.info("%s", _line(row))
+        else:
+            logger.info("%s: not in Steam's app cache -- skipped", row.appid)
     if not args.apply:
         logger.info("Dry run: nothing written. Rerun with --apply to write.")
         return 0
+    to_map = [row.appid for row in decided if row.map]
     return _apply(args, logger, context.config, to_map)
 
 

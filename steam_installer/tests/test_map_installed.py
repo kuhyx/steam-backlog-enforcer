@@ -7,26 +7,21 @@ from typing import TYPE_CHECKING, Never
 import pytest
 
 from steam_installer import (
-    anticheat,
     cli,
-    compat_apply,
     compat_map,
     recognize,
     steamctl,
     vdf,
 )
-from steam_installer.tests._acf_helpers import stamp_native_tool
-from steam_installer.tests._appinfo_blob import encode
 from steam_installer.tests._map_data import (
-    CONFIG,
     CS,
-    LOCKED,
     NATIVE,
     PLAIN,
     SHARED,
     TOOL,
     _mapped,
 )
+from steam_installer.tests._steam_root import build_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,26 +33,13 @@ pytestmark = pytest.mark.usefixtures("cli_logs")
 @pytest.fixture(name="home")
 def _home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A Steam root: config.vdf, the stamped tool, an app cache, anti-cheat list."""
-    root = tmp_path / "Steam"
-    (root / "config").mkdir(parents=True)
-    (root / "config" / "config.vdf").write_text(CONFIG)
-    stamp_native_tool(root, LOCKED)
-    cache = tmp_path / "appinfo.vdf"
-    cache.write_bytes(
-        encode({10: PLAIN, 20: NATIVE, 30: SHARED, 730: CS, 1493710: TOOL})
+    root = build_root(
+        tmp_path,
+        monkeypatch,
+        cached={10: PLAIN, 20: NATIVE, 30: SHARED, 730: CS, 1493710: TOOL},
+        installed=(10, 20, 1493710),
+        anticheat_json=b'[{"storeIds": {"steam": "730"}}]',
     )
-    monkeypatch.setattr(
-        compat_apply.appinfo.appinfo_cache, "default_path", lambda: cache
-    )
-    monkeypatch.setattr(
-        anticheat, "_download", lambda: b'[{"storeIds": {"steam": "730"}}]'
-    )
-    steamapps = root / "steamapps"
-    steamapps.mkdir()
-    for appid in (10, 20, 1493710):
-        (steamapps / f"appmanifest_{appid}.acf").write_text(
-            vdf.dumps("AppState", {"appid": str(appid), "InstalledDepots": {}})
-        )
     monkeypatch.setattr(cli, "find_steam_root", lambda: root)
     return root
 

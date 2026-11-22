@@ -24,6 +24,8 @@ from steam_backlog_enforcer.jobs._errors import JobError
 from steam_installer.target import parse_literal
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from steam_backlog_enforcer.config import Config, State
 
 # The dry run only reads Steam's app cache and library folders; repair-ghosts
@@ -85,10 +87,7 @@ def dry_run_install(app_id: int, name: str, *, valve_proton: bool) -> None:
     Raises:
         JobError: ``op_failed`` when the installer is missing or fails.
     """
-    installer = installer_path()
-    if installer is None:
-        msg = "steam-game-installer is missing from this checkout."
-        raise JobError(msg, code="op_failed")
+    installer = require_installer(installer_path())
     cmd = build_cmd(
         installer,
         app_id,
@@ -101,6 +100,18 @@ def dry_run_install(app_id: int, name: str, *, valve_proton: bool) -> None:
     if code:
         msg = f"Dry run failed (installer exit {code})."
         raise JobError(msg, code="op_failed")
+
+
+def require_installer(installer: Path | None) -> Path:
+    """*installer* itself, or the ``op_failed`` refusal when it is missing.
+
+    Raises:
+        JobError: ``op_failed`` when the checkout has no installer.
+    """
+    if installer is None:
+        msg = "steam-game-installer is missing from this checkout."
+        raise JobError(msg, code="op_failed")
+    return installer
 
 
 def relay_installer(cmd: list[str]) -> int:

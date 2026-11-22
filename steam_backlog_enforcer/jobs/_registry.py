@@ -39,6 +39,7 @@ from steam_backlog_enforcer.main import (
     cmd_unhide,
     cmd_uninstall,
 )
+from steam_backlog_enforcer.main.map_installed import run_map_installed
 from steam_backlog_enforcer.scanning import do_check, do_scan
 
 if TYPE_CHECKING:
@@ -154,6 +155,14 @@ def _restore_backup(
     return {"restored": backup_id, "previous_backup": previous and previous.id}
 
 
+def _map_installed(
+    params: Mapping[str, ParamValue], _progress: Progress, _prompter: Prompter
+) -> JobResult:
+    """``map-installed``: the selected ids, or every game that would change."""
+    raw = params.get("appids")
+    return {"app_ids": run_map_installed(None if raw is None else str(raw))}
+
+
 def _via_daemon(command: str) -> JobHandler:
     """A placeholder for a privileged command: it always refuses."""
 
@@ -182,6 +191,7 @@ HANDLERS: dict[str, JobHandler] = {
     "reset": _cli(cmd_reset),
     "restore-backup": _restore_backup,
     "repair-ghosts": _cli(cmd_repair_ghosts),
+    "map-installed": _map_installed,
     "stats": _cli(cmd_stats),
     "list": _cli(cmd_list),
     "enforce": _enforce_demo,

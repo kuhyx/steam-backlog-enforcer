@@ -155,15 +155,20 @@ class TestPhrasesAreFillable:
     def test_every_template_field_has_a_source(self) -> None:
         """Every phrase field can be filled from a param or derived value."""
         # Mirrors fillPhrase in web/src/commands/catalog.ts: a field is a
-        # param, ``game_name`` from an ``app_id`` param, or ``count`` from
-        # the installed list. Anything else leaves Run disabled forever.
+        # param, ``game_name`` from an ``app_id`` param, ``appid_count`` from
+        # an ``appids`` param, or ``count`` from the installed list. Anything
+        # else leaves Run disabled forever.
         # The same two tables ``_spec`` builds each CommandSpec from.
         for name in _command_catalog.CATALOG:
             friction = FRICTION.get(name)
             if friction is None:
                 continue
             params = {p.name for p in PARAMS.get(name, ())}
-            derived = {"count"} | ({"game_name"} if "app_id" in params else set())
+            derived = {"count"}
+            if "app_id" in params:
+                derived.add("game_name")
+            if "appids" in params:
+                derived.add("appid_count")
             template = friction.phrase_template
             fields = {f for _, f, _, _ in Formatter().parse(template) if f}
             assert fields <= params | derived, name

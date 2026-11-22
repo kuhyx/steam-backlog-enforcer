@@ -45,6 +45,7 @@ export const COMMAND_HOME = {
   'restore-backup': '/system',
   're-block': '/store',
   'repair-ghosts': '/library',
+  'map-installed': '/library',
 } as const satisfies Record<CommandName, SectionPath>
 
 /** A command's registered icon id (`cmd.<name>`); the compiler proves every command has one. */
@@ -88,6 +89,8 @@ export function fillPhrase(
   const text = template.replace(/\{(\w+)\}/g, (whole, key: string) => {
     let value: string | null = null
     if (key in params && params[key] !== '') value = String(params[key])
+    // map-installed: the server counts the same comma-separated ids.
+    else if (key === 'appid_count' && typeof params.appids === 'string') value = String(params.appids.split(',').length)
     else if (key === 'game_name' && 'app_id' in params) value = ctx.gameName(Number(params.app_id))
     else if (key === 'count' && ctx.installed) {
       value = String(ctx.installed.filter((g) => !g.assigned && !g.protected).length)

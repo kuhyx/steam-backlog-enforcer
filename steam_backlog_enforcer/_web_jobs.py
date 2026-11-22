@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 from steam_backlog_enforcer._backups import list_backups
 from steam_backlog_enforcer._command_params import InvalidParamsError, validate_params
+from steam_backlog_enforcer._compat_view import phrase_fields
 from steam_backlog_enforcer._friction import expected_phrase, phrase_matches
 from steam_backlog_enforcer._steam_restart_guard import (
     GAME_RUNNING_JOB_MSG,
@@ -29,8 +30,11 @@ from steam_backlog_enforcer.jobs._errors import JobError
 from steam_backlog_enforcer.jobs._specs import JOB_FLAGS, is_privileged
 from steam_backlog_enforcer.jobs._store import create_job
 from steam_backlog_enforcer.jobs._view import list_jobs, read_job
+from steam_installer.errors import InstallerError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
     from steam_backlog_enforcer._web_io import Request
 
 # The UI's enforce modes onto the job registry's ``demo`` flag; ``restart``
@@ -39,7 +43,12 @@ _ENFORCE_MODES = {"demo": 1, "restart": 0}
 
 # Jobs whose phrase and game-running guard are checked here, before a job
 # exists, so a refusal never leaves a job behind; the job re-checks both.
-_PRECHECKED: Final = frozenset({"repair-ghosts"})
+_PRECHECKED: Final = frozenset({"repair-ghosts", "map-installed"})
+
+# The phrase slots a prechecked job's template names, from its clean params.
+_PHRASE_FIELDS: Final[
+    dict[str, Callable[[Mapping[str, object]], dict[str, object]]]
+] = {"map-installed": phrase_fields}
 
 
 def _invalid(message: str) -> ApiError:
@@ -81,18 +90,37 @@ def _job_request(request: Request) -> tuple[str, dict[str, Any], str | None]:
     return command, params, phrase
 
 
-def _precheck(command: str, phrase: str | None) -> None:
+def _phrase_fields(command: str, params: Mapping[str, object]) -> dict[str, object]:
+    """The phrase slots for *command*; bad params are a 400, unreadable Steam a 502.
+
+    Raises:
+        ApiError: ``invalid_params`` or ``op_failed``.
+    """
+    fields = _PHRASE_FIELDS.get(command)
+    if fields is None:
+        return {}
+    try:
+        return fields(params)
+    except InvalidParamsError as exc:
+        raise _invalid(str(exc)) from None
+    except (InstallerError, OSError, ValueError) as exc:
+        raise ApiError(str(exc), code="op_failed") from None
+
+
+def _precheck(command: str, params: Mapping[str, object], phrase: str | None) -> None:
     """Refuse a :data:`_PRECHECKED` job before it is created.
 
     The phrase goes first: it is what the user can fix, and it stays
-    provable while a game runs.
+    provable while a game runs. Its slots (``map-installed``'s count) come
+    from the params, so a bad id list is refused before either.
 
     Raises:
-        ApiError: ``wrong_phrase``, or ``game_running`` while a game runs.
+        ApiError: ``invalid_params``, ``wrong_phrase``, or ``game_running``
+            while a game runs.
     """
     if command not in _PRECHECKED:
         return
-    expected = expected_phrase(command) or ""
+    expected = expected_phrase(command, **_phrase_fields(command, params)) or ""
     if not phrase_matches(expected, phrase or ""):
         msg = f'Type "{expected}" to run {command}.'
         raise ApiError(msg, code="wrong_phrase")
@@ -125,7 +153,7 @@ def create_job_view(request: Request) -> Reply:
         raise _invalid(str(exc)) from None
     if is_privileged(command, clean):
         return run_privileged(command, clean, phrase)
-    _precheck(command, phrase)
+    _precheck(command, clean, phrase)
     try:
         job_id = create_job(command, clean, confirm_phrase=phrase)
     except JobError as exc:

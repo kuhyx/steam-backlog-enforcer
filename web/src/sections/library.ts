@@ -1,6 +1,6 @@
 // Library page sections (was screens/Library.tsx): the uninstall card's live
 // count, and the All games / Installed switch over the cover grid and the
-// installed table. The chosen view lives in the URL hash next to the
+// installed table, plus the Proton map (library/compatTable). The chosen view lives in the URL hash next to the
 // browser's search state, so a reload comes back to it.
 
 import { q } from '../api/queries'
@@ -8,20 +8,25 @@ import type { IconId } from '../icons/registry'
 import { iconInline } from '../icons/render'
 import { define, h, hx } from '../lib/dom'
 import { LiveElement } from '../lib/element'
+import '../library/compatTable'
 import '../library/gameBrowser'
 import { readHash, writeHash } from '../library/hashState'
 import { card, empty, errorNotice, glyph, loading, pill } from '../ui/build'
 import { bytes } from '../ui/format'
 
-type View = 'all' | 'installed'
+type View = 'all' | 'installed' | 'compat'
 
 /** View key, spoken label, painted icon. */
 const VIEWS: [View, string, IconId][] = [
   ['all', 'All games', 'libpage.all'],
   ['installed', 'Installed', 'dash.installed'],
+  ['compat', 'Proton map', 'libpage.compat'],
 ]
 
-const viewFromHash = (): View => (readHash().get('view') === 'installed' ? 'installed' : 'all')
+const viewFromHash = (): View => {
+  const view = readHash().get('view')
+  return view === 'installed' || view === 'compat' ? view : 'all'
+}
 
 /** "Uninstall N…": how many installed games an uninstall would remove. */
 export class UninstallCardElement extends LiveElement {
@@ -123,6 +128,8 @@ export class LibraryViewElement extends HTMLElement {
   private readonly panes = new Map<View, HTMLDivElement>([
     ['all', h('div', {}, hx('game-browser', { 'hash-state': true }))],
     ['installed', h('div', {}, hx('installed-table'))],
+    // Mounted on first show only: it polls /api/compat while connected.
+    ['compat', h('div', {})],
   ])
   private readonly onHash = () => {
     this.show(viewFromHash())
@@ -162,6 +169,8 @@ export class LibraryViewElement extends HTMLElement {
   }
 
   private show(view: View): void {
+    const compat = this.panes.get('compat')
+    if (view === 'compat' && compat && !compat.firstChild) compat.append(hx('compat-table'))
     for (const [key, btn] of this.buttons) btn.setAttribute('aria-pressed', String(key === view))
     for (const [key, pane] of this.panes) pane.hidden = key !== view
   }

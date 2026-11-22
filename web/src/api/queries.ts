@@ -12,6 +12,8 @@ export const q = {
   status: new Query(api.status, { intervalMs: 15_000 }),
   stats: new Query(api.stats),
   installed: new Query(api.installed),
+  // Polled while the Proton map is mounted: Steam rewrites config.vdf on exit.
+  compat: new Query(api.compat, { intervalMs: 30_000 }),
   library: new Query(api.library, { staleMs: 60_000 }),
   commands: new Query(api.commands, { intervalMs: 30_000 }),
   setup: new Query(api.setup),

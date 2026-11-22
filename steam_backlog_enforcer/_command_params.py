@@ -127,6 +127,16 @@ PARAMS: Final[dict[str, tuple[ParamSpec, ...]]] = {
             default=0,
         ),
     ),
+    # The rows the UI selected; absent = every installed game that would change.
+    "map-installed": (
+        ParamSpec(
+            "appids",
+            "App ids",
+            "string",
+            required=False,
+            help="Comma-separated installed app ids.",
+        ),
+    ),
     # Not a CLI command: POST /api/backups/{id}/restore runs it as a job.
     "restore-backup": (ParamSpec("backup_id", "Backup id", "string"),),
 }

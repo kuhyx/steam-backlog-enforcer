@@ -15,6 +15,11 @@ export function writeHash(values: Record<string, string | null>): void {
     if (value === null || value === '') params.delete(key)
     else params.set(key, value)
   }
+  replaceHash(params)
+}
+
+/** Replace the whole hash with `params` (an empty one drops the `#`). */
+export function replaceHash(params: URLSearchParams): void {
   const hash = params.toString()
   history.replaceState(history.state, '', hash ? `#${hash}` : `${location.pathname}${location.search}`)
 }

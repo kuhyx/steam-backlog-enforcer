@@ -41,6 +41,11 @@ describe('fillPhrase', () => {
     expect(fillPhrase('drop {game_name}', {}, ctx()).missing).toEqual(['game_name'])
   })
 
+  it('counts the ids in appids for {appid_count} (map-installed)', () => {
+    expect(fillPhrase('map {appid_count} games', { appids: '10,30,40' }, ctx())).toEqual({ text: 'map 3 games', missing: [] })
+    expect(fillPhrase('map {appid_count} games', {}, ctx()).missing).toEqual(['appid_count'])
+  })
+
   it('counts removable installed games for {count}', () => {
     const installed = [
       makeInstalled({ app_id: 1 }),

@@ -4,6 +4,7 @@
 import type {
   CommandName,
   CommandSpec,
+  CompatRow,
   InstalledGame,
   LibraryGame,
   StatusPayload,
@@ -22,6 +23,23 @@ export function makeSpec(name: CommandName, over: Partial<CommandSpec> = {}): Co
     mutating: true,
     cancellable: false,
     locked_reason: null,
+    ...over,
+  }
+}
+
+/** One map-installed row: by default a safe, unmapped game that apply maps. */
+export function makeCompatRow(over: Partial<CompatRow> = {}): CompatRow {
+  return {
+    app_id: 10,
+    name: 'Plain',
+    current: null,
+    priority: null,
+    decided: 'proton-cachyos-native',
+    reasons: [],
+    note: null,
+    map: true,
+    changes: true,
+    cached: true,
     ...over,
   }
 }

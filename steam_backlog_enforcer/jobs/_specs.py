@@ -57,6 +57,7 @@ JOB_FLAGS: Final[dict[str, JobFlags]] = {
     "reset": JobFlags(),
     "restore-backup": JobFlags(),
     "repair-ghosts": JobFlags(),
+    "map-installed": JobFlags(),
     "stats": JobFlags(mutating=False, cancellable=True),
     "list": JobFlags(mutating=False, cancellable=True),
     # Only the demo runs as a job (see is_privileged).

@@ -22,6 +22,7 @@ const PARAM_ICON: Record<string, IconId> = {
   target: 'params.target',
   dry_run: 'params.dry_run',
   valve_proton: 'params.valve_proton',
+  appids: 'params.appids',
 }
 
 function paramGlyph(spec: ParamSpec): HTMLSpanElement {

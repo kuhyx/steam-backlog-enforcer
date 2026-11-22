@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer import _command_catalog, _web_jobs
+from steam_backlog_enforcer import _command_catalog
 from steam_backlog_enforcer._fast_install_cmd import build_repair_ghosts_cmd
 from steam_backlog_enforcer._friction import expected_phrase
 from steam_backlog_enforcer._prompter import PromptAbortedError, use_prompter
@@ -20,7 +20,7 @@ from steam_backlog_enforcer.jobs._specs import JOB_FLAGS
 from steam_backlog_enforcer.main import COMMANDS
 from steam_backlog_enforcer.main.repair_ghosts import cmd_repair_ghosts
 from steam_backlog_enforcer.tests._fake_prompter import FakePrompter
-from steam_backlog_enforcer.tests._web_request import make_request
+from steam_backlog_enforcer.tests._post_job import assert_refused, post_job
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -136,23 +136,8 @@ class TestWiring:
         assert data == {"current_app_id": None, "current_game_name": None}
 
 
-_WEB = "steam_backlog_enforcer._web_jobs"
-
-
 def _post(phrase: str | None, *, running: bool = False) -> tuple[object, MagicMock]:
-    body: dict[str, object] = {"command": "repair-ghosts", "params": {}}
-    if phrase is not None:
-        body["confirm_phrase"] = phrase
-    with (
-        patch(f"{_WEB}.create_job", return_value="j1") as create,
-        patch(f"{_WEB}.read_job", return_value={"id": "j1"}),
-        patch(f"{_WEB}.game_is_running", return_value=running),
-    ):
-        try:
-            reply: object = _web_jobs.create_job_view(make_request(body=body))
-        except ApiError as exc:
-            reply = exc
-    return reply, create
+    return post_job("repair-ghosts", {}, phrase, running=running)
 
 
 class TestPostTimeFriction:
@@ -161,23 +146,17 @@ class TestPostTimeFriction:
     @pytest.mark.parametrize("phrase", [None, "", "Delete ghost manifests"])
     def test_wrong_phrase_creates_no_job(self, phrase: str | None) -> None:
         """A missing or wrong phrase is ``wrong_phrase`` and no job."""
-        reply, create = _post(phrase)
-        assert isinstance(reply, ApiError)
-        assert reply.code == "wrong_phrase"
-        create.assert_not_called()
+        assert_refused(*_post(phrase), "wrong_phrase")
 
     def test_wrong_phrase_wins_over_a_running_game(self) -> None:
         """The phrase is checked first, so friction is provable mid-game."""
-        reply, _ = _post("nope", running=True)
-        assert isinstance(reply, ApiError)
-        assert reply.code == "wrong_phrase"
+        assert_refused(*_post("nope", running=True), "wrong_phrase")
 
     def test_game_running_creates_no_job(self) -> None:
         """The right phrase while a game runs is ``game_running`` (409)."""
-        reply, create = _post(PHRASE, running=True)
-        assert isinstance(reply, ApiError)
-        assert (reply.code, reply.status) == ("game_running", HTTPStatus.CONFLICT)
-        create.assert_not_called()
+        assert_refused(
+            *_post(PHRASE, running=True), "game_running", HTTPStatus.CONFLICT
+        )
 
     def test_right_phrase_creates_the_job(self) -> None:
         """The right phrase with no game creates the job, phrase passed on."""
@@ -189,12 +168,5 @@ class TestPostTimeFriction:
 
     def test_other_commands_are_not_prechecked(self) -> None:
         """Commands outside the set keep their job-side check only."""
-        with (
-            patch(f"{_WEB}.create_job", return_value="j1") as create,
-            patch(f"{_WEB}.read_job", return_value={"id": "j1"}),
-            patch(f"{_WEB}.game_is_running", return_value=True),
-        ):
-            _web_jobs.create_job_view(
-                make_request(body={"command": "uninstall", "params": {}})
-            )
+        _, create = post_job("uninstall", {}, None, running=True)
         create.assert_called_once()

@@ -31,6 +31,7 @@ export type CommandName =
   | 'gaming-unblock'
   | 'serve'
   | 'repair-ghosts'
+  | 'map-installed'
   /** Job spawned by `POST /api/backups/{id}/restore`, not a CLI command. */
   | 'restore-backup'
   /** Failed end-of-window store re-block the web server records; never started by hand. */
@@ -202,25 +203,13 @@ export interface DaemonStatus {
   fast_installs?: FastInstallRun[]
 }
 
-export interface ServerHealth {
-  stale: boolean
-  started_at: string
-  version: string
-}
-
-export interface StateBackup {
-  id: string
-  created_at: string
-  reason: string
-  size_bytes: number
-}
-
 export const ENDPOINTS = {
   dataset: '/api/dataset',
   budget: '/api/budget',
   status: '/api/status',
   stats: '/api/stats',
   installed: '/api/installed',
+  compat: '/api/compat',
   library: '/api/library',
   /** Portrait cover JPEG; 404 when there is none (draw a title tile). */
   art: (appId: number) => `/api/art/${appId}`,
@@ -248,3 +237,7 @@ export type { BudgetSnapshot, WebDataset }
 
 // Icon words (DOCS-icon-words.md): types in iconWordsContract.ts.
 export * from './iconWordsContract'
+
+// Compat rows (compatContract.ts) and server health/backups (serverContract.ts).
+export * from './compatContract'
+export * from './serverContract'

@@ -48,9 +48,9 @@ describe('icon words cover the whole UI', () => {
     expect(hits, `${hits.length} unregistered icon sites`).toEqual([])
   })
 
-  it('the first 47 registry entries are the pass-1 icons (all answered but cmd.re-block and cmd.repair-ghosts), then the rest', () => {
+  it('the first 48 registry entries are the pass-1 icons (all answered but cmd.re-block, cmd.repair-ghosts and cmd.map-installed), then the rest', () => {
     const ids = ICONS.map((e) => e.id)
-    expect(ids.slice(0, 47).filter((id) => /^(nav|palette|cmd|job\.state|notice)\./.test(id))).toHaveLength(47)
-    expect(ids[46]).toBe('notice.danger')
+    expect(ids.slice(0, 48).filter((id) => /^(nav|palette|cmd|job\.state|notice)\./.test(id))).toHaveLength(48)
+    expect(ids[47]).toBe('notice.danger')
   })
 })

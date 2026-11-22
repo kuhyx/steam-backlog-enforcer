@@ -75,6 +75,20 @@ def current(config: Path, appid: int) -> tuple[str, str] | None:
     return entry.values.get("name", ""), entry.values.get("priority", "")
 
 
+def keep_reason(entry: tuple[str, str] | None) -> Outcome | None:
+    """Why :func:`map_app` would leave *entry* alone, or None when it would map.
+
+    *entry* is :func:`current`'s ``(name, priority)``. The native tool is
+    "already"; any other tool off Valve's priority is kuhy's own choice, "kept".
+    """
+    name, priority = entry or ("", "")
+    if name == TOOL:
+        return Outcome("already")
+    if name and priority != VALVE_PRIORITY:
+        return Outcome("kept", f"already mapped to {name} (priority {priority})")
+    return None
+
+
 def map_app(config: Path, appid: int) -> Outcome:
     """Point `appid` at the native Proton unless kuhy chose another tool."""
     pids = recognize.steam_client_pids()
@@ -88,11 +102,9 @@ def map_app(config: Path, appid: int) -> Outcome:
     entry = layout.entry
     if entry is not None:
         name = entry.values.get("name", "")
-        priority = entry.values.get("priority", "")
-        if name == TOOL:
-            return Outcome("already")
-        if name and priority != VALVE_PRIORITY:
-            return Outcome("kept", f"already mapped to {name} (priority {priority})")
+        held = keep_reason((name, entry.values.get("priority", "")))
+        if held is not None:
+            return held
         key_line = entry.open_line - 1
         if (
             lines[key_line].strip() != f'"{appid}"'

@@ -73,6 +73,7 @@ CATALOG: Final[dict[str, _Entry]] = {
     "unhide": _job("library"),
     "add-exception": _job("library"),
     "repair-ghosts": _job("library"),
+    "map-installed": _job("library"),
     "gaming-status": _view("gaming", "/api/budget"),
     "gaming-reset": _job("gaming"),
     "gaming-unblock": _job("gaming"),

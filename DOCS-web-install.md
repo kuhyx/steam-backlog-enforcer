@@ -1,4 +1,4 @@
-# `install` and `repair-ghosts` jobs
+# `install`, `repair-ghosts` and `map-installed` jobs
 
 Part of the web control API ([DOCS-web-control-api.md](DOCS-web-control-api.md));
 the TS mirror of the result is `InstallResultData` in `web/src/api/contract.ts`.
@@ -49,3 +49,58 @@ At `POST /api/jobs` the phrase is checked first (`400 wrong_phrase`), then the
 guard (`409 game_running`). Either refusal creates no job. The job re-checks
 both, because a game can start in between. The UI paints the
 `result.game-running` mark on a `game_running` refusal.
+
+## Proton map: `GET /api/compat` and `map-installed`
+
+`GET /api/compat` (`_compat_view.compat_view`) returns
+`{tool, tool_ready, rows}`: one row per installed game, built by
+`steam_installer.compat_rows.rows` (the same rows `--map-installed` logs, so
+the view cannot disagree with the apply). A row is
+`{app_id, name, current, priority, decided, reasons, note, map, changes,
+cached}` (`CompatRow` in `web/src/api/contract.ts`); `null` in `current` or
+`decided` means Valve's default. Steam's own tools are not rows. An unreadable
+Steam, app cache or overrides file is `502 op_failed`.
+
+Deciding parses the ~10 MB app cache, so the payload is kept in memory and
+rebuilt only when a file it was decided from changes (`cache_key`: app cache,
+`config.vdf`, `libraryfolders.vdf`, every `appmanifest_*.acf`, the overrides,
+the tool's `VERSION`, the anti-cheat cache and its 6 h age window). A GET
+never waits on the network unless that anti-cheat cache is older.
+
+`./run.sh map-installed` and the `map-installed` job (Library page, view
+`#view=compat`, icon `cmd.map-installed`) run the installer's
+`--map-installed --apply --yes --appids <ids>` (`main/map_installed.py`). The
+apply closes Steam (Steam rewrites `config.vdf` on exit), maps each game the
+decision proves safe to the native Proton and starts Steam again, so it refuses
+while a game runs (`409 game_running`). The job streams the installer's
+output as `log` lines and has a 180 s timer.
+
+Param `appids` (string, optional): comma-separated installed app ids. Absent,
+the job maps every game whose row has `changes: true`. Ids that are not
+installed, not digits, or an empty list are `400 invalid_params`
+(`_compat_view.checked_appids`). The installer gets exactly the ids the phrase
+counted, never "everything". The result `data` is `{app_ids: [...]}`.
+
+| Command | Phrase (exact) | Checked |
+|---|---|---|
+| `map-installed` | `map {appid_count} games`, e.g. `map 3 games` | at `POST /api/jobs` (`_web_jobs._PRECHECKED`), then again in the job |
+
+The count is part of the phrase, so a stale count is a wrong phrase. At
+`POST /api/jobs` the ids are checked first (`400 invalid_params`, `502
+op_failed` when Steam is unreadable), then the phrase (`400 wrong_phrase`),
+then the guard (`409 game_running`). Each refusal creates no job. The UI fills
+`{appid_count}` from the same ids (`fillPhrase` in `web/src/commands/catalog.ts`).
+
+The view (`web/src/library/compatTable.ts`, state in `compatState.ts`) has
+sortable columns, per-column filters, fuzzy search, a 30 s poll and row
+checkboxes for games that change; with none ticked, Map applies to every
+visible changing game. Its state lives in the URL hash, keys prefixed `c.`
+because the cover grid owns `q` and `sort` in the same hash:
+
+| Key | Meaning |
+|---|---|
+| `view=compat` | show the Proton map |
+| `c.sort=<col>`, `c.dir=asc\|desc` | sort column (`name`, `app_id`, `current`, `decided`, `why`, `changes`) and direction; default `changes` ascending |
+| `c.q=<text>` | fuzzy search |
+| `c.f.<col>=<text>` | filter: substring for `name` and `why`, exact option for `current`, `decided`, `changes` (`changes` or `same`) |
+| `c.f.app_id=<min>..<max>` | app id range, either side optional |

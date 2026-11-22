@@ -88,18 +88,37 @@ def build_cmd(
     return desktop_user_cmd(cmd, user)
 
 
-def build_repair_ghosts_cmd(installer: Path, user: str | None) -> list[str]:
-    """The installer's ``--repair-ghosts`` run, dropped to the desktop user.
-
-    No AppID: it scans every library for the fake manifests anonymous
-    steamcmd left and clears only the cold ones (``DOCS-steam-installer.md``).
-    """
+def _installer_cmd(installer: Path, user: str | None, *flags: str) -> list[str]:
+    """``python3 -m steam_installer.cli <flags>``, dropped to the desktop user."""
     cmd = [
         "env",
         f"PYTHONPATH={installer.parents[1]}",
         _PYTHON,
         "-m",
         "steam_installer.cli",
-        "--repair-ghosts",
+        *flags,
     ]
     return desktop_user_cmd(cmd, user)
+
+
+def build_repair_ghosts_cmd(installer: Path, user: str | None) -> list[str]:
+    """The installer's ``--repair-ghosts`` run, dropped to the desktop user.
+
+    No AppID: it scans every library for the fake manifests anonymous
+    steamcmd left and clears only the cold ones (``DOCS-steam-installer.md``).
+    """
+    return _installer_cmd(installer, user, "--repair-ghosts")
+
+
+def build_map_installed_cmd(
+    installer: Path, user: str | None, appids: list[int]
+) -> list[str]:
+    """``--map-installed --apply`` for exactly *appids* (the phrase counted them).
+
+    ``--yes`` because a job has no tty: the typed phrase was the confirmation,
+    and the installer would otherwise cancel at its "close Steam?" prompt.
+    """
+    ids = ",".join(str(appid) for appid in appids)
+    return _installer_cmd(
+        installer, user, "--map-installed", "--apply", "--yes", "--appids", ids
+    )

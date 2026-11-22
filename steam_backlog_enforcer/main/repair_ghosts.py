@@ -23,7 +23,10 @@ from steam_backlog_enforcer._steam_restart_guard import (
     game_is_running,
 )
 from steam_backlog_enforcer.jobs._errors import JobError
-from steam_backlog_enforcer.main._install_target import relay_installer
+from steam_backlog_enforcer.main._install_target import (
+    relay_installer,
+    require_installer,
+)
 
 if TYPE_CHECKING:
     from steam_backlog_enforcer.config import Config, State
@@ -42,10 +45,7 @@ def cmd_repair_ghosts(_config: Config, _state: State) -> None:
     if not confirm_phrase("repair-ghosts", "Delete the ghost install manifests?"):
         msg = "Aborted."
         raise PromptAbortedError(msg)
-    installer = installer_path()
-    if installer is None:
-        msg = "steam-game-installer is missing from this checkout."
-        raise JobError(msg, code="op_failed")
+    installer = require_installer(installer_path())
     code = relay_installer(build_repair_ghosts_cmd(installer, resolve_desktop_user()))
     if code:
         msg = f"repair-ghosts failed (installer exit {code})."

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import time
 import urllib.error
 
 from steam_installer import _http
@@ -43,8 +44,18 @@ def _ids(raw: bytes | str) -> set[int]:
     return ids
 
 
-def steam_ids(cache: Path = CACHE) -> set[int] | None:
-    """Anti-cheat Steam app ids, or None when no list can be had."""
+def steam_ids(cache: Path = CACHE, max_age: float | None = None) -> set[int] | None:
+    """Anti-cheat Steam app ids, or None when no list can be had.
+
+    With *max_age* (seconds), a cache younger than that is used as it is, so a
+    caller that must answer fast (the web view) never waits on the network.
+    """
+    if max_age is not None:
+        try:
+            if time.time() - cache.stat().st_mtime < max_age:
+                return _ids(cache.read_bytes())
+        except OSError, ValueError, TypeError:
+            pass
     try:
         raw = _download()
         ids = _ids(raw)
