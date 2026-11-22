@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from steam_backlog_enforcer import _ctl_ops
+from steam_backlog_enforcer import _ctl_client, _ctl_ops
 from steam_backlog_enforcer._ctl_protocol import CtlError
 from steam_backlog_enforcer._store_check_report import (
     Check,
@@ -50,3 +50,11 @@ def test_store_reports_hands_back_queued_reports() -> None:
     queued = [{"title": "Store re-block verification failed: dns"}]
     with patch.object(_ctl_ops, "take_store_reports", return_value=queued):
         assert _ctl_ops.op_store_reports(make_ctx(), {}) == {"reports": queued}
+
+
+def test_client_store_reports_keeps_only_objects() -> None:
+    """The client returns the report objects and drops anything malformed."""
+    reply = {"reports": [{"title": "t"}, "junk"]}
+    with patch.object(_ctl_client, "call", return_value=reply) as call:
+        assert _ctl_client.store_reports() == [{"title": "t"}]
+    call.assert_called_once_with("store_reports")

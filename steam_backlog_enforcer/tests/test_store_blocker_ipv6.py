@@ -95,3 +95,9 @@ def test_failed_write_reports_failure_and_relocks(tmp_path: Path) -> None:
         ok = rewrite_hosts_lines(lambda line: f"# {line}", "done")
     assert ok is False
     relock.assert_called_once()
+
+
+def test_fully_blocked_is_false_without_hosts_file(tmp_path: Path) -> None:
+    """An unreadable /etc/hosts never counts as fully blocked."""
+    with patch(f"{PKG}.HOSTS_FILE", tmp_path / "missing"):
+        assert store_blocker.hosts_fully_block_store() is False

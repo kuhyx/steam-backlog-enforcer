@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 
@@ -122,3 +124,34 @@ def test_unparsable_reply_raises(ctype: str, body: str) -> None:
     """A reply with no JSON-RPC object in it is a FilingError."""
     with pytest.raises(FilingError, match="unparsable"):
         _parse(ctype, body)
+
+
+def _reply(message: dict[str, object]) -> tuple[str, str, None]:
+    return "application/json", json.dumps(message), None
+
+
+def test_rpc_error_raises() -> None:
+    """A JSON-RPC error answer is a FilingError naming the method."""
+    error = _reply({"jsonrpc": "2.0", "id": 1, "error": {"message": "boom"}})
+    with (
+        patch.object(_Mcp, "_post", return_value=error),
+        pytest.raises(FilingError, match="initialize"),
+    ):
+        _Mcp("http://127.0.0.1:9/mcp", "t").call("list_tasks", {})
+
+
+def test_tool_error_raises() -> None:
+    """A tool that reports isError is a FilingError with its text."""
+    ok = _reply({"jsonrpc": "2.0", "id": 1, "result": {}})
+    bad = _reply(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {"isError": True, "content": [{"type": "text", "text": "no"}]},
+        }
+    )
+    with (
+        patch.object(_Mcp, "_post", side_effect=[ok, ok, bad]),
+        pytest.raises(FilingError, match="add_task: no"),
+    ):
+        _Mcp("http://127.0.0.1:9/mcp", "t").call("add_task", {})
