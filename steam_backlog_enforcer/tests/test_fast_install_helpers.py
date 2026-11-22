@@ -114,7 +114,6 @@ class TestBuildCmd:
             "--yes",
             "--language",
             "english",
-            "--skip-steamcmd",
             "--username",
             "krzys",
         ]

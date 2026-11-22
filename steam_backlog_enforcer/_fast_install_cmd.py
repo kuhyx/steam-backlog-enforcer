@@ -61,9 +61,6 @@ def build_cmd(installer: Path, app_id: int, user: str | None) -> list[str]:
         "--yes",
         "--language",
         _LANGUAGE,
-        # Finishes the manifest from depotdownloader's own data, under the same
-        # fail-closed checks: no second login, no 70 GB re-hash by steamcmd.
-        "--skip-steamcmd",
     ]
     account = steam_account_name()
     if account:

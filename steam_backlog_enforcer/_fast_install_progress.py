@@ -10,7 +10,7 @@ endings, from the pty). Its markers, verbatim from a real run:
 * ``Processing depot 1086941`` once per depot, then ``Downloading depot 1086941``
   as each one starts
 * `` 46.90% /path/of/finished/file (657.13 Mbit/s)`` per finished file
-* ``Checking for owned DLC ...``, then the manifest is finished
+* ``Checking for owned DLC ...``, then the installer writes the manifest itself
 * ``Restarting the Steam client...``
 
 The percentage is depotdownloader's progress through the *current depot*: it
@@ -51,8 +51,7 @@ _MARKERS: Final = (
     ("Shutting down the Steam client", "shutting Steam down"),
     ("Steam already staged", "adopting Steam's partial download"),
     ("Downloading via depotdownloader", "connecting to Steam"),
-    ("Checking for owned DLC", "finishing manifest"),
-    ("Reconciling with steamcmd", "finishing manifest"),
+    ("Checking for owned DLC", "writing manifest"),
     ("Restarting the Steam client", "restarting Steam"),
 )
 _PLANNED_DEPOT: Final = re.compile(r"Processing depot \d+$")

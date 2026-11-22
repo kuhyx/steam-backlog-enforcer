@@ -168,7 +168,7 @@ export type DaemonState = 'running' | 'restarting' | 'unreachable'
 export interface FastInstallRun {
   app_id: number
   name: string
-  /** e.g. `shutting Steam down`, `downloading depot 3/8`, `finishing manifest`. */
+  /** e.g. `shutting Steam down`, `downloading depot 3/8`, `writing manifest`. */
   phase: string
   /** The current depot's percent; null until depotdownloader reports one. */
   percent: number | null

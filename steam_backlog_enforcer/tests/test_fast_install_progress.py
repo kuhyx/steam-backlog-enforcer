@@ -83,10 +83,10 @@ class TestPhases:
         assert snap.phase == "downloading depot 3/8"
         assert snap.percent == pytest.approx(92.49)
 
-    def test_finishing_after_the_download(self, tmp_path: Path) -> None:
-        """The DLC check after the download reads as finishing manifest."""
+    def test_writing_manifest_after_the_download(self, tmp_path: Path) -> None:
+        """The DLC check after the download reads as writing the manifest."""
         snap = _tracker(tmp_path, upto("Checking for owned DLC")).snapshot(now=0)
-        assert snap.phase == "finishing manifest"
+        assert snap.phase == "writing manifest"
         assert snap.percent is None
         assert not snap.downloading
 
