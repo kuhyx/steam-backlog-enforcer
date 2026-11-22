@@ -22,6 +22,7 @@ from steam_backlog_enforcer._ctl_context import (
     int_arg,
     require_phrase,
 )
+from steam_backlog_enforcer._ctl_exception import EXCEPTION_OPS
 from steam_backlog_enforcer._ctl_protocol import OP_FAILED, CtlError
 from steam_backlog_enforcer._ctl_research_game import RESEARCH_GAME_OPS
 from steam_backlog_enforcer._ctl_reset import RESET_OPS
@@ -185,4 +186,5 @@ OPS: Final[dict[str, Callable[[CtlContext, dict[str, object]], dict[str, object]
     **RESET_OPS,
     **RESTART_OPS,
     **RESEARCH_GAME_OPS,
+    **EXCEPTION_OPS,
 }

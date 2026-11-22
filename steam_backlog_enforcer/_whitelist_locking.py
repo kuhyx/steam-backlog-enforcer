@@ -21,6 +21,12 @@ from steam_backlog_enforcer._whitelist import (
     _FS_IOC_GETFLAGS,
     validate_reason,
 )
+from steam_backlog_enforcer._whitelist_relock import (
+    NOT_LOCKED_MESSAGE,
+    ExceptionNotLockedError,
+    hand_back_to_dir_owner,
+    note_lock_state,
+)
 from steam_backlog_enforcer.config import CONFIG_DIR, _atomic_write
 
 if TYPE_CHECKING:
@@ -70,25 +76,28 @@ def _immutable_flag_is(path: Path, *, immutable: bool) -> bool:
     return bool(buf[0] & _FS_IMMUTABLE_FL) is immutable
 
 
-def _try_set_immutable(path: Path, *, immutable: bool) -> None:
-    """Silently attempt to set or clear the immutable flag on *path*.
+def _try_set_immutable(path: Path, *, immutable: bool) -> bool:
+    """Attempt to set or clear the immutable flag on *path*.
 
-    This is a best-effort operation — it fails silently if chattr is not
-    available, the process lacks the required capability, or the filesystem
-    does not support the flag. When the flag already holds the requested
-    value, no subprocess is spawned at all.
+    Never raises: chattr missing, the capability missing or a filesystem
+    without the flag all end in False. When the flag already holds the
+    requested value, no subprocess is spawned at all.
 
     Args:
         path: File to modify.
         immutable: True to set +i, False to clear -i.
+
+    Returns:
+        Whether the flag now reads back as *immutable* (True for a missing
+        file: there is nothing to lock).
     """
     if not path.exists():
-        return
+        return True
     if _immutable_flag_is(path, immutable=immutable):
-        return
+        return True
     chattr = shutil.which("chattr")
     if chattr is None:
-        return
+        return False
     flag = "+i" if immutable else "-i"
     with contextlib.suppress(OSError, subprocess.TimeoutExpired):
         subprocess.run(
@@ -97,6 +106,12 @@ def _try_set_immutable(path: Path, *, immutable: bool) -> None:
             check=False,
             timeout=5,
         )
+    return _immutable_flag_is(path, immutable=immutable)
+
+
+def _relock(path: Path) -> bool:
+    """Set +i on *path* again after a write; report whether it holds."""
+    return _try_set_immutable(path, immutable=True)
 
 
 def lock_enforcement_files(config_file: Path) -> None:
@@ -108,8 +123,8 @@ def lock_enforcement_files(config_file: Path) -> None:
     Args:
         config_file: Path to the main config.json.
     """
-    _try_set_immutable(config_file, immutable=True)
-    _try_set_immutable(APPROVED_EXCEPTIONS_FILE, immutable=True)
+    for path in (config_file, APPROVED_EXCEPTIONS_FILE):
+        note_lock_state(path, locked=_try_set_immutable(path, immutable=True))
 
 
 def unlock_for_write(path: Path) -> None:
@@ -139,11 +154,12 @@ def _load_approved() -> list[dict[str, object]]:
     return []
 
 
-def _save_approved(entries: list[dict[str, object]]) -> None:
-    """Persist approved exception entries to disk."""
+def _save_approved(entries: list[dict[str, object]]) -> bool:
+    """Persist approved exception entries; True if the file is locked again."""
     unlock_for_write(APPROVED_EXCEPTIONS_FILE)
     _atomic_write(APPROVED_EXCEPTIONS_FILE, json.dumps(entries, indent=2) + "\n")
-    _try_set_immutable(APPROVED_EXCEPTIONS_FILE, immutable=True)
+    hand_back_to_dir_owner(APPROVED_EXCEPTIONS_FILE)
+    return _relock(APPROVED_EXCEPTIONS_FILE)
 
 
 def _append_audit_log(app_id: int, reason: str, event: str) -> None:
@@ -163,6 +179,7 @@ def _append_audit_log(app_id: int, reason: str, event: str) -> None:
     EXCEPTION_AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
     with EXCEPTION_AUDIT_LOG.open("a", encoding="utf-8") as fh:
         fh.write(line)
+    hand_back_to_dir_owner(EXCEPTION_AUDIT_LOG)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -185,6 +202,8 @@ def add_pending_exception(app_id: int, reason: str) -> str:
 
     Raises:
         ValueError: If the reason fails validation or the ID is already approved.
+        ExceptionNotLockedError: The entry was saved and audited, but the file
+            could not be made immutable again.
     """
     err = validate_reason(reason)
     if err is not None:
@@ -203,8 +222,10 @@ def add_pending_exception(app_id: int, reason: str) -> str:
             "approved_at": now,
         }
     )
-    _save_approved(approved)
+    locked = _save_approved(approved)
     _append_audit_log(app_id, reason, "APPROVED")
+    if not locked:
+        raise ExceptionNotLockedError(NOT_LOCKED_MESSAGE)
 
     return f"Exception approved for AppID {app_id}. Active immediately. Reason logged."
 

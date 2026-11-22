@@ -1,5 +1,6 @@
 """Tests for the main CLI: add-exception and block-gaming commands."""
 
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,9 @@ from steam_backlog_enforcer.tests._main_helpers import (
     VALID_REASON,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 PKG = "steam_backlog_enforcer.main.misc"
 EXC_PKG = "steam_backlog_enforcer.main.exception"
 _PHRASE = "request exception for AppID=440"
@@ -20,6 +24,12 @@ _BLOCK_PHRASE = "block all gaming for 14 days"
 
 class TestCmdAddException:
     """add-exception validates arguments and the typed phrase."""
+
+    @pytest.fixture(autouse=True)
+    def _as_root(self) -> Iterator[None]:
+        """These cover the direct write; as non-root it goes through the daemon."""
+        with patch(f"{EXC_PKG}.os.geteuid", return_value=0):
+            yield
 
     def test_no_args_prints_usage_and_exits(self) -> None:
         """No arguments prints usage and exits 1."""

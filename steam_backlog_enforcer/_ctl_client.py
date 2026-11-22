@@ -49,7 +49,7 @@ def call(
     args: dict[str, object] | None = None,
     *,
     timeout: float = _DEFAULT_TIMEOUT,
-    path: Path = SOCKET_PATH,
+    path: Path | None = None,
 ) -> dict[str, object]:
     """Send one request and return the response's ``data``.
 
@@ -57,7 +57,8 @@ def call(
         op: Op name.
         args: Op arguments.
         timeout: Seconds to wait for connect and for the reply.
-        path: Socket path (overridable for tests).
+        path: Socket path; ``None`` reads ``SOCKET_PATH`` at call time, so
+            the tests' redirect covers every caller.
 
     Returns:
         The ``data`` object of a successful response.
@@ -66,6 +67,7 @@ def call(
         DaemonUnreachableError: No daemon answered on the socket.
         CtlError: The daemon refused or failed the op.
     """
+    path = path or SOCKET_PATH
     conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     conn.settimeout(timeout)
     try:
@@ -234,3 +236,11 @@ def restart() -> str | None:
     data = call("restart")
     until = data.get("restart_available_at")
     return str(until) if until else None
+
+
+def add_exception(app_id: int, reason: str, phrase: str) -> str:
+    """Whitelist *app_id*; the daemon re-checks phrase, reason, locks, duplicates."""
+    # Outwait the tick lock: a client that gave up first would report a
+    # failure for an entry the daemon then writes anyway.
+    args = {"app_id": app_id, "reason": reason, "phrase": phrase}
+    return str(call("add_exception", args, timeout=_SLOW_TIMEOUT)["message"])

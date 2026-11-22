@@ -19,6 +19,7 @@ import pytest
 from steam_backlog_enforcer._hltb_failures import reset_failures
 from steam_backlog_enforcer._hltb_search_api import forget_hltb_search_url
 from steam_backlog_enforcer._icon_ledger import LEDGER_ENV
+from steam_backlog_enforcer._whitelist_relock import reset_lock_warnings
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -34,9 +35,14 @@ def _isolate_control_plane(
     Without it a test that reaches the restart-exit marker or a job store
     touches ``/var/lib/steam-backlog-enforcer`` or the real
     ``~/.local/state`` (and the web token lives under ``XDG_RUNTIME_DIR``).
-    Default arguments bound at import (``path=SOCKET_PATH``) cannot be
-    redirected here: tests pass an explicit path for those.
+    ``_ctl_client.call`` reads ``SOCKET_PATH`` at call time, so a command that
+    asks the daemon (``add-exception`` as non-root) never reaches the live one.
+
+    The exceptions file's re-lock counts as holding: a non-root test can never
+    set ``+i``, and ``add_pending_exception`` now fails loudly when it is not.
+    ``test_whitelist_relock`` covers the real ``_relock``.
     """
+    reset_lock_warnings()
     state = tmp_path / "ctl_state"
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "xdg_runtime"))
     # The icon-word ledger is a committed repo file: never write the real one.
@@ -52,6 +58,7 @@ def _isolate_control_plane(
         patch("steam_backlog_enforcer._ctl_server.SOCKET_PATH", state / "ctl.sock"),
         patch("steam_backlog_enforcer._backups.BACKUPS_DIR", tmp_path / "backups"),
         patch("steam_backlog_enforcer.jobs._store.JOBS_DIR", tmp_path / "jobs"),
+        patch("steam_backlog_enforcer._whitelist_locking._relock", return_value=True),
     ):
         yield
 

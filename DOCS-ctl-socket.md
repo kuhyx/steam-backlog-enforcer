@@ -108,3 +108,23 @@ the file's `flags` (game-research's `recording.pid` or `research_launch.pid`,
 under the user's home, launch flag at most 20 min old) names a live
 `game_research_desktop` process. Deleting the file revokes it at once;
 `research_game_revoke` also drops the record and logs `RESEARCH_GAME_REVOKED`.
+
+## Exceptions
+
+`add_exception {"app_id": N, "reason": "...", "phrase": "..."}`
+(`_ctl_exception.py`). `approved_exceptions.json` is `chattr +i`, so only root
+can replace it; the web job and the CLI as the desktop user both send this op.
+The daemon looks the name up in the snapshot (else `AppID=<id>`, as the CLI
+does), then checks in order: the reason rule (`invalid_params`), the phrase
+`request exception for {game_name}` (`wrong_phrase`), the locks (`locked`), and
+duplicates (`invalid_params`). It clears `+i`, writes, hands a new file back to
+the config dir's owner, sets `+i` again and appends `APPROVED` to
+`exception_audit.log`.
+
+If the flag will not go back on, the entry and the audit line stay but the op
+fails: `op_failed` "exception saved but file not locked". Under `sudo` the CLI
+writes the file itself and fails the same way (exit 1). If the socket does not
+answer, the CLI exits 1 naming `/run/steam-backlog-enforcer/ctl.sock` and the
+`sudo ./run.sh add-exception` fallback. The enforce loop's own per-tick lock
+stays best-effort and logs "immutable flag did not stick" once per file, not
+per tick, until the flag holds again.

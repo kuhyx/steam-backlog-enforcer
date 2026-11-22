@@ -199,7 +199,7 @@ with explicit params, a `Progress` reporter and a `Prompter`.
 | `gaming-unblock` | `force release playtime mounts` | daemon; if unreachable the UI shows the `sudo ./run.sh gaming-unblock` fallback |
 | `abandon-pick` | `abandon {game_name}` | – |
 | `pick-manual` | `lock in {game_name}` | – |
-| `add-exception` | `request exception for {game_name}` | active immediately (no cooldown since de76c65); reason logged |
+| `add-exception` | `request exception for {game_name}` | daemon (the file is `chattr +i`); active immediately (no cooldown since de76c65); reason logged |
 | `uninstall` | `uninstall {count} games` | – |
 | `reset` | `wipe all enforcer state` | automatic timestamped backup first |
 | backup restore | `restore backup {id}` | – |
@@ -222,7 +222,8 @@ hard-codes it.
   `store_unblock{minutes, phrase}`, `store_reports{}`, `block_gaming{days, phrase}`,
   `gaming_unblock{phrase}`, `gaming_reset_arm{phrase}`,
   `gaming_reset_heartbeat{pending_id}`, `gaming_reset_commit{pending_id, phrase}`,
-  `gaming_reset_cancel{pending_id}`, `restart{}`. There is no `stop`.
+  `gaming_reset_cancel{pending_id}`, `restart{}`,
+  `add_exception{app_id, reason, phrase}`. There is no `stop`.
 - `status` also lists the daemon's steam-game-installer runs as
   `fast_installs: [{app_id, name, phase, percent, elapsed_seconds, error}]`,
   read from its log by the enforce loop; `percent` is the current depot's, or

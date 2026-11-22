@@ -186,4 +186,5 @@ class TestOpsTable:
             "restart",
             "research_game",
             "research_game_revoke",
+            "add_exception",
         }

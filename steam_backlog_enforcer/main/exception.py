@@ -6,12 +6,21 @@ its typed-phrase confirmation, to keep both files under the 250-line cap.
 
 from __future__ import annotations
 
+import os
 import sys
 
+from steam_backlog_enforcer import _ctl_client
+from steam_backlog_enforcer._ctl_protocol import (
+    SOCKET_PATH,
+    CtlError,
+    DaemonUnreachableError,
+)
+from steam_backlog_enforcer._friction import expected_phrase
 from steam_backlog_enforcer._prompter import confirm_phrase
 from steam_backlog_enforcer._snapshot import snapshot_game_name
 from steam_backlog_enforcer._whitelist import validate_reason
 from steam_backlog_enforcer._whitelist_locking import add_pending_exception
+from steam_backlog_enforcer._whitelist_relock import ExceptionNotLockedError
 from steam_backlog_enforcer.game_install import _echo
 
 _MIN_ADD_EXCEPTION_ARGS = 3
@@ -24,6 +33,18 @@ _ADD_EXCEPTION_USAGE = (
     '"TF2 is needed for a community event this weekend"\n\n'
     "Exceptions become active immediately."
 )
+
+
+def _add(app_id: int, reason: str, game_name: str) -> str:
+    """Write the exception: in-process under sudo, else through the daemon.
+
+    The file is ``chattr +i``; only root can replace it. The phrase was
+    already typed and checked here; the daemon checks it again.
+    """
+    if os.geteuid() == 0:
+        return add_pending_exception(app_id, reason)
+    phrase = expected_phrase("add-exception", game_name=game_name) or ""
+    return _ctl_client.add_exception(app_id, reason, phrase)
 
 
 def cmd_add_exception(args: list[str]) -> None:
@@ -71,9 +92,19 @@ def cmd_add_exception(args: list[str]) -> None:
         sys.exit(1)
 
     try:
-        msg = add_pending_exception(app_id, reason)
-    except ValueError as exc:
+        msg = _add(app_id, reason, game_name)
+    except (ValueError, ExceptionNotLockedError) as exc:
         _echo(f"Error: {exc}")
+        sys.exit(1)
+    except CtlError as exc:
+        _echo(f"Error: {exc.message or exc.code}")
+        sys.exit(1)
+    except DaemonUnreachableError as exc:
+        _echo(
+            f"Error: the enforcer daemon did not answer on {SOCKET_PATH} ({exc}).\n"
+            "Start it, or write the file as root: "
+            f'sudo ./run.sh add-exception {app_id} --reason "..."'
+        )
         sys.exit(1)
 
     _echo(msg)
