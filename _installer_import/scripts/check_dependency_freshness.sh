@@ -18,13 +18,33 @@
 
 set -euo pipefail
 
-readonly SHARED_GATE="${UTILS_ROOT:-$HOME/src/utils}/scripts/check_dependency_freshness.sh"
+readonly UTILS="${UTILS_ROOT:-$HOME/src/utils}"
+readonly SHARED_GATE="$UTILS/scripts/check_dependency_freshness.sh"
+readonly PACMAN_PARSER="$UTILS/dep_freshness/parsers/pacman_lock.py"
+
+# True when this run must judge the native-Proton lock (a full run, or the lock staged).
+needs_pacman_adapter() {
+    local arg
+    for arg in "$@"; do
+        [[ "$arg" == "--all" || "$arg" == *proton-native.lock ]] && return 0
+    done
+    return 1
+}
 
 main() {
     if [[ ! -x "$SHARED_GATE" ]]; then
         echo "Error: shared dependency-freshness gate not found at $SHARED_GATE" >&2
         echo "       Clone github.com/kuhyx/utils to ~/src/utils, or set" >&2
         echo "       UTILS_ROOT to where it lives." >&2
+        exit 1
+    fi
+
+    # An older utils checkout skips a manifest it has no parser for and exits
+    # 0, which would wave any Proton pin through. Fail closed instead.
+    if needs_pacman_adapter "$@" && [[ ! -f "$PACMAN_PARSER" ]]; then
+        echo "Error: $UTILS has no dep_freshness/parsers/pacman_lock.py, so it" >&2
+        echo "       cannot check steam_installer/data/proton-native.lock." >&2
+        echo "       Update it: git -C $UTILS pull --ff-only" >&2
         exit 1
     fi
 
