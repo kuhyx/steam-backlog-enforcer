@@ -4,8 +4,10 @@ Steamworks Common Redistributables, Steam Linux Runtime 4.0 and Proton
 Experimental stay in :data:`PROTECTED_APP_IDS`, so no sweep or guard ever
 treats them as an unauthorized game. This module names the one case where they
 may still go (kuhy's rule): Steam is closed, no steam-game-installer run is
-live, and every installed game in every library is mapped to
-``proton-cachyos-native``, which is itself installed.
+live, ``proton-cachyos-native`` is installed, and every installed game in
+every library either is mapped to it or is one Valve runs natively. Native
+means no mapping entry (or an empty one), ``linux`` in the app cache's OS list
+and no Valve tool pick for the game; DUSK (519860) is one.
 
 An earlier version removed Steam Linux Runtime 4.0 while a game needed it, so
 every doubt (a read error, a malformed file, a missing key, an exception)
@@ -21,6 +23,11 @@ import re
 from typing import TYPE_CHECKING, Final
 
 from steam_backlog_enforcer import _steam_state
+from steam_backlog_enforcer._appinfo_cache import (
+    STEAM_PLAY_APP,
+    default_path,
+    read_apps,
+)
 from steam_backlog_enforcer._fail_safe import FAIL_SAFE_ERRORS
 from steam_backlog_enforcer._protected_apps import PROTECTED_APP_IDS
 from steam_backlog_enforcer._steam_client import steam_client_running
@@ -114,8 +121,16 @@ def _manifests(libraries: Iterable[tuple[str, Path]]) -> list[Path] | ToolNeed:
     return found
 
 
-def _unmapped(steamapps: Path, mapping: dict[str, VdfNode]) -> ToolNeed | int:
-    """The reason to keep the tools, or how many installed games are mapped."""
+@dataclass(frozen=True)
+class _Games:
+    """How many installed games are covered, and which of them by Valve."""
+
+    count: int
+    native: set[int]
+
+
+def _unmapped(steamapps: Path, mapping: dict[str, VdfNode]) -> ToolNeed | _Games:
+    """The reason to keep the tools, or the installed games they may go for."""
     libraries = _libraries(steamapps)
     if isinstance(libraries, ToolNeed):
         return libraries
@@ -124,6 +139,7 @@ def _unmapped(steamapps: Path, mapping: dict[str, VdfNode]) -> ToolNeed | int:
         return manifests
     # A library listed twice (the default is usually key "0") counts once.
     games: set[str] = set()
+    native: set[int] = set()
     for manifest in manifests:
         try:
             tree = parse_vdf(manifest.read_text(encoding="utf-8"))
@@ -134,10 +150,49 @@ def _unmapped(steamapps: Path, mapping: dict[str, VdfNode]) -> ToolNeed | int:
             return _keep(f"{manifest.name} has no appid")
         if int(app_id) in PROTECTED_APP_IDS:
             continue
-        if lookup(mapping, app_id, "name") != NATIVE_TOOL:
+        entry = lookup(mapping, app_id)
+        if entry is None or lookup(entry, "name") == "":
+            native.add(int(app_id))  # no pick of kuhy's: Valve's default runs it
+        elif lookup(entry, "name") != NATIVE_TOOL:
             return _keep(f"AppID={app_id} has no {NATIVE_TOOL} mapping")
         games.add(app_id)
-    return len(games)
+    return _Games(count=len(games), native=native)
+
+
+def _cache(
+    steam_root: Path, app_ids: set[int]
+) -> tuple[dict[int, dict[str, VdfNode]], dict[str, VdfNode]] | ToolNeed:
+    """The games' appinfo blocks and Valve's pick list, or why they are unusable."""
+    try:
+        apps = read_apps(default_path(steam_root), {STEAM_PLAY_APP, *app_ids})
+    except OSError:
+        return _keep("appinfo.vdf unreadable")
+    except ValueError:
+        return _keep("appinfo.vdf malformed")
+    picks = lookup(apps.get(STEAM_PLAY_APP), "extended", "app_mappings")
+    if not isinstance(picks, dict):
+        return _keep(f"app {STEAM_PLAY_APP} has no app_mappings")
+    return apps, picks
+
+
+def _not_native(steam_root: Path, app_ids: set[int]) -> ToolNeed | None:
+    """None when Valve runs each of *app_ids* natively, else why it may not."""
+    cache = _cache(steam_root, app_ids)
+    if isinstance(cache, ToolNeed):
+        return cache
+    apps, picks = cache
+    for app_id in sorted(app_ids):
+        block = apps.get(app_id)
+        if block is None:
+            return _keep(f"AppID={app_id} not in appinfo.vdf")
+        oslist = lookup(block, "common", "oslist")
+        if not isinstance(oslist, str) or "linux" not in oslist.split(","):
+            return _keep(f"AppID={app_id} has no {NATIVE_TOOL} mapping")
+        # A tool pick (a runtime such as Steam Linux Runtime 4.0, or Proton
+        # for a broken port) may need the very tools this would remove.
+        if str(app_id) in picks or lookup(block, "config", "app_mappings"):
+            return _keep(f"AppID={app_id} has a Valve tool mapping")
+    return None
 
 
 def _busy() -> ToolNeed | None:
@@ -165,14 +220,16 @@ def _decide(steamapps: Path) -> ToolNeed:
     games = _unmapped(steamapps, mapping)
     if isinstance(games, ToolNeed):
         return games
+    if games.native and (not_native := _not_native(steam_root, games.native)):
+        return not_native
     toolmanifest = steam_root / "compatibilitytools.d" / NATIVE_TOOL
     if not (toolmanifest / "toolmanifest.vdf").is_file():
         return _keep(f"{NATIVE_TOOL} toolmanifest.vdf missing")
     # No game installed means no game needs them; the reason says so in the log.
-    reason = (
-        f"every installed game runs on {NATIVE_TOOL}" if games else "no game installed"
-    )
-    return ToolNeed(needed=False, reason=reason)
+    reason = f"every installed game runs on {NATIVE_TOOL}"
+    if games.native:
+        reason += " or natively"
+    return ToolNeed(needed=False, reason=reason if games.count else "no game installed")
 
 
 def tool_need(steamapps: Path | None = None) -> ToolNeed:

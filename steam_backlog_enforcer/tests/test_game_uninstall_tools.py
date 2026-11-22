@@ -13,6 +13,7 @@ from steam_backlog_enforcer.game_uninstall import (
     remove_unneeded_tools,
     uninstall_other_games,
 )
+from steam_backlog_enforcer.tests._appinfo_home import game, write_appinfo
 from steam_backlog_enforcer.tests._tool_home import make_home
 
 if TYPE_CHECKING:
@@ -67,14 +68,30 @@ def test_mapped_games_remove_the_tools(
 def test_unmapped_game_keeps_the_tools(
     home: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An unmapped game keeps them with one line naming it."""
+    """An unmapped Windows game keeps them with one line naming it."""
     steamapps = make_home(home, {10: NATIVE_TOOL, 20: None})
+    write_appinfo(home, {20: game("windows")})
     with caplog.at_level(logging.INFO, logger=PKG):
         assert remove_unneeded_tools() == 0
     assert _tools_left(steamapps) == set(STEAM_TOOLS)
     assert _messages(caplog) == [
         f"kept Steam tools: AppID=20 has no {NATIVE_TOOL} mapping"
     ]
+
+
+def test_native_game_lets_the_tools_go(
+    home: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """C12: an unmapped native game (DUSK) beside a mapped one: all three go."""
+    steamapps = make_home(home, {10: NATIVE_TOOL, 20: None})
+    write_appinfo(home, {20: game("windows,linux")})
+    with caplog.at_level(logging.INFO, logger=PKG):
+        assert remove_unneeded_tools() == 3
+    assert _tools_left(steamapps) == set()
+    assert (steamapps / "appmanifest_20.acf").exists()
+    assert _messages(caplog)[0] == (
+        f"removing Steam tools: every installed game runs on {NATIVE_TOOL} or natively"
+    )
 
 
 def test_steam_running_defers(home: Path, caplog: pytest.LogCaptureFixture) -> None:

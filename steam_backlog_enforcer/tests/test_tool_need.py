@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from steam_backlog_enforcer._tool_need import NATIVE_TOOL, ToolNeed, tool_need
+from steam_backlog_enforcer.tests._appinfo_home import game, write_appinfo
 from steam_backlog_enforcer.tests._tool_home import make_home
 
 if TYPE_CHECKING:
@@ -41,8 +42,9 @@ def test_all_mapped_means_not_needed(root: Path) -> None:
 
 
 def test_one_unmapped_game_keeps(root: Path) -> None:
-    """One game with no mapping entry keeps them."""
+    """One Windows game with no mapping entry keeps them."""
     steamapps = make_home(root, {10: NATIVE_TOOL, 20: None})
+    write_appinfo(root, {20: game("windows")})
     assert tool_need(steamapps) == KEEP_UNMAPPED
 
 
