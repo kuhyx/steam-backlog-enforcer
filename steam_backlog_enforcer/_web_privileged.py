@@ -20,10 +20,12 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Final
 
 from steam_backlog_enforcer import _ctl_client
+from steam_backlog_enforcer._ctl_protocol import CtlError
 from steam_backlog_enforcer._store_window import DEFAULT_WINDOW_MINUTES
 from steam_backlog_enforcer._web_daemon import daemon_call, pending_action
 from steam_backlog_enforcer._web_errors import ApiError
 from steam_backlog_enforcer._web_io import Reply
+from steam_backlog_enforcer._web_store_report import filing_log
 from steam_backlog_enforcer.jobs._daemon_jobs import (
     EXIT_FAILED,
     EXIT_OK,
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from steam_backlog_enforcer._command_params import ParamValue
+    from steam_backlog_enforcer._ctl_types import StoreWindow
 
 type Outcome = tuple[str, dict[str, object]]
 type Op = Callable[[Mapping[str, ParamValue], str], Outcome]
@@ -55,9 +58,29 @@ def _local_hhmm(iso: str | None) -> str:
         return iso
 
 
+class StoreCheckFailedError(ApiError):
+    """``op_failed`` from a store window whose checks failed, with the report."""
+
+    def __init__(self, message: str, report: Mapping[str, object]) -> None:
+        """Keep *report* so the job can file it."""
+        super().__init__(message, code="op_failed")
+        self.report = report
+
+
+def _open_window(minutes: int, phrase: str) -> StoreWindow:
+    """``store_unblock``, keeping a failed check's report on the error."""
+    try:
+        return _ctl_client.store_unblock(minutes, phrase)
+    except CtlError as exc:
+        report = exc.data.get("report")
+        if isinstance(report, dict):
+            raise StoreCheckFailedError(exc.message, report) from None
+        raise
+
+
 def _store_window(minutes: int, phrase: str) -> Outcome:
     """Open the store for *minutes*."""
-    window = daemon_call(_ctl_client.store_unblock, minutes, phrase)
+    window = daemon_call(_open_window, minutes, phrase)
     summary = (
         f"Store unblocked for {window.minutes} min, until {_local_hhmm(window.until)}."
     )
@@ -133,7 +156,12 @@ def run_privileged(
         summary, data = op(params, typed)
     except ApiError as exc:
         if exc.code == "op_failed":
-            failed = DaemonOutcome(ok=False, summary=exc.message, exit_code=EXIT_FAILED)
+            log = (
+                filing_log(exc.report) if isinstance(exc, StoreCheckFailedError) else ()
+            )
+            failed = DaemonOutcome(
+                ok=False, summary=exc.message, exit_code=EXIT_FAILED, log=log
+            )
             record_daemon_job(command, params, created_at=created_at, outcome=failed)
         raise
     done = DaemonOutcome(ok=True, summary=summary, exit_code=EXIT_OK, data=data)

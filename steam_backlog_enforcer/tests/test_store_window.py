@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from steam_backlog_enforcer import _store_window
+from steam_backlog_enforcer._store_verify import (
+    Check,
+    StoreCheckReport,
+    StoreVerifyError,
+)
 from steam_backlog_enforcer._store_window import (
     MAX_WINDOW_MINUTES,
     open_store_window,
     store_window_tick,
+    take_store_reports,
 )
 from steam_backlog_enforcer.config import Config, State
 
@@ -25,8 +31,24 @@ PKG = "steam_backlog_enforcer._store_window"
 @pytest.fixture(autouse=True)
 def _fresh_reblock_memory() -> Iterator[None]:
     """Each test starts with a daemon that has re-blocked for nothing yet."""
-    with patch.object(_store_window, "_reblocked_for", set()):
+    with (
+        patch.object(_store_window, "_reblocked_for", set()),
+        patch.object(_store_window, "_pending_reports", []),
+    ):
         yield
+
+
+def _report(action: str, *, ok: bool) -> StoreCheckReport:
+    return StoreCheckReport(
+        action, "2026-11-22T16:00:00+01:00", [Check("hosts", ok, "x")]
+    )
+
+
+@pytest.fixture(name="checks", autouse=True)
+def fixture_checks() -> Iterator[MagicMock]:
+    """Every action's checks pass unless a test says otherwise."""
+    with patch(f"{PKG}.verify", return_value=_report("unblock", ok=True)) as fake:
+        yield fake
 
 
 def _state_ending_in(delta: timedelta) -> State:
@@ -60,13 +82,18 @@ class TestOpenStoreWindow:
         assert until <= datetime.now(UTC) + timedelta(minutes=10)
         assert State.load().store_unblocked_until == until.isoformat()
 
-    def test_failed_unblock_raises(self) -> None:
-        """A failed unblock raises instead of claiming a window."""
+    def test_failed_check_raises_and_keeps_deadline(self, checks: MagicMock) -> None:
+        """Checks failing after the repair raise; the deadline stays saved."""
+        checks.return_value = _report("unblock", ok=False)
         with (
-            patch(f"{PKG}.unblock_store", return_value=False),
-            pytest.raises(RuntimeError, match="could not unblock"),
+            patch(f"{PKG}.unblock_store", return_value=True) as mock_unblock,
+            pytest.raises(StoreVerifyError, match="unblock failed: hosts"),
         ):
             open_store_window(State(), 5)
+        check, repair = checks.call_args.args
+        assert check is _store_window.check_unblock
+        assert repair is mock_unblock
+        assert State.load().store_unblocked_until
 
 
 class TestStoreWindowTick:
@@ -115,6 +142,28 @@ class TestStoreWindowTick:
             store_window_tick(Config(block_store=True), state)
             store_window_tick(Config(block_store=True), state)
         mock_block.assert_called_once()
+
+    def test_reblock_checked_and_failure_queued_once(self, checks: MagicMock) -> None:
+        """A failed re-block check queues one report and is never retried."""
+        checks.return_value = _report("re-block", ok=False)
+        state = _state_ending_in(timedelta(seconds=-1))
+        with patch(f"{PKG}.block_store") as mock_block:
+            store_window_tick(Config(block_store=True), state)
+            store_window_tick(Config(block_store=True), state)
+        mock_block.assert_called_once()
+        checks.assert_called_once_with(_store_window.check_reblock)
+        reports = take_store_reports()
+        assert [r["title"] for r in reports] == [
+            "Store re-block verification failed: hosts"
+        ]
+        assert take_store_reports() == []
+
+    def test_reblock_passing_queues_nothing(self) -> None:
+        """A re-block whose checks pass leaves nothing to file."""
+        state = _state_ending_in(timedelta(seconds=-1))
+        with patch(f"{PKG}.block_store"):
+            store_window_tick(Config(block_store=True), state)
+        assert take_store_reports() == []
 
     def test_expired_window_respects_block_store_off(self) -> None:
         """With block_store off an expired window does not block."""

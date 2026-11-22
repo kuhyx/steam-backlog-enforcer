@@ -21,6 +21,16 @@ export function clock(totalSeconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
+/**
+ * A job log line's time, HH:MM:SS on the local clock. The server stamps UTC;
+ * slicing the ISO text showed 15:09 next to a summary saying 16:24.
+ */
+export function logTime(iso: string, timeZone?: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return iso
+  return new Date(t).toLocaleTimeString('en-GB', { hour12: false, timeZone })
+}
+
 /** Short relative time: "just now", "5 min ago", "3 h ago", "2 d ago". */
 export function ago(iso: string | null, now: number = Date.now()): string {
   if (!iso) return '—'

@@ -14,7 +14,7 @@ import { Action } from '../lib/action'
 import { define, h } from '../lib/dom'
 import { LiveElement } from '../lib/element'
 import { errorNotice, glyph, notice } from '../ui/build'
-import { clock, duration } from '../ui/format'
+import { clock, duration, logTime } from '../ui/format'
 import { hub, type LiveJob } from './hub'
 import { progressBar, stateBadge } from './progress'
 import { promptForm } from './promptForm'
@@ -231,7 +231,7 @@ export class JobProgressElement extends LiveElement {
     const fresh = slid ? logs : logs.slice(this.logCount)
     if (slid) f.log.replaceChildren()
     for (const l of fresh) {
-      const li = h('li', { class: `log-${l.level}` }, h('time', { datetime: l.ts }, l.ts.slice(11, 19)), ` ${l.message}`)
+      const li = h('li', { class: `log-${l.level}` }, h('time', { datetime: l.ts }, logTime(l.ts)), ` ${l.message}`)
       li.dataset.seq = String(l.seq)
       f.log.append(li)
     }

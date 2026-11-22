@@ -28,7 +28,12 @@ from steam_backlog_enforcer._ctl_reset import RESET_OPS
 from steam_backlog_enforcer._ctl_restart import RESTART_OPS, restart_available_at
 from steam_backlog_enforcer._fast_install_progress import fast_install_status
 from steam_backlog_enforcer._playtime_block import release_block
-from steam_backlog_enforcer._store_window import MAX_WINDOW_MINUTES, open_store_window
+from steam_backlog_enforcer._store_verify import StoreVerifyError
+from steam_backlog_enforcer._store_window import (
+    MAX_WINDOW_MINUTES,
+    open_store_window,
+    take_store_reports,
+)
 from steam_backlog_enforcer._total_block import (
     get_total_block_status,
     start_total_block,
@@ -129,12 +134,22 @@ def op_store_unblock(ctx: CtlContext, args: dict[str, object]) -> dict[str, obje
         check_locks("unblock")
         try:
             until = open_store_window(State.load(), minutes)
+        except StoreVerifyError as exc:
+            # The web server files the report as a todo task: it runs as the
+            # desktop user, who owns the todo token.
+            data: dict[str, object] = {"report": exc.report.to_wire()}
+            raise CtlError(OP_FAILED, str(exc), data) from exc
         except RuntimeError as exc:
             raise CtlError(OP_FAILED, str(exc)) from exc
         finally:
             _hand_back_state_file()
     logger.warning("Store window opened for %d min (control socket)", minutes)
     return {"minutes": minutes, "until": until.isoformat()}
+
+
+def op_store_reports(_ctx: CtlContext, _args: dict[str, object]) -> dict[str, object]:
+    """Hand back (and forget) the failed end-of-window re-block reports."""
+    return {"reports": take_store_reports()}
 
 
 def op_block_gaming(ctx: CtlContext, args: dict[str, object]) -> dict[str, object]:
@@ -164,6 +179,7 @@ OPS: Final[dict[str, Callable[[CtlContext, dict[str, object]], dict[str, object]
     "status": op_status,
     "journal_tail": op_journal_tail,
     "store_unblock": op_store_unblock,
+    "store_reports": op_store_reports,
     "block_gaming": op_block_gaming,
     "gaming_unblock": op_gaming_unblock,
     **RESET_OPS,

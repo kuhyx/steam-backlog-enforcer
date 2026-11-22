@@ -6,6 +6,7 @@ Split out of ``conftest.py`` to keep every file inside the 250-line cap;
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -105,6 +106,18 @@ def _block_real_subprocesses() -> Iterator[None]:
         patch(
             "steam_backlog_enforcer._web_build.subprocess.run",
             noop_run,
+        ),
+        # Store checks run curl, getent, iptables and journalctl; hosts edits
+        # run guardctl and sudo tee.
+        patch("steam_backlog_enforcer._store_verify.subprocess.run", noop_run),
+        patch("steam_backlog_enforcer._hosts_protection.subprocess.run", noop_run),
+        # The todo filer must never reach kuhy's real board from a test.
+        patch.dict(
+            os.environ,
+            {
+                "SBE_TODO_MCP_URL": "http://127.0.0.1:9/mcp",
+                "SBE_TODO_TOKEN_FILE": "/nonexistent/sbe-test-token",
+            },
         ),
     ):
         yield

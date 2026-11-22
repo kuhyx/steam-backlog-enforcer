@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ago, bytes, clock, dateTime, duration } from './format'
+import { ago, bytes, clock, dateTime, duration, logTime } from './format'
 
 describe('ui format', () => {
   it('bytes scales units and trims decimals', () => {
@@ -39,5 +39,20 @@ describe('ui format', () => {
     expect(duration('2026-10-10T10:00:00Z', '2026-10-10T10:01:05Z')).toBe('1:05')
     expect(duration('2026-10-10T10:00:00Z', null, Date.parse('2026-10-10T10:00:30Z'))).toBe('0:30')
     expect(duration(new Date().toISOString(), null)).toBe('0:00')
+  })
+})
+
+describe('logTime', () => {
+  it('shows a UTC log timestamp in the given local zone (job log vs summary)', () => {
+    expect(logTime('2026-11-22T15:09:09.123456+00:00', 'Europe/Warsaw')).toBe('16:09:09')
+  })
+
+  it('pads and stays on a 24-hour clock', () => {
+    expect(logTime('2026-11-22T00:05:07Z', 'UTC')).toBe('00:05:07')
+    expect(logTime('2026-11-22T13:05:07Z', 'UTC')).toBe('13:05:07')
+  })
+
+  it('falls back to the raw text when the timestamp does not parse', () => {
+    expect(logTime('garbage', 'UTC')).toBe('garbage')
   })
 })

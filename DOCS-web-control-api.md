@@ -216,7 +216,7 @@ hard-codes it.
   Request `{"op": "<op>", "args": {…}}`, response `{"ok": true, "data": …}`
   or `{"ok": false, "error": "<code>", "message": "…"}`.
 - Allowlisted ops only: `ping`, `status`, `journal_tail{lines}`,
-  `store_unblock{minutes, phrase}`, `block_gaming{days, phrase}`,
+  `store_unblock{minutes, phrase}`, `store_reports{}`, `block_gaming{days, phrase}`,
   `gaming_unblock{phrase}`, `gaming_reset_arm{phrase}`,
   `gaming_reset_heartbeat{pending_id}`, `gaming_reset_commit{pending_id, phrase}`,
   `gaming_reset_cancel{pending_id}`, `restart{}`. There is no `stop`.

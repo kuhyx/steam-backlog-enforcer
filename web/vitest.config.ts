@@ -3,6 +3,8 @@ import { getViteConfig } from 'astro/config'
 
 export default getViteConfig({
   test: {
+    // Local-time rendering (job log times) must not depend on the machine's zone.
+    env: { TZ: 'UTC' },
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.ts', 'mock/**/*.test.ts'],

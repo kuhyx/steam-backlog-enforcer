@@ -18,6 +18,7 @@ from steam_backlog_enforcer._serve_startup import (
     ensure_port_available,
     parse_serve_args,
 )
+from steam_backlog_enforcer._store_verify import StoreVerifyError
 from steam_backlog_enforcer._store_window import (
     DEFAULT_WINDOW_MINUTES,
     MAX_WINDOW_MINUTES,
@@ -26,6 +27,10 @@ from steam_backlog_enforcer._store_window import (
 from steam_backlog_enforcer._total_block import start_total_block
 from steam_backlog_enforcer._web_build import build_frontend, frontend_is_stale
 from steam_backlog_enforcer._web_server import serve
+from steam_backlog_enforcer._web_store_report import (
+    filing_log,
+    start_store_report_poller,
+)
 from steam_backlog_enforcer.game_install import _echo
 from steam_backlog_enforcer.library_hider import unhide_all_games
 
@@ -56,6 +61,12 @@ def cmd_unblock(_config: Config, state: State, args: list[str] | None = None) ->
         until = open_store_window(state, int(raw))
     except ValueError as exc:
         _echo(f"Usage: unblock [minutes]  (1-{MAX_WINDOW_MINUTES}): {exc}")
+        sys.exit(1)
+    except StoreVerifyError as exc:
+        # Runs as the desktop user, so it can file the todo task itself.
+        _echo(f"{exc} (the store is NOT open).")
+        for _level, line in filing_log(exc.report.to_wire()):
+            _echo(line)
         sys.exit(1)
     except RuntimeError as exc:
         _echo(f"Failed to unblock: {exc}")
@@ -136,6 +147,7 @@ def cmd_serve(args: list[str]) -> None:
     if frontend_is_stale() and not build_frontend():
         sys.exit(1)
     ensure_port_available(host, port)
+    start_store_report_poller()
     try:
         serve(host, port)
     except OSError as exc:

@@ -164,6 +164,12 @@ def journal_tail(lines: int = 50) -> list[str]:
     return [str(line) for line in cast("list[object]", data["lines"])]
 
 
+def store_reports() -> list[dict[str, object]]:
+    """Take the daemon's queued failed re-block reports (it forgets them)."""
+    reports = call("store_reports").get("reports") or []
+    return [r for r in cast("list[object]", reports) if isinstance(r, dict)]
+
+
 def store_unblock(minutes: int, phrase: str) -> StoreWindow:
     """Open the store for *minutes* (1-30); *phrase* is checked by the daemon."""
     data = call(

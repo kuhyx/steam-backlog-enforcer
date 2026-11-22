@@ -39,12 +39,14 @@ class DaemonOutcome:
         summary: One line for the job list and the ``result`` event.
         exit_code: ``0`` ok, ``1`` failed, ``2`` refused.
         data: Optional result data for the ``result`` event.
+        log: Extra ``(level, message)`` log lines after the summary.
     """
 
     ok: bool
     summary: str
     exit_code: int
     data: Mapping[str, Any] | None = None
+    log: tuple[tuple[str, str], ...] = ()
 
 
 def record_daemon_job(
@@ -78,6 +80,8 @@ def record_daemon_job(
     writer.emit("state", state="queued")
     writer.emit("state", state="running")
     writer.emit("log", level="info" if ok else "error", message=summary)
+    for level, message in outcome.log:
+        writer.emit("log", level=level, message=message)
     result: dict[str, Any] = {"ok": ok, "summary": summary}
     if data is not None:
         result["data"] = json.loads(json.dumps(dict(data), default=str))

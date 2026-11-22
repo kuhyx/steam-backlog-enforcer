@@ -17,8 +17,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 import logging
+import threading
 from typing import TYPE_CHECKING
 
+from steam_backlog_enforcer._store_verify import (
+    StoreVerifyError,
+    check_reblock,
+    check_unblock,
+    verify,
+)
 from steam_backlog_enforcer.store_blocker import (
     block_store,
     hosts_blocks_store,
@@ -37,6 +44,20 @@ MAX_WINDOW_MINUTES = 30
 # purpose (see module docstring); a restarted daemon re-blocks at startup anyway.
 _reblocked_for: set[str] = set()
 
+# Failed re-block checks waiting for the web server to file them (it runs as
+# the desktop user and asks through the ``store_reports`` socket op). The
+# enforce loop appends, the control-socket thread takes: hence the lock.
+_pending_reports: list[dict[str, object]] = []
+_reports_lock = threading.Lock()
+
+
+def take_store_reports() -> list[dict[str, object]]:
+    """Hand back, and forget, every failed re-block report queued so far."""
+    with _reports_lock:
+        reports = list(_pending_reports)
+        _pending_reports.clear()
+    return reports
+
 
 def open_store_window(state: State, minutes: int) -> datetime:
     """Record a store window ending *minutes* from now and unblock at once.
@@ -50,7 +71,9 @@ def open_store_window(state: State, minutes: int) -> datetime:
 
     Raises:
         ValueError: If *minutes* is out of range.
-        RuntimeError: If the store could not be unblocked right now.
+        StoreVerifyError: If the store is still blocked after one repair
+            pass. The deadline stays saved, so the window-end re-block
+            undoes a half-done unblock.
     """
     if not 1 <= minutes <= MAX_WINDOW_MINUTES:
         msg = f"minutes must be between 1 and {MAX_WINDOW_MINUTES}, got {minutes}"
@@ -58,9 +81,13 @@ def open_store_window(state: State, minutes: int) -> datetime:
     until = datetime.now(UTC) + timedelta(minutes=minutes)
     state.store_unblocked_until = until.isoformat()
     state.save()
-    if not unblock_store():
-        msg = "could not unblock the store (sudo?)"
-        raise RuntimeError(msg)
+    unblock_store()
+    # The checks, not unblock_store's return value, decide: a "success"
+    # once left the store blocked by a live IPv6 hosts line.
+    report = verify(check_unblock, unblock_store)
+    if not report.ok:
+        logger.error("Store unblock failed its checks: %s", report.failed_check)
+        raise StoreVerifyError(report)
     return until
 
 
@@ -101,3 +128,10 @@ def store_window_tick(config: Config, state: State) -> None:
     if config.block_store:
         logger.info("Store window ended at %s: re-blocking the store", until)
         block_store()
+        # No retry for this deadline even on failure (kuhy, 2026-11-22): the
+        # report gets filed, and a restarted daemon re-blocks at startup.
+        report = verify(check_reblock)
+        if not report.ok:
+            logger.error("Store re-block failed its checks: %s", report.failed_check)
+            with _reports_lock:
+                _pending_reports.append(report.to_wire())

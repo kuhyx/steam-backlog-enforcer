@@ -74,6 +74,21 @@ Rate limit: 1 per 10 minutes, persisted in
 `/var/lib/steam-backlog-enforcer/ctl_restart.json` (root, 0600) so restarting
 the daemon does not reset it.
 
+## Store checks
+
+`store_unblock` checks its own result (`_store_verify.py`): no live store line
+in `/etc/hosts` in either family (`0.0.0.0` and `::`), the iptables store chain
+gone, and `https://store.steampowered.com/` answering. A failure gets one
+repair pass (unblock again, which also flushes DNS), then the op fails as
+`op_failed` with `data.report = {action, check, title, body}`; `check` is the
+first failing check, or `network down` when steamcommunity.com is unreachable
+too. The web server (or the CLI) files the report as a todo task.
+
+The end-of-window re-block runs the reverse checks (every domain resolves only
+to a sinkhole, the store does not answer) with no repair and no retry for that
+deadline. A failure is queued in memory; `store_reports {}` hands the queue
+back and clears it. The web server asks every 60 s and files each report.
+
 ## Research game
 
 `research_game {"app_id": N}` and `research_game_revoke {}` (`_ctl_research_game.py`,

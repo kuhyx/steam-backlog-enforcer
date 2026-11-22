@@ -176,6 +176,7 @@ class TestOpsTable:
             "status",
             "journal_tail",
             "store_unblock",
+            "store_reports",
             "block_gaming",
             "gaming_unblock",
             "gaming_reset_arm",
