@@ -1,7 +1,8 @@
-# Steam Backlog Enforcer
+# vapor
 
-This repo is also an alternative Steam frontend: it installs games faster than the
-Steam client (`steam_installer`, see [DOCS-steam-installer.md](DOCS-steam-installer.md)).
+vapor is an alternative Steam frontend: it installs games faster than the Steam
+client (`steam_installer`, see [DOCS-steam-installer.md](DOCS-steam-installer.md))
+and enforces the backlog rule below (the Steam Backlog Enforcer daemon).
 
 Forces you to play one Steam game at a time: earn at least one new
 achievement in the assigned game before moving on to the next.

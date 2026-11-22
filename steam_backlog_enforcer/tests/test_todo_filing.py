@@ -52,7 +52,7 @@ def test_files_one_task_with_report(todo: FakeTodo, tmp_path: Path) -> None:
     assert filed.created
     assert filed.task.startswith("added ")
     [task] = todo.tasks
-    assert task["repo"] == "kuhyx/steam-backlog-enforcer"
+    assert task["repo"] == "kuhyx/vapor"
     assert task["title"] == _REPORT["title"]
     assert task["body"] == _REPORT["body"]
     assert task["done_check"] == "none"

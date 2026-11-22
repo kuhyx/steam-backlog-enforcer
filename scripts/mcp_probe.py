@@ -11,7 +11,7 @@ exit 1 with the reason on stderr.
 Usage::
 
     python3 scripts/mcp_probe.py --python ~/.venvs/steam-backlog-mcp/bin/python \
-        --repo ~/src/steam-backlog-enforcer
+        --repo ~/src/vapor
 """
 
 from __future__ import annotations

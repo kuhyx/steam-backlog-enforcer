@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-REPO: Final = "kuhyx/steam-backlog-enforcer"
+REPO: Final = "kuhyx/vapor"
 DEFAULT_URL: Final = "http://127.0.0.1:8735/mcp"
 _PROTOCOL: Final = "2025-03-26"
 _TIMEOUT_SECONDS: Final = 10.0

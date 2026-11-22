@@ -2,7 +2,7 @@
 # Deploy steam-backlog-enforcer for real: update the live checkout, sync the
 # systemd units, restart what is stale, then health-check the running services.
 #
-# Both services run straight out of ~/src/steam-backlog-enforcer (system unit:
+# Both services run straight out of ~/src/vapor (system unit:
 # the enforce daemon; user unit: the web UI), so "deploy" means: pull that
 # checkout, and make sure the processes run the pulled code.
 #
@@ -19,7 +19,7 @@
 # Overridable for tests: SBE_CHECKOUT, SBE_WEB_URL, SBE_CTL_SOCK, SBE_MCP_PYTHON.
 set -euo pipefail
 
-readonly CHECKOUT="${SBE_CHECKOUT:-$HOME/src/steam-backlog-enforcer}"
+readonly CHECKOUT="${SBE_CHECKOUT:-$HOME/src/vapor}"
 readonly WEB_URL="${SBE_WEB_URL:-http://127.0.0.1:8000/}"
 readonly CTL_SOCK="${SBE_CTL_SOCK:-/run/steam-backlog-enforcer/ctl.sock}"
 readonly MCP_PYTHON="${SBE_MCP_PYTHON:-$HOME/.venvs/steam-backlog-mcp/bin/python}"

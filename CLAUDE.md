@@ -5,7 +5,7 @@ After running tests fix all coverage gaps and issues, do not ignore unless speci
 
 @/home/kuhy/.claude/rules/typescript-5-es2022.instructions.md
 
-# Steam Backlog Enforcer Notes
+# vapor (Steam Backlog Enforcer) Notes
 
 - Fixed in commit 8b7bdb6: conftest.py safety net redirects all filesystem paths (STEAMAPPS_PATH, CONFIG_DIR, STATE_FILE, etc.) to tmp_path. Tests are safe to run without asking about state.json first.
 - The pre-commit `pytest-coverage` hook is currently broken (measures all of python_pkg at 100%, not just the changed subpackage). There's an in-progress fix via `scripts/pytest_changed_packages.py` + `.pre-commit-config.yaml` change that still needs lint fixes.
