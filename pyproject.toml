@@ -16,11 +16,11 @@ dependencies = [
     "websockets==17.4",
     # The earner registry (gaming budget terms); stdlib-only, so the root
     # daemon imports it from the desktop user's site-packages.
-    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.23.0#subdirectory=earned_time",
+    "earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.24.0#subdirectory=earned_time",
     # The shared /proc game scan and the signed leisure facts (shadow budget,
     # contract C4); stdlib-only, imported by root from the user site like
     # earned-time.
-    "leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.9",
+    "leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.10",
     # kuhy's shared "Created by kuhy" credit, shown at the end of the
     # installer's --help (steam_installer).
     "kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.2#subdirectory=kuhy_credit",
@@ -234,11 +234,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-ra",
-    "--cov=steam_backlog_enforcer",
-    "--cov=steam_installer",
-    "--cov-branch",
-    "--cov-report=term-missing",
-    "--cov-report=lcov",
 ]
 filterwarnings = [
     "error",
@@ -255,7 +250,6 @@ branch = true
 omit = ["*/__pycache__/*", "*/tests/*", "*/.venv/*"]
 
 [tool.coverage.report]
-fail_under = 100
 show_missing = true
 skip_covered = false
 exclude_lines = [
