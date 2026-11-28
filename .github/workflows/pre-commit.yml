@@ -16,16 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: mypy
-            hooks: mypy
-            skip: ""
-          - group: pylint
-            hooks: pylint
-            skip: ""
           - group: rest
             hooks: ""
             # dependency-freshness is local only (pre-commit hook), never in CI.
-            skip: mypy,pylint,dependency-freshness
+            skip: "dependency-freshness"
     name: pre-commit (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v4

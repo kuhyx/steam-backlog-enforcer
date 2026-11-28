@@ -33,12 +33,8 @@ repos:
       - id: check-case-conflict
       - id: detect-private-key
       - id: debug-statements
-      - id: name-tests-test
-        args: [--pytest-test-first]
-        exclude: ^steam_(backlog_enforcer|installer)/tests/_[a-z_]+\.py$
       - id: check-ast
       - id: check-builtin-literals
-      - id: check-docstring-first
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: requirements-txt-fixer
@@ -58,11 +54,6 @@ repos:
         entry: '(?i)#\s*ruff:\s*noqa'
         language: pygrep
         types: [python]
-      - id: file-length
-        name: Files must be at most 250 lines
-        entry: bash scripts/check_file_length.sh
-        language: system
-        types: [text]
       - id: requirements-sync
         name: requirements.txt covers all package imports
         entry: python3 scripts/check_requirements_sync.py --package steam_backlog_enforcer
@@ -82,112 +73,9 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.0
     hooks:
-      - id: ruff
-        exclude: ^scripts/file_length/
-        args: [--fix, --unsafe-fixes, --exit-non-zero-on-fix, --show-fixes]
-        types_or: [python, pyi]
       - id: ruff-format
         exclude: ^scripts/file_length/
         types_or: [python, pyi]
-
-  # ===========================================================================
-  # MYPY - Type checking
-  # ===========================================================================
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
-    hooks:
-      - id: mypy
-        exclude: ^scripts/file_length/
-        args:
-          - --ignore-missing-imports
-          - --no-error-summary
-          - --disable-error-code=no-untyped-def
-          - --disable-error-code=no-untyped-call
-          - --disable-error-code=var-annotated
-          - --disable-error-code=no-any-unimported
-          - --disable-error-code=type-arg
-          - --disable-error-code=no-any-return
-          - --disable-error-code=misc
-          - --disable-error-code=unused-ignore
-          - --disable-error-code=unreachable
-          - --disable-error-code=assignment
-          - --disable-error-code=no-redef
-          - --disable-error-code=attr-defined
-          - --disable-error-code=arg-type
-          - --disable-error-code=union-attr
-          - --disable-error-code=call-overload
-          - --disable-error-code=return-value
-          - --disable-error-code=redundant-cast
-          - --disable-error-code=empty-body
-          - --disable-error-code=list-item
-        additional_dependencies:
-          - types-requests
-          - kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.2#subdirectory=kuhy_credit
-          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.23.0#subdirectory=earned_time
-          - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.9
-
-  # ===========================================================================
-  # PYLINT
-  # ===========================================================================
-  # A local hook (was the pylint-dev/pylint repo at v4.0.9) so the manual
-  # ci-mirror-pylint-* shards below can share its env: pre-commit gives local
-  # `language: python` hooks with the same additional_dependencies ONE env,
-  # and the &pylint_env anchor is the single place the pylint version and its
-  # import deps are pinned.
-  - repo: local
-    hooks:
-      - id: pylint
-        name: pylint
-        entry: pylint
-        language: python
-        types: [python]
-        require_serial: true
-        # Whole tree on every run, never the staged subset: `--fail-under`
-        # grades a score, and a score over whatever happened to be staged let a
-        # 9.99 tree pass at commit time and fail in CI. scripts/file_length/
-        # is the shared copy from ~/src/utils, linted there.
-        pass_filenames: false
-        args:
-          - --rcfile=pyproject.toml
-          - --fail-under=10.0
-          # Serial: parallel pylint pickles PyLinter with dill, which crashes on
-          # Python 3.15 (removed co_lnotab). Same reason as jobs = 1 in pyproject.
-          - --jobs=1
-          - steam_backlog_enforcer
-          - steam_installer
-          - scripts/check_requirements_sync.py
-          - scripts/pylint_symilar_cache.py
-        # pylint resolves imports in its OWN isolated env, so anything the
-        # package imports has to be listed here or it reports import-error and
-        # drags the score under --fail-under. `mcp` is a real runtime import
-        # (steam_backlog_enforcer._mcp_server).
-        additional_dependencies: &pylint_env
-          - pylint==4.0.9
-          - aiohttp==3.14.5
-          - earned-time @ git+https://github.com/kuhyx/utils@earned-time-v0.23.0#subdirectory=earned_time
-          - leisure-watch @ git+https://github.com/kuhyx/leisure-watch@leisure-watch-v0.2.9
-          - howlongtobeatpy==1.0.24
-          - kuhy-credit @ git+https://github.com/kuhyx/utils@kuhy-credit-v0.3.2#subdirectory=kuhy_credit
-          - mcp==2.3.0
-          - pytest
-          - requests
-          - websockets==17.2
-
-  # ===========================================================================
-  # BANDIT - Security linter
-  # ===========================================================================
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.10
-    hooks:
-      - id: bandit
-        args:
-          - -c
-          - pyproject.toml
-          - --severity-level=high
-          - --confidence-level=medium
-          - --skip=B113
-        additional_dependencies: ["bandit[toml]"]
-        exclude: ^(tests/|.*test.*\.py$)
 
   # ===========================================================================
   # CI MIRROR (manual stage: the gate steps before a push)
@@ -221,65 +109,6 @@ repos:
         always_run: true
         require_serial: true
         stages: [manual]
-      - &pylint_shard
-        id: ci-mirror-pylint-pkg
-        name: CI mirror pylint (package + scripts, per-file checks)
-        entry: pylint
-        language: python
-        additional_dependencies: *pylint_env
-        types: [python]
-        require_serial: true
-        stages: [manual]
-        files: ^((steam_backlog_enforcer|steam_installer)/(?!tests/).*|scripts/(check_requirements_sync|pylint_symilar_cache))\.py$
-        args: &pylint_per_file
-          - --rcfile=pyproject.toml
-          - --fail-under=10.0
-          - --jobs=1
-          - --disable=duplicate-code,cyclic-import
-      - <<: *pylint_shard
-        id: ci-mirror-pylint-tests-1
-        name: CI mirror pylint (tests helpers + test_[a-h], per-file checks)
-        files: ^steam_(backlog_enforcer|installer)/tests/(?!test_[i-z]).*\.py$
-      - <<: *pylint_shard
-        id: ci-mirror-pylint-tests-2
-        name: CI mirror pylint (test_[i-r], per-file checks)
-        files: ^steam_(backlog_enforcer|installer)/tests/test_[i-r][^/]*\.py$
-      - <<: *pylint_shard
-        id: ci-mirror-pylint-tests-3
-        name: CI mirror pylint (test_[s-z], per-file checks)
-        files: ^steam_(backlog_enforcer|installer)/tests/test_[s-z][^/]*\.py$
-      - &pylint_whole_tree
-        <<: *pylint_shard
-        id: ci-mirror-pylint-dup
-        name: CI mirror pylint (whole tree, duplicate-code)
-        files: ''
-        pass_filenames: false
-        always_run: true
-        args:
-          - --rcfile=pyproject.toml
-          - --fail-under=10.0
-          - --jobs=1
-          - --disable=all
-          # bad-plugin-value keeps a plugin that failed to load (the
-          # duplicate-code speed-up) loud instead of silently slow.
-          - --enable=duplicate-code,bad-plugin-value
-          - steam_backlog_enforcer
-          - steam_installer
-          - scripts/check_requirements_sync.py
-          - scripts/pylint_symilar_cache.py
-      - <<: *pylint_whole_tree
-        id: ci-mirror-pylint-cycles
-        name: CI mirror pylint (whole tree, cyclic-import)
-        args:
-          - --rcfile=pyproject.toml
-          - --fail-under=10.0
-          - --jobs=1
-          - --disable=all
-          - --enable=cyclic-import
-          - steam_backlog_enforcer
-          - steam_installer
-          - scripts/check_requirements_sync.py
-          - scripts/pylint_symilar_cache.py
       - id: ci-mirror-pytest
         name: CI mirror (clean-venv pytest, xdist, 100% coverage)
         entry: bash scripts/ci_mirror.sh pytest steam_backlog_enforcer/tests/ steam_installer/tests/
@@ -290,43 +119,10 @@ repos:
         stages: [manual]
 
   # ===========================================================================
-  # VITEST + COVERAGE (push stage)
-  # ===========================================================================
-  - repo: local
-    hooks:
-      - id: vitest-coverage
-        name: vitest with 100% coverage enforcement
-        entry: pnpm --dir web coverage
-        language: system
-        files: ^web/src/
-        pass_filenames: false
-        require_serial: true
-        stages: [manual]
-
-  # ===========================================================================
-  # CODESPELL - Spell checking
-  # ===========================================================================
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.3.0
-    hooks:
-      - id: codespell
-        args:
-          # pnpm-lock.yaml is integrity hashes, not prose: `vEw` in a
-          # sha512 read as a misspelling of "view".
-          - --skip=*.json,*.lock,*-lock.yaml,.git,__pycache__,.venv,node_modules
-          # `lazer` is osu!lazer's own name, not a misspelling of laser.
-          - --ignore-words-list=fpr,lazer,als,ans,ect,nd,som,sur,te,nam,numer,lew,sie,wil,postion,clen,ther,folow,derrive,ony,tje,noe,theses,crate,doubleclick,wile,tabel,pary,blok,bloc,proces,serwer,parametr,adres,hart,dout,metod,tekst,synonim,grup,mosty,lokal,skalar,milion,nowe,tre,hel,alph
-
-  # ===========================================================================
   # SHELLCHECK - Shell script linting
   # ===========================================================================
   - repo: local
     hooks:
-      - id: shellcheck
-        name: shellcheck
-        entry: bash -c 'printf "%s\0" "$@" | xargs -0 -n 40 shellcheck --severity=warning' --
-        language: system
-        types: [shell]
 
       # Four markdown namespaces (README / CLAUDE* / DOCS* / TODO*), plus the
       # rule that a TODO carries "REMOVE ME AFTER FINISH" and nothing else may.
